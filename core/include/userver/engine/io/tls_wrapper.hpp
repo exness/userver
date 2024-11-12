@@ -42,6 +42,7 @@ class [[nodiscard]] TlsWrapper final : public RwBase {
   static TlsWrapper StartTlsServer(
       Socket&& socket, const crypto::Certificate& cert,
       const crypto::PrivateKey& key, Deadline deadline,
+      const std::string& certificate_chain_path = "",
       const std::vector<crypto::Certificate>& extra_cert_authorities = {});
 
   ~TlsWrapper() override;

@@ -27,6 +27,7 @@ struct ListenerConfig {
 
   bool tls{false};
   crypto::Certificate tls_cert;
+  std::string tls_certificate_chain_path;
   std::string tls_private_key_path;
   std::string tls_private_key_passphrase_name;
   crypto::PrivateKey tls_private_key;

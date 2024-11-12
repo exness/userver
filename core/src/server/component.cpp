@@ -128,6 +128,9 @@ properties:
                     cert:
                         type: string
                         description: path to TLS certificate
+                    cert-chain-path:
+                        type: string
+                        description: path to TLS certificates chain
                     private-key:
                         type: string
                         description: path to TLS certificate private key
