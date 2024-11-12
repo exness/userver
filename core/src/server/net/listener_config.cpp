@@ -38,6 +38,7 @@ ListenerConfig Parse(const yaml_config::YamlConfig& value,
     throw std::runtime_error("Invalid backlog value in " + value.GetPath());
   }
 
+  auto cert_chain_path = value["tls"]["cert-chain"].As<std::string>({});
   auto cert_path = value["tls"]["cert"].As<std::string>({});
   auto pkey_path = value["tls"]["private-key"].As<std::string>({});
   auto pkey_pass_name =
@@ -51,6 +52,12 @@ ListenerConfig Parse(const yaml_config::YamlConfig& value,
     config.tls_cert = crypto::Certificate::LoadFromString(contents);
     config.tls = true;
   }
+
+  if (!cert_chain_path.empty()) {
+      config.tls_certificate_chain_path = cert_chain_path;
+      config.tls = true;
+  }
+
   if (!pkey_path.empty()) {
     config.tls_private_key_path = pkey_path;
   }
