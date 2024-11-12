@@ -38,7 +38,7 @@ ListenerConfig Parse(const yaml_config::YamlConfig& value,
     throw std::runtime_error("Invalid backlog value in " + value.GetPath());
   }
 
-  auto cert_chain_path = value["tls"]["cert-chain-path"].As<std::string>({});
+  auto cert_chain_path = value["tls"]["cert-chain"].As<std::string>({});
   auto cert_path = value["tls"]["cert"].As<std::string>({});
   auto pkey_path = value["tls"]["private-key"].As<std::string>({});
   auto pkey_pass_name =
