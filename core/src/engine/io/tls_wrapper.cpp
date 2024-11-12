@@ -527,6 +527,7 @@ TlsWrapper TlsWrapper::StartTlsClient(
 TlsWrapper TlsWrapper::StartTlsServer(
     Socket&& socket, const crypto::Certificate& cert,
     const crypto::PrivateKey& key, Deadline deadline,
+    const std::string& certificate_chain_path,
     const std::vector<crypto::Certificate>& extra_cert_authorities) {
   auto ssl_ctx = MakeSslCtx();
 
@@ -538,6 +539,18 @@ TlsWrapper TlsWrapper::StartTlsServer(
     LOG_INFO() << "Client SSL cert will be verified";
   } else {
     LOG_INFO() << "Client SSL cert will not be verified";
+  }
+
+  if(!certificate_chain_path.empty()) {
+      if(1 !=SSL_CTX_use_certificate_chain_file(ssl_ctx.get(), certificate_chain_path.c_str()))
+	  {
+          throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_use_certificate_chain_file"));
+      }
+  }
+  else {
+      if (1 != SSL_CTX_use_certificate(ssl_ctx.get(), cert.GetNative())) {
+          throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_use_certificate"));
+      }
   }
 
   if (1 != SSL_CTX_use_certificate(ssl_ctx.get(), cert.GetNative())) {
