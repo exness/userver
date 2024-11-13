@@ -553,11 +553,6 @@ TlsWrapper TlsWrapper::StartTlsServer(
       }
   }
 
-  if (1 != SSL_CTX_use_certificate(ssl_ctx.get(), cert.GetNative())) {
-    throw TlsException(crypto::FormatSslError(
-        "Failed to set up server TLS wrapper: SSL_CTX_use_certificate"));
-  }
-
   if (1 != SSL_CTX_use_PrivateKey(ssl_ctx.get(), key.GetNative())) {
     throw TlsException(crypto::FormatSslError(
         "Failed to set up server TLS wrapper: SSL_CTX_use_PrivateKey"));
