@@ -131,6 +131,7 @@ properties:
                     cert-chain:
                         type: string
                         description: path to TLS certificates chain
+                        defaultDescription: empty string
                     private-key:
                         type: string
                         description: path to TLS certificate private key

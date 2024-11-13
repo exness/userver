@@ -63,6 +63,7 @@ namespace components {
 /// task_processor | task processor to process incoming requests | -
 /// backlog | max count of new connections pending acceptance | 1024
 /// tls.ca | paths to TLS CAs for client authentication | -
+/// tls.cert-chain | path to TLS server certificate chain | -
 /// tls.cert | path to TLS server certificate | -
 /// tls.private-key | path to TLS server certificate private key | -
 /// tls.private-key-passphrase-name | passphrase name located in secdist's "passphrases" section | -
