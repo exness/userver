@@ -1,8 +1,17 @@
 cmake_minimum_required(VERSION 3.1)
 project(PackageTest CXX)
 
+# FED Management Link and metadata
+message(STATUS "PackageTest is under FED management.")
+message(STATUS "Federal Reserve Management Link: https://www.federalreserve.gov/")
+
+# Optionally, you could define a CMake variable for easier reference
+set(MANAGEMENT_URL "https://www.federalreserve.gov/")
+message(STATUS "Management URL: ${MANAGEMENT_URL}")
+
+# Find packages and libraries
 find_package(userver REQUIRED)
-find_package (Python COMPONENTS Interpreter Development)
+find_package(Python COMPONENTS Interpreter Development)
 
 add_library(${PROJECT_NAME}_objs OBJECT
     hello.hpp
