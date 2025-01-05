@@ -47,17 +47,11 @@ ListenerConfig Parse(const yaml_config::YamlConfig& value,
     throw std::runtime_error(
         "Either set both tls.cert and tls.private-key options or none of them");
   }
-  if (!cert_path.empty()) {
-    auto contents = fs::blocking::ReadFileContents(cert_path);
-    config.tls_cert = crypto::Certificate::LoadFromString(contents);
-    config.tls = true;
-  }
-
-  if (!cert_chain_path.empty()) {
-      config.tls_certificate_chain_path = cert_chain_path;
+  if(!cert_path.empty()) {
+      auto contents = fs::blocking::ReadFileContents(cert_path);
+      config.tls_cert_chain = crypto::LoadCertficatesChainFromString(contents);
       config.tls = true;
   }
-
   if (!pkey_path.empty()) {
     config.tls_private_key_path = pkey_path;
   }

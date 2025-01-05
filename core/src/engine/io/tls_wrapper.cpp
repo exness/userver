@@ -3,6 +3,7 @@
 #include <boost/stacktrace/stacktrace.hpp>
 #include <exception>
 #include <memory>
+#include <ranges>
 
 #include <fmt/format.h>
 #include <openssl/bio.h>
@@ -525,9 +526,8 @@ TlsWrapper TlsWrapper::StartTlsClient(
 }
 
 TlsWrapper TlsWrapper::StartTlsServer(
-    Socket&& socket, const crypto::Certificate& cert,
+    Socket&& socket, const crypto::CertificatesChain& cert_chain,
     const crypto::PrivateKey& key, Deadline deadline,
-    const std::string& certificate_chain_path,
     const std::vector<crypto::Certificate>& extra_cert_authorities) {
   auto ssl_ctx = MakeSslCtx();
 
@@ -541,15 +541,17 @@ TlsWrapper TlsWrapper::StartTlsServer(
     LOG_INFO() << "Client SSL cert will not be verified";
   }
 
-  if(!certificate_chain_path.empty()) {
-      if(1 !=SSL_CTX_use_certificate_chain_file(ssl_ctx.get(), certificate_chain_path.c_str()))
-	  {
-          throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_use_certificate_chain_file"));
-      }
+  UASSERT_MSG(!cert_chain.empty(), "No certificate chain provided");
+
+  if (1 != SSL_CTX_use_certificate(ssl_ctx.get(), cert_chain.begin()->GetNative())) {
+      throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_use_certificate"));
   }
-  else {
-      if (1 != SSL_CTX_use_certificate(ssl_ctx.get(), cert.GetNative())) {
-          throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_use_certificate"));
+
+  if(cert_chain.size() > 1) {
+      for(const auto& cert : cert_chain | std::ranges::views::drop(1)) {
+          if (SSL_CTX_add_extra_chain_cert(ssl_ctx.get(), cert.GetNative()) <= 0) {
+              throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_add_extra_chain_cert"));
+          }
       }
   }
 

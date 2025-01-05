@@ -61,6 +61,29 @@ Certificate Certificate::LoadFromString(std::string_view certificate) {
   return Certificate{std::move(cert)};
 }
 
+CertificatesChain LoadCertficatesChainFromString(std::string_view chain)
+{
+    CertificatesChain certificates;
+    const std::string beginMarker = "-----BEGIN CERTIFICATE-----";
+    const std::string endMarker = "-----END CERTIFICATE-----";
+
+    size_t start = 0;
+    while ((start = chain.find(beginMarker, start)) != std::string::npos) {
+        size_t end = chain.find(endMarker, start);
+        if (end == std::string::npos) {
+            break; // No matching end marker found
+        }
+        end += endMarker.length();
+        certificates.push_back(Certificate::LoadFromString(chain.substr(start, end - start)));
+        start = end; // Move past the current certificate
+    }
+    if(certificates.empty()) {
+        throw KeyParseError(FormatSslError("There is no certificates in chain"));
+    }
+
+    return certificates;
+}
+
 }  // namespace crypto
 
 USERVER_NAMESPACE_END

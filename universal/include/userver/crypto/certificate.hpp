@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <list>
 
 #include <userver/crypto/basic_types.hpp>
 
@@ -44,6 +45,15 @@ class Certificate {
 
   std::shared_ptr<NativeType> cert_;
 };
+
+using CertificatesChain = std::list<Certificate>;
+
+/// Accepts a string that contains a chain of certificates (primary and intermediate), checks that
+/// it's correct, loads it into OpenSSL structures and returns as a
+/// list of 'Certificate's.
+///
+/// @throw crypto::KeyParseError if failed to load the certificate.
+CertificatesChain LoadCertficatesChainFromString(std::string_view certificatesChain);
 
 }  // namespace crypto
 

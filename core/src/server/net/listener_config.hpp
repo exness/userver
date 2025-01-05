@@ -26,8 +26,7 @@ struct ListenerConfig {
   std::string task_processor;
 
   bool tls{false};
-  crypto::Certificate tls_cert;
-  std::string tls_certificate_chain_path;
+  crypto::CertificatesChain tls_cert_chain;
   std::string tls_private_key_path;
   std::string tls_private_key_passphrase_name;
   crypto::PrivateKey tls_private_key;

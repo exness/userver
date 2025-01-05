@@ -40,9 +40,8 @@ class [[nodiscard]] TlsWrapper final : public RwBase {
 
   /// Starts a TLS server on an opened socket
   static TlsWrapper StartTlsServer(
-      Socket&& socket, const crypto::Certificate& cert,
+      Socket&& socket, const crypto::CertificatesChain& cert_chain,
       const crypto::PrivateKey& key, Deadline deadline,
-      const std::string& certificate_chain_path = "",
       const std::vector<crypto::Certificate>& extra_cert_authorities = {});
 
   ~TlsWrapper() override;

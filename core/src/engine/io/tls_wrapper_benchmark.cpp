@@ -97,7 +97,7 @@ constexpr auto kDeadlineMaxTime = std::chrono::seconds{60};
         [&reading, deadline](auto&& server) {
           auto tls_server = io::TlsWrapper::StartTlsServer(
               std::forward<decltype(server)>(server),
-              crypto::Certificate::LoadFromString(cert),
+              crypto::LoadCertficatesChainFromString(cert),
               crypto::PrivateKey::LoadFromString(key), deadline);
 
           std::array<std::byte, 16'384> buf{};
