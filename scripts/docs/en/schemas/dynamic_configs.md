@@ -139,19 +139,19 @@ schema:
             description: Percent of errors to enable СС
             type: number
         deactivate-delta:
-            description: СС turned off if this amount of free conections is reached 
+            description: СС turned off if this amount of free connections is reached 
             type: integer
         timings-burst-times-threshold:
             description: CC is turned on if request times grow to this value
             type: number
         min-timings-ms:
-            description: minimal value of timeings after wich the CC heuristics turn on
+            description: minimal value of timeings after which the CC heuristics turn on
             type: integer
         min-limit:
-            description: minimal value of connections after wich the CC heuristics turn on
+            description: minimal value of connections after which the CC heuristics turn on
             type: integer
         min-qps:
-            description: minimal value of queries per second after wich the CC heuristics turn on
+            description: minimal value of queries per second after which the CC heuristics turn on
             type: integer
 ```
 
@@ -467,6 +467,11 @@ properties:
       minimum: 0
       description: maximum allowed replication lag. If equals 0 no replication 
       lag checks are performed
+    disabled_replicas:
+      type: array
+      description: List of manually disabled replicas (FQDNs).
+      items:
+        type: string
 required:
   - max_replication_lag_ms
 ```
@@ -475,7 +480,8 @@ required:
 ```json
 {
   "__default__": {
-    "max_replication_lag_ms": 60000
+    "max_replication_lag_ms": 60000,
+    "disabled_replicas": ["replica-01.example.com", "replica-02.example.com"]
   }
 }
 ```
@@ -1205,6 +1211,8 @@ schema:
                 type: string
 ```
 
+@warning Use @ref USERVER_NO_LOG_SPANS to disable Span logs.
+
 Used by components::LoggingConfigurator.
 
 
@@ -1231,6 +1239,8 @@ Used by components::Server.
 
 Controls whether the logging of HTTP headers in handlers is performed.
 
+@note To ensure safety, all header values will be output as `***` unless specified in @ref USERVER_LOG_REQUEST_HEADERS_WHITELIST.
+
 ```
 yaml
 schema:
@@ -1243,6 +1253,26 @@ false
 ```
 
 Used by components::Server.
+
+@anchor USERVER_LOG_REQUEST_HEADERS_WHITELIST
+## USERVER_LOG_REQUEST_HEADERS_WHITELIST
+
+If the @ref USERVER_LOG_REQUEST_HEADERS option is enabled, you can control which HTTP headers are logged, including their values. Header is suitable if it exactly matches one of the values in the whitelist. Any headers that are not on the whitelist will have their values replaced with *** in the logs.
+
+```
+yaml
+schema:
+    type: array
+    items:
+        type: string
+```
+
+**Example:**
+```
+["User-Agent", "Accept-Encoding"]
+```
+
+Used by server::handlers::HttpHandlerBase.
 
 @anchor USERVER_LRU_CACHES
 ## USERVER_LRU_CACHES
@@ -1322,6 +1352,8 @@ schema:
   ]
 }
 ```
+
+To disable specific log lines not related to spans use @ref USERVER_LOG_DYNAMIC_DEBUG.
 
 Used by components::LoggingConfigurator and all the logging facilities.
 

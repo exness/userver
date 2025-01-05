@@ -80,6 +80,13 @@ Static configuration of service is quite close to the configuration from @ref sc
 
 @snippet samples/redis_service/static_config.yaml Redis service sample - static config
 
+components::Redis takes database connection information from components::DefaultSecdistProvider, so it should be
+also configured:
+
+@snippet samples/redis_service/static_config.yaml Sample secdist static config
+
+The actual content of `secure_data.json` or `SECDIST_CONFIG` is described at components::Redis.
+
 
 ### int main()
 
@@ -144,15 +151,22 @@ Content-Length: 1
 ```
 
 
+### Unit tests
+@ref scripts/docs/en/userver/testing.md "Unit tests" for the service could be
+implemented with one of UTEST macros in the following way:
+
+@snippet samples/redis_service/unittests/redis_test.cpp  Unit test
+
+
 ### Functional testing
 @ref scripts/docs/en/userver/functional_testing.md "Functional tests" for the service could be
 implemented using the testsuite. To do that you have to:
 
 * Prepare the pytest by importing the pytest_userver.plugins.redis plugin:
-  @snippet samples/redis_service/tests/conftest.py redis setup
+  @snippet samples/redis_service/testsuite/conftest.py redis setup
 
 * Add the Redis Secdist settings info to the service environment variable:
-  @snippet samples/redis_service/tests/conftest.py service_env
+  @snippet samples/redis_service/testsuite/conftest.py service_env
   The @ref pytest_userver.plugins.service_client.auto_client_deps "auto_client_deps"
   fixture already knows about the redis_store fixture, so there's no need to override
   the @ref pytest_userver.plugins.service_client.extra_client_deps "extra_client_deps"
@@ -161,7 +175,7 @@ implemented using the testsuite. To do that you have to:
   For details on Redis Secdist format, see @ref components::Redis.
 
 * Write the test:
-  @snippet samples/redis_service/tests/test_redis.py  Functional test
+  @snippet samples/redis_service/testsuite/test_redis.py  Functional test
 
 
 ## Full sources
@@ -170,13 +184,18 @@ See the full example:
 * @ref samples/redis_service/redis_service.cpp
 * @ref samples/redis_service/static_config.yaml
 * @ref samples/redis_service/CMakeLists.txt
+* @ref samples/redis_service/testsuite/conftest.pysamples/redis_service/CMakeLists.txt
+* @ref samples/redis_service/testsuite/conftest.py
+* @ref samples/redis_service/testsuite/test_redis.py
 
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/tutorial/mongo_service.md | @ref scripts/docs/en/userver/tutorial/auth_postgres.md ⇨
+⇦ @ref scripts/docs/en/userver/tutorial/mongo_service.md | @ref scripts/docs/en/userver/tutorial/kafka_service.md ⇨
 @htmlonly </div> @endhtmlonly
 
 @example samples/redis_service/redis_service.cpp
 @example samples/redis_service/static_config.yaml
 @example samples/redis_service/CMakeLists.txt
+@example samples/redis_service/testsuite/conftest.py
+@example samples/redis_service/testsuite/test_redis.py

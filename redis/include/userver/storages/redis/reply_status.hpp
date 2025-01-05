@@ -2,19 +2,25 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace redis {
+namespace storages::redis {
 
 /// Redis reply status
 enum class ReplyStatus {
-  kOk = 0,
-  kInputOutputError,
-  kOtherError,
-  kEndOfFileError,
-  kProtocolError,
-  kOutOfMemoryError,
-  kTimeoutError,
+    kOk = 0,
+    kInputOutputError,
+    kOtherError,
+    kEndOfFileError,
+    kProtocolError,
+    kOutOfMemoryError,
+    kTimeoutError,
 };
 
-}  // namespace redis
+}  // namespace storages::redis
+
+#ifdef USERVER_FEATURE_LEGACY_REDIS_NAMESPACE
+namespace redis {
+using storages::redis::ReplyStatus;
+}
+#endif
 
 USERVER_NAMESPACE_END

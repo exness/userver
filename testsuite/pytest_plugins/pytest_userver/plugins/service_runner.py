@@ -40,8 +40,7 @@ class UserviceRunner:
         tests_root = min(paths, key=lambda p: len(p.parts))
 
         module = ServiceRunnerModule.from_parent(
-            parent=session,
-            path=(pathlib.Path(tests_root) / '__service__').resolve(),
+            parent=session, path=pathlib.Path(tests_root).resolve(),
         )
         function = pytest.Function.from_parent(
             parent=module,
@@ -54,7 +53,7 @@ class UserviceRunner:
 
 @pytest.mark.servicetest
 def test_service_default(
-        service_client, service_baseurl, monitor_baseurl,
+    service_client, service_baseurl, monitor_baseurl,
 ) -> None:
     """
     This is default service runner testcase. Feel free to override it

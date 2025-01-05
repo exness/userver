@@ -132,10 +132,10 @@ def pytest_addoption(parser):
 
 
 def _create_servicer_mock(
-        servicer_class: type,
-        *,
-        stream_method_names: Optional[List[str]] = None,
-        before_call_hook: Optional[Callable[..., None]] = None,
+    servicer_class: type,
+    *,
+    stream_method_names: Optional[List[str]] = None,
+    before_call_hook: Optional[Callable[..., None]] = None,
 ) -> GrpcServiceMock:
     def wrap_grpc_method(name, default_method, is_stream):
         @functools.wraps(default_method)
@@ -145,11 +145,9 @@ def _create_servicer_mock(
 
             method = mock.get(name, None)
             if method is not None:
-                call = method(*args, **kwargs)
+                return await method(*args, **kwargs)
             else:
-                call = default_method(self, *args, **kwargs)
-
-            return await call
+                return default_method(self, *args, **kwargs)
 
         @functools.wraps(default_method)
         async def run_stream_method(self, *args, **kwargs):

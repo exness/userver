@@ -7,7 +7,8 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from chaotic.back.cpp import keywords as cpp_keywords
+from chaotic import cpp_keywords
+from chaotic.back.cpp import type_name
 from chaotic.front import types
 
 USERVER_COLONCOLON = 'userver::'
@@ -15,7 +16,7 @@ USERVER_COLONCOLON = 'userver::'
 
 @dataclasses.dataclass
 class CppType:
-    raw_cpp_type: str
+    raw_cpp_type: type_name.TypeName
     json_schema: Optional[types.Schema]
     nullable: bool  # TODO: maybe move into  field?
     user_cpp_type: Optional[str]
@@ -28,10 +29,11 @@ class CppType:
         return id(self)
 
     def is_isomorphic(self, other: 'CppType') -> bool:
+        assert self.json_schema is not None
         left = dataclasses.asdict(self.json_schema)
         left.pop('description', None)
         left['x_properties'].pop('description', None)
-
+        assert other.json_schema is not None
         right = dataclasses.asdict(other.json_schema)
         right.pop('description', None)
         right['x_properties'].pop('description', None)
@@ -64,7 +66,6 @@ class CppType:
     def get_py_type(self) -> str:
         return self.__class__.__name__
 
-    # TODO: names of cpp_*()
     def _cpp_name(self) -> str:
         """
         C++ type for declarations. May contain '@':
@@ -72,21 +73,8 @@ class CppType:
             namespace::Struct@Field
             ^^^^^^^^^^^^^^^^^^^^^^^
         """
-        return self.raw_cpp_type
+        return self.raw_cpp_type.in_global_scope()
 
-    def cpp_name_wo_namespace(self) -> str:
-        """
-        C++ type in the declaration namespace:
-
-            namespace::Struct::Field
-                       ^^^^^^^^^^^^^
-        E.g. for parser declaration:
-
-            Struct::Field Parse(...);
-        """
-        return self._cpp_name().split('::')[-1].replace('@', '::')
-
-    # TODO: replace with cpp_global_name() and namespace prefix elimination
     def cpp_local_name(self) -> str:
         """
         C++ type in the parent struct:
@@ -97,7 +85,7 @@ class CppType:
 
             class SubStruct { ... };
         """
-        return self._cpp_name().split('@')[-1].split('::')[-1]
+        return self.raw_cpp_type.in_local_scope()
 
     def cpp_global_name(self) -> str:
         """
@@ -106,7 +94,7 @@ class CppType:
             namespace::Struct::SubStruct
             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         """
-        return self._cpp_name().replace('@', '::')
+        return self._cpp_name()
 
     def cpp_user_name(self) -> str:
         """
@@ -165,7 +153,7 @@ class CppType:
     def _primitive_parser_type(self) -> str:
         raw_cpp_type = (
             'USERVER_NAMESPACE::chaotic::Primitive'
-            f'<{self.raw_cpp_type.replace("@", "::")}>'
+            f'<{self.raw_cpp_type.in_global_scope()}>'
         )
         if self.user_cpp_type:
             user_cpp_type = self.cpp_user_name()
@@ -346,7 +334,7 @@ class CppPrimitiveType(CppType):
             )
 
         parser_type = (
-            f'USERVER_NAMESPACE::chaotic::Primitive<{self.raw_cpp_type}'
+            f'USERVER_NAMESPACE::chaotic::Primitive<{self.raw_cpp_type.in_global_scope()}'
             f'{validators}>'
         )
         if self.user_cpp_type:
@@ -417,9 +405,7 @@ class CppStringWithFormat(CppType):
                 'USERVER_NAMESPACE::'
                 + format_cpp_type[len(USERVER_COLONCOLON) :]
             )
-        parser_type = (
-            f'USERVER_NAMESPACE::chaotic::Primitive<{self.raw_cpp_type}>'
-        )
+        parser_type = f'USERVER_NAMESPACE::chaotic::Primitive<{self.raw_cpp_type.in_global_scope()}>'
         parser_type = (
             f'USERVER_NAMESPACE::chaotic::WithType<{parser_type}, '
             f'{format_cpp_type}>'
@@ -443,6 +429,7 @@ class CppRef(CppType):
     orig_cpp_type: CppType
     indirect: bool
     self_ref: bool
+    cpp_name: Optional[str] = None
 
     KNOWN_X_PROPERTIES = ['x-usrv-cpp-indirect', 'x-taxi-cpp-indirect']
 
@@ -468,7 +455,14 @@ class CppRef(CppType):
                 f'Box<{self.orig_cpp_type.cpp_user_name()}>'
             )
         else:
-            return self.orig_cpp_type.cpp_user_name()
+            if not self.cpp_name or (
+                self.orig_cpp_type.cpp_user_name()
+                != self.orig_cpp_type.cpp_global_name()
+            ):
+                # x-usrv-cpp-type
+                return self.orig_cpp_type.cpp_user_name()
+            else:
+                return self.cpp_name
 
     def declaration_includes(self) -> List[str]:
         if self.indirect:
@@ -499,22 +493,6 @@ class CppRef(CppType):
 
     def need_operator_lshift(self) -> bool:
         return False
-
-
-def camel_case(string: str, no_lower_casing: bool = False) -> str:
-    result = ''
-    set_upper = True
-    for char in string:
-        if char in {'_', '-', '.'}:
-            set_upper = True
-        else:
-            if set_upper:
-                char = char.upper()
-            elif not no_lower_casing:
-                char = char.lower()
-            result += char
-            set_upper = False
-    return result
 
 
 class EnumItemName(str):
@@ -706,9 +684,9 @@ class CppStruct(CppType):
             return False
         default = self.fields.get('__default__')
         if (
-                default
-                and isinstance(self.extra_type, CppType)
-                and default.schema.is_isomorphic(self.extra_type)
+            default
+            and isinstance(self.extra_type, CppType)
+            and default.schema.is_isomorphic(self.extra_type)
         ):
             return True
         return False
@@ -745,8 +723,8 @@ class CppStruct(CppType):
     def subtypes(self) -> List[CppType]:
         types = [field.schema for field in self.fields.values()]
         if (
-                isinstance(self.extra_type, CppType)
-                and not self._is_default_dict()
+            isinstance(self.extra_type, CppType)
+            and not self._is_default_dict()
         ):
             types.append(self.extra_type)
         return types
@@ -768,15 +746,12 @@ class CppStruct(CppType):
 
         if self.extra_type:
             includes.append('string')
-
-            # for ExtractAdditionalProperties()
-            includes.append('userver/chaotic/object.hpp')
             if isinstance(self.extra_type, CppType):
                 extra_container = self.extra_container()
                 includes += self.get_include_by_cpp_type(extra_container)
                 includes.extend(self.extra_type.declaration_includes())
-        elif self.strict_parsing:
-            includes.append('userver/chaotic/object.hpp')
+            else:
+                includes.append('userver/formats/json/value.hpp')
 
         if self._is_default_dict():
             includes.append('userver/utils/default_dict.hpp')
@@ -789,6 +764,10 @@ class CppStruct(CppType):
             'userver/chaotic/primitive.hpp',
             'userver/chaotic/with_type.hpp',
         ]
+        if self.extra_type or self.strict_parsing:
+            # for ExtractAdditionalProperties/ValidateNoAdditionalProperties
+            includes.append('userver/chaotic/object.hpp')
+
         if self.extra_type:
             # for kPropertiesNames
             includes.append('userver/utils/trivial_map.hpp')
@@ -913,9 +892,9 @@ class CppStructAllOf(CppType):
         includes = []
         if self.user_cpp_type:
             includes += self.get_include_by_cpp_type(self.user_cpp_type)
-        includes += flatten(
-            [item.declaration_includes() for item in self.parents],
-        )
+        includes += flatten([
+            item.declaration_includes() for item in self.parents
+        ])
         return includes
 
     def definition_includes(self) -> List[str]:
@@ -1000,14 +979,14 @@ class CppVariantWithDiscriminator(CppType):
         includes = ['variant', 'userver/chaotic/oneof_with_discriminator.hpp']
         if self.user_cpp_type:
             includes += self.get_include_by_cpp_type(self.user_cpp_type)
-        return includes + flatten(
-            [item.declaration_includes() for item in self.variants.values()],
-        )
+        return includes + flatten([
+            item.declaration_includes() for item in self.variants.values()
+        ])
 
     def definition_includes(self) -> List[str]:
-        return ['userver/formats/json/serialize_variant.hpp'] + flatten(
-            [item.definition_includes() for item in self.variants.values()],
-        )
+        return ['userver/formats/json/serialize_variant.hpp'] + flatten([
+            item.definition_includes() for item in self.variants.values()
+        ])
 
     def parser_type(self, ns: str, name: str) -> str:
         variants_list = []
@@ -1016,12 +995,10 @@ class CppVariantWithDiscriminator(CppType):
         variants = ', '.join(variants_list)
 
         settings_name = (
-            self.raw_cpp_type.rsplit('::', 1)[0]
-            + '::impl::'
-            + 'k'
-            + self.cpp_global_struct_field_name()
-            + '_Settings'
-        )
+            self.raw_cpp_type.parent().joinns(
+                'k' + self.cpp_local_name() + '_Settings',
+            )
+        ).in_global_scope()
 
         parser_type = (
             'USERVER_NAMESPACE::chaotic::OneOfWithDiscriminator'

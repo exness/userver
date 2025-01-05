@@ -44,7 +44,7 @@ file(GLOB_RECURSE INTERNAL_SOURCES
 
 list (REMOVE_ITEM SOURCES ${INTERNAL_SOURCES})
 
-find_package(Boost REQUIRED COMPONENTS
+find_package(Boost REQUIRED CONFIG COMPONENTS
     program_options
     filesystem
     locale
@@ -57,13 +57,13 @@ find_package(Iconv REQUIRED)
 find_package_required(OpenSSL "libssl-dev")
 
 if (USERVER_CONAN)
-    find_package(c-ares REQUIRED)
-    find_package(CURL REQUIRED)
-    find_package(cryptopp REQUIRED)
-    find_package(libnghttp2 REQUIRED)
-    find_package(libev REQUIRED)
+    find_package(c-ares REQUIRED CONFIG)
+    find_package(CURL REQUIRED CONFIG)
+    find_package(cryptopp REQUIRED CONFIG)
+    find_package(libnghttp2 REQUIRED CONFIG)
+    find_package(libev REQUIRED CONFIG)
 
-    find_package(concurrentqueue REQUIRED)
+    find_package(concurrentqueue REQUIRED CONFIG)
 else()
     include(SetupCAres)
     include(SetupCURL)
@@ -148,7 +148,7 @@ if (USERVER_FEATURE_UBOOST_CORO)
         ${CMAKE_CURRENT_SOURCE_DIR}/uboost_coro/include
     )
 else()
-    find_package(Boost REQUIRED COMPONENTS
+    find_package(Boost REQUIRED CONFIG COMPONENTS
         context
         coroutine
     )
@@ -185,8 +185,8 @@ else()
          $<BUILD_INTERFACE:${USERVER_THIRD_PARTY_DIRS}/moodycamel/include>
     )
     _userver_directory_install(COMPONENT core
-        DIRECTORY ${USERVER_THIRD_PARTY_DIRS}/moodycamel/include
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/..
+        DIRECTORY ${USERVER_THIRD_PARTY_DIRS}/moodycamel/include/moodycamel
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/userver/third_party
     )
 endif()
 
@@ -201,8 +201,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 _userver_directory_install(COMPONENT core
   DIRECTORY
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${USERVER_THIRD_PARTY_DIRS}/pfr/include
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/..
+)
+_userver_directory_install(COMPONENT core
+  DIRECTORY
+    ${USERVER_THIRD_PARTY_DIRS}/pfr/include/boost
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/userver/third_party
 )
 
 target_include_directories(${PROJECT_NAME} SYSTEM BEFORE PUBLIC
@@ -225,7 +229,7 @@ target_include_directories(${PROJECT_NAME}
 # Must go below all the target options and definitions.
 _check_compile_flags(${PROJECT_NAME})
 
-if (USERVER_IS_THE_ROOT_PROJECT OR USERVER_FEATURE_UTEST)
+if (USERVER_FEATURE_UTEST)
   add_library(userver-core-internal OBJECT ${INTERNAL_SOURCES})
   target_compile_definitions(userver-core-internal PUBLIC $<TARGET_PROPERTY:${PROJECT_NAME},COMPILE_DEFINITIONS>)
   target_include_directories(userver-core-internal PUBLIC
@@ -246,11 +250,11 @@ if (USERVER_IS_THE_ROOT_PROJECT OR USERVER_FEATURE_UTEST)
   _userver_install_targets(COMPONENT core TARGETS userver-core-internal)
 endif()
 
-if (USERVER_FEATURE_UTEST OR USERVER_IS_THE_ROOT_PROJECT)
+if (USERVER_FEATURE_UTEST)
   add_subdirectory(utest)
 endif()
 
-if (USERVER_IS_THE_ROOT_PROJECT)
+if (USERVER_BUILD_TESTS)
     add_executable(${PROJECT_NAME}-unittest ${UNIT_TEST_SOURCES})
     target_include_directories (${PROJECT_NAME}-unittest PRIVATE
         $<TARGET_PROPERTY:${PROJECT_NAME},INCLUDE_DIRECTORIES>
@@ -264,7 +268,7 @@ if (USERVER_IS_THE_ROOT_PROJECT)
     add_subdirectory(functional_tests)
 endif()
 
-if (USERVER_FEATURE_UTEST OR USERVER_IS_THE_ROOT_PROJECT)
+if (USERVER_FEATURE_UTEST)
     add_library(userver-ubench ${LIBUBENCH_SOURCES})
     target_include_directories(userver-ubench PUBLIC $<TARGET_PROPERTY:${PROJECT_NAME},INCLUDE_DIRECTORIES>)
     target_compile_definitions(userver-ubench PUBLIC $<TARGET_PROPERTY:${PROJECT_NAME},COMPILE_DEFINITIONS>)
@@ -278,7 +282,7 @@ if (USERVER_FEATURE_UTEST OR USERVER_IS_THE_ROOT_PROJECT)
     _userver_install_targets(COMPONENT core TARGETS userver-ubench userver-universal-internal-ubench)
 endif()
 
-if (USERVER_IS_THE_ROOT_PROJECT)
+if (USERVER_BUILD_TESTS)
     add_executable(${PROJECT_NAME}-benchmark ${BENCH_SOURCES})
 
     target_link_libraries(${PROJECT_NAME}-benchmark
@@ -294,10 +298,13 @@ _userver_install_targets(COMPONENT core TARGETS ${PROJECT_NAME})
 _userver_directory_install(COMPONENT core FILES
     "${USERVER_ROOT_DIR}/cmake/UserverTestsuite.cmake"
     "${USERVER_ROOT_DIR}/cmake/install/userver-core-config.cmake"
-    "${CMAKE_BINARY_DIR}/cmake_generated/Findc-ares.cmake"
-    "${CMAKE_BINARY_DIR}/cmake_generated/FindNghttp2.cmake"
-    "${CMAKE_BINARY_DIR}/cmake_generated/FindLibEv.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver
+)
+_userver_directory_install(COMPONENT core FILES
+    "${USERVER_ROOT_DIR}/cmake/modules/Findc-ares.cmake"
+    "${USERVER_ROOT_DIR}/cmake/modules/FindNghttp2.cmake"
+    "${USERVER_ROOT_DIR}/cmake/modules/FindLibEv.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/modules
 )
 
 file(GLOB_RECURSE TESTSUITE_INSTALL_FILES

@@ -162,6 +162,18 @@ function(userver_venv_setup)
         PREPEND "--requirement="
         OUTPUT_VARIABLE pip_requirements
     )
+
+    # psycopg2 implicitly requires 'wheel' to be already installed
+    execute_process(
+        COMMAND
+        "${venv_bin_dir}/python3" -m pip install
+        -U wheel
+        RESULT_VARIABLE status
+    )
+    if(status)
+        message(FATAL_ERROR "Failed to install venv requirements")
+    endif()
+
     execute_process(
         COMMAND
         "${venv_bin_dir}/python3" -m pip install
@@ -182,3 +194,11 @@ function(userver_venv_setup)
   endif()
 endfunction()
 
+function(_userver_initialize_codegen_flag)
+  set(CODEGEN)
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.31")
+    cmake_policy(SET CMP0171 NEW)
+    list(APPEND CODEGEN "CODEGEN")
+  endif()
+  set(CODEGEN ${CODEGEN} PARENT_SCOPE)
+endfunction()

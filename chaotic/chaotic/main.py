@@ -1,7 +1,9 @@
 import argparse
 import dataclasses
 import os
+import pathlib
 import re
+import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -47,15 +49,6 @@ def parse_args() -> argparse.Namespace:
         required=True,
         action='append',
         help='in-file path (e.g. /schemas/Type) to C++ type mapping',
-    )
-
-    parser.add_argument(
-        '-f',
-        '--file-map',
-        type=NameMapItem,
-        required=True,
-        action='append',
-        help='full filepath to virtual filepath mapping',
     )
 
     parser.add_argument(
@@ -119,7 +112,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def generate_cpp_name_func(
-        name_map: List[NameMapItem], erase_prefix: str,
+    name_map: List[NameMapItem], erase_prefix: str,
 ) -> Callable:
     def cpp_name_func(schema_name: str) -> str:
         for item in name_map:
@@ -171,7 +164,7 @@ def traverse_dfs(path: str, data: Any):
 
 
 def extract_schemas_to_scan(
-        inp: dict, name_map: List[NameMapItem],
+    inp: dict, name_map: List[NameMapItem],
 ) -> Dict[str, Any]:
     schemas = []
 
@@ -194,11 +187,11 @@ def extract_schemas_to_scan(
 
 
 def read_schemas(
-        erase_path_prefix: str,
-        filepaths: List[str],
-        name_map,
-        file_map,
-        dependencies: List[types.ResolvedSchemas] = [],
+    erase_path_prefix: str,
+    filepaths: List[str],
+    name_map,
+    file_map,
+    dependencies: List[types.ResolvedSchemas] = [],
 ) -> types.ResolvedSchemas:
     config = front_parser.ParserConfig(erase_prefix=erase_path_prefix)
     rr = ref_resolver.RefResolver()
@@ -215,7 +208,7 @@ def read_schemas(
             config=config, full_filepath=fname, full_vfilepath=vfilepath,
         )
         for path, obj in rr.sort_json_types(
-                scan_objects, erase_path_prefix,
+            scan_objects, erase_path_prefix,
         ).items():
             parser.parse_schema(path.rstrip('/'), obj)
         schemas.append(parser.parsed_schemas())
@@ -232,8 +225,8 @@ def read_schemas(
 def write_file(filepath: str, content: str) -> None:
     if os.path.exists(filepath):
         with open(filepath, 'r', encoding='utf8') as ifile:
-            old_conent = ifile.read()
-            if old_conent == content:
+            old_content = ifile.read()
+            if old_content == content:
                 return
 
     with open(filepath, 'w') as ofile:
@@ -244,7 +237,10 @@ def main() -> None:
     args = parse_args()
 
     schemas = read_schemas(
-        args.erase_path_prefix, args.file, args.name_map, args.file_map,
+        args.erase_path_prefix,
+        args.file,
+        args.name_map,
+        [NameMapItem('(.*)={0}')],
     )
     cpp_name_func = generate_cpp_name_func(
         args.name_map, args.erase_path_prefix,
@@ -262,7 +258,7 @@ def main() -> None:
     outputs = renderer.OneToOneFileRenderer(
         relative_to=args.relative_to,
         vfilepath_to_relfilepath={
-            file: file.split('.')[0] for file in args.file
+            file: str(pathlib.Path(file).with_suffix('')) for file in args.file
         },
         clang_format_bin=args.clang_format,
         parse_extra_formats=args.parse_extra_formats,
@@ -284,6 +280,10 @@ def main() -> None:
                 os.path.join(args.output_dir, filename_rel + file.ext),
                 file.content,
             )
+    print(
+        f'Handled {len(types)} schema types in {len(outputs)} file groups.',
+        file=sys.stderr,
+    )
 
 
 if __name__ == '__main__':

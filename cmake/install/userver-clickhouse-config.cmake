@@ -8,7 +8,10 @@ find_package(userver REQUIRED COMPONENTS
     core
 )
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/..")
-include("${USERVER_CMAKE_DIR}/Findclickhouse-cpp.cmake")
+if (USERVER_CONAN)
+  find_package(clickhouse-cpp REQUIRED CONFIG)
+else()
+  include("${USERVER_CMAKE_DIR}/modules/Findclickhouse-cpp.cmake")
+endif()
 
 set(userver_clickhouse_FOUND TRUE)

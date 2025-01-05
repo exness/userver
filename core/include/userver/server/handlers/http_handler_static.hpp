@@ -19,7 +19,7 @@ namespace server::handlers {
 /// @brief Handler that returns HTTP 200 if file exist
 /// and returns file data with mapped content/type
 ///
-/// ## Dynamic config
+/// ## HttpHandlerStatic Dynamic config
 /// * @ref USERVER_FILES_CONTENT_TYPE_MAP
 ///
 /// \ref userver_http_handlers "Userver HTTP Handlers".
@@ -39,24 +39,22 @@ namespace server::handlers {
 // clang-format on
 
 class HttpHandlerStatic final : public HttpHandlerBase {
- public:
-  /// @ingroup userver_component_names
-  /// @brief The default name of server::handlers::HttpHandlerStatic
-  static constexpr std::string_view kName = "handler-static";
+public:
+    /// @ingroup userver_component_names
+    /// @brief The default name of server::handlers::HttpHandlerStatic
+    static constexpr std::string_view kName = "handler-static";
 
-  using HttpHandlerBase::HttpHandlerBase;
+    using HttpHandlerBase::HttpHandlerBase;
 
-  HttpHandlerStatic(const components::ComponentConfig& config,
-                    const components::ComponentContext& context);
+    HttpHandlerStatic(const components::ComponentConfig& config, const components::ComponentContext& context);
 
-  std::string HandleRequestThrow(const http::HttpRequest& request,
-                                 request::RequestContext&) const override;
+    std::string HandleRequestThrow(const http::HttpRequest& request, request::RequestContext&) const override;
 
-  static yaml_config::Schema GetStaticConfigSchema();
+    static yaml_config::Schema GetStaticConfigSchema();
 
- private:
-  dynamic_config::Source config_;
-  const fs::FsCacheClient& storage_;
+private:
+    dynamic_config::Source config_;
+    const fs::FsCacheClient& storage_;
 };
 
 }  // namespace server::handlers

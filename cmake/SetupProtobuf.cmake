@@ -1,4 +1,9 @@
 option(USERVER_DOWNLOAD_PACKAGE_PROTOBUF "Download and setup Protobuf" ${USERVER_DOWNLOAD_PACKAGE_GRPC})
+option(
+    USERVER_FORCE_DOWNLOAD_PROTOBUF
+    "Download Protobuf even if there is an installed system package"
+    ${USERVER_FORCE_DOWNLOAD_PACKAGES}
+)
 
 function(_userver_set_protobuf_version_category)
   if(Protobuf_VERSION VERSION_GREATER_EQUAL 5.26.0 AND
@@ -22,11 +27,13 @@ endfunction()
 if(USERVER_CONAN)
   find_package(Protobuf REQUIRED)
   _userver_set_protobuf_version_category()
+  set(PROTOBUF_PROTOC "${Protobuf_PROTOC_EXECUTABLE}")
   return()
 endif()
 
-if(NOT USERVER_FORCE_DOWNLOAD_PACKAGES)
+if(NOT USERVER_FORCE_DOWNLOAD_PROTOBUF)
   # Use the builtin CMake FindProtobuf
+  set(Protobuf_USE_STATIC_LIBS ON)
   if(USERVER_DOWNLOAD_PACKAGE_PROTOBUF)
     find_package(Protobuf QUIET)
   else()
@@ -44,6 +51,7 @@ if(NOT USERVER_FORCE_DOWNLOAD_PACKAGES)
 
   if(Protobuf_FOUND)
     _userver_set_protobuf_version_category()
+    set(PROTOBUF_PROTOC "${Protobuf_PROTOC_EXECUTABLE}")
     return()
   endif()
 endif()
@@ -73,3 +81,4 @@ set_target_properties(libprotoc PROPERTIES
 write_package_stub(Protobuf)
 mark_targets_as_system("${Protobuf_SOURCE_DIR}")
 _userver_set_protobuf_version_category()
+set(PROTOBUF_PROTOC $<TARGET_FILE:protoc>)

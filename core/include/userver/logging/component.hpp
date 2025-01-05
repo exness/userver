@@ -12,6 +12,7 @@
 #include <userver/concurrent/async_event_source.hpp>
 #include <userver/os_signals/component.hpp>
 
+#include <userver/rcu/rcu_map.hpp>
 #include <userver/utils/fast_pimpl.hpp>
 #include <userver/utils/periodic_task.hpp>
 #include <userver/utils/statistics/entry.hpp>
@@ -21,15 +22,10 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace logging {
-struct LoggerConfig;
-
-namespace impl {
+namespace logging::impl {
 class TpLogger;
 class TcpSocketSink;
-}  // namespace impl
-
-}  // namespace logging
+}  // namespace logging::impl
 
 namespace components {
 
@@ -77,53 +73,58 @@ namespace components {
 // clang-format on
 
 class Logging final : public RawComponentBase {
- public:
-  /// @ingroup userver_component_names
-  /// @brief The default name of components::Logging component
-  static constexpr std::string_view kName = "logging";
+public:
+    /// @ingroup userver_component_names
+    /// @brief The default name of components::Logging component
+    static constexpr std::string_view kName = "logging";
 
-  /// The component constructor
-  Logging(const ComponentConfig&, const ComponentContext&);
-  ~Logging() override;
+    /// The component constructor
+    Logging(const ComponentConfig&, const ComponentContext&);
+    ~Logging() override;
 
-  /// @brief Returns a logger by its name
-  /// @param name Name of the logger
-  /// @returns Pointer to the Logger instance
-  /// @throws std::runtime_error if logger with this name is not registered
-  logging::LoggerPtr GetLogger(const std::string& name);
+    /// @brief Returns a logger by its name
+    /// @param name Name of the logger
+    /// @returns Pointer to the Logger instance
+    /// @throws std::runtime_error if logger with this name is not registered
+    logging::LoggerPtr GetLogger(const std::string& name);
 
-  /// @brief Returns a logger by its name
-  /// @param name Name of the logger
-  /// @returns Pointer to the Logger instance, or `nullptr` if not registered
-  logging::LoggerPtr GetLoggerOptional(const std::string& name);
+    /// @brief Sets a logger
+    /// @param name Name of the logger
+    /// @param logger Logger to set
+    void SetLogger(const std::string& name, logging::LoggerPtr logger);
 
-  void StartSocketLoggingDebug(const std::optional<logging::Level>& log_level);
-  void StopSocketLoggingDebug(const std::optional<logging::Level>& log_level);
+    /// @brief Returns a logger by its name
+    /// @param name Name of the logger
+    /// @returns Pointer to the Logger instance, or `nullptr` if not registered
+    logging::LoggerPtr GetLoggerOptional(const std::string& name);
 
-  /// Reopens log files after rotation
-  void OnLogRotate();
-  void TryReopenFiles();
+    void StartSocketLoggingDebug(const std::optional<logging::Level>& log_level);
+    void StopSocketLoggingDebug(const std::optional<logging::Level>& log_level);
 
-  void WriteStatistics(utils::statistics::Writer& writer) const;
+    /// Reopens log files after rotation
+    void OnLogRotate();
+    void TryReopenFiles();
 
-  static yaml_config::Schema GetStaticConfigSchema();
+    void WriteStatistics(utils::statistics::Writer& writer) const;
 
- private:
-  void Init(const ComponentConfig&, const ComponentContext&);
-  void Stop() noexcept;
+    static yaml_config::Schema GetStaticConfigSchema();
 
-  void FlushLogs();
+private:
+    void Init(const ComponentConfig&, const ComponentContext&);
+    void Stop() noexcept;
 
-  engine::TaskProcessor* fs_task_processor_{nullptr};
-  std::unordered_map<std::string, std::shared_ptr<logging::impl::TpLogger>>
-      loggers_;
-  utils::PeriodicTask flush_task_;
-  logging::impl::TcpSocketSink* socket_sink_{nullptr};
-  alerts::Storage& alert_storage_;
+    void FlushLogs();
 
-  // Subscriptions must be the last fields.
-  os_signals::Subscriber signal_subscriber_;
-  utils::statistics::Entry statistics_holder_;
+    engine::TaskProcessor* fs_task_processor_{nullptr};
+    std::unordered_map<std::string, std::shared_ptr<logging::impl::TpLogger>> loggers_;
+    rcu::RcuMap<std::string, logging::LoggerPtr> extra_loggers_;
+    utils::PeriodicTask flush_task_;
+    logging::impl::TcpSocketSink* socket_sink_{nullptr};
+    alerts::Storage& alert_storage_;
+
+    // Subscriptions must be the last fields.
+    os_signals::Subscriber signal_subscriber_;
+    utils::statistics::Entry statistics_holder_;
 };
 
 template <>

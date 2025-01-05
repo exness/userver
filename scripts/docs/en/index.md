@@ -27,11 +27,19 @@ are available at the
 * @ref scripts/docs/en/userver/intro.md
 * @ref scripts/docs/en/userver/framework_comparison.md
 * @ref scripts/docs/en/userver/supported_platforms.md
-* @ref scripts/docs/en/userver/tutorial/build.md
 * @ref scripts/docs/en/userver/deploy_env.md
 * @ref scripts/docs/en/userver/development/releases.md
 * @ref scripts/docs/en/userver/roadmap_and_changelog.md
 * @ref scripts/docs/en/userver/faq.md
+
+
+@anchor Install
+## Install
+
+* @ref scripts/docs/en/userver/build/build.md
+* @ref scripts/docs/en/userver/build/dependencies.md
+* @ref scripts/docs/en/userver/build/options.md
+* @ref scripts/docs/en/userver/build/userver.md
 
 
 @anchor tutorial_services
@@ -48,10 +56,12 @@ are available at the
 * @ref scripts/docs/en/userver/tutorial/postgres_service.md
 * @ref scripts/docs/en/userver/tutorial/mongo_service.md
 * @ref scripts/docs/en/userver/tutorial/redis_service.md
+* @ref scripts/docs/en/userver/tutorial/kafka_service.md
 * @ref scripts/docs/en/userver/tutorial/auth_postgres.md
 * @ref scripts/docs/en/userver/tutorial/digest_auth_postgres.md
 * @ref scripts/docs/en/userver/tutorial/websocket_service.md
 * @ref scripts/docs/en/userver/tutorial/multipart_service.md
+* @ref scripts/docs/en/userver/tutorial/s3api.md
 * @ref scripts/docs/en/userver/tutorial/json_to_yaml.md
 
 
@@ -98,6 +108,7 @@ are available at the
 * @ref scripts/docs/en/userver/dns_control.md
 * @ref scripts/docs/en/userver/os_signals.md
 * @ref scripts/docs/en/userver/deadline_propagation.md
+* @ref scripts/docs/en/userver/congestion_control.md
 
 
 ## Caches
@@ -112,7 +123,7 @@ are available at the
 * @ref pg_transactions
 * @ref pg_run_queries
 * @ref pg_process_results
-* @ref pg_types
+* @ref scripts/docs/en/userver/pg_types.md
 * @ref pg_user_row_types
 * @ref pg_errors
 * @ref pg_topology
@@ -130,16 +141,23 @@ are available at the
 * @ref scripts/docs/en/userver/kafka.md
 
 
+## YDB
+* @ref scripts/docs/en/userver/ydb.md
+
+
 ## Non relational databases
 * @ref scripts/docs/en/userver/mongodb.md
 * @ref scripts/docs/en/userver/redis.md
 * @ref clickhouse_driver
 
+## Libraries
+* @ref scripts/docs/en/userver/libraries/easy.md
+* @ref scripts/docs/en/userver/libraries/s3api.md
+* @ref scripts/docs/en/userver/libraries/grpc-reflection.md
 
 ## Opensource
 * @ref scripts/docs/en/userver/development/stability.md
 * @ref scripts/docs/en/userver/driver_guide.md
-* @ref scripts/docs/en/userver/tutorial/build_userver.md
 * @ref scripts/docs/en/userver/publications.md
 * @ref CONTRIBUTING.md
 * @ref SECURITY.md

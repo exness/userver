@@ -11,7 +11,7 @@ developer to call service handlers and test their result.
 
 Supported features:
 
-* Database startup (Mongo, Postgresql, Clickhouse, ...)
+* Database startup (Mongo, Postgresql, Clickhouse, Kafka, ...)
 * Per-test database state
 * Service startup
 * Mocksever to mock external service handlers
@@ -34,15 +34,10 @@ Its main purpose is:
 * Add a `start-*` target that starts the service and databases with testsuite
   configs and waits for keyboard interruption to stop the service.
 
-@ref cmake/UserverTestsuite.cmake library is automatically added to CMake path
-after userver environment setup. Add the following line to use it:
-
-@snippet testsuite/SetupUserverTestsuiteEnv.cmake testsuite - UserverTestsuite
-
 Then create testsuite target:
 @snippet samples/testsuite-support/CMakeLists.txt testsuite - cmake
 
-### Arguments
+### `userver_testsuite_add()` arguments
 
 * SERVICE_TARGET, required CMake name of the target service to test. Used as
   suffix for `testsuite-` and `start-` CMake target names.
@@ -52,6 +47,9 @@ Then create testsuite target:
 * REQUIREMENTS, list of requirements.txt files used to populate `venv`.
 * PYTHON_BINARY, path to existing Python binary.
 * PRETTY_LOGS, set to `OFF` to disable pretty printing.
+* DUMP_CONFIG, set to `TRUE` to tell the testsuite that there is no static config file in the file system and force the
+  testsuite to retrieve config from a service itself, by running it
+  with `--dump-config` option first. See @ref scripts/docs/en/userver/libraries/easy.md for usage example.
 
 Some of the most useful arguments for PYTEST_ARGS:
 
@@ -136,7 +134,7 @@ Run it with `--help` argument to see the short options description.
 ./build/tests/runtests-testsuite-my-project ./tests --help
 ```
 
-### Debug 
+### Debug
 
 To debug the functional test you can start testsuite with extra `pytest` arguments, e.g.:
 
@@ -152,7 +150,7 @@ At the beginning of the execution the console will display the command to start 
 gdb --args /.../my-project/build/functional-tests --config /.../config.yaml
 ```
 
-Now you can open a new terminal window and run this command in it or if 
+Now you can open a new terminal window and run this command in it or if
 you use an IDE you can find the corresponding CMake target and add arg `--config /.../config.yaml`.
 After that it will be possible to set breakpoints and start target with debug.
 
@@ -181,6 +179,7 @@ plugin.
 | userver::redis      | pytest_userver.plugins.redis      |
 | userver::mongo      | pytest_userver.plugins.mongo      |
 | userver::rabbitmq   | pytest_userver.plugins.rabbitmq   |
+| userver::kafka      | pytest_userver.plugins.kafka      |
 | userver::mysql      | pytest_userver.plugins.mysql      |
 | userver::ydb        | pytest_userver.plugins.ydb        |
 
@@ -235,7 +234,7 @@ collected functions and fixtures are applied.
 
 Example usage:
 
-@snippet samples/grpc_service/tests/conftest.py Prepare configs
+@snippet samples/grpc_service/testsuite/conftest.py Prepare configs
 
 #### Service client
 
@@ -256,7 +255,7 @@ caches, mocked time, etc.
 Use @ref pytest_userver.plugins.service.service_env "service_env" fixture
 to provide extra environment variables for your service:
 
-@snippet samples/redis_service/tests/conftest.py service_env
+@snippet samples/redis_service/testsuite/conftest.py service_env
 
 #### Extra client dependencies
 
@@ -423,10 +422,10 @@ and used like:
 @snippet samples/testsuite-support/src/metrics.cpp metrics usage
 
 the metrics could be retrieved and reset as follows:
- 
+
 @snippet samples/testsuite-support/tests/test_metrics.py metrics reset
 
-For metrics with labels, they could be retrieved in the following way: 
+For metrics with labels, they could be retrieved in the following way:
 
 @snippet samples/testsuite-support/tests/test_metrics.py metrics labels
 
