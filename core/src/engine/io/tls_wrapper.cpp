@@ -498,7 +498,7 @@ TlsWrapper TlsWrapper::StartTlsClient(
 
 TlsWrapper TlsWrapper::StartTlsServer(
     Socket&& socket,
-    const crypto::Certificate& cert,
+    const crypto::CertificatesChain& cert_chain,
     const crypto::PrivateKey& key,
     Deadline deadline,
     const std::vector<crypto::Certificate>& extra_cert_authorities
