@@ -3,7 +3,6 @@
 #include <boost/stacktrace/stacktrace.hpp>
 #include <exception>
 #include <memory>
-#include <ranges>
 
 #include <fmt/format.h>
 #include <openssl/bio.h>
@@ -514,18 +513,18 @@ TlsWrapper TlsWrapper::StartTlsServer(
         LOG_INFO() << "Client SSL cert will not be verified";
     }
 
-    if(cert_chain.empty())
-	  {
+    if(cert_chain.empty()) {
         throw TlsException(crypto::FormatSslError("Empty certificate chain provided"));
-	  }
+	}
 
     if (1 != SSL_CTX_use_certificate(ssl_ctx.get(), cert_chain.begin()->GetNative())) {
         throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_use_certificate"));
     }
 
     if(cert_chain.size() > 1) {
-        for(const auto& cert : cert_chain | std::ranges::views::drop(1)) {
-            if (SSL_CTX_add_extra_chain_cert(ssl_ctx.get(), cert.GetNative()) <= 0) {
+        auto certIt = std::next(cert_chain.begin());
+        for (; certIt != cert_chain.end(); ++certIt) {
+            if (SSL_CTX_add_extra_chain_cert(ssl_ctx.get(), certIt->GetNative()) <= 0) {
                 throw TlsException(crypto::FormatSslError("Failed to set up server TLS wrapper: SSL_CTX_add_extra_chain_cert"));
             }
         }
