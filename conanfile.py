@@ -31,7 +31,7 @@ def get_userver_version(self) -> str:
 
 class UserverConan(ConanFile):
     name = 'userver'
-    version = '2.2.5'
+    version = '2.2.5_sanitizers'
     description = 'The C++ Asynchronous Framework'
     topics = ('framework', 'coroutines', 'asynchronous')
     url = 'https://github.com/userver-framework/userver'
@@ -224,8 +224,8 @@ class UserverConan(ConanFile):
             'USERVER_FEATURE_TESTSUITE'
         ] = False
         
-        if self.options.use_asan:
-            tool_ch.variables['USERVER_SANITIZE'] = 'ub addr'
+        #if self.options.use_asan:
+        tool_ch.variables['USERVER_SANITIZE'] = 'ub addr'
 
         if self.options.use_lld:
             tool_ch.variables['USERVER_USE_LD'] = 'lld'
