@@ -58,8 +58,8 @@ Certificate Certificate::LoadFromString(std::string_view certificate) {
 CertificatesChain LoadCertficatesChainFromString(std::string_view chain)
 {
     CertificatesChain certificates;
-    const std::string beginMarker = "-----BEGIN CERTIFICATE-----";
-    const std::string endMarker = "-----END CERTIFICATE-----";
+    constexpr std::string_view beginMarker = "-----BEGIN CERTIFICATE-----";
+    constexpr std::string_view endMarker = "-----END CERTIFICATE-----";
 
     size_t start = 0;
     while ((start = chain.find(beginMarker, start)) != std::string::npos) {
