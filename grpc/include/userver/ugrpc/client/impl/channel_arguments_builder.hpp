@@ -17,7 +17,7 @@ public:
         const std::optional<std::string>& default_service_config
     );
 
-    ChannelArgumentsBuilder(ChannelArgumentsBuilder&&) noexcept = default;
+    ChannelArgumentsBuilder(ChannelArgumentsBuilder&&) = default;
     ChannelArgumentsBuilder(const ChannelArgumentsBuilder&) = delete;
     ChannelArgumentsBuilder& operator=(ChannelArgumentsBuilder&&) = delete;
     ChannelArgumentsBuilder& operator=(const ChannelArgumentsBuilder&) = delete;
