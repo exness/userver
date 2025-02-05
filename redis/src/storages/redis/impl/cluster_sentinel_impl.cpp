@@ -97,11 +97,11 @@ struct CommandSpecialPrinter {
 logging::LogHelper& operator<<(logging::LogHelper& os, CommandSpecialPrinter v) {
     const auto& command = v.command;
 
-    if (command->args.GetCommandCount() == 1 || command->invoke_counter + 1 >= command->args.GetCommandCount()) {
+    if (command->args.args.size() == 1 || command->invoke_counter + 1 >= command->args.args.size()) {
         os << command->args;
-    } else if (command->invoke_counter < command->args.GetCommandCount()) {
+    } else if (command->invoke_counter < command->args.args.size() && !command->args.args[command->invoke_counter].empty()) {
         os << fmt::format(
-            "subrequest idx={}, cmd={}", command->invoke_counter, command->args.GetCommandName(command->invoke_counter)
+            "subrequest idx={}, cmd={}", command->invoke_counter, command->args.args[command->invoke_counter].front()
         );
     }
 
@@ -614,9 +614,9 @@ void ClusterSentinelImpl::ProcessWaitingCommands() {
         const auto& command = scommand.command;
         const CommandControlImpl cc{command->control};
         if (scommand.start + cc.timeout_all < now) {
-            for (const auto& args : command->args) {
+            for (const auto& args : command->args.args) {
                 auto reply = std::make_shared<Reply>(
-                    args.GetCommandName(), nullptr, ReplyStatus::kTimeoutError, "Command in the send queue timed out"
+                    args[0], nullptr, ReplyStatus::kTimeoutError, "Command in the send queue timed out"
                 );
                 statistics_internal_.redis_not_ready++;
                 InvokeCommand(command, std::move(reply));
@@ -637,12 +637,9 @@ void ClusterSentinelImpl::ProcessWaitingCommandsOnStop() {
 
     for (const SentinelCommand& scommand : waiting_commands) {
         const auto& command = scommand.command;
-        for (const auto& args : command->args) {
+        for (const auto& args : command->args.args) {
             auto reply = std::make_shared<Reply>(
-                args.GetCommandName(),
-                nullptr,
-                ReplyStatus::kTimeoutError,
-                "Stopping, killing commands remaining in send queue"
+                args[0], nullptr, ReplyStatus::kTimeoutError, "Stopping, killing commands remaining in send queue"
             );
             statistics_internal_.redis_not_ready++;
             InvokeCommand(command, std::move(reply));
@@ -895,9 +892,10 @@ void ClusterSentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t p
             const bool error_ask = reply->data.IsErrorAsk();
             const bool error_moved = reply->data.IsErrorMoved();
             if (error_moved) {
+                const auto& args = ccommand->args.args;
                 LOG_DEBUG() << "MOVED" << reply->status_string << " c.instance_idx:" << ccommand->instance_idx
                             << " shard: " << shard << " movedto:" << ParseMovedShard(reply->data.GetError())
-                            << " args:" << ccommand->args;
+                            << " args:" << args;
                 this->topology_holder_->SendUpdateClusterTopology();
             }
             const bool retry_to_master =
@@ -934,9 +932,7 @@ void ClusterSentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t p
 
                     auto new_command = PrepareCommand(
                         std::move(ccommand->args),
-                        [command](const CommandPtr& cmd, ReplyPtr reply) {
-                            if (command->callback) command->callback(cmd, std::move(reply));
-                        },
+                        command->Callback(),
                         command->control,
                         command->counter + 1,
                         command->asking || error_ask,

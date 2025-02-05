@@ -40,15 +40,15 @@ private:
 };
 
 std::string MakeSpanName(const CmdArgs& cmd_args) {
-    if (cmd_args.GetCommandCount() == 0) {
+    if (cmd_args.args.empty() || cmd_args.args.front().empty()) {
         return "redis_unknown";
     }
 
-    if (cmd_args.GetCommandCount() > 1) {
+    if (cmd_args.args.size() > 1) {
         return "redis_multi";
     }
 
-    return "redis_" + cmd_args.GetCommandName(0);
+    return "redis_" + cmd_args.args.front().front();
 }
 
 }  // namespace

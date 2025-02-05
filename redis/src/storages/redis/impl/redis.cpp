@@ -42,6 +42,11 @@ const auto kPingLatencyExp = 0.7;
 const auto kInitialPingLatencyMs = 1000;
 const size_t kMissedPingStreakThresholdDefault = 3;
 
+// channel is used for periodic subscribe/unsubscribe to calculate actual RTT
+// instead of sending PING commands which are not supported by hiredis in
+// subscriber mode
+const std::string kSubscriberPingChannelName = "_ping_dummy_ch";
+
 // required for libhiredis < 1.0.0
 #ifndef REDIS_ERR_TIMEOUT
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
@@ -66,6 +71,46 @@ ReplyStatus NativeToReplyStatus(int status) {
         return ReplyStatus::kOtherError;
     }
     return *reply_status;
+}
+
+inline bool AreStringsEqualIgnoreCase(const std::string& l, const std::string& r) {
+    return l.size() == r.size() && !strcasecmp(l.c_str(), r.c_str());
+}
+
+inline bool IsUnsubscribeCommand(const CmdArgs::CmdArgsArray& args) {
+    static const std::string unsubscribe_command{"UNSUBSCRIBE"};
+    static const std::string punsubscribe_command{"PUNSUBSCRIBE"};
+    static const std::string sunsubscribe_command{"SUNSUBSCRIBE"};
+
+    return AreStringsEqualIgnoreCase(args[0], unsubscribe_command) ||
+           AreStringsEqualIgnoreCase(args[0], punsubscribe_command) ||
+           AreStringsEqualIgnoreCase(args[0], sunsubscribe_command);
+}
+
+inline bool IsSubscribeCommand(const CmdArgs::CmdArgsArray& args) {
+    static const std::string subscribe_command{"SUBSCRIBE"};
+    static const std::string psubscribe_command{"PSUBSCRIBE"};
+    static const std::string ssubscribe_command{"SSUBSCRIBE"};
+
+    return AreStringsEqualIgnoreCase(args[0], subscribe_command) ||
+           AreStringsEqualIgnoreCase(args[0], psubscribe_command) ||
+           AreStringsEqualIgnoreCase(args[0], ssubscribe_command);
+}
+
+inline bool IsSubscribesCommand(const CmdArgs::CmdArgsArray& args) {
+    return IsSubscribeCommand(args) || IsUnsubscribeCommand(args);
+}
+
+inline bool IsMultiCommand(const CmdArgs::CmdArgsArray& args) {
+    static const std::string multi_command{"MULTI"};
+
+    return AreStringsEqualIgnoreCase(args[0], multi_command);
+}
+
+inline bool IsExecCommand(const CmdArgs::CmdArgsArray& args) {
+    static const std::string exec_command{"EXEC"};
+
+    return AreStringsEqualIgnoreCase(args[0], exec_command);
 }
 
 bool IsFinalState(Redis::State state) {
@@ -653,7 +698,7 @@ void Redis::RedisImpl::SendSubscriberPing() {
 
     is_ping_in_flight_ = true;
     ProcessCommand(PrepareCommand(
-        CmdArgs{"SUBSCRIBE", CmdWithArgs::kSubscriberPingChannelName},
+        CmdArgs{"SUBSCRIBE", kSubscriberPingChannelName},
         [this](const CommandPtr&, ReplyPtr reply) {
             if (!*reply || !reply->data.IsArray()) {
                 Disconnect();
@@ -665,9 +710,7 @@ void Redis::RedisImpl::SendSubscriberPing() {
                 return;
             }
             if (!strcasecmp(reply_array[0].GetString().c_str(), "SUBSCRIBE")) {
-                ProcessCommand(
-                    PrepareCommand(CmdArgs{"UNSUBSCRIBE", CmdWithArgs::kSubscriberPingChannelName}, ReplyCallback{})
-                );
+                ProcessCommand(PrepareCommand(CmdArgs{"UNSUBSCRIBE", kSubscriberPingChannelName}, ReplyCallback{}));
             } else if (!strcasecmp(reply_array[0].GetString().c_str(), "UNSUBSCRIBE")) {
                 is_ping_in_flight_ = false;
             }
@@ -761,10 +804,10 @@ void Redis::RedisImpl::FreeCommands() {
         auto command = commands_.front();
         commands_.pop_front();
         --commands_size_;
-        for (const auto& args : command->args) {
+        for (const auto& args : command->args.args) {
             InvokeCommandError(
                 command,
-                args.GetCommandName(),
+                args[0],
                 ReplyStatus::kEndOfFileError,
                 "Disconnecting, killing commands still waiting in send queue"
             );
@@ -1048,59 +1091,65 @@ void Redis::RedisImpl::ProcessCommand(const CommandPtr& command) {
     statistics_.AccountCommandSent(command);
 
     bool multi = false;
-    for (const auto& args : command->args) {
-        if (args.IsMultiCommand()) multi = true;
+    for (size_t i = 0; i < command->args.args.size(); ++i) {
+        const auto& args = command->args.args[i];
+        const size_t argc = args.size();
+        UASSERT(argc >= 1);
+        if (argc < 1) {
+            LOG_LIMITED_ERROR() << "Skip empty command to redis";
+            continue;
+        }
+
+        if (IsMultiCommand(args)) multi = true;
 
         if (!context_) {
             LOG_ERROR() << log_extra_ << "no context";
-            InvokeCommandError(command, args.GetCommandName(), ReplyStatus::kOtherError);
+            InvokeCommandError(command, args[0], ReplyStatus::kOtherError);
             continue;
         }
 
-        const bool is_special = args.IsSubscribesCommand();
+        const bool is_special = IsSubscribesCommand(args);
         if (is_special) subscriber_ = true;
         if (subscriber_ && !is_special) {
-            LOG_ERROR() << log_extra_ << "impossible for subscriber: " << args.GetCommandName();
-            InvokeCommandError(command, args.GetCommandName(), ReplyStatus::kOtherError);
+            LOG_ERROR() << log_extra_ << "impossible for subscriber: " << args[0];
+            InvokeCommandError(command, args[0], ReplyStatus::kOtherError);
             continue;
         }
-        if (is_special && !args.IsSubscriberPingChannel()) {
-            LOG_INFO() << "Process '" << fmt::to_string(args.GetJoinedArgs(" ")) << "' command" << log_extra_;
+        if (is_special && (args.size() <= 1 || args[1] != kSubscriberPingChannelName)) {
+            LOG_INFO() << "Process '" << fmt::to_string(fmt::join(args, " ")) << "' command" << log_extra_;
+        }
+
+        std::vector<const char*> argv;
+        std::vector<size_t> argv_len;
+
+        argv.reserve(argc);
+        argv_len.reserve(argc);
+
+        for (const auto& arg : args) {
+            argv.push_back(arg.data());
+            argv_len.push_back(arg.size());
         }
 
         {
-            static constexpr std::size_t kTopArgsCount = 8;
-            boost::container::small_vector<const char*, kTopArgsCount> argv;
-            boost::container::small_vector<std::size_t, kTopArgsCount> argv_len;
-            args.FillPointerSizesStorages(argv, argv_len);
-            const auto elements_count = argv.size();
-            UASSERT(elements_count == argv_len.size());
-            UASSERT(elements_count != 0);
-
-            if (command->asking && (!multi || args.IsMultiCommand())) {
+            if (command->asking && (!multi || IsMultiCommand(args))) {
                 static const char* asking = "ASKING";
                 static const size_t asking_len = strlen(asking);
                 redisAsyncCommandArgv(context_, nullptr, nullptr, 1, &asking, &asking_len);
             }
             if (redisAsyncCommandArgv(
-                    context_,
-                    OnRedisReply,
-                    reinterpret_cast<void*>(cmd_counter_),
-                    elements_count,
-                    argv.data(),
-                    argv_len.data()
+                    context_, OnRedisReply, reinterpret_cast<void*>(cmd_counter_), argc, argv.data(), argv_len.data()
                 ) != REDIS_OK) {
-                LOG_ERROR() << log_extra_ << "redisAsyncCommandArgv() failed on command " << args.GetCommandName();
-                InvokeCommandError(command, args.GetCommandName(), ReplyStatus::kOtherError);
+                LOG_ERROR() << log_extra_ << "redisAsyncCommandArgv() failed on command " << args[0];
+                InvokeCommandError(command, args[0], ReplyStatus::kOtherError);
                 continue;
             }
         }
 
-        if (args.IsExecCommand()) multi = false;
+        if (IsExecCommand(args)) multi = false;
 
-        if (!args.IsUnsubscribeCommand()) {
+        if (!IsUnsubscribeCommand(args)) {
             auto entry = std::make_unique<SingleCommand>();
-            entry->cmd = args.GetCommandName();
+            entry->cmd = args[0];
             entry->meta = command;
             entry->timer.data = this;
             entry->redis_impl = shared_from_this();
