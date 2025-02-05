@@ -3,6 +3,8 @@ Configure the service in testsuite.
 """
 
 import pathlib
+import random
+import socket
 
 import pytest
 
@@ -152,4 +154,32 @@ def _get_port(
         f'in the static config, or pass {option_name} pytest option, '
         f'or override the {port_fixture.__name__} fixture'
     )
-    return port
+    return _choose_free_port(port)
+
+
+# Beware: global variable
+allocated_ports = set()
+
+
+def _choose_free_port(first_port):
+    def _try_port(port):
+        global allocated_ports
+        if port in allocated_ports:
+            return None
+        try:
+            server.bind(('0.0.0.0', port))
+            allocated_ports.add(port)
+            return port
+        except BaseException:
+            return None
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        for port in range(first_port, first_port + 100):
+            if port := _try_port(port):
+                return port
+
+        for _attempt in random.sample(range(1024, 65535), k=100):
+            if port := _try_port(port):
+                return port
+
+        assert False, 'Failed to pick a free TCP port'
