@@ -2,7 +2,6 @@
 
 #include <userver/utils/assert.hpp>
 
-#include <userver/ugrpc/client/client_qos.hpp>
 #include <userver/ugrpc/client/impl/completion_queue_pool.hpp>
 #include <userver/ugrpc/impl/statistics_storage.hpp>
 
@@ -32,17 +31,6 @@ const dynamic_config::Key<ClientQos>* ClientData::GetClientQos() const { return 
 
 ugrpc::impl::ServiceStatistics& ClientData::GetServiceStatistics() {
     return internals_.statistics_storage.GetServiceStatistics(GetMetadata(), internals_.client_name);
-}
-
-ChannelFactory ClientData::CreateChannelFactory(const ClientInternals& internals) {
-    auto credentials = internals.testsuite_grpc.IsTlsEnabled()
-                           ? GetClientCredentials(internals.client_factory_settings, internals.client_name)
-                           : grpc::InsecureChannelCredentials();
-    return ChannelFactory{
-        internals.channel_task_processor,
-        internals.endpoint,
-        std::move(credentials),
-        internals.client_factory_settings.channel_args};
 }
 
 }  // namespace ugrpc::client::impl

@@ -23,8 +23,7 @@ std::shared_ptr<grpc::ChannelCredentials> MakeDefaultCredentials(impl::AuthType 
     UINVARIANT(false, "Invalid AuthType");
 }
 
-grpc::ChannelArguments
-MakeChannelArgs(const yaml_config::YamlConfig& channel_args, const yaml_config::YamlConfig& default_service_config) {
+grpc::ChannelArguments MakeChannelArgs(const yaml_config::YamlConfig& channel_args) {
     grpc::ChannelArguments args;
     if (!channel_args.IsMissing()) {
         for (const auto& [key, value] : Items(channel_args)) {
@@ -34,10 +33,6 @@ MakeChannelArgs(const yaml_config::YamlConfig& channel_args, const yaml_config::
                 args.SetString(ugrpc::impl::ToGrpcString(key), value.As<std::string>());
             }
         }
-    }
-
-    if (!default_service_config.IsMissing()) {
-        args.SetServiceConfigJSON(default_service_config.As<std::string>());
     }
     return args;
 }
@@ -54,11 +49,10 @@ AuthType Parse(const yaml_config::YamlConfig& value, formats::parse::To<AuthType
 
 ClientFactoryConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<ClientFactoryConfig>) {
     ClientFactoryConfig config;
-
     config.auth_type = value["auth-type"].As<AuthType>(AuthType::kInsecure);
-    config.channel_args = MakeChannelArgs(value["channel-args"], value["default-service-config"]);
+    config.channel_args = MakeChannelArgs(value["channel-args"]);
+    config.default_service_config = value["default-service-config"].As<std::optional<std::string>>();
     config.channel_count = value["channel-count"].As<std::size_t>(config.channel_count);
-
     return config;
 }
 
@@ -78,9 +72,10 @@ MakeFactorySettings(ClientFactoryConfig&& config, const storages::secdist::Secdi
     }
 
     return ClientFactorySettings{
-        credentials,
-        client_credentials,
-        config.channel_args,
+        std::move(credentials),
+        std::move(client_credentials),
+        std::move(config.channel_args),
+        std::move(config.default_service_config),
         config.channel_count,
     };
 }

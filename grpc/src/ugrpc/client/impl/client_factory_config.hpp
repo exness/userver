@@ -22,6 +22,10 @@ struct ClientFactoryConfig final {
     /// @see https://grpc.github.io/grpc/core/group__grpc__arg__keys.html
     grpc::ChannelArguments channel_args{};
 
+    /// default service config
+    /// @see https://github.com/grpc/grpc/blob/master/doc/service_config.md
+    std::optional<std::string> default_service_config;
+
     /// Number of underlying channels that will be created for every client
     /// in this factory.
     std::size_t channel_count{1};

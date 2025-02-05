@@ -16,7 +16,8 @@ namespace ugrpc::client {
 /// @ref ugrpc::client::ClientQos. Can also be passed to ugrpc client methods
 /// manually.
 struct Qos final {
-    /// @brief Number of call attempts
+    /// @brief The maximum number of RPC attempts, including the original attempt.
+    /// If set must be minimum 1.
     /// If `std::nullopt`, default grpc++ retry configuration is used.
     ///
     /// @ref https://grpc.io/docs/guides/retry/
