@@ -30,8 +30,8 @@ inline const bool k{{service.name}}TypesRegistration =
     false);
 
 {{service.name}}Client::{{service.name}}Client(
-    USERVER_NAMESPACE::ugrpc::client::impl::ClientDependencies&& dependencies)
-    : impl_(std::move(dependencies), GetMetadata(),
+    USERVER_NAMESPACE::ugrpc::client::impl::ClientInternals&& internals)
+    : impl_(std::move(internals), GetMetadata(),
             std::in_place_type<{{utils.namespace_with_colons(proto.namespace)}}::{{service.name}}>) {
     }
 {% for method in service.method %}

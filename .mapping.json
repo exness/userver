@@ -1926,7 +1926,7 @@
   "grpc/include/userver/ugrpc/client/impl/call_params.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/call_params.hpp",
   "grpc/include/userver/ugrpc/client/impl/channel_factory.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/channel_factory.hpp",
   "grpc/include/userver/ugrpc/client/impl/client_data.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/client_data.hpp",
-  "grpc/include/userver/ugrpc/client/impl/client_dependencies.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/client_dependencies.hpp",
+  "grpc/include/userver/ugrpc/client/impl/client_internals.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/client_internals.hpp",
   "grpc/include/userver/ugrpc/client/impl/codegen_declarations.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/codegen_declarations.hpp",
   "grpc/include/userver/ugrpc/client/impl/codegen_definitions.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/codegen_definitions.hpp",
   "grpc/include/userver/ugrpc/client/impl/completion_queue_pool.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/completion_queue_pool.hpp",

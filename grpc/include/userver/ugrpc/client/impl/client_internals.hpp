@@ -20,7 +20,7 @@ class CompletionQueuePoolBase;
 namespace ugrpc::client::impl {
 
 /// Contains all non-code-generated dependencies for creating a gRPC client
-struct ClientDependencies final {
+struct ClientInternals final {
     std::string client_name;
     std::string endpoint;
     Middlewares mws;

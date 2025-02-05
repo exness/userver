@@ -85,7 +85,7 @@ public:
 
     /// @cond
     // For internal use only.
-    explicit GenericClient(impl::ClientDependencies&&);
+    explicit GenericClient(impl::ClientInternals&&);
     /// @endcond
 
 private:

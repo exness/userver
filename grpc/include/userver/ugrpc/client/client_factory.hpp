@@ -12,7 +12,7 @@
 
 #include <userver/ugrpc/client/client_factory_settings.hpp>
 #include <userver/ugrpc/client/client_settings.hpp>
-#include <userver/ugrpc/client/impl/client_dependencies.hpp>
+#include <userver/ugrpc/client/impl/client_internals.hpp>
 #include <userver/ugrpc/client/middlewares/base.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -62,7 +62,7 @@ public:
     /// @endcond
 
 private:
-    impl::ClientDependencies MakeClientDependencies(ClientSettings&& settings);
+    impl::ClientInternals MakeClientInternals(ClientSettings&& settings);
 
     ClientFactorySettings client_factory_settings_;
     engine::TaskProcessor& channel_task_processor_;
@@ -75,7 +75,7 @@ private:
 
 template <typename Client>
 Client ClientFactory::MakeClient(ClientSettings&& settings) {
-    return Client(MakeClientDependencies(std::move(settings)));
+    return Client(MakeClientInternals(std::move(settings)));
 }
 
 template <typename Client>

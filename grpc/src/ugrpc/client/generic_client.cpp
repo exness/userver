@@ -16,8 +16,8 @@ struct GenericService final {
 
 }  // namespace
 
-GenericClient::GenericClient(impl::ClientDependencies&& client_params)
-    : impl_(std::move(client_params), impl::GenericClientTag{}, std::in_place_type<GenericService>) {
+GenericClient::GenericClient(impl::ClientInternals&& internals)
+    : impl_(std::move(internals), impl::GenericClientTag{}, std::in_place_type<GenericService>) {
     // There is no technical reason why QOS configs should be unsupported here.
     // However, it would be difficult to detect non-existent RPC names in QOS.
     UINVARIANT(!impl_.GetClientQos(), "Client QOS configs are unsupported for generic services");

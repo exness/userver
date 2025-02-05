@@ -23,11 +23,11 @@ ClientFactory::ClientFactory(
       config_source_(config_source),
       testsuite_grpc_(testsuite_grpc) {}
 
-impl::ClientDependencies ClientFactory::MakeClientDependencies(ClientSettings&& client_settings) {
+impl::ClientInternals ClientFactory::MakeClientInternals(ClientSettings&& client_settings) {
     UINVARIANT(!client_settings.client_name.empty(), "Client name is empty");
     UINVARIANT(!client_settings.endpoint.empty(), "Client endpoint is empty");
 
-    return impl::ClientDependencies{
+    return impl::ClientInternals{
         client_settings.client_name,
         client_settings.endpoint,
         impl::InstantiateMiddlewares(mws_, client_settings.client_name),

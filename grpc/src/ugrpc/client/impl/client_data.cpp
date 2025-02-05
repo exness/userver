@@ -12,7 +12,7 @@ namespace ugrpc::client::impl {
 
 ClientData::~ClientData() { config_subscription_.Unsubscribe(); }
 
-grpc::CompletionQueue& ClientData::NextQueue() const { return dependencies_.completion_queues.NextQueue(); }
+grpc::CompletionQueue& ClientData::NextQueue() const { return internals_.completion_queues.NextQueue(); }
 
 ugrpc::impl::MethodStatistics& ClientData::GetStatistics(std::size_t method_id) const {
     UASSERT(service_statistics_);
@@ -20,7 +20,7 @@ ugrpc::impl::MethodStatistics& ClientData::GetStatistics(std::size_t method_id) 
 }
 
 ugrpc::impl::MethodStatistics& ClientData::GetGenericStatistics(std::string_view call_name) const {
-    return dependencies_.statistics_storage.GetGenericStatistics(call_name, dependencies_.client_name);
+    return internals_.statistics_storage.GetGenericStatistics(call_name, internals_.client_name);
 }
 
 const ugrpc::impl::StaticServiceMetadata& ClientData::GetMetadata() const {
@@ -28,21 +28,21 @@ const ugrpc::impl::StaticServiceMetadata& ClientData::GetMetadata() const {
     return *metadata_;
 }
 
-const dynamic_config::Key<ClientQos>* ClientData::GetClientQos() const { return dependencies_.qos; }
+const dynamic_config::Key<ClientQos>* ClientData::GetClientQos() const { return internals_.qos; }
 
 ugrpc::impl::ServiceStatistics& ClientData::GetServiceStatistics() {
-    return dependencies_.statistics_storage.GetServiceStatistics(GetMetadata(), dependencies_.client_name);
+    return internals_.statistics_storage.GetServiceStatistics(GetMetadata(), internals_.client_name);
 }
 
-ChannelFactory ClientData::CreateChannelFactory(const ClientDependencies& dependencies) {
-    auto credentials = dependencies.testsuite_grpc.IsTlsEnabled()
-                           ? GetClientCredentials(dependencies.client_factory_settings, dependencies.client_name)
+ChannelFactory ClientData::CreateChannelFactory(const ClientInternals& internals) {
+    auto credentials = internals.testsuite_grpc.IsTlsEnabled()
+                           ? GetClientCredentials(internals.client_factory_settings, internals.client_name)
                            : grpc::InsecureChannelCredentials();
     return ChannelFactory{
-        dependencies.channel_task_processor,
-        dependencies.endpoint,
+        internals.channel_task_processor,
+        internals.endpoint,
         std::move(credentials),
-        dependencies.client_factory_settings.channel_args};
+        internals.client_factory_settings.channel_args};
 }
 
 }  // namespace ugrpc::client::impl
