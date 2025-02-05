@@ -238,6 +238,10 @@ LogHelper& operator<<(LogHelper& lh, const T* value) noexcept {
 
 template <typename T>
 LogHelper& operator<<(LogHelper& lh, T* value) {
+    static_assert(
+        !std::is_function_v<T>,
+        "An attempt to log the function address is denied. If you really know what you're doing, cast it to void*."
+    );
     return lh << static_cast<const T*>(value);
 }
 
