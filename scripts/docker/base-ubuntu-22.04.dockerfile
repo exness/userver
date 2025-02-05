@@ -28,6 +28,9 @@ RUN ( \
   && rm -rf /app/api-common-protos/.git \
   && rm -rf /userver_tmp \
   && cd /app \
+  && git clone --depth 1 https://github.com/grpc/grpc-proto.git \
+  && rm -rf /app/grpc-proto/.git \
+  && cd /app \
   && git clone --depth 1 -b v1.3.2 https://github.com/open-telemetry/opentelemetry-proto \
   && rm -rf /app/opentelemetry-proto/.git \
 )
