@@ -79,7 +79,7 @@ public:
 
     ~ClientData();
 
-    ClientData(ClientData&&) noexcept = default;
+    ClientData(ClientData&&) = default;
     ClientData& operator=(ClientData&&) = delete;
 
     ClientData(const ClientData&) = delete;
