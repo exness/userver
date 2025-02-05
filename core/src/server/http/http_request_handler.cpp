@@ -138,12 +138,7 @@ engine::TaskWithResult<void> HttpRequestHandler::StartRequestTask(std::shared_pt
         return StartFailsafeTask(std::move(http_request));
     }
 
-    // config::operator[] && is forbidden, so this
-    const auto get_config_stream_api_enabled = [this] {
-        const auto config = config_source_.GetSnapshot();
-        return config[handlers::kStreamApiEnabled];
-    };
-    if (handler->GetConfig().response_body_stream && get_config_stream_api_enabled()) {
+    if (handler->GetConfig().response_body_stream) {
         http_response.SetStreamBody();
     }
 
