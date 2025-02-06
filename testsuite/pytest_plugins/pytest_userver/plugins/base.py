@@ -8,6 +8,8 @@ import socket
 
 import pytest
 
+USERVER_CONFIG_HOOKS = ['userver_base_prepare_service_config']
+
 
 def pytest_addoption(parser) -> None:
     group = parser.getgroup('userver')
@@ -183,3 +185,16 @@ def _choose_free_port(first_port):
                 return port
 
         assert False, 'Failed to pick a free TCP port'
+
+
+@pytest.fixture(scope='session')
+def userver_base_prepare_service_config():
+    def patch_config(config, config_vars):
+        components = config['components_manager']['components']
+        if 'congestion-control' in components:
+            if components['congestion-control'] is None:
+                components['congestion-control'] = {}
+
+            components['congestion-control']['fake-mode'] = True
+
+    return patch_config
