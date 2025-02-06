@@ -18,6 +18,7 @@ USERVER_NAMESPACE_BEGIN
 namespace tracing {
 
 class SpanBuilder;
+struct SpanEvent;
 
 /// @brief Measures the execution time of the current code block, links it with
 /// the parent tracing::Spans and stores that info in the log.
@@ -156,6 +157,13 @@ public:
 
     /// @overload AddNonInheritableTag
     void AddNonInheritableTags(const logging::LogExtra&);
+
+    /// Add an event to Span.
+    void AddEvent(SpanEvent&& event);
+
+    /// Add an event (without attributes) to Span.
+    /// @overload AddEvent
+    void AddEvent(std::string_view event_name);
 
     /// @brief Sets log level with which the current span itself is written into the tracing
     /// system.

@@ -2,12 +2,16 @@
 
 #include <chrono>
 
+#include <fmt/format.h>
+
 #include <userver/engine/async.hpp>
+#include <userver/formats/json.hpp>
 #include <userver/formats/parse/common_containers.hpp>
 #include <userver/formats/parse/to.hpp>
 #include <userver/logging/impl/tag_writer.hpp>
 #include <userver/logging/logger.hpp>
 #include <userver/tracing/span.hpp>
+#include <userver/tracing/span_event.hpp>
 #include <userver/utils/algo.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/encoding/hex.hpp>
@@ -20,11 +24,55 @@ USERVER_NAMESPACE_BEGIN
 namespace otlp {
 
 namespace {
+
 constexpr std::string_view kTelemetrySdkLanguage = "telemetry.sdk.language";
 constexpr std::string_view kTelemetrySdkName = "telemetry.sdk.name";
 constexpr std::string_view kServiceName = "service.name";
 
 const std::string kTimestampFormat = "%Y-%m-%dT%H:%M:%E*S";
+
+template <class Item, class Value>
+void AddAttribute(Item& item, std::string_view key, const Value& value) {
+    auto* attribute = item.add_attributes();
+
+#if GOOGLE_PROTOBUF_VERSION >= 3022000
+    attribute->set_key(key);
+#else
+    attribute->set_key(std::string{key});
+#endif
+    auto* mutable_value = attribute->mutable_value();
+    std::visit(
+        utils::Overloaded{
+            [mutable_value](bool x) { mutable_value->set_bool_value(x); },
+            [mutable_value](int x) { mutable_value->set_int_value(x); },
+            [mutable_value](long x) { mutable_value->set_int_value(x); },
+            [mutable_value](unsigned int x) { mutable_value->set_int_value(x); },
+            [mutable_value](unsigned long x) { mutable_value->set_int_value(x); },
+            [mutable_value](long long x) { mutable_value->set_int_value(x); },
+            [mutable_value](unsigned long long x) { mutable_value->set_int_value(x); },
+            [mutable_value](float x) { mutable_value->set_double_value(x); },
+            [mutable_value](double x) { mutable_value->set_double_value(x); },
+            [mutable_value](const std::string& x) { mutable_value->set_string_value(x); }},
+        value
+    );
+    UASSERT(attribute->has_value());
+}
+
+void WriteEventsFromValue(::opentelemetry::proto::trace::v1::Span& span, std::string_view value) {
+    const auto events = formats::json::FromString(value).As<std::vector<tracing::SpanEvent>>();
+    span.mutable_events()->Reserve(events.size());
+
+    for (const auto& event : events) {
+        auto* event_proto = span.add_events();
+        event_proto->set_name(event.name);
+        event_proto->set_time_unix_nano(event.timestamp.time_since_epoch().count());
+
+        for (const auto& [key, value] : event.attributes) {
+            AddAttribute(*event_proto, key, value.GetData());
+        }
+    }
+}
+
 }  // namespace
 
 Formatter::Formatter(
@@ -86,10 +134,10 @@ void Formatter::AddTag(std::string_view key, const logging::LogExtra::Value& val
                     span.set_start_time_unix_nano(item_.start_timestamp * 1'000'000'000);
                 } else if (key == "timestamp" || key == "text") {
                     // nothing
+                } else if (key == "events") {
+                    WriteEventsFromValue(span, std::get<std::string>(value));
                 } else {
-                    auto attributes = span.add_attributes();
-                    attributes->set_key(std::string{logger_.MapAttribute(key)});
-                    logger_.SetAttributeValue(attributes->mutable_value(), value);
+                    AddAttribute(span, logger_.MapAttribute(key), value);
                 }
             },
             [&](opentelemetry::proto::logs::v1::LogRecord& log_record) {
@@ -98,9 +146,7 @@ void Formatter::AddTag(std::string_view key, const logging::LogExtra::Value& val
                 } else if (key == "span_id") {
                     log_record.set_span_id(utils::encoding::FromHex(std::get<std::string>(value)));
                 } else {
-                    auto attributes = log_record.add_attributes();
-                    attributes->set_key(std::string{logger_.MapAttribute(key)});
-                    logger_.SetAttributeValue(attributes->mutable_value(), value);
+                    AddAttribute(log_record, logger_.MapAttribute(key), value);
                 }
             },
         },
@@ -205,25 +251,6 @@ logging::impl::formatters::BasePtr
 Logger::MakeFormatter(logging::Level level, logging::LogClass log_class, const utils::impl::SourceLocation& location) {
     auto sink = log_class == logging::LogClass::kLog ? config_.logs_sink : config_.tracing_sink;
     return std::make_unique<Formatter>(level, log_class, location, sink, default_logger_, *this);
-}
-
-void Logger::SetAttributeValue(
-    ::opentelemetry::proto::common::v1::AnyValue* destination,
-    const logging::LogExtra::Value& value
-) {
-    std::visit(
-        utils::Overloaded{
-            [&](bool x) { destination->set_bool_value(x); },
-            [&](int x) { destination->set_int_value(x); },
-            [&](long x) { destination->set_int_value(x); },
-            [&](unsigned int x) { destination->set_int_value(x); },
-            [&](unsigned long x) { destination->set_int_value(x); },
-            [&](long long x) { destination->set_int_value(x); },
-            [&](unsigned long long x) { destination->set_int_value(x); },
-            [&](double x) { destination->set_double_value(x); },
-            [&](const std::string& x) { destination->set_string_value(x); }},
-        value
-    );
 }
 
 void Logger::SendingLoop(Queue::Consumer& consumer, LogClient& log_client, TraceClient& trace_client) {

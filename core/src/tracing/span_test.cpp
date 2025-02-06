@@ -8,6 +8,7 @@
 #include <userver/formats/json/serialize.hpp>
 #include <userver/tracing/opentelemetry.hpp>
 #include <userver/tracing/span.hpp>
+#include <userver/tracing/span_event.hpp>
 #include <userver/tracing/tracer.hpp>
 #include <userver/utest/utest.hpp>
 #include <userver/utils/regex.hpp>
@@ -137,7 +138,10 @@ UTEST_F(Span, LogBufferSize) {
 }
 
 UTEST_F(Span, SourceLocation) {
+    // clang-format off
     { tracing::Span span("span_name"); }
+    // clang-format on
+
     logging::LogFlush();
     EXPECT_THAT(GetStreamString(), HasSubstr("module=TestBody ( "));
     EXPECT_THAT(GetStreamString(), HasSubstr("userver/core/src/tracing"));
@@ -205,7 +209,10 @@ UTEST_F(OpentracingSpan, Tags) {
 
 UTEST_F(OpentracingSpan, FromTracerWithServiceName) {
     auto tracer = tracing::MakeTracer("test_service", tracing::Tracer::GetTracer()->GetOptionalLogger());
+    // clang-format off
     { tracing::Span span(tracer, "span_name", nullptr, tracing::ReferenceType::kChild); }
+    // clang-format on
+
     FlushOpentracing();
     const auto log_str = GetOtStreamString();
     EXPECT_THAT(log_str, HasSubstr("service_name=test_service"));
@@ -442,6 +449,7 @@ UTEST_F(Span, NoLogPrefixes) {
     };
     tracing::Tracer::SetNoLogSpans(std::move(no_logs));
 
+    // clang-format off
     { tracing::Span a{kIgnorePrefix0 + "foo"}; }
     { tracing::Span a{kLogSpan0}; }
     { tracing::Span a{kLogSpan1}; }
@@ -454,6 +462,7 @@ UTEST_F(Span, NoLogPrefixes) {
     { tracing::Span a{kIgnorePrefix1}; }
     { tracing::Span a{kIgnorePrefix2}; }
     { tracing::Span a{kIgnoreSpan}; }
+    // clang-format on
 
     logging::LogFlush();
 
@@ -491,6 +500,7 @@ UTEST_F(Span, NoLogMixed) {
     const std::string kIgnorePrefix1 = "skip";
     const std::string kIgnorePrefix2 = "do_not_keep";
 
+    // clang-format off
     { tracing::Span a{kIgnorePrefix0 + "oops"}; }
     { tracing::Span a{kLogSpan0}; }
     { tracing::Span a{kLogSpan1}; }
@@ -504,6 +514,7 @@ UTEST_F(Span, NoLogMixed) {
     { tracing::Span a{kIgnorePrefix1}; }
     { tracing::Span a{kIgnorePrefix2}; }
     { tracing::Span a{kIgnoreSpan}; }
+    // clang-format on
 
     logging::LogFlush();
 
@@ -699,6 +710,54 @@ UTEST_F(Span, MakeSpanWithParentIdTraceIdLinkWithExisting) {
         EXPECT_EQ(span.GetParentId(), parent_id);
         EXPECT_EQ(span.GetLink(), link);
     }
+}
+
+UTEST_F(Span, MakeSpanEvent) {
+    {
+        tracing::Span root_span("root_span");
+        root_span.AddEvent("important_event");
+    }
+
+    logging::LogFlush();
+
+    const auto logs_raw = GetStreamString();
+
+    EXPECT_THAT(logs_raw, HasSubstr(R"(events=[{"name":"important_event")"));
+    EXPECT_THAT(logs_raw, HasSubstr("root_span"));
+}
+
+UTEST_F(Span, MakeSpanEventWithAttributes) {
+    {
+        tracing::Span root_span("root_span");
+        root_span.AddEvent({"important_event_0", {{"int", tracing::AnyValue{42}}}});
+        root_span.AddEvent({"important_event_1", {{"string", tracing::AnyValue{"value"}}}});
+        root_span.AddEvent(
+            {"event_with_many_attributes",
+             {
+                 {"string", tracing::AnyValue{"another_value"}},
+                 {"int", tracing::AnyValue{123}},
+                 {"float", tracing::AnyValue{123.456}},
+                 {"bool", tracing::AnyValue{true}},
+             }}
+        );
+    }
+
+    logging::LogFlush();
+
+    const auto logs_raw = GetStreamString();
+
+    EXPECT_THAT(logs_raw, HasSubstr(R"(events=[{"name":"important_event_0","time_unix_nano")"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"({"name":"important_event_1","time_unix_nano")"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"({"name":"event_with_many_attributes","time_unix_nano")"));
+    EXPECT_THAT(logs_raw, HasSubstr("root_span"));
+
+    // Attributes
+    EXPECT_THAT(logs_raw, HasSubstr(R"("attributes":{"int":42})"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"("attributes":{"string":"value"})"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"("string":"another_value")"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"("int":123)"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"("float":123.456)"));
+    EXPECT_THAT(logs_raw, HasSubstr(R"("bool":true)"));
 }
 
 UTEST_F(Span, IsCompatibleWithOpentelemetry) {

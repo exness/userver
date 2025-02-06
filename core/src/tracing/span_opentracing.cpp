@@ -62,7 +62,10 @@ constexpr std::string_view kStartTime = "start_time";
 constexpr std::string_view kStartTimeMillis = "start_time_millis";
 constexpr std::string_view kDuration = "duration";
 
+constexpr std::string_view kTags = "tags";
+
 }  // namespace jaeger
+
 }  // namespace
 
 void Span::Impl::LogOpenTracing() const {
@@ -104,7 +107,7 @@ void Span::Impl::DoLogOpenTracing(logging::impl::TagWriter writer) const {
             AddOpentracingTags(tags, *log_extra_local_);
         }
     }
-    writer.PutTag("tags", tags.GetStringView());
+    writer.PutTag(jaeger::kTags, tags.GetStringView());
 }
 
 void Span::Impl::AddOpentracingTags(formats::json::StringBuilder& output, const logging::LogExtra& input) {

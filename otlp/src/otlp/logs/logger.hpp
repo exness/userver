@@ -89,9 +89,6 @@ public:
 
     std::string_view MapAttribute(std::string_view attr) const;
 
-    void
-    SetAttributeValue(::opentelemetry::proto::common::v1::AnyValue* destination, const logging::LogExtra::Value& value);
-
 protected:
     bool DoShouldLog(logging::Level level) const noexcept override;
 
