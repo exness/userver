@@ -15,12 +15,12 @@ USERVER_NAMESPACE_BEGIN
 
 namespace {
 
-std::string EscapeLogString(const std::string& str, const std::vector<uint8_t>& need_escape_map) {
+std::string EscapeLogString(std::string_view str, const std::array<uint8_t, 256>& need_escape_map) {
     size_t esc_cnt = 0;
     for (char ch : str) {
         if (need_escape_map[static_cast<uint8_t>(ch)]) esc_cnt++;
     }
-    if (!esc_cnt) return str;
+    if (!esc_cnt) return std::string{str};
     std::string res;
     res.reserve(str.size() + esc_cnt * 3);
     for (char ch : str) {
@@ -36,9 +36,9 @@ std::string EscapeLogString(const std::string& str, const std::vector<uint8_t>& 
     return res;
 }
 
-std::string EscapeForAccessLog(const std::string& str) {
-    static auto prepare_need_escape = []() {
-        std::vector<uint8_t> res(256, 0);
+std::string EscapeForAccessLog(std::string_view str) {
+    constexpr auto prepare_need_escape = []() {
+        std::array<uint8_t, 256> res{};
         for (int i = 0; i < 32; i++) res[i] = 1;
         for (int i = 127; i < 256; i++) res[i] = 1;
         res[static_cast<uint8_t>('\\')] = 1;
@@ -46,13 +46,13 @@ std::string EscapeForAccessLog(const std::string& str) {
         return res;
     };
 
-    static const std::vector<uint8_t> kNeedEscape = prepare_need_escape();
+    static constexpr auto kNeedEscape = prepare_need_escape();
 
     if (str.empty()) return "-";
     return EscapeLogString(str, kNeedEscape);
 }
 
-std::string EscapeForAccessTskvLog(const std::string& str) {
+std::string EscapeForAccessTskvLog(std::string_view str) {
     if (str.empty()) return "-";
 
     std::string encoded_str;

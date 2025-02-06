@@ -22,13 +22,14 @@ namespace utils {
 /// @ingroup userver_containers
 ///
 /// @brief Non-empty string view to a compile time known null terminated char array that lives for the lifetime of
-/// program, as per [lex.string].
+/// program, as per [lex.string]; a drop-in replacement for `static const std::string kVar = "value"` and
+/// `constexpr std::string_view kVar = "value"`.
 class StringLiteral : public NullTerminatedView {
 public:
     StringLiteral() = delete;
 
 #if defined(__clang__) && __clang_major__ < 18
-    // clang-16 and below loose (optimize out) the pointer to `literal` with consteval. Clang-18 is know to work
+    // clang-16 and below lose (optimize out) the pointer to `literal` with consteval. Clang-18 is know to work
     constexpr
 #else
     USERVER_IMPL_CONSTEVAL

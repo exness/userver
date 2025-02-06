@@ -18,9 +18,10 @@ static_assert(!std::is_assignable_v<utils::StringLiteral, utils::NullTerminatedV
 static_assert(std::is_assignable_v<std::string_view, utils::StringLiteral>);
 static_assert(std::is_assignable_v<utils::NullTerminatedView, utils::StringLiteral>);
 
+static constexpr utils::StringLiteral kLongString = "some long long long long long long long long long string";
+
 TEST(StringLiteral, UnsafeMake) {
     static constexpr utils::StringLiteral kShortString = "short";
-    static constexpr utils::StringLiteral kLongString = "some long long long long long long long long long string";
 
     EXPECT_EQ(kShortString, "short");
     EXPECT_EQ(kShortString, std::string{"short"});
