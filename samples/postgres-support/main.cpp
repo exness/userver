@@ -10,7 +10,7 @@
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/daemon_run.hpp>
 
-#include "distlock_worker.hpp"
+#include <distlock_worker.hpp>
 
 int main(int argc, char* argv[]) {
     const auto component_list =
