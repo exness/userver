@@ -968,29 +968,34 @@ void ConnectionImpl::SetParameter(
 void ConnectionImpl::LoadUserTypes(engine::Deadline deadline) {
     UASSERT(settings_.user_types != ConnectionSettings::kPredefinedTypesOnly);
     try {
-        // kSetLocalWorkMem help users with many user types to avoid
-        // ConnectionInterrupted because there are `LEFT JOIN`s in queries
+        std::optional<TypedResultSet<DBTypeDescription, RowTag>> types{};
+        UserTypes::CompositeFieldDefs attribs{};
+        {
+            tracing::ScopeTime scope_time{"pg_load_user_types"};
 #if LIBPQ_HAS_PIPELINING
-        conn_wrapper_.EnterPipelineMode();
-        SendCommandNoPrepare("BEGIN", deadline);
-        SendCommandNoPrepare(kSetLocalWorkMem, deadline);
+            conn_wrapper_.EnterPipelineMode();
+            SendCommandNoPrepare("BEGIN", deadline);
+            // kSetLocalWorkMem help users with many user types to avoid
+            // ConnectionInterrupted because there are `LEFT JOIN`s in queries
+            SendCommandNoPrepare(kSetLocalWorkMem, deadline);
 #else
-        ExecuteCommandNoPrepare("BEGIN", deadline);
-        ExecuteCommandNoPrepare(kSetLocalWorkMem, deadline);
+            ExecuteCommandNoPrepare("BEGIN", deadline);
+            ExecuteCommandNoPrepare(kSetLocalWorkMem, deadline);
 #endif
-        auto types = ExecuteCommand(kGetUserTypesSQL, deadline).AsSetOf<DBTypeDescription>(kRowTag);
-        auto attribs =
-            ExecuteCommand(kGetCompositeAttribsSQL, deadline).AsContainer<UserTypes::CompositeFieldDefs>(kRowTag);
-        ExecuteCommandNoPrepare("COMMIT", deadline);
+            types.emplace(ExecuteCommand(kGetUserTypesSQL, deadline).AsSetOf<DBTypeDescription>(kRowTag));
+            attribs =
+                ExecuteCommand(kGetCompositeAttribsSQL, deadline).AsContainer<UserTypes::CompositeFieldDefs>(kRowTag);
+            ExecuteCommandNoPrepare("COMMIT", deadline);
 #if LIBPQ_HAS_PIPELINING
-        conn_wrapper_.ExitPipelineMode();
+            conn_wrapper_.ExitPipelineMode();
 #else
 #endif
+        }
 
         // End of definitions marker, to simplify processing
         attribs.push_back(CompositeFieldDef::EmptyDef());
         UserTypes db_types;
-        for (auto desc : types) {
+        for (auto desc : types.value()) {
             db_types.AddType(std::move(desc));
         }
         db_types.AddCompositeFields(std::move(attribs));
