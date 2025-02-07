@@ -9,7 +9,6 @@ from conan.tools.cmake import CMake
 from conan.tools.cmake import cmake_layout
 from conan.tools.cmake import CMakeDeps
 from conan.tools.cmake import CMakeToolchain
-from conan.tools.files import copy
 from conan.tools.files import load
 
 required_conan_version = '>=2.8.0'  # pylint: disable=invalid-name
@@ -136,6 +135,7 @@ class UserverConan(ConanFile):
                 force=True,
             )
             self.requires('googleapis/cci.20230501')
+            self.requires('grpc-proto/cci.20220627')
         if self.options.with_postgresql:
             self.requires('libpq/14.5')
         if self.options.with_mongodb or self.options.with_kafka:
@@ -218,6 +218,9 @@ class UserverConan(ConanFile):
             tool_ch.variables['USERVER_GOOGLE_COMMON_PROTOS'] = (
                 self.dependencies['googleapis'].cpp_info.components['google_rpc_status_proto'].resdirs[0]
             )
+
+        if self.options.with_grpc:
+            tool_ch.variables['USERVER_GRPC_PROTO'] = self.dependencies['grpc-proto'].cpp_info.resdirs[0]
 
         if self.options.with_otlp:
             tool_ch.variables['USERVER_OPENTELEMETRY_PROTO'] = self.dependencies['opentelemetry-proto'].conf_info.get(
