@@ -23,35 +23,11 @@ ServiceComponentBase::ServiceComponentBase(
     const components::ComponentConfig& config,
     const components::ComponentContext& context
 )
-    : ComponentBase(config, context),
+    : impl::MiddlewareRunner(config, context, kMiddlewarePipelineName),
       server_(context.FindComponent<ServerComponent>()),
       config_(server_.ParseServiceConfig(config, context)),
       info_{config.Name()} {
-    const auto conf = config.As<middlewares::impl::MiddlewareServiceConfig>();
-    const auto& middlewares = config["middlewares"];
-    const auto& pipeline = context.FindComponent<middlewares::MiddlewarePipelineComponent>().GetPipeline();
-
-    for (const auto& mid : pipeline.GetPerServiceMiddlewares(conf)) {
-        const auto& base = context.FindComponent<MiddlewareFactoryComponentBase>(mid);
-        CreateAndPushMiddleware(base, middlewares[mid]);
-    }
-}
-
-void ServiceComponentBase::CreateAndPushMiddleware(
-    const MiddlewareFactoryComponentBase& base,
-    const yaml_config::YamlConfig& middleware
-) {
-    formats::yaml::ValueBuilder builder{base.GetGlobalConfig(utils::impl::InternalTag{})};
-
-    if (!middleware.IsMissing()) {
-        formats::common::Merge(builder, middleware.As<formats::yaml::Value>());
-        auto schema = base.GetMiddlewareConfigSchema();
-        schema.properties->erase("load-enabled");
-        yaml_config::impl::Validate(middleware, schema);
-    }
-    config_.middlewares.push_back(
-        base.CreateMiddleware(info_, yaml_config::YamlConfig{builder.ExtractValue(), formats::yaml::Value{}})
-    );
+    config_.middlewares = CreateMiddlewares(info_);
 }
 
 void ServiceComponentBase::RegisterService(ServiceBase& service) {
@@ -66,7 +42,7 @@ void ServiceComponentBase::RegisterService(GenericServiceBase& service) {
 }
 
 yaml_config::Schema ServiceComponentBase::GetStaticConfigSchema() {
-    return yaml_config::MergeSchemas<components::ComponentBase>(R"(
+    return yaml_config::MergeSchemas<impl::MiddlewareRunner>(R"(
 type: object
 description: base class for all the gRPC service components
 additionalProperties: false
@@ -75,26 +51,6 @@ properties:
         type: string
         description: the task processor to use for responses
         defaultDescription: uses grpc-server.service-defaults.task-processor
-    disable-user-pipeline-middlewares:
-        type: boolean
-        description: flag to disable groups::User middlewares from pipeline
-        defaultDescription: false
-    disable-all-pipeline-middlewares:
-        type: boolean
-        description: flag to disable all middlewares from pipline
-        defaultDescription: false
-    middlewares:
-        type: object
-        description: overloads of configs of middlewares per service
-        additionalProperties:
-            type: object
-            description: a middleware config
-            additionalProperties: true
-            properties:
-                enabled:
-                    type: boolean
-                    description: enable middleware in the list
-        properties: {}
 )");
 }
 

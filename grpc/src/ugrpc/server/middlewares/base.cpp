@@ -62,38 +62,6 @@ void MiddlewareBase::CallRequestHook(const MiddlewareCallContext&, google::proto
 
 void MiddlewareBase::CallResponseHook(const MiddlewareCallContext&, google::protobuf::Message&) {}
 
-MiddlewareFactoryComponentBase::MiddlewareFactoryComponentBase(
-    const components::ComponentConfig& config,
-    const components::ComponentContext& context,
-    middlewares::MiddlewareDependencyBuilder&& dependency
-)
-    : components::ComponentBase(config, context),
-      dependency_(std::move(dependency).Extract(config.Name())),
-      global_config_(config.As<formats::yaml::Value>()) {}
-
-const middlewares::impl::MiddlewareDependency& MiddlewareFactoryComponentBase::GetMiddlewareDependency(
-    utils::impl::InternalTag
-) const {
-    return dependency_;
-}
-
-const formats::yaml::Value& MiddlewareFactoryComponentBase::GetGlobalConfig(utils::impl::InternalTag) const {
-    return global_config_;
-}
-
-yaml_config::Schema MiddlewareFactoryComponentBase::GetStaticConfigSchema() {
-    return yaml_config::MergeSchemas<components::ComponentBase>(R"(
-type: object
-description: base class for grpc-server middleware
-additionalProperties: false
-properties:
-    enabled:
-        type: string
-        description: the flag to enable/disable middleware in the pipeline
-        defaultDescription: true
-)");
-}
-
 }  // namespace ugrpc::server
 
 USERVER_NAMESPACE_END

@@ -10,6 +10,7 @@ components_manager:
                     level: debug
                     overflow_behavior: discard
 
+        congestion-control:
 # /// [static config client]
 # yaml
         # Contains machinery common to all gRPC clients

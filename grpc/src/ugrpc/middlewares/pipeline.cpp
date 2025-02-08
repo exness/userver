@@ -45,24 +45,24 @@ namespace impl {
 
 MiddlewarePipeline::MiddlewarePipeline(Dependencies&& deps) : deps_(deps), pipeline_(BuildPipeline(std::move(deps))) {}
 
-std::vector<std::string> MiddlewarePipeline::GetPerServiceMiddlewares(const impl::MiddlewareServiceConfig& config
+std::vector<std::string> MiddlewarePipeline::GetPerServiceMiddlewares(const impl::MiddlewareRunnerConfig& config
 ) const {
     std::vector<std::string> res{};
-    const auto& per_service_middlewares = config.service_middlewares;
+    const auto& per_service_middlewares = config.middlewares;
     for (const auto& [name, enabled] : pipeline_) {
         if (const auto it = per_service_middlewares.find(name); it != per_service_middlewares.end()) {
             // Per-service enabled is high priority
-            if (it->second.enabled) {
+            if (it->second.As<BaseMiddlewareConfig>().enabled) {
                 res.push_back(name);
             }
             continue;
         }
-        if (!enabled || config.disable_all_pipeline_middlewares) {
+        if (!enabled || config.disable_all) {
             continue;
         }
-        if (config.disable_user_pipeline_middlewares) {
+        if (config.disable_user_group) {
             const auto it = deps_.find(name);
-            UASSERT_MSG(it != deps_.end(), fmt::format("Middleware `{}` does not exist", name));
+            UINVARIANT(it != deps_.end(), fmt::format("Middleware `{}` does not exist", name));
             if (it->second.group == "user") {
                 continue;
             }

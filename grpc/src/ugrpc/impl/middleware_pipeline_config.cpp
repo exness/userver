@@ -8,12 +8,12 @@ namespace ugrpc::middlewares::impl {
 
 MiddlewarePipelineConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<MiddlewarePipelineConfig>) {
     MiddlewarePipelineConfig config;
-    config.middlewares = value["middlewares"].As<std::unordered_map<std::string, MiddlewareConfig>>({});
+    config.middlewares = value["middlewares"].As<std::unordered_map<std::string, BaseMiddlewareConfig>>({});
     return config;
 }
 
-const std::unordered_map<std::string, MiddlewareConfig>& UserverMiddlewares() {
-    static std::unordered_map<std::string, MiddlewareConfig> core_pipeline{
+const std::unordered_map<std::string, BaseMiddlewareConfig>& UserverMiddlewares() {
+    static std::unordered_map<std::string, BaseMiddlewareConfig> core_pipeline{
         {"grpc-server-logging", {}},
         {"grpc-server-baggage", {}},
         {"grpc-server-congestion-control", {}},
@@ -23,19 +23,17 @@ const std::unordered_map<std::string, MiddlewareConfig>& UserverMiddlewares() {
     return core_pipeline;
 }
 
-MiddlewareConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<MiddlewareConfig>) {
-    MiddlewareConfig config{};
+BaseMiddlewareConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<BaseMiddlewareConfig>) {
+    BaseMiddlewareConfig config{};
     config.enabled = value["enabled"].As<bool>(config.enabled);
     return config;
 }
 
-MiddlewareServiceConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<MiddlewareServiceConfig>) {
-    MiddlewareServiceConfig conf{};
-    conf.disable_user_pipeline_middlewares =
-        value["disable-user-pipeline-middlewares"].As<bool>(conf.disable_user_pipeline_middlewares);
-    conf.disable_all_pipeline_middlewares =
-        value["disable-all-pipeline-middlewares"].As<bool>(conf.disable_all_pipeline_middlewares);
-    conf.service_middlewares = value["middlewares"].As<std::unordered_map<std::string, MiddlewareConfig>>({});
+MiddlewareRunnerConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<MiddlewareRunnerConfig>) {
+    MiddlewareRunnerConfig conf{};
+    conf.disable_user_group = value["disable-user-pipeline-middlewares"].As<bool>(conf.disable_user_group);
+    conf.disable_all = value["disable-all-pipeline-middlewares"].As<bool>(conf.disable_all);
+    conf.middlewares = value["middlewares"].As<std::unordered_map<std::string, yaml_config::YamlConfig>>({});
     return conf;
 }
 

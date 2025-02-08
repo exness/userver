@@ -9,6 +9,8 @@
 #include <userver/engine/task/task_processor_fwd.hpp>
 #include <userver/yaml_config/fwd.hpp>
 
+#include <userver/ugrpc/middlewares/runner.hpp>
+#include <userver/ugrpc/server/middlewares/base.hpp>
 #include <userver/ugrpc/server/middlewares/fwd.hpp>
 #include <userver/ugrpc/server/service_base.hpp>
 
@@ -18,12 +20,21 @@ namespace ugrpc::server {
 
 class ServerComponent;
 class GenericServiceBase;
-class MiddlewareFactoryComponentBase;
+
+namespace impl {
+
+using MiddlewareRunner = USERVER_NAMESPACE::ugrpc::middlewares::RunnerComponentBase<MiddlewareBase, ServiceInfo>;
+
+}
 
 /// @brief Service info for the middleware
 struct ServiceInfo final {
     std::string full_service_name{};
 };
+
+/// @ingroup userver_component_names
+/// @brief The default name of ugrpc::middlewares::MiddlewarePipelineComponent for the server side
+inline constexpr std::string_view kMiddlewarePipelineName = "grpc-server-middlewares-pipeline";
 
 // clang-format off
 
@@ -41,7 +52,7 @@ struct ServiceInfo final {
 
 // clang-format on
 
-class ServiceComponentBase : public components::ComponentBase {
+class ServiceComponentBase : public impl::MiddlewareRunner {
 public:
     ServiceComponentBase(const components::ComponentConfig& config, const components::ComponentContext& context);
 
@@ -56,9 +67,6 @@ protected:
     void RegisterService(GenericServiceBase& service);
 
 private:
-    void
-    CreateAndPushMiddleware(const MiddlewareFactoryComponentBase& base, const yaml_config::YamlConfig& middlewares);
-
     ServerComponent& server_;
     ServiceConfig config_;
     std::atomic<bool> registered_{false};
