@@ -34,6 +34,8 @@ RUN \
   && locale-gen en_US.UTF-8 \
   && update-locale LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" LANGUAGE="en_US.UTF-8" 
 
+COPY scripts/mongo/ubuntu-install-mongodb.sh /userver_tmp/
+RUN /userver_tmp/ubuntu-install-mongodb.sh
 
 COPY scripts/clickhouse/ubuntu-install-clickhouse.sh /userver_tmp/
 RUN /userver_tmp/ubuntu-install-clickhouse.sh
