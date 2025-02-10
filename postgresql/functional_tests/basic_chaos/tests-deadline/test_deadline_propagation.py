@@ -20,6 +20,30 @@ async def test_expired(service_client, dynamic_config):
     assert 'storages::postgres::ConnectionInterrupted' in text, text
 
 
+async def test_timeout(service_client, dynamic_config):
+    assert dynamic_config.get('POSTGRES_DEADLINE_PROPAGATION_VERSION') == 1
+
+    pipeline_enabled = dynamic_config.get(
+        'POSTGRES_CONNECTION_PIPELINE_EXPERIMENT',
+    )
+    if not pipeline_enabled:
+        pytest.skip('Disabled in configuration')
+        return
+
+    async with service_client.capture_logs() as capture:
+        response = await service_client.post(
+            '/chaos/postgres?type=sleep',
+            headers={'X-YaTaxi-Client-TimeoutMs': '100'},
+        )
+        assert response.status == 498
+        assert response.text == 'Deadline expired'
+
+    logs = [log for log in capture.select() if log['text'].startswith('Statement')]
+    assert len(logs) == 1
+    text = logs[0]['text']
+    assert 'was cancelled by deadline propagation' in text, text
+
+
 @pytest.mark.config(POSTGRES_DEADLINE_PROPAGATION_VERSION=0)
 async def test_expired_dp_disabled(service_client, dynamic_config):
     async with service_client.capture_logs() as capture:

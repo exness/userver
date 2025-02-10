@@ -10,7 +10,7 @@ namespace storages::postgres {
 /// @throws ConnectionInterrupted if deadline is expired.
 void CheckDeadlineIsExpired(const dynamic_config::Snapshot&);
 
-TimeoutDuration AdjustTimeout(TimeoutDuration timeout);
+TimeoutDuration AdjustTimeout(TimeoutDuration timeout, bool& adjusted);
 
 }  // namespace storages::postgres
 

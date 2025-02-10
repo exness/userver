@@ -17,11 +17,13 @@ void CheckDeadlineIsExpired(const dynamic_config::Snapshot& config) {
 
     const auto inherited_deadline = server::request::GetTaskInheritedDeadline();
     if (inherited_deadline.IsReached()) {
+        server::request::MarkTaskInheritedDeadlineExpired();
         throw ConnectionInterrupted("Cancelled by deadline");
     }
 }
 
-TimeoutDuration AdjustTimeout(TimeoutDuration timeout) {
+TimeoutDuration AdjustTimeout(TimeoutDuration timeout, bool& adjusted) {
+    adjusted = false;
     if (!USERVER_NAMESPACE::utils::impl::kPgDeadlinePropagationExperiment.IsEnabled()) {
         return timeout;
     }
@@ -30,7 +32,17 @@ TimeoutDuration AdjustTimeout(TimeoutDuration timeout) {
     if (!inherited_deadline.IsReachable()) return timeout;
 
     auto left = std::chrono::duration_cast<TimeoutDuration>(inherited_deadline.TimeLeft());
-    return std::min(timeout, left);
+    if (left.count() < 0) {
+        server::request::MarkTaskInheritedDeadlineExpired();
+        throw ConnectionInterrupted("Cancelled by deadline");
+    }
+
+    if (timeout > left) {
+        adjusted = true;
+        return left;
+    } else {
+        return timeout;
+    }
 }
 
 }  // namespace storages::postgres

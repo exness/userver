@@ -7,6 +7,7 @@
 #include <string_view>
 #include <userver/error_injection/hook.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/server/request/task_inherited_data.hpp>
 #include <userver/testsuite/testpoint.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/tracing/tags.hpp>
@@ -671,7 +672,7 @@ TimeoutDuration ConnectionImpl::CurrentExecuteTimeout() const {
 void ConnectionImpl::SetConnectionStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline) {
     timeout = testsuite_pg_ctl_.MakeStatementTimeout(timeout);
     if (IsPipelineActive()) {
-        timeout = AdjustTimeout(timeout);
+        timeout = AdjustTimeout(timeout, deadline_propagation_is_active_);
     }
     if (current_statement_timeout_ != timeout) {
         SetParameter(
@@ -684,7 +685,7 @@ void ConnectionImpl::SetConnectionStatementTimeout(TimeoutDuration timeout, engi
 void ConnectionImpl::SetStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline) {
     timeout = testsuite_pg_ctl_.MakeStatementTimeout(timeout);
     if (IsPipelineActive()) {
-        timeout = AdjustTimeout(timeout);
+        timeout = AdjustTimeout(timeout, deadline_propagation_is_active_);
     }
     if (current_statement_timeout_ != timeout) {
         SetParameter(
@@ -698,6 +699,8 @@ void ConnectionImpl::SetStatementTimeout(TimeoutDuration timeout, engine::Deadli
 }
 
 void ConnectionImpl::SetStatementTimeout(OptionalCommandControl cmd_ctl) {
+    deadline_propagation_is_active_ = false;
+
     if (!!cmd_ctl) {
         SetConnectionStatementTimeout(cmd_ctl->statement, testsuite_pg_ctl_.MakeExecuteDeadline(cmd_ctl->execute));
     } else if (!!transaction_cmd_ctl_) {
@@ -1058,8 +1061,13 @@ ResultSet ConnectionImpl::WaitResult(
         throw;
     } catch (const QueryCancelled& e) {
         ++stats_.execute_timeout;
-        LOG_LIMITED_WARNING() << "Statement `" << statement << "` was cancelled: " << e << ". Statement timeout was "
-                              << current_statement_timeout_.count() << "ms";
+        bool cancelled_by_dp = deadline_propagation_is_active_;
+        if (cancelled_by_dp) {
+            server::request::MarkTaskInheritedDeadlineExpired();
+        }
+        LOG_LIMITED_WARNING() << "Statement `" << statement << "` was cancelled"
+                              << (cancelled_by_dp ? " by deadline propagation" : "") << ": " << e
+                              << ". Statement timeout was " << current_statement_timeout_.count() << "ms";
         span.AddTag(tracing::kErrorFlag, true);
         throw;
     } catch (const FeatureNotSupported& e) {
