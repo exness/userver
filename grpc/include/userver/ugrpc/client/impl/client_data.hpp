@@ -79,6 +79,7 @@ public:
 
     ~ClientData();
 
+    // NOLINTNEXTLINE(performance-noexcept-move-constructor)
     ClientData(ClientData&&) = default;
     ClientData& operator=(ClientData&&) = delete;
 
