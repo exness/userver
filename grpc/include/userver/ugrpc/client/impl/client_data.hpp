@@ -12,6 +12,7 @@
 #include <userver/testsuite/grpc_control.hpp>
 #include <userver/utils/fixed_array.hpp>
 
+#include <userver/ugrpc/client/impl/channel_arguments_builder.hpp>
 #include <userver/ugrpc/client/impl/client_internals.hpp>
 #include <userver/ugrpc/client/impl/stub_any.hpp>
 #include <userver/ugrpc/client/impl/stub_pool.hpp>
@@ -63,24 +64,29 @@ public:
         : internals_(std::move(internals)),
           metadata_(metadata),
           service_statistics_(&GetServiceStatistics()),
+          channel_arguments_builder_(
+              std::in_place,
+              internals_.channel_args,
+              internals_.default_service_config,
+              metadata
+          ),
           stub_state_(std::make_unique<rcu::Variable<StubState>>()) {
         if (internals_.qos) {
             SubscribeOnConfigUpdate<Service>(*internals_.qos);
         } else {
-            ConstructStubState<Service>(internals_.channel_arguments_builder.Build());
+            ConstructStubState<Service>(channel_arguments_builder_->Build());
         }
     }
 
     template <typename Service>
     ClientData(ClientInternals&& internals, GenericClientTag, std::in_place_type_t<Service>)
         : internals_(std::move(internals)), stub_state_(std::make_unique<rcu::Variable<StubState>>()) {
-        ConstructStubState<Service>(internals_.channel_arguments_builder.Build());
+        ConstructStubState<Service>(BuildChannelArguments(internals_.channel_args, internals_.default_service_config));
     }
 
     ~ClientData();
 
-    // NOLINTNEXTLINE(performance-noexcept-move-constructor)
-    ClientData(ClientData&&) = default;
+    ClientData(ClientData&&) noexcept = default;
     ClientData& operator=(ClientData&&) = delete;
 
     ClientData(const ClientData&) = delete;
@@ -148,7 +154,8 @@ private:
     void OnConfigUpdate(const dynamic_config::Snapshot& config) {
         UASSERT(internals_.qos);
         const auto& client_qos = config[*internals_.qos];
-        ConstructStubState<Service>(internals_.channel_arguments_builder.Build(client_qos));
+        UASSERT(channel_arguments_builder_);
+        ConstructStubState<Service>(channel_arguments_builder_->Build(client_qos));
     }
 
     template <typename Service>
@@ -170,6 +177,8 @@ private:
     ClientInternals internals_;
     std::optional<ugrpc::impl::StaticServiceMetadata> metadata_{std::nullopt};
     ugrpc::impl::ServiceStatistics* service_statistics_{nullptr};
+
+    std::optional<ChannelArgumentsBuilder> channel_arguments_builder_;
 
     std::unique_ptr<rcu::Variable<StubState>> stub_state_;
 

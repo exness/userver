@@ -1,12 +1,14 @@
 #pragma once
 
+#include <optional>
 #include <string>
+
+#include <grpcpp/support/channel_arguments.h>
 
 #include <userver/dynamic_config/source.hpp>
 #include <userver/testsuite/grpc_control.hpp>
 
 #include <userver/ugrpc/client/client_settings.hpp>
-#include <userver/ugrpc/client/impl/channel_arguments_builder.hpp>
 #include <userver/ugrpc/client/impl/channel_factory.hpp>
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
 
@@ -31,7 +33,8 @@ struct ClientInternals final {
     std::size_t channel_count{};
     DedicatedMethodsConfig dedicated_methods_config;
     ChannelFactory channel_factory;
-    ChannelArgumentsBuilder channel_arguments_builder;
+    const grpc::ChannelArguments& channel_args{};
+    const std::optional<std::string>& default_service_config;
 };
 
 }  // namespace ugrpc::client::impl

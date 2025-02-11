@@ -15,7 +15,7 @@ inline decltype(auto) ToString(const grpc::string& str) {
     if constexpr (std::is_same_v<grpc::string, std::string>) {
         return str;
     } else {
-        return grpc::string{str};
+        return std::string{str};
     }
 }
 

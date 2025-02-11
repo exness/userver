@@ -34,9 +34,6 @@ impl::ClientInternals ClientFactory::MakeClientInternals(ClientSettings&& client
     impl::ChannelFactory channel_factory{
         channel_task_processor_, std::move(client_settings.endpoint), std::move(channel_credentials)};
 
-    impl::ChannelArgumentsBuilder channel_arguments_builder{
-        client_factory_settings_.channel_args, client_factory_settings_.default_service_config};
-
     return impl::ClientInternals{
         std::move(client_settings.client_name),
         std::move(mws),
@@ -48,7 +45,9 @@ impl::ClientInternals ClientFactory::MakeClientInternals(ClientSettings&& client
         client_factory_settings_.channel_count,
         std::move(client_settings.dedicated_methods_config),
         std::move(channel_factory),
-        std::move(channel_arguments_builder)};
+        client_factory_settings_.channel_args,
+        client_factory_settings_.default_service_config,
+    };
 }
 
 }  // namespace ugrpc::client

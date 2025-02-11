@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string_view>
 
 #include <userver/utils/span.hpp>
@@ -32,6 +33,15 @@ constexpr std::string_view GetMethodName(const StaticServiceMetadata& metadata, 
     const auto& method_full_name = metadata.method_full_names[method_id];
     return method_full_name.substr(metadata.service_full_name.size() + 1);
 }
+
+std::optional<std::size_t>
+FindMethod(const ugrpc::impl::StaticServiceMetadata& metadata, std::string_view method_full_name);
+
+std::optional<std::size_t> FindMethod(
+    const ugrpc::impl::StaticServiceMetadata& metadata,
+    std::string_view service_name,
+    std::string_view method_name
+);
 
 }  // namespace ugrpc::impl
 
