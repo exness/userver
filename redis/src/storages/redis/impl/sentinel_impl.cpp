@@ -82,6 +82,8 @@ SentinelImpl::SentinelImpl(
       cluster_mode_failed_(false),
       key_shard_(std::move(key_shard)),
       connection_mode_(mode),
+      // https://github.com/boostorg/signals2/issues/59
+      // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
       slot_info_(IsInClusterMode() ? std::make_unique<SlotInfo>() : nullptr),
       dynamic_config_source_(dynamic_config_source) {
     for (size_t i = 0; i < init_shards_->size(); ++i) {
