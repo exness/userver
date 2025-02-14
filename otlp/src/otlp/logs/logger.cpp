@@ -52,7 +52,11 @@ void AddAttribute(Item& item, std::string_view key, const Value& value) {
             [mutable_value](unsigned long long x) { mutable_value->set_int_value(x); },
             [mutable_value](float x) { mutable_value->set_double_value(x); },
             [mutable_value](double x) { mutable_value->set_double_value(x); },
-            [mutable_value](const std::string& x) { mutable_value->set_string_value(x); }},
+            [mutable_value](const std::string& x) { mutable_value->set_string_value(x); },
+            [mutable_value](const logging::JsonString& x) {
+                const auto value = x.GetView();
+                mutable_value->set_string_value(value.data(), value.size());
+            }},
         value
     );
     UASSERT(attribute->has_value());

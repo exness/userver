@@ -74,6 +74,8 @@ void Tskv::AddTag(std::string_view key, const LogExtra::Value& value) {
         [&, this](const auto& x) {
             if constexpr (std::is_same_v<decltype(x), const std::string&>)
                 DoAddTag(key, std::string_view{x}, false);
+            else if constexpr (std::is_same_v<decltype(x), const JsonString&>)
+                DoAddTag(key, x.GetView(), false);
             else
                 DoAddTag(key, fmt::to_string(x), true);
         },

@@ -150,7 +150,8 @@ void Span::Impl::PutIntoLogger(logging::impl::TagWriter writer) && {
         //  and log_extra_local_. Merge to deduplicate such tags.
         log_extra_inheritable_.Extend(std::move(*log_extra_local_));
     }
-    if (log_extra_inheritable_.GetValue(tracing::kSpanKind) == logging::LogExtra::Value{}) {
+    if (auto& value = log_extra_inheritable_.GetValue(tracing::kSpanKind);
+        std::holds_alternative<std::string>(value) && std::get<std::string>(value).empty()) {
         log_extra_inheritable_.Extend(tracing::kSpanKind, tracing::kSpanKindInternal);
     }
     writer.PutLogExtra(log_extra_inheritable_);
