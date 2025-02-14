@@ -439,9 +439,19 @@ class EnumItemName(str):
 
 
 @dataclasses.dataclass
+class CppIntEnumItem:
+    value: int
+    raw_name: str
+    cpp_name: str
+
+    def definition_includes(self) -> List[str]:
+        return ['fmt/format.h']
+
+
+@dataclasses.dataclass
 class CppIntEnum(CppType):
     name: str
-    enums: List[int]
+    enums: List[CppIntEnumItem]
 
     __hash__ = CppType.__hash__
 
