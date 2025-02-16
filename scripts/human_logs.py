@@ -161,9 +161,7 @@ class HumanLogs:
             if x in values:
                 values[x] = Colors.colorize(values[x], Colors.GRAY)
 
-        fmt = (
-            '{time} {level_color}{level:<5} {text_color}{text} ' '{module}{fname}{gray_color}{remains}{default_color}\n'
-        )
+        fmt = '{time} {level_color}{level:<5} {text_color}{text} {module}{fname}{gray_color}{remains}{default_color}\n'
 
         level_indx = HumanLogs.LOG_LEVELS.index(level)
 

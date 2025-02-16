@@ -27,13 +27,13 @@ def pytest_addoption(parser) -> None:
     )
     group.addoption(
         '--service-port',
-        help=('Main HTTP port of the service ' '(default: use the port from the static config)'),
+        help=('Main HTTP port of the service (default: use the port from the static config)'),
         default=None,
         type=int,
     )
     group.addoption(
         '--monitor-port',
-        help=('Monitor HTTP port of the service ' '(default: use the port from the static config)'),
+        help=('Monitor HTTP port of the service (default: use the port from the static config)'),
         default=None,
         type=int,
     )

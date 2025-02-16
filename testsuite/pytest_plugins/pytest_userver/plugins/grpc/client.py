@@ -127,7 +127,7 @@ async def grpc_channel(
         )
     except asyncio.TimeoutError:
         raise RuntimeError(
-            f'Failed to connect to remote gRPC server by ' f'address {grpc_service_endpoint}',
+            f'Failed to connect to remote gRPC server by address {grpc_service_endpoint}',
         )
     return grpc_session_channel
 

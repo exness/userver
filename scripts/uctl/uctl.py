@@ -184,7 +184,7 @@ class Client:
                 self.config_yaml = yaml.safe_load(ifile)
         except FileNotFoundError:
             raise RuntimeError(
-                'File "config.yaml" not found, maybe you forgot ' 'to pass --config?',
+                'File "config.yaml" not found, maybe you forgot to pass --config?',
             )
 
         config_vars_path = self.config_yaml['config_vars']

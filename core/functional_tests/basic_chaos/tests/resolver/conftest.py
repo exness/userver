@@ -63,7 +63,7 @@ class DnsServerProtocol:
 
     def datagram_received(self, data, addr):
         logger.info(
-            f'Dns server "{self.name}" received {len(data)} bytes from {addr} ' f'at {datetime.datetime.now()}',
+            f'Dns server "{self.name}" received {len(data)} bytes from {addr} at {datetime.datetime.now()}',
         )
         self.times_called += 1
 

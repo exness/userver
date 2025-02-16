@@ -26,13 +26,12 @@ class UserverCachePlugin:
             return
         if not isinstance(uhooks, dict):
             raise RuntimeError(
-                f'USERVER_CACHE_CONTROL_HOOKS must be dictionary: '
-                f'{{cache_name: fixture_name}}, got {uhooks} instead',
+                f'USERVER_CACHE_CONTROL_HOOKS must be dictionary: {{cache_name: fixture_name}}, got {uhooks} instead',
             )
         for cache_name, fixture_name in uhooks.items():
             if cache_name in self._hooks:
                 raise RuntimeError(
-                    f'USERVER_CACHE_CONTROL_HOOKS: hook already registered ' f'for cache {cache_name}',
+                    f'USERVER_CACHE_CONTROL_HOOKS: hook already registered for cache {cache_name}',
                 )
             self._hooks[cache_name] = fixture_name
 

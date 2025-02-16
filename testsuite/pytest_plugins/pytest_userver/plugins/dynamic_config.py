@@ -520,7 +520,7 @@ def userver_config_dynconf_fallback(config_service_defaults):
         elif isinstance(defaults_field, str):
             if defaults_field.startswith('$'):
                 return config_vars.get(defaults_field[1:], {})
-        assert False, f'Unexpected static config option ' f'`dynamic-config.defaults`: {defaults_field!r}'
+        assert False, f'Unexpected static config option `dynamic-config.defaults`: {defaults_field!r}'
 
     def _patch_config(config_yaml, config_vars):
         components = config_yaml['components_manager']['components']

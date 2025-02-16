@@ -659,7 +659,7 @@ class Generator:
         if not need_extra_member and not isinstance(extra_type, bool):
             self._raise(
                 schema,
-                msg=('"x-usrv-cpp-extra-member: false" is not allowed for non-boolean ' '"additionalProperties"'),
+                msg=('"x-usrv-cpp-extra-member: false" is not allowed for non-boolean "additionalProperties"'),
             )
         if not need_extra_member:
             extra_type = None

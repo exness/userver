@@ -157,7 +157,7 @@ def _ydb_migrate(ydb_service_settings, ydb_migration_dir, goose_binary_path):
         '-table',
         YDB_MIGRATION_TABLE,
         'ydb',
-        (f'grpc://{host}:{port}/local?go_query_mode=scripting&' 'go_fake_tx=scripting&go_query_bind=declare,numeric'),
+        (f'grpc://{host}:{port}/local?go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric'),
         'up',
     ]
     try:
@@ -246,7 +246,7 @@ def _ydb_prepare(
 ):
     if _ydb_service_schemas and ydb_migration_dir.exists():
         raise Exception(
-            'Both ydb/schema and ydb/migrations exist, ' 'which are mutually exclusive',
+            'Both ydb/schema and ydb/migrations exist, which are mutually exclusive',
         )
 
     # testsuite legacy

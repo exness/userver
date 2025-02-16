@@ -58,5 +58,5 @@ async def test_metrics(monitor_client, load, force_metrics_to_appear):
     ground_truth_paths = _hide_metrics_values(ground_truth)
 
     assert all_metrics_paths == ground_truth_paths, (
-        '\n===== Service metrics start =====\n' f'{all_metrics}\n' '===== Service metrics end =====\n'
+        f'\n===== Service metrics start =====\n{all_metrics}\n===== Service metrics end =====\n'
     )

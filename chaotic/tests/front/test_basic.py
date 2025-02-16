@@ -88,6 +88,4 @@ def test_ref(simple_parse):
         rr.sort_schemas(parser.parsed_schemas())
         assert False
     except Exception as exc:  # pylint: disable=broad-exception-caught
-        assert str(exc) == (
-            '$ref to unknown type "vfull#/definitions/type", known refs:\n' '- vfull#/definitions/type1'
-        )
+        assert str(exc) == ('$ref to unknown type "vfull#/definitions/type", known refs:\n- vfull#/definitions/type1')

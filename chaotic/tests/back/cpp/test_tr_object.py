@@ -231,4 +231,4 @@ def test_extra_member_nonboolean(simple_gen):
         })
         assert False
     except error.BaseError as exc:
-        assert exc.msg == ('"x-usrv-cpp-extra-member: false" is not allowed for non-boolean ' '"additionalProperties"')
+        assert exc.msg == ('"x-usrv-cpp-extra-member: false" is not allowed for non-boolean "additionalProperties"')

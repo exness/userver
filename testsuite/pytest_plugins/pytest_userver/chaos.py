@@ -481,7 +481,7 @@ class _SocketsPaired:
         if not self.is_active():
             return '<inactive>'
 
-        return f'client fd={self._client.fileno()} <=> ' f'server fd={self._server.fileno()}'
+        return f'client fd={self._client.fileno()} <=> server fd={self._server.fileno()}'
 
 
 # @endcond
@@ -509,7 +509,7 @@ class BaseGate:
     @see @ref scripts/docs/en/userver/chaos_testing.md
     """
 
-    _NOT_IMPLEMENTED_MESSAGE = 'Do not use BaseGate itself, use one of ' 'specializations TcpGate or UdpGate'
+    _NOT_IMPLEMENTED_MESSAGE = 'Do not use BaseGate itself, use one of specializations TcpGate or UdpGate'
 
     def __init__(self, route: GateRoute, loop: EvLoop) -> None:
         self._route = route
@@ -898,7 +898,7 @@ class TcpGate(BaseGate):
             sock.bind(addr[4])
             sock.listen()
             logger.debug(
-                f'Accepting connections on {sock.getsockname()}, ' f'fd={sock.fileno()}',
+                f'Accepting connections on {sock.getsockname()}, fd={sock.fileno()}',
             )
             res.append(sock)
 

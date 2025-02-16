@@ -82,7 +82,7 @@ def userver_pg_config(pgsql_local):
 
     if not pgsql_local:
         raise ValueError(
-            'Override the "pgsql_local" fixture so that testsuite knowns how ' 'to start the PostgreSQL database',
+            'Override the "pgsql_local" fixture so that testsuite knowns how to start the PostgreSQL database',
         )
 
     if len(pgsql_local) > 1:

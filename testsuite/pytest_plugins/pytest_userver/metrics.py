@@ -208,7 +208,7 @@ class MetricsSnapshot:
         if labels is not None:
             entry = {x for x in entry if x.labels == labels}
             assert entry or default is not None, f'No metrics found by path "{path}" and labels {labels}'
-            assert len(entry) <= 1, f'Multiple metrics found by path "{path}" and labels {labels}:' f' {entry}'
+            assert len(entry) <= 1, f'Multiple metrics found by path "{path}" and labels {labels}: {entry}'
         else:
             assert len(entry) <= 1, f'Multiple metrics found by path "{path}": {entry}'
 

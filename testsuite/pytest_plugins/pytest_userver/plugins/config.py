@@ -220,7 +220,7 @@ def service_config_path_temp(
     dst_path = service_tmpdir / 'config.yaml'
 
     logger.debug(
-        'userver fixture "service_config_path_temp" writes the patched static ' 'config to "%s" equivalent to:\n%s',
+        'userver fixture "service_config_path_temp" writes the patched static config to "%s" equivalent to:\n%s',
         dst_path,
         yaml.dump(service_config),
     )
@@ -359,7 +359,7 @@ def _service_config_hooked(
         config_vars_path = service_tmpdir / 'config_vars.yaml'
         config_vars_text = yaml.dump(config_vars)
         logger.debug(
-            'userver fixture "service_config" writes the patched static ' 'config vars to "%s":\n%s',
+            'userver fixture "service_config" writes the patched static config vars to "%s":\n%s',
             config_vars_path,
             config_vars_text,
         )

@@ -273,7 +273,7 @@ class CompilerBase:
             vfilepath_to_relfilepath={
                 name: f'taxi_config/variables/{name}.types.hpp',
                 **{
-                    name: ('taxi_config/definitions/' f'{name.split(".")[0].replace("/", "_")}.hpp')
+                    name: (f'taxi_config/definitions/{name.split(".")[0].replace("/", "_")}.hpp')
                     for name in self._definitions
                 },
             },

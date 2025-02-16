@@ -106,6 +106,6 @@ async def grpc_ch(_grpc_session_ch, grpc_service_port_local):
         await asyncio.wait_for(_grpc_session_ch.channel_ready(), timeout=10)
     except asyncio.TimeoutError:
         raise RuntimeError(
-            'Failed to connect to remote gRPC server by ' f'address [::1]:{grpc_service_port_local}',
+            f'Failed to connect to remote gRPC server by address [::1]:{grpc_service_port_local}',
         )
     return _grpc_session_ch

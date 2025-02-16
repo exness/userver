@@ -217,7 +217,7 @@ async def test_fake_deadline_expired_with_exception(
     deadline_warning = warnings[1]
 
     assert exception_warning['text'].startswith(
-        f'exception in \'handler-chaos-httpclient\' handler: Timeout happened (deadline propagation), '
+        f"exception in 'handler-chaos-httpclient' handler: Timeout happened (deadline propagation), "
         f'url: {mockserver.url("test")}',
     )
 

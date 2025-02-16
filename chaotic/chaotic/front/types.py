@@ -333,7 +333,7 @@ class SchemaObject(Schema):
                 if name not in self.properties:
                     raise FieldError(
                         'required',
-                        f'Field "{name}" is set in "required", ' 'but missing in "properties"',
+                        f'Field "{name}" is set in "required", but missing in "properties"',
                     )
 
     def visit_children(self, cb: Callable[[Schema, Schema], None]) -> None:

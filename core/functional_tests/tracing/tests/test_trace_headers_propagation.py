@@ -99,9 +99,9 @@ async def test_otel_tracing_headers(
         assert request.headers['X-YaTraceId'] == OPENTELEMETRY_TRACE_ID
         assert request.headers['traceparent'].split('-')[0] == OPENTELEMETRY_HEADERS['traceparent'].split('-')[0]
         assert request.headers['traceparent'].split('-')[1] == OPENTELEMETRY_HEADERS['traceparent'].split('-')[1]
-        assert (
-            request.headers['traceparent'].split('-')[3] == OPENTELEMETRY_HEADERS['traceparent'].split('-')[3]
-        ), request.headers['traceparent']
+        assert request.headers['traceparent'].split('-')[3] == OPENTELEMETRY_HEADERS['traceparent'].split('-')[3], (
+            request.headers['traceparent']
+        )
         assert request.headers['tracestate'] == OPENTELEMETRY_HEADERS['tracestate']
         return mockserver.make_response()
 

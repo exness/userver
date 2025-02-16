@@ -306,7 +306,7 @@ class AiohttpClientMonitor(service_client.AiohttpClient):
     async def get_metric(self, metric_name):
         metrics = await self.get_metrics(metric_name)
         assert metric_name in metrics, (
-            f'No metric with name {metric_name!r}. ' f'Use "single_metric" function instead of "get_metric"'
+            f'No metric with name {metric_name!r}. Use "single_metric" function instead of "get_metric"'
         )
         return metrics[metric_name]
 
@@ -365,9 +365,7 @@ class AiohttpClientMonitor(service_client.AiohttpClient):
         response = await self.metrics(path=path, labels=labels)
         metrics_list = response.get(path, [])
 
-        assert len(metrics_list) <= 1, (
-            f'More than one metric found for path {path} and labels {labels}: ' f'{response}',
-        )
+        assert len(metrics_list) <= 1, (f'More than one metric found for path {path} and labels {labels}: {response}',)
 
         if not metrics_list:
             return None
@@ -967,7 +965,7 @@ class AiohttpClient(service_client.AiohttpClient):
         if 'invalidate_caches' in body and invalidate_caches:
             if not clean_update or cache_names:
                 logger.warning(
-                    'Manual cache invalidation leads to indirect initial ' 'full cache invalidation',
+                    'Manual cache invalidation leads to indirect initial full cache invalidation',
                 )
                 await self._prepare()
                 body = {}
@@ -1014,7 +1012,7 @@ class AiohttpClient(service_client.AiohttpClient):
             ) as response:
                 if response.status == 404:
                     raise ConfigurationError(
-                        'It seems that testsuite support is not enabled ' 'for your service',
+                        'It seems that testsuite support is not enabled for your service',
                     )
                 response.raise_for_status()
                 return await response.json(content_type=None)

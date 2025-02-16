@@ -55,7 +55,7 @@ async def userver_pg_config(testenv: it.Environment):
         components = config_yaml['components_manager']['components']
         db = components['key-value-database']
         db['dbconnection'] = (
-            'postgresql://' f'{settings.user}:{settings.password}@' f'{settings.host}:{settings.port}' '/pg_key_value'
+            f'postgresql://{settings.user}:{settings.password}@{settings.host}:{settings.port}/pg_key_value'
         )
 
     return _hook_db_config

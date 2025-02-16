@@ -244,7 +244,7 @@ def colorize_main():
     parser.add_argument(
         '--color',
         metavar='WHEN',
-        help=('Control color highlighting, WHEN is always, never or ' 'auto (default)'),
+        help=('Control color highlighting, WHEN is always, never or auto (default)'),
         nargs='?',
         type=parse_color,
         default=ColorArg.AUTO,

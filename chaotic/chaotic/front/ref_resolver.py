@@ -77,7 +77,7 @@ class RefResolver:
                         known = '\n'.join([f'- {v}' for v in schemas.schemas.keys()])
                         known += '\n'.join([f'- {v}' for v in external_schemas.schemas.keys()])
                         raise Exception(
-                            f'$ref to unknown type "{cur_node.ref}", ' f'known refs:\n{known}',
+                            f'$ref to unknown type "{cur_node.ref}", known refs:\n{known}',
                         )
                 else:
                     cur_node = schemas.schemas[cur_node.ref]

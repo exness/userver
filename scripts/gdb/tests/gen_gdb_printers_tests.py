@@ -76,7 +76,7 @@ gdb.execute('quit %s' % _return_code)
 def parse_args(args):
     parser = argparse.ArgumentParser(
         prog=args[0],
-        description=('Creates a Python script from C++ source file to control a GDB ' 'test of that source file'),
+        description=('Creates a Python script from C++ source file to control a GDB test of that source file'),
     )
     parser.add_argument('input', help='Input file')
     parser.add_argument(

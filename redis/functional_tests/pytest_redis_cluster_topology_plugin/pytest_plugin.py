@@ -30,7 +30,7 @@ class RedisClusterTopologyError(Exception):
 
 
 def _get_base_path() -> str:
-    package_dir = 'taxi/uservices/userver/redis/' 'functional_tests/pytest_redis_cluster_topology_plugin/package'
+    package_dir = 'taxi/uservices/userver/redis/functional_tests/pytest_redis_cluster_topology_plugin/package'
     return yatest.common.build_path(package_dir)
 
 
@@ -190,7 +190,7 @@ class _RedisClusterNode:
             time.sleep(RETRY_TIMEOUT)
         else:
             raise RedisClusterTopologyError(
-                f'Redis cluster not ready after' f' {MAX_CHECK_RETRIES} retries',
+                f'Redis cluster not ready after {MAX_CHECK_RETRIES} retries',
             )
 
     def _write_config(self):
@@ -343,7 +343,7 @@ class RedisClusterTopology:
         # again
         if time1 - time0 >= 60.0:
             raise RuntimeError(
-                'Failed to notify all cluster nodes about deleted' ' nodes within 1 minute',
+                'Failed to notify all cluster nodes about deleted nodes within 1 minute',
             )
 
         self._wait_cluster_nodes_ready(original_masters, 6)
@@ -428,7 +428,7 @@ class RedisClusterTopology:
         from_slots = self.slots_by_node[from_addr]
         if len(from_slots) < hash_slot_count:
             raise Exception(
-                f'Invalid number of slots to move ' f'{hash_slot_count}:{len(from_slots)}',
+                f'Invalid number of slots to move {hash_slot_count}:{len(from_slots)}',
             )
         tasks = []
         for i in range(hash_slot_count):
@@ -473,7 +473,7 @@ class RedisClusterTopology:
                     ids.add(data['node_id'])
                 if ids != expected_ids:
                     logging.warning(
-                        f'failed get nodes (wrong ids) ' f'{ret} {ids} {expected_ids}',
+                        f'failed get nodes (wrong ids) {ret} {ids} {expected_ids}',
                     )
                     return False
 
@@ -484,7 +484,7 @@ class RedisClusterTopology:
                 MAX_CHECK_RETRIES,
                 RETRY_TIMEOUT,
                 'Redis cluster is not up yet, waiting...',
-                f'Redis cluster not ready after' f' {MAX_CHECK_RETRIES} retries',
+                f'Redis cluster not ready after {MAX_CHECK_RETRIES} retries',
             )
         return True
 
@@ -563,7 +563,7 @@ class RedisClusterTopology:
                 time.sleep(RETRY_TIMEOUT)
             else:
                 raise RedisClusterTopologyError(
-                    f'Redis cluster not ready after' f' {MAX_CHECK_RETRIES} retries',
+                    f'Redis cluster not ready after {MAX_CHECK_RETRIES} retries',
                 )
         return True
 
@@ -576,7 +576,7 @@ class RedisClusterTopology:
                 time.sleep(RETRY_TIMEOUT)
             else:
                 raise RedisClusterTopologyError(
-                    f'Redis cluster not ready after' f' {MAX_CHECK_RETRIES} retries',
+                    f'Redis cluster not ready after {MAX_CHECK_RETRIES} retries',
                 )
         return True
 
