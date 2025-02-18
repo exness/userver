@@ -56,7 +56,7 @@ class DnsServerProtocol:
         return self.queries
 
     def connection_made(self, transport):
-        self.transport = transport
+        self.transport = transport  # pylint: disable=attribute-defined-outside-init
 
     def connection_lost(self, exc):
         logger.info('Dns server "%s" lost connection', self.name)
