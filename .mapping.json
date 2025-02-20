@@ -220,6 +220,7 @@
   "chaotic/integration_tests/tests/my/custom_object.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/my/custom_object.cpp",
   "chaotic/integration_tests/tests/my/custom_one_of_with_discriminator.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/my/custom_one_of_with_discriminator.cpp",
   "chaotic/integration_tests/tests/render/custom.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/render/custom.cpp",
+  "chaotic/integration_tests/tests/render/formatter.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/render/formatter.cpp",
   "chaotic/integration_tests/tests/render/fwd.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/render/fwd.cpp",
   "chaotic/integration_tests/tests/render/logging.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/render/logging.cpp",
   "chaotic/integration_tests/tests/render/minmax.cpp":"taxi/uservices/userver/chaotic/integration_tests/tests/render/minmax.cpp",

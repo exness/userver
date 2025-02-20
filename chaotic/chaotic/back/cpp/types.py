@@ -444,8 +444,8 @@ class CppIntEnumItem:
     raw_name: str
     cpp_name: str
 
-    def definition_includes(self) -> List[str]:
-        return ['fmt/format.h']
+    def declaration_includes(self) -> List[str]:
+        return ['fmt/core.h']
 
 
 @dataclasses.dataclass
@@ -456,12 +456,11 @@ class CppIntEnum(CppType):
     __hash__ = CppType.__hash__
 
     def declaration_includes(self) -> List[str]:
-        return []
+        return ['fmt/core.h']
 
     def definition_includes(self) -> List[str]:
         return [
             'cstdint',
-            'fmt/format.h',
             'userver/chaotic/exception.hpp',
             'userver/chaotic/primitive.hpp',
             'userver/utils/trivial_map.hpp',
@@ -485,8 +484,8 @@ class CppStringEnumItem:
     raw_name: str
     cpp_name: str
 
-    def definition_includes(self) -> List[str]:
-        return ['fmt/format.h']
+    def declaration_includes(self) -> List[str]:
+        return ['fmt/core.h']
 
 
 @dataclasses.dataclass
@@ -498,7 +497,7 @@ class CppStringEnum(CppType):
     __hash__ = CppType.__hash__
 
     def declaration_includes(self) -> List[str]:
-        return ['string']
+        return ['string', 'fmt/core.h']
 
     def definition_includes(self) -> List[str]:
         return [
