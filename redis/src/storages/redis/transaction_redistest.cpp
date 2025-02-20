@@ -5,7 +5,7 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace {
-storages::redis::CommandControl kDefaultCc(std::chrono::milliseconds(500), std::chrono::milliseconds(500), 1);
+constexpr storages::redis::CommandControl kDefaultCc{std::chrono::milliseconds(500), std::chrono::milliseconds(500), 1};
 
 class RedisClientTransactionTest : public RedisClientTest {
 public:

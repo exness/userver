@@ -57,17 +57,17 @@ public:
     SubscriptionToken Subscribe(
         const std::string& channel,
         const Sentinel::UserMessageCallback& message_callback,
-        CommandControl control = CommandControl()
+        CommandControl control = {}
     );
     SubscriptionToken Psubscribe(
         const std::string& pattern,
         const Sentinel::UserPmessageCallback& message_callback,
-        CommandControl control = CommandControl()
+        CommandControl control = {}
     );
     SubscriptionToken Ssubscribe(
         const std::string& channel,
         const Sentinel::UserMessageCallback& message_callback,
-        CommandControl control = CommandControl()
+        CommandControl control = {}
     );
 
     PubsubClusterStatistics GetSubscriberStatistics(const PubsubMetricsSettings& settings) const;
