@@ -67,7 +67,7 @@ public:
     std::string str() const;
 
 private:
-    struct Impl;
+    class Impl;
     utils::FastPimpl<Impl, 16, 8> impl_;
 
     friend class match_results;
@@ -188,11 +188,6 @@ struct Re2Replacement final {
 /// @overload
 /// @see utils::Re2Replacement
 std::string regex_replace(std::string_view str, const regex& pattern, Re2Replacement repl);
-
-/// @cond
-bool IsImplicitBoostRegexFallbackAllowed() noexcept;
-void SetImplicitBoostRegexFallbackAllowed(bool) noexcept;
-/// @endcond
 
 }  // namespace utils
 

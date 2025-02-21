@@ -10,7 +10,6 @@ find_package(Threads REQUIRED)
 find_package(Boost REQUIRED CONFIG COMPONENTS
     program_options
     filesystem
-    regex
     stacktrace_basic
     OPTIONAL_COMPONENTS
     stacktrace_backtrace

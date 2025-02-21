@@ -205,10 +205,6 @@ properties:
         type: boolean
         description: whether to collect a dummy stacktrace at server start up
         defaultDescription: true
-    implicit_boost_regex_fallback_allowed:
-        type: boolean
-        description: whether to allow using boost::regex in utils::regex (the service will be open to ReDoS attacks)
-        defaultDescription: true
     static_config_validation:
         type: object
         description: settings for basic syntax validation in config.yaml
@@ -256,8 +252,6 @@ ManagerConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<Man
     config.disable_phdr_cache = value["disable_phdr_cache"].As<bool>(config.disable_phdr_cache);
     config.preheat_stacktrace_collector =
         value["preheat_stacktrace_collector"].As<bool>(config.preheat_stacktrace_collector);
-    config.implicit_boost_regex_fallback_allowed =
-        value["implicit_boost_regex_fallback_allowed"].As<bool>(config.implicit_boost_regex_fallback_allowed);
     config.validate_components_configs = value["static_config_validation"].As<ValidationMode>(ValidationMode::kAll);
     config.enabled_experiments = utils::AsContainer<utils::impl::UserverExperimentSet>(
         value["userver_experiments"].As<std::unordered_map<std::string, bool>>({}) |

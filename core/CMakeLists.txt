@@ -107,7 +107,6 @@ target_link_libraries(${PROJECT_NAME}
     Boost::filesystem
     Boost::program_options
     Boost::iostreams
-    Boost::regex
     Iconv::Iconv
     OpenSSL::Crypto
     OpenSSL::SSL

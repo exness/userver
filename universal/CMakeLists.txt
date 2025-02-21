@@ -242,7 +242,6 @@ target_link_libraries(${PROJECT_NAME}
   PRIVATE
     Boost::filesystem
     Boost::program_options
-    Boost::regex
     OpenSSL::Crypto
     OpenSSL::SSL
 )

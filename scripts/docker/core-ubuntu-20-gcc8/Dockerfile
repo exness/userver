@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y --allow-unauthenticated \
     libboost-program-options1.71-dev \
     libboost-filesystem1.71-dev \
     libboost-locale1.71-dev \
-    libboost-regex1.71-dev \
     libboost-iostreams1.71-dev \
     libboost-context1.71-dev \
     libboost-coroutine1.71-dev \

@@ -1,20 +1,15 @@
 #include <userver/utils/regex.hpp>
 
-#include <atomic>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
-#include <variant>
 
 #include <fmt/format.h>
 #include <re2/re2.h>
 #include <boost/container/small_vector.hpp>
-#include <boost/regex.hpp>
 
-#include <userver/compiler/impl/constexpr.hpp>
 #include <userver/utils/assert.hpp>
-#include <userver/utils/overloaded.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -33,7 +28,6 @@ private:
 namespace {
 
 constexpr std::size_t kGroupsSboSize = 5;
-USERVER_IMPL_CONSTINIT std::atomic<bool> implicit_boost_regex_fallback_allowed{false};
 
 re2::RE2::Options MakeRE2Options() {
     re2::RE2::Options options{};
@@ -41,67 +35,29 @@ re2::RE2::Options MakeRE2Options() {
     return options;
 }
 
-bool ShouldRetryWithBoostRegex(re2::RE2::ErrorCode code) {
-    switch (code) {
-        case re2::RE2::ErrorCode::ErrorInternal:
-        case re2::RE2::ErrorCode::ErrorBadCharClass:
-        case re2::RE2::ErrorCode::ErrorRepeatSize:
-        case re2::RE2::ErrorCode::ErrorBadPerlOp:
-        case re2::RE2::ErrorCode::ErrorPatternTooLarge:
-            return true;
-        default:
-            return false;
-    }
-}
-
 }  // namespace
 
-struct regex::Impl {
+class regex::Impl {
+public:
     Impl() = default;
 
-    explicit Impl(std::string_view pattern)
-        : regex(std::make_shared<std::variant<re2::RE2, boost::regex>>(
-              std::in_place_type<re2::RE2>,
-              pattern,
-              MakeRE2Options()
-          )) {
-        {
-            const auto& re2_regex = std::get<re2::RE2>(*regex);
-            if (re2_regex.ok()) {
-                return;
-            }
-            if (!ShouldRetryWithBoostRegex(re2_regex.error_code())) {
-                throw RegexErrorImpl(
-                    fmt::format("Failed to construct regex from pattern '{}': {}", pattern, re2_regex.error())
-                );
-            }
-            if (!implicit_boost_regex_fallback_allowed) {
-                throw RegexErrorImpl(fmt::format(
-                    "Failed to construct regex from pattern '{}': {}. "
-                    "Note: boost::regex usage in utils::regex is disallowed for the current service",
-                    pattern,
-                    re2_regex.error()
-                ));
-            }
+    explicit Impl(std::string_view pattern) : regex_(std::make_shared<const re2::RE2>(pattern, MakeRE2Options())) {
+        if (regex_->ok()) {
+            return;
         }
-        try {
-            regex->emplace<boost::regex>(pattern.begin(), pattern.end());
-        } catch (const boost::regex_error& ex) {
-            throw RegexErrorImpl(ex.what());
-        }
+        throw RegexErrorImpl(fmt::format("Failed to construct regex from pattern '{}': {}", pattern, regex_->error()));
+    }
+
+    const re2::RE2& Get() const {
+        UASSERT(regex_);
+        return *regex_;
     }
 
     // Does NOT include the implicit "0th" group that matches the whole pattern.
-    std::size_t GetCapturingGroupCount() const {
-        UASSERT(regex);
-        return utils::Visit(
-            *regex,
-            [](const re2::RE2& regex) { return static_cast<std::size_t>(regex.NumberOfCapturingGroups()); },
-            [](const boost::regex& regex) { return regex.mark_count(); }
-        );
-    }
+    std::size_t GetCapturingGroupCount() const { return static_cast<std::size_t>(Get().NumberOfCapturingGroups()); }
 
-    std::shared_ptr<std::variant<re2::RE2, boost::regex>> regex;
+private:
+    std::shared_ptr<const re2::RE2> regex_;
 };
 
 regex::regex() = default;
@@ -120,16 +76,7 @@ regex::~regex() = default;
 
 bool regex::operator==(const regex& other) const { return GetPatternView() == other.GetPatternView(); }
 
-std::string_view regex::GetPatternView() const {
-    UASSERT(impl_->regex);
-    return utils::Visit(
-        *impl_->regex,
-        [](const re2::RE2& regex) -> std::string_view { return regex.pattern(); },
-        [](const boost::regex& regex) {
-            return std::string_view{regex.begin(), regex.size()};
-        }
-    );
-}
+std::string_view regex::GetPatternView() const { return impl_->Get().pattern(); }
 
 std::string regex::str() const { return std::string{GetPatternView()}; }
 
@@ -141,7 +88,6 @@ struct match_results::Impl {
     void Prepare(std::string_view target, const regex& pattern) {
         this->target = target;
 
-        UASSERT(pattern.impl_->regex);
         const auto groups_count = pattern.impl_->GetCapturingGroupCount() + 1;
         if (groups_count > groups.size()) {
             groups.resize(groups_count);
@@ -197,145 +143,69 @@ std::string_view match_results::suffix() const {
 
 ////////////////////////////////////////////////////////////////
 
-bool regex_match(std::string_view str, const regex& pattern) {
-    UASSERT(pattern.impl_->regex);
-    return utils::Visit(
-        *pattern.impl_->regex,
-        [&](const re2::RE2& regex) { return re2::RE2::FullMatch(str, regex); },
-        [&](const boost::regex& regex) { return boost::regex_match(str.begin(), str.end(), regex); }
-    );
-}
+bool regex_match(std::string_view str, const regex& pattern) { return re2::RE2::FullMatch(str, pattern.impl_->Get()); }
 
 bool regex_match(std::string_view str, match_results& m, const regex& pattern) {
-    UASSERT(pattern.impl_->regex);
     m.impl_->Prepare(str, pattern);
-    return utils::Visit(
-        *pattern.impl_->regex,
-        [&](const re2::RE2& regex) {
-            const bool success = regex.Match(
-                str, 0, str.size(), re2::RE2::Anchor::ANCHOR_BOTH, m.impl_->groups.data(), m.impl_->groups.size()
-            );
-            return success;
-        },
-        [&](const boost::regex& regex) {
-            boost::cmatch boost_matches;
-            const bool success = boost::regex_match(str.begin(), str.end(), boost_matches, regex);
-            if (!success) {
-                return false;
-            }
-            for (std::size_t i = 0; i < boost_matches.size(); ++i) {
-                const auto& sub_match = boost_matches[i];
-                m.impl_->groups[i] =
-                    std::string_view{&*sub_match.begin(), static_cast<std::size_t>(sub_match.length())};
-            }
-            return true;
-        }
+    const bool success = pattern.impl_->Get().Match(
+        str, 0, str.size(), re2::RE2::Anchor::ANCHOR_BOTH, m.impl_->groups.data(), m.impl_->groups.size()
     );
+    return success;
 }
 
 bool regex_search(std::string_view str, const regex& pattern) {
-    UASSERT(pattern.impl_->regex);
-    return utils::Visit(
-        *pattern.impl_->regex,
-        [&](const re2::RE2& regex) { return re2::RE2::PartialMatch(str, regex); },
-        [&](const boost::regex& regex) { return boost::regex_search(str.begin(), str.end(), regex); }
-    );
+    return re2::RE2::PartialMatch(str, pattern.impl_->Get());
 }
 
 bool regex_search(std::string_view str, match_results& m, const regex& pattern) {
-    UASSERT(pattern.impl_->regex);
     m.impl_->Prepare(str, pattern);
-    return utils::Visit(
-        *pattern.impl_->regex,
-        [&](const re2::RE2& regex) {
-            const bool success = regex.Match(
-                str, 0, str.size(), re2::RE2::Anchor::UNANCHORED, m.impl_->groups.data(), m.impl_->groups.size()
-            );
-            return success;
-        },
-        [&](const boost::regex& regex) {
-            boost::cmatch boost_matches;
-            const bool success = boost::regex_search(str.begin(), str.end(), boost_matches, regex);
-            if (!success) {
-                return false;
-            }
-            for (std::size_t i = 0; i < boost_matches.size(); ++i) {
-                const auto& sub_match = boost_matches[i];
-                m.impl_->groups[i] =
-                    std::string_view{&*sub_match.begin(), static_cast<std::size_t>(sub_match.length())};
-            }
-            return true;
-        }
+    const bool success = pattern.impl_->Get().Match(
+        str, 0, str.size(), re2::RE2::Anchor::UNANCHORED, m.impl_->groups.data(), m.impl_->groups.size()
     );
+    return success;
 }
 
 std::string regex_replace(std::string_view str, const regex& pattern, std::string_view repl) {
-    UASSERT(pattern.impl_->regex);
     std::string res;
     res.reserve(str.size() + str.size() / 4);
 
-    utils::Visit(
-        *pattern.impl_->regex,
-        [&](const re2::RE2& regex) {
-            re2::StringPiece match;
+    const auto& regex = pattern.impl_->Get();
+    re2::StringPiece match;
 
-            while (true) {
-                const bool success = regex.Match(str, 0, str.size(), re2::RE2::Anchor::UNANCHORED, &match, 1);
-                if (!success) {
-                    res += str;
-                    break;
-                }
-
-                const auto non_matched_part = str.substr(0, match.data() - str.data());
-                res += non_matched_part;
-                res += repl;
-
-                str.remove_prefix(non_matched_part.size() + match.size());
-                if (__builtin_expect(match.size() == 0, false)) {
-                    if (str.empty()) {
-                        break;
-                    }
-                    // Prevent infinite loop on matching an empty substring.
-                    res += str[0];
-                    str.remove_prefix(1);
-                }
-            }
-        },
-        [&](const boost::regex& regex) {
-            boost::regex_replace(
-                std::back_inserter(res), str.begin(), str.end(), regex, repl, boost::regex_constants::format_literal
-            );
+    while (true) {
+        const bool success = regex.Match(str, 0, str.size(), re2::RE2::Anchor::UNANCHORED, &match, 1);
+        if (!success) {
+            res += str;
+            break;
         }
-    );
+
+        const auto non_matched_part = str.substr(0, match.data() - str.data());
+        res += non_matched_part;
+        res += repl;
+
+        str.remove_prefix(non_matched_part.size() + match.size());
+        if (__builtin_expect(match.size() == 0, false)) {
+            if (str.empty()) {
+                break;
+            }
+            // Prevent infinite loop on matching an empty substring.
+            res += str[0];
+            str.remove_prefix(1);
+        }
+    }
 
     return res;
 }
 
 std::string regex_replace(std::string_view str, const regex& pattern, Re2Replacement repl) {
-    UASSERT(pattern.impl_->regex);
     std::string res;
     res.reserve(str.size() + str.size() / 4);
 
-    utils::Visit(
-        *pattern.impl_->regex,
-        [&](const re2::RE2& regex) {
-            res.assign(str);
-            re2::RE2::GlobalReplace(&res, regex, repl.replacement);
-        },
-        [&](const boost::regex& /*regex*/) {
-            // Unsupported, because repl is re2-specific.
-            throw RegexErrorImpl(
-                fmt::format("regex_replace is unsupported with boost::regex '{}'", pattern.GetPatternView())
-            );
-        }
-    );
+    res.assign(str);
+    re2::RE2::GlobalReplace(&res, pattern.impl_->Get(), repl.replacement);
 
     return res;
 }
-
-bool IsImplicitBoostRegexFallbackAllowed() noexcept { return implicit_boost_regex_fallback_allowed.load(); }
-
-void SetImplicitBoostRegexFallbackAllowed(bool allowed) noexcept { implicit_boost_regex_fallback_allowed = allowed; }
 
 }  // namespace utils
 

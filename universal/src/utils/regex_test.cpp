@@ -8,16 +8,6 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace {
-
-auto AllowBoostRegexScope(bool allow) {
-    const auto old = utils::IsImplicitBoostRegexFallbackAllowed();
-    utils::SetImplicitBoostRegexFallbackAllowed(allow);
-    return utils::FastScopeGuard([old]() noexcept { utils::SetImplicitBoostRegexFallbackAllowed(old); });
-}
-
-}  // namespace
-
 TEST(Regex, Ctors) {
     utils::regex r1;
     utils::regex r2("regex*test");
@@ -32,12 +22,7 @@ TEST(Regex, Ctors) {
 TEST(Regex, InvalidRegex) { UEXPECT_THROW(utils::regex("regex***"), utils::RegexError); }
 
 TEST(Regex, NegativeLookaheadDisallowed) {
-    const auto allowed = AllowBoostRegexScope(false);
-    UEXPECT_THROW_MSG(
-        utils::regex{"(?!bad)([a-z]+)(\\d*)"},
-        utils::RegexError,
-        "Note: boost::regex usage in utils::regex is disallowed for the current service"
-    );
+    UEXPECT_THROW_MSG(utils::regex{"(?!bad)([a-z]+)(\\d*)"}, utils::RegexError, "invalid perl operator: (?!");
 }
 
 TEST(Regex, Match) {
@@ -63,22 +48,6 @@ TEST(Regex, MatchWithResult) {
     ASSERT_EQ(success.size(), 1);
     const std::string_view res = success[0];
     EXPECT_EQ(res, str);
-}
-
-TEST(Regex, MatchNegativeLookahead) {
-    const auto allowed = AllowBoostRegexScope(true);
-    const utils::regex r("(?!bad)([a-z]+)(\\d*)");
-    EXPECT_TRUE(utils::regex_match("good42", r));
-    EXPECT_FALSE(utils::regex_match("bad42", r));
-
-    utils::match_results match;
-    ASSERT_TRUE(utils::regex_match("good42", match, r));
-    ASSERT_EQ(match.size(), 3);
-    EXPECT_EQ(match[0], "good42");
-    EXPECT_EQ(match[1], "good");
-    EXPECT_EQ(match[2], "42");
-
-    EXPECT_FALSE(utils::regex_match("bad", match, r));
 }
 
 TEST(Regex, MatchNewlines) {
@@ -128,22 +97,6 @@ TEST(Regex, SearchWithResult) {
     ASSERT_EQ(success.size(), 1);
     const std::string_view res = success[0];
     EXPECT_EQ(res, str);
-}
-
-TEST(Regex, SearchNegativeLookahead) {
-    const auto allowed = AllowBoostRegexScope(true);
-    const utils::regex r("(?!bad)([a-z]{3,})(\\d*)");
-    EXPECT_TRUE(utils::regex_search(" 42 good42 ", r));
-    EXPECT_FALSE(utils::regex_search("   bad42 ", r));
-
-    utils::match_results match;
-    ASSERT_TRUE(utils::regex_search(" @  good42 ", match, r));
-    ASSERT_EQ(match.size(), 3);
-    EXPECT_EQ(match[0], "good42");
-    EXPECT_EQ(match[1], "good");
-    EXPECT_EQ(match[2], "42");
-
-    EXPECT_FALSE(utils::regex_search("  bad42 ", match, r));
 }
 
 TEST(Regex, SearchMatchResultsMethods) {

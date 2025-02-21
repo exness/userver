@@ -10,7 +10,6 @@ libboost-iostreams1.71-dev
 libboost-locale1.71-dev
 libboost-program-options1.71-dev
 libboost-thread1.71-dev
-libboost-regex1.71-dev
 libboost-stacktrace1.71-dev
 libboost1.71-dev
 libbson-dev

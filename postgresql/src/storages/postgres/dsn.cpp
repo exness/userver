@@ -10,7 +10,6 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <libpq-fe.h>
-#include <boost/regex.hpp>
 
 #include <userver/clients/dns/resolver.hpp>
 #include <userver/logging/log.hpp>
@@ -241,11 +240,11 @@ std::string DsnCutPassword(const Dsn& dsn) {
 
 std::string DsnMaskPassword(const Dsn& dsn) {
     static constexpr std::string_view pg_url_start = "postgresql://";
-    static constexpr std::string_view url_replace{"$1***$2"};
-    static constexpr std::string_view option_replace{"$1***"};
+    static constexpr USERVER_NAMESPACE::utils::Re2Replacement url_replace{"\\1***\\2"};
+    static constexpr USERVER_NAMESPACE::utils::Re2Replacement option_replace{"\\1***"};
     if (USERVER_NAMESPACE::utils::text::StartsWith(dsn.GetUnderlying(), pg_url_start)) {
-        static const boost::regex url_re("^(postgresql://[^:]*:)[^@]+(@)");
-        static const boost::regex option_re("\\b(password=)[^&]+");
+        static const USERVER_NAMESPACE::utils::regex url_re("^(postgresql://[^:]*:)[^@]+(@)");
+        static const USERVER_NAMESPACE::utils::regex option_re("\\b(password=)[^&]+");
         auto masked = regex_replace(dsn.GetUnderlying(), url_re, url_replace);
         masked = regex_replace(masked, option_re, option_replace);
         return masked;
@@ -257,7 +256,9 @@ std::string DsnMaskPassword(const Dsn& dsn) {
         //   |                            # or
         //   \S+                          # a sequence without spaces
         // )
-        static const boost::regex option_re(R"~((\bpassword\s*=\s*)(?:(?:'(?:(?:\\['\\])|[^'])+')|\S+))~");
+        static const USERVER_NAMESPACE::utils::regex option_re(
+            R"~((\bpassword\s*=\s*)(?:(?:'(?:(?:\\['\\])|[^'])+')|\S+))~"
+        );
         auto masked = regex_replace(dsn.GetUnderlying(), option_re, option_replace);
         return masked;
     }
