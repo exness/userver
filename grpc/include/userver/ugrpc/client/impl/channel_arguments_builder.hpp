@@ -4,8 +4,6 @@
 #include <string>
 #include <unordered_map>
 
-#include <grpc/service_config/service_config.pb.h>
-
 #include <grpcpp/support/channel_arguments.h>
 
 #include <userver/formats/json/value.hpp>
@@ -21,8 +19,8 @@ class ServiceConfigBuilder final {
 public:
     struct PreparedMethodConfigs {
         // method_id -> method_config
-        std::unordered_map<std::size_t, grpc::service_config::MethodConfig> method_configs;
-        std::optional<grpc::service_config::MethodConfig> default_method_config;
+        std::unordered_map<std::size_t, formats::json::Value> method_configs;
+        std::optional<formats::json::Value> default_method_config;
     };
 
     ServiceConfigBuilder(

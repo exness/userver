@@ -409,7 +409,6 @@
   "cmake/SetupGTest.cmake":"taxi/uservices/userver/cmake/SetupGTest.cmake",
   "cmake/SetupGoogleProtoApis.cmake":"taxi/uservices/userver/cmake/SetupGoogleProtoApis.cmake",
   "cmake/SetupGrpc.cmake":"taxi/uservices/userver/cmake/SetupGrpc.cmake",
-  "cmake/SetupGrpcProto.cmake":"taxi/uservices/userver/cmake/SetupGrpcProto.cmake",
   "cmake/SetupHomebrew.cmake":"taxi/uservices/userver/cmake/SetupHomebrew.cmake",
   "cmake/SetupLTO.cmake":"taxi/uservices/userver/cmake/SetupLTO.cmake",
   "cmake/SetupLinker.cmake":"taxi/uservices/userver/cmake/SetupLinker.cmake",

@@ -10,7 +10,6 @@
 #include <userver/ugrpc/client/client_qos.hpp>
 #include <userver/ugrpc/client/impl/channel_arguments_builder.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
-#include <userver/ugrpc/proto_json.hpp>
 
 #include <tests/unit_test_client.usrv.pb.hpp>
 
@@ -24,7 +23,7 @@ formats::json::Value BuildSimpleRetryPolicyConfig() {
     retry_policy["initialBackoff"] = "0.010s";
     retry_policy["maxBackoff"] = "0.300s";
     retry_policy["backoffMultiplier"] = 2;
-    retry_policy["retryableStatusCodes"].PushBack("UNAVAILABLE");
+    retry_policy["retryableStatusCodes"] = formats::json::MakeArray("UNAVAILABLE");
     return retry_policy.ExtractValue();
 }
 
@@ -67,16 +66,16 @@ BuildDefaultMethodConfig(std::optional<google::protobuf::Duration> timeout, cons
 
 void VerifyMethodConfig(
     const formats::json::Value& method_config,
-    std::string_view service_name,
-    std::string_view method_name,
+    std::optional<std::string_view> service_name,
+    std::optional<std::string_view> method_name,
     std::optional<google::protobuf::Duration> timeout,
     std::optional<std::uint32_t> attempts
 ) {
     ASSERT_TRUE(method_config["name"].IsArray());
     ASSERT_EQ(1, method_config["name"].GetSize());
     const auto& name = method_config["name"][0];
-    ASSERT_EQ(service_name, name["service"].As<std::string>());
-    ASSERT_EQ(method_name, name["method"].As<std::string>());
+    ASSERT_EQ(service_name, name["service"].As<std::optional<std::string>>());
+    ASSERT_EQ(method_name, name["method"].As<std::optional<std::string>>());
 
     ASSERT_EQ(timeout.has_value(), method_config.HasMember("timeout"));
     if (timeout.has_value()) {
@@ -94,22 +93,6 @@ void VerifyMethodConfig(
 
 }  // namespace
 
-UTEST(ServiceConfigBuilderTest, SimpleConvert) {
-    const auto timeout = google::protobuf::util::TimeUtil::MillisecondsToDuration(1000);
-    const auto retry_policy_json = BuildSimpleRetryPolicyConfig();
-    formats::json::ValueBuilder service_config_value_builder{formats::common::Type::kObject};
-    service_config_value_builder["methodConfig"].PushBack(BuildDefaultMethodConfig(timeout, retry_policy_json));
-    const auto service_config_json = service_config_value_builder.ExtractValue();
-
-    grpc::service_config::ServiceConfig service_config_proto;
-    const auto status = google::protobuf::util::JsonStringToMessage(
-        formats::json::ToString(service_config_json), &service_config_proto
-    );
-    ASSERT_TRUE(status.ok());
-
-    ASSERT_EQ(service_config_json["methodConfig"], ugrpc::MessageToJson(service_config_proto)["methodConfig"]);
-}
-
 UTEST(ServiceConfigBuilderTest, BuildEmpty) {
     const auto metadata = sample::ugrpc::UnitTestServiceClient::GetMetadata();
 
@@ -126,8 +109,43 @@ UTEST(ServiceConfigBuilderTest, BuildEmpty) {
     }
 }
 
+UTEST(ServiceConfigBuilderTest, BuildEmptyRetryPolicy) {
+    const auto metadata = sample::ugrpc::UnitTestServiceClient::GetMetadata();
+
+    const auto default_timeout = google::protobuf::util::TimeUtil::MillisecondsToDuration(1000);
+    const auto retry_policy_json = BuildSimpleRetryPolicyConfig();
+    const auto method_config_json = BuildDefaultMethodConfig(default_timeout, retry_policy_json);
+    const auto static_service_config =
+        formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
+    LOG_DEBUG() << "static_service_config: " << static_service_config;
+
+    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+        metadata, formats::json::ToString(static_service_config)};
+
+    ugrpc::client::Qos qos_default{/*attempts*/ 1, /**/ std::nullopt};
+    ugrpc::client::ClientQos client_qos;
+    client_qos.SetDefault(qos_default);
+
+    const auto service_config = service_config_builder.Build(client_qos);
+    LOG_DEBUG() << "service_config: " << service_config;
+
+    ASSERT_TRUE(service_config.HasMember("methodConfig"));
+    const auto& method_config = service_config["methodConfig"];
+    ASSERT_TRUE(method_config.IsArray());
+    ASSERT_EQ(1, method_config.GetSize());
+
+    VerifyMethodConfig(
+        method_config[0],
+        /*service_name=*/{},
+        /*method_name=*/{},
+        /*timeout=*/default_timeout,
+        /*attempts=*/{}
+    );
+}
+
 UTEST(ServiceConfigBuilderTest, StaticAndQosSameMethod) {
     const auto metadata = sample::ugrpc::UnitTestServiceClient::GetMetadata();
+
     const auto service_name = metadata.service_full_name;
 
     const auto timeout = google::protobuf::util::TimeUtil::MillisecondsToDuration(1000);
