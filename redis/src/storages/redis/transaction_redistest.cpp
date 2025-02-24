@@ -796,7 +796,7 @@ std::uint64_t GetCommandCount(std::unordered_map<std::string, storages::redis::i
 
 }  // namespace
 
-UTEST_F(RedisClientTransactionTest, DISABLED_NotReadOnlySetSet) {
+UTEST_F(RedisClientTransactionTest, NotReadOnlySetSet) {
     auto client = GetClient();
     auto sentinel = GetSentinel();
 
@@ -815,7 +815,7 @@ UTEST_F(RedisClientTransactionTest, DISABLED_NotReadOnlySetSet) {
     EXPECT_EQ(slave_command_count, 0);
 }
 
-UTEST_F(RedisClientTransactionTest, DISABLED_NotReadOnlySetGet) {
+UTEST_F(RedisClientTransactionTest, NotReadOnlySetGet) {
     auto client = GetClient();
     auto sentinel = GetSentinel();
 
@@ -842,7 +842,7 @@ UTEST_F(RedisClientTransactionTest, DISABLED_NotReadOnlySetGet) {
     EXPECT_EQ(slave_command_count, 0);
 }
 
-UTEST_F(RedisClientTransactionTest, DISABLED_ReadOnlyGetGet) {
+UTEST_F(RedisClientTransactionTest, ReadOnlyGetGet) {
     auto client = GetClient();
     auto sentinel = GetSentinel();
 
