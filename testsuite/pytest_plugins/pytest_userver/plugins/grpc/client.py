@@ -18,9 +18,11 @@ from pytest_userver import client
 
 DEFAULT_TIMEOUT = 15.0
 
+USERVER_CONFIG_HOOKS = ['userver_config_grpc_endpoint']
+
 
 @pytest.fixture(scope='session')
-def grpc_service_port(service_config) -> int:
+def grpc_service_port(service_config) -> Optional[int]:
     """
     Returns the gRPC listener port number of the service that is set in the
     static configuration file.
@@ -33,7 +35,18 @@ def grpc_service_port(service_config) -> int:
     components = service_config['components_manager']['components']
     if 'grpc-server' not in components:
         raise RuntimeError('No grpc-server component')
-    return int(components['grpc-server']['port'])
+    return components['grpc-server'].get('port', None)
+
+
+@pytest.fixture(scope='session')
+def grpc_service_port_fallback() -> int:
+    """
+    Returns the gRPC port that should be used in service runner mode in case
+    no port is specified in the source config_yaml.
+
+    @ingroup userver_testsuite_fixtures
+    """
+    return 11080
 
 
 @pytest.fixture(scope='session')
@@ -93,7 +106,6 @@ def grpc_client_prepare(
 
 @pytest.fixture(scope='session')
 async def grpc_session_channel(
-    daemon_scoped_mark,
     grpc_service_endpoint,
     _grpc_channel_interceptor,
 ):
@@ -106,8 +118,8 @@ async def grpc_session_channel(
 
 @pytest.fixture
 async def grpc_channel(
+    service_client,  # For daemon setup and userver_client_cleanup
     grpc_service_endpoint,
-    grpc_service_deps,
     grpc_service_timeout,
     grpc_session_channel,
     _grpc_channel_interceptor,
@@ -132,13 +144,35 @@ async def grpc_channel(
     return grpc_session_channel
 
 
-@pytest.fixture
-def grpc_service_deps(service_client):
+@pytest.fixture(scope='session')
+def userver_config_grpc_endpoint(
+    pytestconfig,
+    grpc_service_port_fallback,
+    substitute_config_vars,
+):
     """
-    gRPC service dependencies hook. Feel free to override it.
+    Returns a function that adjusts the static config for testsuite.
+    Ensures that in service runner mode, Unix socket is never used.
 
     @ingroup userver_testsuite_fixtures
     """
+
+    def patch_config(config_yaml, config_vars):
+        components = config_yaml['components_manager']['components']
+        grpc_server = components.get('grpc-server', None)
+        if not grpc_server:
+            return
+
+        service_runner = pytestconfig.option.service_runner_mode
+        if not service_runner:
+            return
+
+        grpc_server.pop('unix-socket-path', None)
+        if 'port' not in substitute_config_vars(grpc_server, config_vars):
+            grpc_server['port'] = grpc_service_port_fallback
+        config_vars['grpc_server_port'] = grpc_service_port_fallback
+
+    return patch_config
 
 
 # Taken from

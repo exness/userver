@@ -469,7 +469,7 @@ class _ConfigDefaults:
 # unspecified in tests, on the testsuite side. For that, we ask the service
 # for the dynamic config defaults after it's launched. It's enough to update
 # defaults once per service launch.
-@pytest.fixture(scope='package')
+@pytest.fixture(scope='session')
 def _dynamic_config_defaults_storage() -> _ConfigDefaults:
     return _ConfigDefaults(snapshot=None)
 

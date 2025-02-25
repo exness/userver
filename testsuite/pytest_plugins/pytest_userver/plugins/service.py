@@ -5,13 +5,13 @@ Start the service in testsuite.
 # pylint: disable=redefined-outer-name
 import logging
 import pathlib
-import re
 import time
+import typing
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 import pytest
 
@@ -67,10 +67,7 @@ def service_env():
 
 
 @pytest.fixture(scope='session')
-async def service_http_ping_url(
-    service_config,
-    service_baseurl,
-) -> Optional[str]:
+async def service_http_ping_url(service_config, service_baseurl) -> Optional[str]:
     """
     Returns the service HTTP ping URL that is used by the testsuite to detect
     that the service is ready to work. Returns None if there's no such URL.
@@ -313,41 +310,55 @@ def pytest_configure(config):
     )
 
 
+def _contains_oneshot_marker(parametrize: Iterable[pytest.Mark]) -> bool:
+    """
+    Check if at least one of 'parametrize' marks is of the form:
+
+    @pytest.mark.parametrize(
+        "foo, bar",
+        [
+            ("a", 10),
+            pytest.param("b", 20, marks=pytest.mark.uservice_oneshot),  # <====
+        ]
+    )
+    """
+    return any(
+        True
+        for parametrize_mark in parametrize
+        if len(parametrize_mark.args) >= 2
+        for parameter_set in parametrize_mark.args[1]
+        if hasattr(parameter_set, 'marks')
+        for mark in parameter_set.marks
+        if mark.name == 'uservice_oneshot'
+    )
+
+
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     oneshot_marker = metafunc.definition.get_closest_marker('uservice_oneshot')
-    if oneshot_marker:
-        param = oneshot_marker.kwargs
-        if param.get('shared', False):
-            # Make sure that the param is not __eq__ to params of any other test.
-            param = dict(param, function=metafunc.definition)
-        metafunc.parametrize((daemon_scoped_mark.__name__,), [(param,)], indirect=True, ids=[_HIDDEN_PARAM])
+    parametrize_markers = metafunc.definition.iter_markers('parametrize')
+    if oneshot_marker is not None or _contains_oneshot_marker(parametrize_markers):
+        # Set a dummy parameter value. Actual param is patched in pytest_collection_modifyitems.
+        metafunc.parametrize(
+            (daemon_scoped_mark.__name__,),
+            [(None,)],
+            indirect=True,
+            # TODO use pytest.HIDDEN_PARAM after it becomes available
+            #  https://github.com/pytest-dev/pytest/issues/13228
+            ids=['uservice_oneshot'],
+            # TODO use scope='function' after it stops breaking fixture dependencies
+            #  https://github.com/pytest-dev/pytest/issues/13248
+            scope=None,
+        )
 
 
-_HIDDEN_PARAM = '__HIDDEN_PARAM__'
-_HIDDEN_PATTERNS: Tuple[re.Pattern, ...] = (
-    re.compile(rf'\[{_HIDDEN_PARAM}\d*]'),
-    re.compile(rf'-{_HIDDEN_PARAM}\d*'),
-    re.compile(rf'{_HIDDEN_PARAM}\d*-'),
-)
-_PARAM_PATTERN = re.compile(r'\[([^\]]*)]')
-
-
-def pytest_collection_modifyitems(session: pytest.Session, config: pytest.Config, items: List[pytest.Item]):
+# TODO use dependent parametrize instead of patching param value after it becomes available
+#  https://github.com/pytest-dev/pytest/issues/13233
+def pytest_collection_modifyitems(items: List[pytest.Item]):
     for item in items:
-        # The fact that daemon_scoped_mark works through fixture parametrization is an implementation detail.
-        # Hide the param from test output, making the feature transparent for the user.
-        if _HIDDEN_PARAM not in item.name:
-            continue
-        for regex in _HIDDEN_PATTERNS:
-            if regex.search(item.name):
-                break
-        else:
-            assert False, f'Failed to mask test {item.name}'
-        item.name = regex.sub('', item.name)
-        item._nodeid = regex.sub('', item._nodeid)  # pylint: disable=protected-access
-        item.keywords[item.name] = True
-        if leftover_params := _PARAM_PATTERN.search(item.name):
-            item.keywords[leftover_params.group(1)] = True
+        oneshot_marker = item.get_closest_marker('uservice_oneshot')
+        if oneshot_marker and isinstance(item, pytest.Function):
+            func_item = typing.cast(pytest.Function, item)
+            func_item.callspec.params[daemon_scoped_mark.__name__] = dict(oneshot_marker.kwargs, function=func_item)
 
 
 # @endcond

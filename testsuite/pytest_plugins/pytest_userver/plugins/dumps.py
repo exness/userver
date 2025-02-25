@@ -71,7 +71,7 @@ def cleanup_userver_dumps(userver_dumps_root, request):
 def _userver_config_dumps(pytestconfig, userver_dumps_root):
     def patch_config(_config, config_vars) -> None:
         config_vars['userver-dumps-root'] = str(userver_dumps_root)
-        if not pytestconfig.getoption('--service-runner-mode', False):
+        if not pytestconfig.option.service_runner_mode:
             config_vars['userver-dumps-periodic'] = False
 
     return patch_config

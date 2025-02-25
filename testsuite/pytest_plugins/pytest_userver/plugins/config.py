@@ -4,12 +4,16 @@ Work with the configuration files of the service in testsuite.
 
 # pylint: disable=redefined-outer-name
 import copy
+import dataclasses
 import logging
 import os
 import pathlib
 import subprocess
 import types
-import typing
+from typing import Any
+from typing import Callable
+from typing import List
+from typing import Optional
 
 import pytest
 import yaml
@@ -62,7 +66,8 @@ class _UserverConfigPlugin:
             self._config_hooks.extend(uhooks)
 
 
-class _UserverConfig(typing.NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class _UserverConfig:
     config_yaml: dict
     config_vars: dict
 
@@ -149,7 +154,7 @@ def db_dump_schema_path(service_binary, service_tmpdir) -> pathlib.Path:
 
 
 @pytest.fixture(scope='session')
-def service_config_vars_path(pytestconfig) -> typing.Optional[pathlib.Path]:
+def service_config_vars_path(pytestconfig) -> Optional[pathlib.Path]:
     """
     Returns the path to config_vars.yaml file set by command line
     `--service-config-vars` option.
@@ -163,7 +168,7 @@ def service_config_vars_path(pytestconfig) -> typing.Optional[pathlib.Path]:
 
 
 @pytest.fixture(scope='session')
-def service_secdist_path(pytestconfig) -> typing.Optional[pathlib.Path]:
+def service_secdist_path(pytestconfig) -> Optional[pathlib.Path]:
     """
     Returns the path to secure_data.json file set by command line
     `--service-secdist` option.
@@ -271,7 +276,7 @@ def _substitute_values(config, service_config_vars: dict, service_env) -> None:
             env = config.get(f'{key}#env')
             if env:
                 if service_env:
-                    new_value = service_env.get(service_env)
+                    new_value = service_env.get(env)
                 if not new_value:
                     new_value = os.environ.get(env)
                 if new_value:
@@ -281,6 +286,9 @@ def _substitute_values(config, service_config_vars: dict, service_env) -> None:
             fallback = config.get(f'{key}#fallback')
             if fallback:
                 config[key] = fallback
+                continue
+
+            config[key] = None
 
     if isinstance(config, list):
         for i, value in enumerate(config):
@@ -297,10 +305,41 @@ def _substitute_values(config, service_config_vars: dict, service_env) -> None:
 
 
 @pytest.fixture(scope='session')
+def substitute_config_vars(service_env) -> Callable[[Any, dict], Any]:
+    """
+    A function that takes `config_yaml`, `config_vars` and applies all
+    substitutions just like the service would.
+
+    Useful when patching the service config. It's a good idea to pass
+    a component's config instead of the whole `config_yaml` to avoid
+    unnecessary work.
+
+    @warning The returned YAML is a clone, mutating it will not modify
+    the actual config while in a config hook!
+
+    @ingroup userver_testsuite_fixtures
+    """
+
+    def substitute(config_yaml, config_vars, /):
+        if config_yaml is not None and not isinstance(config_yaml, dict) and not isinstance(config_yaml, list):
+            raise TypeError(
+                f'{substitute_config_vars.__name__} can only be meaningfully '
+                'called with dict and list nodes of config_yaml, while given: '
+                f'{config_yaml!r}. Pass a containing object instead.',
+            )
+
+        config = copy.deepcopy(config_yaml)
+        _substitute_values(config, config_vars, service_env)
+        return config
+
+    return substitute
+
+
+@pytest.fixture(scope='session')
 def service_config(
     service_config_yaml,
     service_config_vars,
-    service_env,
+    substitute_config_vars,
 ) -> dict:
     """
     Returns the static config values after the USERVER_CONFIG_HOOKS were
@@ -309,8 +348,7 @@ def service_config(
 
     @ingroup userver_testsuite_fixtures
     """
-    config = copy.deepcopy(service_config_yaml)
-    _substitute_values(config, service_config_vars, service_env)
+    config = substitute_config_vars(service_config_yaml, service_config_vars)
     config.pop('config_vars', None)
     return config
 
@@ -396,7 +434,7 @@ def userver_config_http_server(service_port, monitor_port):
 
 
 @pytest.fixture(scope='session')
-def allowed_url_prefixes_extra() -> typing.List[str]:
+def allowed_url_prefixes_extra() -> List[str]:
     """
     By default, userver HTTP client is only allowed to talk to mockserver
     when running in testsuite. This makes tests repeatable and encapsulated.
@@ -556,7 +594,7 @@ def userver_config_testsuite(pytestconfig, mockserver_info):
         testsuite_support['testsuite-grpc-is-tls-enabled'] = False
         _set_postgresql_options(testsuite_support)
         _set_redis_timeout(testsuite_support)
-        service_runner = pytestconfig.getoption('--service-runner-mode', False)
+        service_runner = pytestconfig.option.service_runner_mode
         if not service_runner:
             _disable_cache_periodic_update(testsuite_support)
         testsuite_support['testsuite-tasks-enabled'] = not service_runner

@@ -257,6 +257,13 @@ class ClientWrapper:
         response = await self._client.request(http_method, path, **kwargs)
         return await self._wrap_client_response(response)
 
+    @property
+    def raw_aiohttp_client(self):
+        """
+        @deprecated Use pytest_userver.client.Client directly instead.
+        """
+        return self._client
+
     def _wrap_client_response(
         self,
         response: aiohttp.ClientResponse,

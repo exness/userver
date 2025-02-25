@@ -157,11 +157,27 @@ class _ClientDiagnose(base_service_client.Client):
         )
 
 
-@pytest.fixture
-def userver_service_client_options(
+# Overriding testsuite fixture
+@pytest.fixture(name='service_client_options')
+def _service_client_options(
     service_client_options,
     service_client_default_headers,
     mockserver,
+):
+    # Should only use options for the base testsuite client here,
+    # not for the userver client.
+    return dict(
+        service_client_options,
+        headers={
+            **service_client_default_headers,
+            mockserver.trace_id_header: mockserver.trace_id,
+        },
+    )
+
+
+@pytest.fixture
+def userver_service_client_options(
+    service_client_options,
     _testsuite_client_config: client.TestsuiteClientConfig,
     testpoint,
     testpoint_control,
@@ -175,10 +191,6 @@ def userver_service_client_options(
 ):
     return dict(
         **service_client_options,
-        headers={  # TODO merge into service_client_options
-            **service_client_default_headers,
-            mockserver.trace_id_header: mockserver.trace_id,  # TODO merge into service_client_default_headers
-        },
         config=_testsuite_client_config,
         testpoint=testpoint,
         testpoint_control=testpoint_control,
@@ -195,18 +207,9 @@ def userver_service_client_options(
 @pytest.fixture
 def userver_monitor_client_options(
     service_client_options,
-    service_client_default_headers,
-    mockserver,
     _testsuite_client_config: client.TestsuiteClientConfig,
 ):
-    return dict(
-        **service_client_options,
-        headers={  # TODO merge into service_client_options
-            **service_client_default_headers,
-            mockserver.trace_id_header: mockserver.trace_id,  # TODO merge into service_client_default_headers
-        },
-        config=_testsuite_client_config,
-    )
+    return dict(**service_client_options, config=_testsuite_client_config)
 
 
 # @endcond
@@ -244,10 +247,7 @@ def service_periodic_tasks_state() -> client.PeriodicTasksState:
 
 
 @pytest.fixture(scope='session')
-def _testsuite_client_config(
-    pytestconfig,
-    service_config,
-) -> client.TestsuiteClientConfig:
+def _testsuite_client_config(service_config) -> client.TestsuiteClientConfig:
     components = service_config['components_manager']['components']
 
     def get_component_path(name, argname=None):
