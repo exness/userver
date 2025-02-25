@@ -32,3 +32,8 @@ def service_env(redis_sentinels, redis_cluster_nodes, redis_cluster_replicas):
         },
     }
     return {'SECDIST_CONFIG': json.dumps(secdist_config)}
+
+
+@pytest.fixture
+def extra_client_deps(redis_cluster_store):
+    pass
