@@ -10,10 +10,11 @@
 #include <userver/logging/log.hpp>
 #include <userver/utils/algo.hpp>
 #include <userver/utils/assert.hpp>
-#include <userver/utils/numeric_cast.hpp>
 
 #include <userver/ugrpc/client/client_qos.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
+
+#include <ugrpc/client/impl/retry_policy.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -27,37 +28,26 @@ void SetName(formats::json::ValueBuilder& method_config, formats::json::Value na
     method_config["name"] = formats::json::MakeArray(std::move(name));
 }
 
-formats::json::Value ConstructDefaultRetryPolicy() {
-    formats::json::ValueBuilder retry_policy;
-    retry_policy["maxAttempts"] = 5;
-    retry_policy["initialBackoff"] = ugrpc::impl::ToString(
-        google::protobuf::util::TimeUtil::ToString(google::protobuf::util::TimeUtil::MillisecondsToDuration(10))
-    );
-    retry_policy["maxBackoff"] = ugrpc::impl::ToString(
-        google::protobuf::util::TimeUtil::ToString(google::protobuf::util::TimeUtil::MillisecondsToDuration(300))
-    );
-    retry_policy["backoffMultiplier"] = 2.0;
-    retry_policy["retryableStatusCodes"] = formats::json::MakeArray("UNAVAILABLE");
-    return retry_policy.ExtractValue();
-}
-
 void ApplyQosConfig(formats::json::ValueBuilder& method_config, const Qos& qos) {
-    if (qos.attempts.has_value()) {
+    const auto attempts = GetAttempts(qos);
+    if (attempts.has_value()) {
         method_config.Remove("hedgingPolicy");
 
-        if (1 == *qos.attempts) {
+        if (1 == *attempts) {
             method_config.Remove("retryPolicy");
             return;
         }
 
-        // Values greater than 5 are treated as 5 without being considered a validation error.
-        // https://github.com/grpc/proposal/blob/master/A6-client-retries.md#maximum-number-of-retries
-        const auto max_attempts = utils::numeric_cast<std::uint32_t>(std::min(*qos.attempts, 5));
-        UINVARIANT(1 < max_attempts, "Max attempts value must be greater than 1");
         if (!method_config.HasMember("retryPolicy")) {
             method_config["retryPolicy"] = ConstructDefaultRetryPolicy();
         }
-        method_config["retryPolicy"]["maxAttempts"] = *qos.attempts;
+        method_config["retryPolicy"]["maxAttempts"] = *attempts;
+        if (qos.timeout.has_value()) {
+            method_config["retryPolicy"]["perAttemptRecvTimeout"] =
+                ugrpc::impl::ToString(google::protobuf::util::TimeUtil::ToString(
+                    google::protobuf::util::TimeUtil::MillisecondsToDuration(qos.timeout->count())
+                ));
+        }
     }
 }
 
@@ -259,11 +249,16 @@ grpc::ChannelArguments ChannelArgumentsBuilder::Build() const {
 
 grpc::ChannelArguments
 BuildChannelArguments(const grpc::ChannelArguments& channel_args, const std::optional<std::string>& service_config) {
-    LOG_DEBUG() << "Building ChannelArguments, effective ServiceConfig: " << service_config;
-    auto effective_channel_args{channel_args};
-    if (service_config.has_value()) {
-        effective_channel_args.SetServiceConfigJSON(ugrpc::impl::ToGrpcString(*service_config));
+    if (!service_config.has_value()) {
+        return channel_args;
     }
+
+    LOG_DEBUG() << "Building ChannelArguments, ServiceConfig: " << *service_config;
+    auto effective_channel_args{channel_args};
+    effective_channel_args.SetServiceConfigJSON(ugrpc::impl::ToGrpcString(*service_config));
+#ifdef GRPC_ARG_EXPERIMENTAL_ENABLE_HEDGING
+    effective_channel_args.SetInt(GRPC_ARG_EXPERIMENTAL_ENABLE_HEDGING, 1);
+#endif  // GRPC_ARG_EXPERIMENTAL_ENABLE_HEDGING
     return effective_channel_args;
 }
 
