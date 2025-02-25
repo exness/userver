@@ -38,6 +38,9 @@ public:
     ///
     /// @throw crypto::KeyParseError if failed to load the certificate.
     static Certificate LoadFromString(std::string_view certificate);
+    /// Loads the certificate and skips the meta information in it
+    /// @throw crypto::KeyParseError if failed to load the certificate.
+    static Certificate LoadFromStringSkippingAttributes(std::string_view certificate);
 
 private:
     explicit Certificate(std::shared_ptr<NativeType> cert) : cert_(std::move(cert)) {}

@@ -20,6 +20,9 @@ int NoPasswordCb(char* /*buf*/, int /*size*/, int /*rwflag*/, void*) { return 0;
 
 }  // namespace
 
+constexpr std::string_view kBeginMarker = "-----BEGIN CERTIFICATE-----";
+constexpr std::string_view kEndMarker = "-----END CERTIFICATE-----";
+
 std::optional<std::string> Certificate::GetPemString() const {
     if (!cert_) return {};
 
@@ -43,7 +46,7 @@ std::optional<std::string> Certificate::GetPemString() const {
 Certificate Certificate::LoadFromString(std::string_view certificate) {
     Openssl::Init();
 
-    if (!utils::text::StartsWith(certificate, "-----BEGIN CERTIFICATE-----")) {
+    if (!utils::text::StartsWith(certificate, kBeginMarker)) {
         throw KeyParseError(FormatSslError("Not a certificate"));
     }
 
@@ -56,10 +59,16 @@ Certificate Certificate::LoadFromString(std::string_view certificate) {
     return Certificate{std::move(cert)};
 }
 
+Certificate Certificate::LoadFromStringSkippingAttributes(std::string_view certificate) {
+    const auto start = certificate.find(kBeginMarker);
+    if (start == std::string::npos) {
+        throw KeyParseError(FormatSslError("Not a certificate"));
+    }
+    return LoadFromString(certificate.substr(start));
+}
+
 CertificatesChain LoadCertificatesChainFromString(std::string_view chain) {
     CertificatesChain certificates;
-    constexpr std::string_view kBeginMarker = "-----BEGIN CERTIFICATE-----";
-    constexpr std::string_view kEndMarker = "-----END CERTIFICATE-----";
 
     std::size_t start = 0;
     while ((start = chain.find(kBeginMarker, start)) != std::string::npos) {
