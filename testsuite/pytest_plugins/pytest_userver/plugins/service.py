@@ -180,10 +180,19 @@ def extra_client_deps() -> None:
 @pytest.fixture
 def auto_client_deps(request) -> None:
     """
-    Service client dependencies hook that knows about pgsql, mongodb,
-    clickhouse, rabbitmq, kafka, redis_store, ydb, and mysql dependencies.
-    To add some other dependencies prefer overriding the
-    @ref extra_client_deps fixture.
+    Ensures that the following fixtures, if available, are run before service start:
+
+    * `pgsql`
+    * `mongodb`
+    * `clickhouse`
+    * `rabbitmq`
+    * kafka (`kafka_producer`, `kafka_consumer`)
+    * `redis_store`
+    * `mysql`
+    * @ref pytest_userver.plugins.ydb.ydb "ydb"
+    * @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver"
+
+    To add other dependencies prefer overriding the @ref extra_client_deps fixture.
 
     @ingroup userver_testsuite_fixtures
     """
@@ -197,6 +206,7 @@ def auto_client_deps(request) -> None:
         'redis_store',
         'mysql',
         'ydb',
+        'grpc_mockserver',
     }
 
     try:
