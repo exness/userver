@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <userver/chaotic/oneof_with_discriminator.hpp>
 #include <userver/formats/json/value.hpp>
 #include <variant>
@@ -53,8 +54,72 @@ B Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats
 USERVER_NAMESPACE::formats::json::Value
 Serialize(const ns::B& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>);
 
+struct C {
+    std::optional<int> version{};
+};
+
+bool operator==(const ns::C& lhs, const ns::C& rhs);
+
+USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::C& value);
+
+C Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::C>);
+
+C Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<ns::C>);
+
+C Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<ns::C>);
+
+USERVER_NAMESPACE::formats::json::Value
+Serialize(const ns::C& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>);
+
+struct D {
+    std::optional<int> version{};
+};
+
+bool operator==(const ns::D& lhs, const ns::D& rhs);
+
+USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::D& value);
+
+D Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::D>);
+
+D Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<ns::D>);
+
+D Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<ns::D>);
+
+USERVER_NAMESPACE::formats::json::Value
+Serialize(const ns::D& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>);
+
+struct IntegerOneOfDiscriminator {
+    inline static const USERVER_NAMESPACE::chaotic::OneOfIntegerSettings kFoo_Settings{
+        "version",
+        std::unordered_map<int64_t, size_t>{
+            {42, 0},
+            {52, 1},
+        }};
+
+    using Foo = std::variant<ns::C, ns::D>;
+
+    std::optional<ns::IntegerOneOfDiscriminator::Foo> foo{};
+};
+
+bool operator==(const ns::IntegerOneOfDiscriminator& lhs, const ns::IntegerOneOfDiscriminator& rhs);
+
+USERVER_NAMESPACE::logging::LogHelper&
+operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::IntegerOneOfDiscriminator& value);
+
+IntegerOneOfDiscriminator
+Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::IntegerOneOfDiscriminator>);
+
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<ns::IntegerOneOfDiscriminator>) was not generated:
+ * ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
+
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<ns::IntegerOneOfDiscriminator>) was not generated:
+ * ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
+
+USERVER_NAMESPACE::formats::json::Value
+Serialize(const ns::IntegerOneOfDiscriminator& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>);
+
 struct OneOfDiscriminator {
-    [[maybe_unused]] static constexpr USERVER_NAMESPACE::chaotic::OneOfSettings kFoo_Settings = {
+    [[maybe_unused]] static constexpr USERVER_NAMESPACE::chaotic::OneOfStringSettings kFoo_Settings = {
         "type",
         USERVER_NAMESPACE::utils::TrivialSet([](auto selector) {
             return selector().template Type<std::string_view>().Case("aaa").Case("bbb");

@@ -496,7 +496,7 @@ public:
         return Case(first);
     }
 
-    template <typename T, typename U>
+    template <typename T, typename U = void>
     constexpr CaseFirstDescriber& Type() {
         return *this;
     }

@@ -72,6 +72,100 @@ Serialize([[maybe_unused]] const ns::B& value, USERVER_NAMESPACE::formats::seria
     return vb.ExtractValue();
 }
 
+bool operator==(const ns::C& lhs, const ns::C& rhs) { return lhs.version == rhs.version && true; }
+
+USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::C& value) {
+    return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
+}
+
+C Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::C> to) {
+    return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
+}
+
+C Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<ns::C> to) {
+    return Parse<USERVER_NAMESPACE::formats::yaml::Value>(json, to);
+}
+
+C Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<ns::C> to) {
+    return Parse<USERVER_NAMESPACE::yaml_config::Value>(json, to);
+}
+
+USERVER_NAMESPACE::formats::json::Value
+Serialize([[maybe_unused]] const ns::C& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+    USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
+
+    if (value.version) {
+        vb["version"] = USERVER_NAMESPACE::chaotic::Primitive<int>{*value.version};
+    }
+
+    return vb.ExtractValue();
+}
+
+bool operator==(const ns::D& lhs, const ns::D& rhs) { return lhs.version == rhs.version && true; }
+
+USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::D& value) {
+    return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
+}
+
+D Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::D> to) {
+    return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
+}
+
+D Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<ns::D> to) {
+    return Parse<USERVER_NAMESPACE::formats::yaml::Value>(json, to);
+}
+
+D Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<ns::D> to) {
+    return Parse<USERVER_NAMESPACE::yaml_config::Value>(json, to);
+}
+
+USERVER_NAMESPACE::formats::json::Value
+Serialize([[maybe_unused]] const ns::D& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+    USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
+
+    if (value.version) {
+        vb["version"] = USERVER_NAMESPACE::chaotic::Primitive<int>{*value.version};
+    }
+
+    return vb.ExtractValue();
+}
+
+bool operator==(const ns::IntegerOneOfDiscriminator& lhs, const ns::IntegerOneOfDiscriminator& rhs) {
+    return lhs.foo == rhs.foo && true;
+}
+
+USERVER_NAMESPACE::logging::LogHelper&
+operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::IntegerOneOfDiscriminator& value) {
+    return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
+}
+
+IntegerOneOfDiscriminator Parse(
+    USERVER_NAMESPACE::formats::json::Value json,
+    USERVER_NAMESPACE::formats::parse::To<ns::IntegerOneOfDiscriminator> to
+) {
+    return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
+}
+
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<ns::IntegerOneOfDiscriminator>) was not generated:
+ * ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
+
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<ns::IntegerOneOfDiscriminator>) was not generated:
+ * ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
+
+USERVER_NAMESPACE::formats::json::Value
+Serialize([[maybe_unused]] const ns::IntegerOneOfDiscriminator& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+    USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
+
+    if (value.foo) {
+        vb["foo"] = USERVER_NAMESPACE::chaotic::OneOfWithDiscriminator<
+            &ns::IntegerOneOfDiscriminator::kFoo_Settings,
+            USERVER_NAMESPACE::chaotic::Primitive<ns::C>,
+            USERVER_NAMESPACE::chaotic::Primitive<ns::D>>{*value.foo};
+    }
+
+    return vb.ExtractValue();
+}
+
 bool operator==(const ns::OneOfDiscriminator& lhs, const ns::OneOfDiscriminator& rhs) {
     return lhs.foo == rhs.foo && true;
 }

@@ -51,6 +51,63 @@ ns::B Parse(Value value, USERVER_NAMESPACE::formats::parse::To<ns::B>) {
     return res;
 }
 
+static constexpr USERVER_NAMESPACE::utils::TrivialSet kns__C_PropertiesNames = [](auto selector) {
+    return selector().template Type<std::string_view>().Case("version");
+};
+
+template <typename Value>
+ns::C Parse(Value value, USERVER_NAMESPACE::formats::parse::To<ns::C>) {
+    value.CheckNotMissing();
+    value.CheckObjectOrNull();
+
+    ns::C res;
+
+    res.version = value["version"].template As<std::optional<USERVER_NAMESPACE::chaotic::Primitive<int>>>();
+
+    USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(value, kns__C_PropertiesNames);
+
+    return res;
+}
+
+static constexpr USERVER_NAMESPACE::utils::TrivialSet kns__D_PropertiesNames = [](auto selector) {
+    return selector().template Type<std::string_view>().Case("version");
+};
+
+template <typename Value>
+ns::D Parse(Value value, USERVER_NAMESPACE::formats::parse::To<ns::D>) {
+    value.CheckNotMissing();
+    value.CheckObjectOrNull();
+
+    ns::D res;
+
+    res.version = value["version"].template As<std::optional<USERVER_NAMESPACE::chaotic::Primitive<int>>>();
+
+    USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(value, kns__D_PropertiesNames);
+
+    return res;
+}
+
+static constexpr USERVER_NAMESPACE::utils::TrivialSet kns__IntegerOneOfDiscriminator_PropertiesNames =
+    [](auto selector) { return selector().template Type<std::string_view>().Case("foo"); };
+
+template <typename Value>
+ns::IntegerOneOfDiscriminator Parse(Value value, USERVER_NAMESPACE::formats::parse::To<ns::IntegerOneOfDiscriminator>) {
+    value.CheckNotMissing();
+    value.CheckObjectOrNull();
+
+    ns::IntegerOneOfDiscriminator res;
+
+    res.foo = value["foo"]
+                  .template As<std::optional<USERVER_NAMESPACE::chaotic::OneOfWithDiscriminator<
+                      &ns::IntegerOneOfDiscriminator::kFoo_Settings,
+                      USERVER_NAMESPACE::chaotic::Primitive<ns::C>,
+                      USERVER_NAMESPACE::chaotic::Primitive<ns::D>>>>();
+
+    USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(value, kns__IntegerOneOfDiscriminator_PropertiesNames);
+
+    return res;
+}
+
 static constexpr USERVER_NAMESPACE::utils::TrivialSet kns__OneOfDiscriminator_PropertiesNames = [](auto selector) {
     return selector().template Type<std::string_view>().Case("foo");
 };
@@ -74,4 +131,3 @@ ns::OneOfDiscriminator Parse(Value value, USERVER_NAMESPACE::formats::parse::To<
 }
 
 }  // namespace ns
-

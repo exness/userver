@@ -238,6 +238,7 @@
   "chaotic/tests/back/cpp/test_tr_array.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_tr_array.py",
   "chaotic/tests/back/cpp/test_tr_int.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_tr_int.py",
   "chaotic/tests/back/cpp/test_tr_object.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_tr_object.py",
+  "chaotic/tests/back/cpp/test_tr_oneof.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_tr_oneof.py",
   "chaotic/tests/back/cpp/test_tr_ref.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_tr_ref.py",
   "chaotic/tests/back/cpp/test_tr_string.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_tr_string.py",
   "chaotic/tests/back/cpp/test_type_name.py":"taxi/uservices/userver/chaotic/tests/back/cpp/test_type_name.py",

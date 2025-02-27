@@ -881,6 +881,7 @@ class CppVariant(CppType):
 class CppVariantWithDiscriminator(CppType):
     property_name: str
     variants: Dict[str, CppType]
+    mapping_type: types.MappingType = types.MappingType.STR
 
     KNOWN_X_PROPERTIES = ['x-usrv-cpp-type', 'x-taxi-cpp-type']
 
@@ -888,6 +889,10 @@ class CppVariantWithDiscriminator(CppType):
 
     def declaration_includes(self) -> List[str]:
         includes = ['variant', 'userver/chaotic/oneof_with_discriminator.hpp']
+
+        if self.is_int_discriminator():
+            includes.append('unordered_map')
+
         if self.user_cpp_type:
             includes += self.get_include_by_cpp_type(self.user_cpp_type)
         return includes + flatten([item.declaration_includes() for item in self.variants.values()])
@@ -917,3 +922,9 @@ class CppVariantWithDiscriminator(CppType):
 
     def need_operator_lshift(self) -> bool:
         return False
+
+    def is_str_discriminator(self) -> bool:
+        return self.mapping_type == types.MappingType.STR
+
+    def is_int_discriminator(self) -> bool:
+        return self.mapping_type == types.MappingType.INT

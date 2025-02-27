@@ -593,8 +593,14 @@ class Generator:
         schema: types.OneOfWithDiscriminator,
     ) -> cpp_types.CppType:
         variants = {}
-        for item in zip(schema.oneOf, schema.mapping):
-            field_value, refs = item
+
+        mapping_values: list
+        if schema.mapping.is_str():
+            mapping_values = schema.mapping.as_strs()
+        elif schema.mapping.is_int():
+            mapping_values = schema.mapping.as_ints()
+
+        for field_value, refs in zip(schema.oneOf, mapping_values):
             for ref in refs:
                 variants[ref] = self._gen_ref(
                     type_name.TypeName(''),
@@ -612,6 +618,7 @@ class Generator:
             nullable=schema.nullable,
             variants=variants,
             property_name=schema.discriminator_property,
+            mapping_type=schema.mapping.get_type(),
         )
 
     def _gen_object(

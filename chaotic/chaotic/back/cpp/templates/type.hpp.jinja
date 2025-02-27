@@ -111,18 +111,29 @@
             {%- endfor -%}
         >;
     {% elif type.get_py_type() == 'CppVariantWithDiscriminator' %}
-        [[maybe_unused]] static constexpr {{ userver }}::chaotic::OneOfSettings k{{ type.cpp_local_name() }}_Settings = {
-            "{{ type.property_name }}",
-            {{ userver }}::utils::TrivialSet(
-                [](auto selector) {
-		    return selector().template Type<std::string_view>()
-                        {%- for var_name in type.variants -%}
-                            .Case("{{ var_name }}")
-                        {%- endfor -%}
-                        ;
+        {% if type.is_str_discriminator() %}
+            [[maybe_unused]] static constexpr {{ userver }}::chaotic::OneOfStringSettings k{{ type.cpp_local_name() }}_Settings = {
+                "{{ type.property_name }}",
+                {{ userver }}::utils::TrivialSet(
+                    [](auto selector) {
+                return selector().template Type<std::string_view>()
+                            {%- for var_name in type.variants -%}
+                                .Case("{{ var_name }}")
+                            {%- endfor -%}
+                            ;
+                    }
+                )
+            };
+        {% elif type.is_int_discriminator() %}
+            inline static const {{ userver }}::chaotic::OneOfIntegerSettings k{{ type.cpp_local_name() }}_Settings {
+                "{{ type.property_name }}",
+                std::unordered_map<int64_t, size_t>{
+                    {%- for idx, var_name in enumerate(type.variants) -%}
+                        { {{ var_name }}, {{idx}} },
+                    {%- endfor -%}
                 }
-            )
-        };
+            };
+        {% endif %}
 
         using {{ type.cpp_local_name() }} = std::variant<
             {%- for variant in type.variants.values() -%}
