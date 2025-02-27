@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 #include <grpcpp/impl/codegen/config.h>
 
 USERVER_NAMESPACE_BEGIN
@@ -18,6 +16,8 @@ extern const grpc::string kTraceParent;
 
 extern const grpc::string kXYaTaxiRatelimitedBy;
 extern const grpc::string kXYaTaxiRatelimitReason;
+
+extern const grpc::string kXYaTaxiPerAttemptTimeout;
 
 extern const grpc::string kHostname;
 

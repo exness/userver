@@ -1,10 +1,14 @@
 #include <userver/ugrpc/client/impl/call_params.hpp>
 
+#include <google/protobuf/util/time_util.h>
+
 #include <userver/engine/task/cancel.hpp>
 #include <userver/testsuite/grpc_control.hpp>
 #include <userver/ugrpc/client/client_qos.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/utils/algo.hpp>
+
+#include <ugrpc/impl/rpc_metadata.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -30,12 +34,21 @@ void CheckValidCallName(std::string_view call_name) {
 constexpr std::chrono::hours kMaxSafeDeadline{24 * 365};
 
 void SetDeadline(grpc::ClientContext& client_context, const Qos& qos, const testsuite::GrpcControl& testsuite_control) {
-    const auto total_timeout = GetTotalTimeout(qos);
-    if (total_timeout.has_value() && *total_timeout <= kMaxSafeDeadline) {
-        client_context.set_deadline(std::chrono::system_clock::now() + testsuite_control.MakeTimeout(*total_timeout));
-    } else {
+    if (!qos.timeout.has_value() || kMaxSafeDeadline < *qos.timeout) {
         client_context.set_deadline(std::chrono::system_clock::time_point::max());
+        return;
     }
+
+    client_context.AddMetadata(
+        ugrpc::impl::kXYaTaxiPerAttemptTimeout,
+        google::protobuf::util::TimeUtil::ToString(
+            google::protobuf::util::TimeUtil::MillisecondsToDuration(qos.timeout->count())
+        )
+    );
+
+    const auto total_timeout = GetTotalTimeout(qos);
+    UASSERT(total_timeout.has_value());
+    client_context.set_deadline(std::chrono::system_clock::now() + testsuite_control.MakeTimeout(*total_timeout));
 }
 
 // Order of timeout application, from highest to lowest priority:

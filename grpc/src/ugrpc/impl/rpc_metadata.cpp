@@ -17,6 +17,8 @@ const grpc::string kTraceParent = "traceparent";
 const grpc::string kXYaTaxiRatelimitedBy = "x-yataxi-ratelimited-by";
 const grpc::string kXYaTaxiRatelimitReason = "x-yataxi-ratelimit-reason";
 
+const grpc::string kXYaTaxiPerAttemptTimeout = "x-yataxi-per-attempt-timeout";
+
 const grpc::string kHostname = hostinfo::blocking::GetRealHostName();
 
 const grpc::string kCongestionControlRatelimitReason = "congestion-control";
