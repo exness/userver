@@ -67,6 +67,8 @@ ClusterTopology::ClusterTopology(
             ++shard_index;
         }
     }
+
+    UASSERT(!cluster_shards_.empty());
 }
 
 ClusterTopology::~ClusterTopology() = default;
