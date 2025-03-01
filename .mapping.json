@@ -2188,6 +2188,7 @@
   "kafka/include/userver/kafka/consumer_component.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/consumer_component.hpp",
   "kafka/include/userver/kafka/consumer_scope.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/consumer_scope.hpp",
   "kafka/include/userver/kafka/exceptions.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/exceptions.hpp",
+  "kafka/include/userver/kafka/headers.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/headers.hpp",
   "kafka/include/userver/kafka/impl/broker_secrets.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/impl/broker_secrets.hpp",
   "kafka/include/userver/kafka/impl/configuration.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/impl/configuration.hpp",
   "kafka/include/userver/kafka/impl/consumer.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/impl/consumer.hpp",
