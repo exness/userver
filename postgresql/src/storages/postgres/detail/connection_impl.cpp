@@ -638,7 +638,7 @@ void ConnectionImpl::CheckDeadlineReached(const engine::Deadline& deadline) {
 
 tracing::Span ConnectionImpl::MakeQuerySpan(const Query& query, const CommandControl& cc) const {
     tracing::Span span{FindQueryShortInfo(scopes::kQuery, query.Statement())};
-    conn_wrapper_.FillSpanTags(span, cc);
+    conn_wrapper_.FillSpanTags(span, cc, "left_network_timeout_ms");
     query.FillSpanTags(span);
     return span;
 }
