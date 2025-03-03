@@ -5,6 +5,7 @@ Work with the configuration files of the service in testsuite.
 # pylint: disable=redefined-outer-name
 import copy
 import dataclasses
+import itertools
 import logging
 import os
 import pathlib
@@ -215,14 +216,29 @@ def service_config_path_temp(
     service_tmpdir,
     service_config,
     service_config_yaml,
+    service_config_vars,
 ) -> pathlib.Path:
     """
-    Dumps the contents of the service_config_yaml into a static config for
+    Dumps the contents of the service_config_yaml and service_config_vars into a static config for
     testsuite and returns the path to the config file.
 
     @ingroup userver_testsuite_fixtures
     """
     dst_path = service_tmpdir / 'config.yaml'
+
+    service_config_yaml = dict(service_config_yaml)
+    if not service_config_vars:
+        service_config_yaml.pop('config_vars', None)
+    else:
+        config_vars_path = service_tmpdir / 'config_vars.yaml'
+        config_vars_text = yaml.dump(service_config_vars)
+        logger.debug(
+            'userver fixture "service_config_path_temp" writes the patched static config vars to "%s":\n%s',
+            config_vars_path,
+            config_vars_text,
+        )
+        config_vars_path.write_text(config_vars_text)
+        service_config_yaml['config_vars'] = str(config_vars_path)
 
     logger.debug(
         'userver fixture "service_config_path_temp" writes the patched static config to "%s" equivalent to:\n%s',
@@ -375,6 +391,7 @@ def _original_service_config(
 
 @pytest.fixture(scope='session')
 def _service_config_hooked(
+    daemon_scoped_mark,
     pytestconfig,
     request,
     service_tmpdir,
@@ -384,25 +401,14 @@ def _service_config_hooked(
     config_vars = copy.deepcopy(_original_service_config.config_vars)
 
     plugin = pytestconfig.pluginmanager.get_plugin('userver_config')
-    for hook in plugin.userver_config_hooks:
+    local_hooks = (daemon_scoped_mark or {}).get('config_hooks', ())
+
+    for hook in itertools.chain(plugin.userver_config_hooks, local_hooks):
         if not callable(hook):
             hook_func = request.getfixturevalue(hook)
         else:
             hook_func = hook
         hook_func(config_yaml, config_vars)
-
-    if not config_vars:
-        config_yaml.pop('config_vars', None)
-    else:
-        config_vars_path = service_tmpdir / 'config_vars.yaml'
-        config_vars_text = yaml.dump(config_vars)
-        logger.debug(
-            'userver fixture "service_config" writes the patched static config vars to "%s":\n%s',
-            config_vars_path,
-            config_vars_text,
-        )
-        config_vars_path.write_text(config_vars_text)
-        config_yaml['config_vars'] = str(config_vars_path)
 
     return _UserverConfig(config_yaml=config_yaml, config_vars=config_vars)
 
