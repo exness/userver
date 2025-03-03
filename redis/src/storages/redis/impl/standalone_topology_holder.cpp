@@ -36,7 +36,7 @@ void StandaloneTopologyHolder::Stop() {
 
 bool StandaloneTopologyHolder::WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) {
     LOG_DEBUG() << "WaitReadyOnce in mode " << ToString(mode);
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock lock{mutex_};
     return cv_.WaitUntil(lock, deadline, [this, mode]() {
         if (!is_nodes_received_) return false;
         auto ptr = topology_.Read();
@@ -154,7 +154,7 @@ void StandaloneTopologyHolder::CreateNode() {
     LOG_DEBUG() << "Create node started";
 
     {
-        std::unique_lock<std::mutex> lock(mutex_);
+        const std::lock_guard lock{mutex_};
         // one shard
         ClusterShardHostInfos shard_infos{// only master, no slaves
                                           ClusterShardHostInfo{conn_to_create_, {}, {}}};

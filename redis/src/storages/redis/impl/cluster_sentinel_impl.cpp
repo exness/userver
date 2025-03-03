@@ -293,7 +293,7 @@ public:
     }
 
     bool WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) override {
-        std::unique_lock<std::mutex> lock(mutex_);
+        std::unique_lock lock{mutex_};
         return cv_.WaitUntil(lock, deadline, [this, mode]() {
             if (!IsInitialized()) return false;
             auto ptr = topology_.Read();
@@ -574,6 +574,7 @@ void ClusterTopologyHolder::CreateNodes() {
                 return;
             }
             topology_holder->GetSignalNodeStateChanged()(host_port, state);
+            { const std::lock_guard lock{topology_holder->mutex_}; }  // do not lose the notify
             topology_holder->cv_.NotifyAll();
         });
         nodes_.Insert(std::move(host_port), std::move(instance));
@@ -749,6 +750,7 @@ void ClusterTopologyHolder::UpdateClusterTopology() {
                     return;
                 }
                 is_topology_received_ = true;
+                { const std::lock_guard lock{mutex_}; }  // do not lose the notify
                 cv_.NotifyAll();
 
                 LOG_DEBUG() << "Cluster topology updated to version" << current_topology_version_.load();
@@ -831,7 +833,7 @@ std::unordered_map<ServerId, size_t, ServerIdHasher> ClusterSentinelImpl::GetAva
 
 void ClusterSentinelImpl::WaitConnectedDebug(bool /*allow_empty_slaves*/) {
     const RedisWaitConnected wait_connected{
-        WaitConnectedMode::kMasterAndSlave, false, kRedisWaitConnectedDefaultTimeout};
+        WaitConnectedMode::kMasterAndSlave, true, kRedisWaitConnectedDefaultTimeout};
     WaitConnectedOnce(wait_connected);
 }
 

@@ -75,7 +75,7 @@ Shard::GetAvailableServersWeighted(bool with_master, const CommandControl& comma
 }
 
 bool Shard::IsConnectedToAllServersDebug(bool allow_empty) const {
-    std::shared_lock lock(mutex_);
+    const std::shared_lock lock{mutex_};
     for (const auto& inst : instances_)
         if (inst.instance->GetState() != Redis::State::kConnected) return false;
     return allow_empty || !instances_.empty();

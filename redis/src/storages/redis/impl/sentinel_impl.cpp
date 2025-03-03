@@ -117,7 +117,7 @@ void SentinelImpl::WaitConnectedDebug(bool allow_empty_slaves) {
     static const auto timeout = std::chrono::milliseconds(50);
 
     for (;; std::this_thread::sleep_for(timeout)) {
-        std::lock_guard<std::mutex> sentinels_lock(sentinels_mutex_);
+        const std::lock_guard sentinels_lock{sentinels_mutex_};
 
         bool connected_all = true;
         for (const auto& shard : master_shards_)
@@ -975,7 +975,7 @@ void SentinelImpl::SlotInfo::UpdateSlots(const std::vector<ShardInterval>& inter
     }
 
     if (!is_initialized_.exchange(true)) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        { const std::lock_guard lock{mutex_}; }  // do not lose the notify
         cv_.NotifyAll();
     }
 }
@@ -1004,12 +1004,14 @@ void SentinelImpl::ShardInfo::UpdateHostPortToShard(HostPortToShardMap&& host_po
 
 void SentinelImpl::ConnectedStatus::SetMasterReady() {
     if (!master_ready_.exchange(true)) {
+        { const std::lock_guard lock{mutex_}; }  // do not lose the notify
         cv_.NotifyAll();
     }
 }
 
 void SentinelImpl::ConnectedStatus::SetSlaveReady() {
     if (!slave_ready_.exchange(true)) {
+        { const std::lock_guard lock{mutex_}; }  // do not lose the notify
         cv_.NotifyAll();
     }
 }
