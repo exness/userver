@@ -840,12 +840,14 @@ void ClusterSentinelImpl::WaitConnectedDebug(bool /*allow_empty_slaves*/) {
 void ClusterSentinelImpl::WaitConnectedOnce(RedisWaitConnected wait_connected) {
     auto deadline = engine::Deadline::FromDuration(wait_connected.timeout);
     if (!topology_holder_->WaitReadyOnce(deadline, wait_connected.mode)) {
+        auto topology = topology_holder_->GetTopology();
         const std::string msg = fmt::format(
             "Failed to init cluster slots for redis, shard_group_name={} in {} "
-            "ms, mode={}",
+            "ms, mode={}. {}",
             shard_group_name_,
             wait_connected.timeout.count(),
-            ToString(wait_connected.mode)
+            ToString(wait_connected.mode),
+            topology->GetReadinessInfo()
         );
         if (wait_connected.throw_on_fail)
             throw ClientNotConnectedException(msg);

@@ -80,6 +80,20 @@ bool ClusterTopology::IsReady(WaitConnectedMode mode) const {
            });
 }
 
+std::string ClusterTopology::GetReadinessInfo() const {
+    std::string result = "Shards readiness: [";
+    for (const auto& shard : cluster_shards_) {
+        fmt::format_to(
+            std::back_inserter(result),
+            "master {}, replicas {}; ",
+            shard.IsReady(WaitConnectedMode::kMaster),
+            shard.IsReady(WaitConnectedMode::kSlave)
+        );
+    }
+    result += "]";
+    return result;
+}
+
 bool ClusterTopology::HasSameInfos(const ClusterShardHostInfos& infos) const {
     /// other fields calculated from infos_
     if (infos_.size() != infos.size()) {

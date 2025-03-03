@@ -70,6 +70,7 @@ public:
     }
 
     bool IsReady(WaitConnectedMode mode) const;
+    std::string GetReadinessInfo() const;
 
     bool HasSameInfos(const ClusterShardHostInfos& infos) const;
 
