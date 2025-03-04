@@ -4,7 +4,10 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis::impl {
 
+class RedisConnectionHolder::EmplaceEnabler {};
+
 RedisConnectionHolder::RedisConnectionHolder(
+    EmplaceEnabler,
     const engine::ev::ThreadControl& sentinel_thread_control,
     const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
     const std::string& host,
@@ -28,15 +31,42 @@ RedisConnectionHolder::RedisConnectionHolder(
           [this] { EnsureConnected(); },
           kCheckRedisConnectedInterval
       ),
-      redis_creation_settings_(redis_creation_settings) {
-    // https://github.com/boostorg/signals2/issues/59
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
-    CreateConnection();
-    ev_thread_.RunInEvLoopAsync([this] { connection_check_timer_.Start(); });
-}
+      redis_creation_settings_(redis_creation_settings) {}
 
 RedisConnectionHolder::~RedisConnectionHolder() {
     ev_thread_.RunInEvLoopBlocking([this] { connection_check_timer_.Stop(); });
+}
+
+std::shared_ptr<RedisConnectionHolder> RedisConnectionHolder::Create(
+    const engine::ev::ThreadControl& sentinel_thread_control,
+    const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
+    const std::string& host,
+    uint16_t port,
+    Password password,
+    CommandsBufferingSettings buffering_settings,
+    ReplicationMonitoringSettings replication_monitoring_settings,
+    utils::RetryBudgetSettings retry_budget_settings,
+    redis::RedisCreationSettings redis_creation_settings
+) {
+    auto holder = std::make_shared<RedisConnectionHolder>(
+        EmplaceEnabler{},
+        sentinel_thread_control,
+        redis_thread_pool,
+        host,
+        port,
+        std::move(password),
+        std::move(buffering_settings),
+        std::move(replication_monitoring_settings),
+        std::move(retry_budget_settings),
+        std::move(redis_creation_settings)
+    );
+
+    // https://github.com/boostorg/signals2/issues/59
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
+    holder->CreateConnection();
+    holder->ev_thread_.RunInEvLoopAsync([holder] { holder->connection_check_timer_.Start(); });
+
+    return holder;
 }
 
 std::shared_ptr<Redis> RedisConnectionHolder::Get() const { return redis_.ReadCopy(); }
@@ -53,6 +83,7 @@ void RedisConnectionHolder::EnsureConnected() {
 
 void RedisConnectionHolder::CreateConnection() {
     auto instance = std::make_shared<Redis>(redis_thread_pool_, redis_creation_settings_);
+    UASSERT(weak_from_this().lock());
     instance->signal_state_change.connect([weak_ptr{weak_from_this()}](Redis::State state) {
         const auto ptr = weak_ptr.lock();
         if (!ptr) return;

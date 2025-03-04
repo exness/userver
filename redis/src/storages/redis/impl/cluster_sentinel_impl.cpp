@@ -670,7 +670,7 @@ std::shared_ptr<RedisConnectionHolder> ClusterTopologyHolder::CreateRedisInstanc
     const auto replication_monitoring_settings_ptr = monitoring_settings_.Lock();
     const auto retry_budget_settings_ptr = retry_budget_settings_.Lock();
     LOG_DEBUG() << "Create new redis instance " << host_port;
-    return std::make_shared<RedisConnectionHolder>(
+    return RedisConnectionHolder::Create(
         ev_thread_,
         redis_thread_pool_,
         host,
