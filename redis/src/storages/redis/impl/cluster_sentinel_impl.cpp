@@ -149,7 +149,8 @@ void InvokeCommand(CommandPtr command, ReplyPtr&& reply) {
 
 }  // namespace
 
-class ClusterTopologyHolder : public TopologyHolderBase, public std::enable_shared_from_this<ClusterTopologyHolder> {
+class ClusterTopologyHolder final : public TopologyHolderBase,
+                                    public std::enable_shared_from_this<ClusterTopologyHolder> {
 public:
     using HostPort = std::string;
 
@@ -238,7 +239,7 @@ public:
         LOG_DEBUG() << "Created ClusterTopologyHolder, shard_group_name=" << shard_group_name_;
     }
 
-    virtual ~ClusterTopologyHolder() = default;
+    ~ClusterTopologyHolder() = default;
 
     void Init() override {
         const constexpr bool kClusterMode = true;
@@ -375,6 +376,10 @@ public:
     Password GetPassword() override {
         const auto lock = password_.Lock();
         return *lock;
+    }
+
+    std::string GetReadinessInfo() const override {
+        return fmt::format("Nodes received: {}; topology received: {}.", is_nodes_received_, is_topology_received_);
     }
 
 private:
@@ -843,10 +848,11 @@ void ClusterSentinelImpl::WaitConnectedOnce(RedisWaitConnected wait_connected) {
         auto topology = topology_holder_->GetTopology();
         const std::string msg = fmt::format(
             "Failed to init cluster slots for redis, shard_group_name={} in {} "
-            "ms, mode={}. {}",
+            "ms, mode={}. {} {}",
             shard_group_name_,
             wait_connected.timeout.count(),
             ToString(wait_connected.mode),
+            topology_holder_->GetReadinessInfo(),
             topology->GetReadinessInfo()
         );
         if (wait_connected.throw_on_fail)

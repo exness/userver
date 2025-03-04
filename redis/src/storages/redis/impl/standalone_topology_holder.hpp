@@ -13,8 +13,8 @@ namespace storages::redis::impl {
 
 class RedisConnectionHolder;
 
-class StandaloneTopologyHolder : public TopologyHolderBase,
-                                 public std::enable_shared_from_this<StandaloneTopologyHolder> {
+class StandaloneTopologyHolder final : public TopologyHolderBase,
+                                       public std::enable_shared_from_this<StandaloneTopologyHolder> {
 public:
     StandaloneTopologyHolder(
         const engine::ev::ThreadControl& sentinel_thread_control,
@@ -23,7 +23,7 @@ public:
         ConnectionInfo conn
     );
 
-    virtual ~StandaloneTopologyHolder() = default;
+    ~StandaloneTopologyHolder() = default;
 
     void Init() override;
 
@@ -56,6 +56,8 @@ public:
     void UpdatePassword(const Password& password) override;
 
     Password GetPassword() override;
+
+    std::string GetReadinessInfo() const override;
 
 private:
     std::shared_ptr<RedisConnectionHolder> CreateRedisInstance(const ConnectionInfoInt& info);

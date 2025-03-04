@@ -204,6 +204,10 @@ Password StandaloneTopologyHolder::GetPassword() {
     return *lock;
 }
 
+std::string StandaloneTopologyHolder::GetReadinessInfo() const {
+    return fmt::format("Nodes received: {}.", is_nodes_received_);
+}
+
 }  // namespace storages::redis::impl
 
 USERVER_NAMESPACE_END
