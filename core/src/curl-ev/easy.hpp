@@ -254,9 +254,6 @@ public:
     using read_function_t = size_t (*)(void* ptr, size_t size, size_t nmemb, void* userdata);
     IMPLEMENT_CURL_OPTION(set_read_function, native::CURLOPT_READFUNCTION, read_function_t);
     IMPLEMENT_CURL_OPTION(set_read_data, native::CURLOPT_READDATA, void*);
-    using ioctl_function_t = native::curlioerr (*)(native::CURL* handle, int cmd, void* clientp);
-    IMPLEMENT_CURL_OPTION(set_ioctl_function, native::CURLOPT_IOCTLFUNCTION, ioctl_function_t);
-    IMPLEMENT_CURL_OPTION(set_ioctl_data, native::CURLOPT_IOCTLDATA, void*);
     using seek_function_t = int (*)(void* instream, native::curl_off_t offset, int origin);
     IMPLEMENT_CURL_OPTION(set_seek_function, native::CURLOPT_SEEKFUNCTION, seek_function_t);
     IMPLEMENT_CURL_OPTION(set_seek_data, native::CURLOPT_SEEKDATA, void*);
@@ -270,8 +267,6 @@ public:
     using closesocket_function_t = int (*)(void* clientp, native::curl_socket_t item);
     IMPLEMENT_CURL_OPTION(set_closesocket_function, native::CURLOPT_CLOSESOCKETFUNCTION, closesocket_function_t);
     IMPLEMENT_CURL_OPTION(set_closesocket_data, native::CURLOPT_CLOSESOCKETDATA, void*);
-    using progress_function_t = int (*)(void* clientp, double dltotal, double dlnow, double ultotal, double ulnow);
-    IMPLEMENT_CURL_OPTION(set_progress_function, native::CURLOPT_PROGRESSFUNCTION, progress_function_t);
     IMPLEMENT_CURL_OPTION(set_progress_data, native::CURLOPT_PROGRESSDATA, void*);
     using xferinfo_function_t = int (*)(
         void* clientp,
@@ -319,7 +314,6 @@ public:
     IMPLEMENT_CURL_OPTION(set_proxy_type, native::CURLOPT_PROXYTYPE, long);
     IMPLEMENT_CURL_OPTION_STRING(set_no_proxy, native::CURLOPT_NOPROXY);
     IMPLEMENT_CURL_OPTION_BOOLEAN(set_http_proxy_tunnel, native::CURLOPT_HTTPPROXYTUNNEL);
-    IMPLEMENT_CURL_OPTION_STRING(set_socks5_gsapi_service, native::CURLOPT_SOCKS5_GSSAPI_SERVICE);
     IMPLEMENT_CURL_OPTION_BOOLEAN(set_socks5_gsapi_nec, native::CURLOPT_SOCKS5_GSSAPI_NEC);
     IMPLEMENT_CURL_OPTION_STRING(set_interface, native::CURLOPT_INTERFACE);
     IMPLEMENT_CURL_OPTION(set_local_port, native::CURLOPT_LOCALPORT, long);
@@ -394,7 +388,6 @@ public:
     IMPLEMENT_CURL_OPTION(set_max_redirs, native::CURLOPT_MAXREDIRS, long);
     IMPLEMENT_CURL_OPTION(set_post_redir, native::CURLOPT_POSTREDIR, long);
     IMPLEMENT_CURL_OPTION_BOOLEAN(set_post, native::CURLOPT_POST);
-    IMPLEMENT_CURL_OPTION_BOOLEAN(set_put, native::CURLOPT_PUT);
     void set_post_fields(std::string&& post_fields);
     void set_post_fields(std::string&& post_fields, std::error_code& ec);
     IMPLEMENT_CURL_OPTION(set_post_fields, native::CURLOPT_POSTFIELDS, void*);
@@ -637,7 +630,6 @@ public:
     IMPLEMENT_CURL_OPTION_GET_LONG(get_num_connects, native::CURLINFO_NUM_CONNECTS);
     IMPLEMENT_CURL_OPTION_GET_LIST(get_ssl_engines, native::CURLINFO_SSL_ENGINES);
     IMPLEMENT_CURL_OPTION_GET_LIST(get_cookielist, native::CURLINFO_COOKIELIST);
-    IMPLEMENT_CURL_OPTION_GET_LONG(get_lastsocket, native::CURLINFO_LASTSOCKET);
     IMPLEMENT_CURL_OPTION_GET_STRING_VIEW(get_ftp_entry_path, native::CURLINFO_FTP_ENTRY_PATH);
     IMPLEMENT_CURL_OPTION_GET_STRING_VIEW(get_redirect_url, native::CURLINFO_REDIRECT_URL);
     IMPLEMENT_CURL_OPTION_GET_STRING_VIEW(get_primary_ip, native::CURLINFO_PRIMARY_IP);
