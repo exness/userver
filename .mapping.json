@@ -3473,8 +3473,6 @@
   "scripts/docker/base-debian-11.dockerfile":"taxi/uservices/userver/scripts/docker/base-debian-11.dockerfile",
   "scripts/docker/base-ubuntu-22.04-ci.dockerfile":"taxi/uservices/userver/scripts/docker/base-ubuntu-22.04-ci.dockerfile",
   "scripts/docker/base-ubuntu-22.04.dockerfile":"taxi/uservices/userver/scripts/docker/base-ubuntu-22.04.dockerfile",
-  "scripts/docker/core-ubuntu-20-gcc8/Dockerfile":"taxi/uservices/userver/scripts/docker/core-ubuntu-20-gcc8/Dockerfile",
-  "scripts/docker/core-ubuntu-20-gcc8/prepare_image.sh":"taxi/uservices/userver/scripts/docker/core-ubuntu-20-gcc8/prepare_image.sh",
   "scripts/docker/pip-install.sh":"taxi/uservices/userver/scripts/docker/pip-install.sh",
   "scripts/docker/run_as_user.sh":"taxi/uservices/userver/scripts/docker/run_as_user.sh",
   "scripts/docker/setup-base-ubuntu-22.04-env.sh":"taxi/uservices/userver/scripts/docker/setup-base-ubuntu-22.04-env.sh",
