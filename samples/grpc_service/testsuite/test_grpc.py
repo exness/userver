@@ -2,12 +2,16 @@ import sys
 
 import pytest
 
-import samples.greeter_pb2 as greeter_protos  # noqa: E402, E501
+# /// [Prepare modules]
+import samples.greeter_pb2 as greeter_protos
+import samples.greeter_pb2_grpc as greeter_services
+
+# /// [Prepare modules]
 
 
 # /// [grpc client test]
-async def test_grpc_client_mock_say_hello(service_client, mock_grpc_greeter):
-    @mock_grpc_greeter('SayHello')
+async def test_grpc_client_mock_say_hello(service_client, grpc_mockserver_new):
+    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         return greeter_protos.GreetingResponse(
             greeting=f'Hello, {request.name} from mockserver!',
@@ -24,9 +28,9 @@ async def test_grpc_client_mock_say_hello(service_client, mock_grpc_greeter):
 # /// [grpc client test response stream]
 async def test_grpc_client_mock_say_hello_response_stream(
     service_client,
-    mock_grpc_greeter,
+    grpc_mockserver_new,
 ):
-    @mock_grpc_greeter('SayHelloResponseStream')
+    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHelloResponseStream)
     async def mock_say_hello_response_stream(request, context):
         message = f'Hello, {request.name}'
         for i in range(5):
@@ -55,9 +59,9 @@ Hello, Python!!!!!
 # /// [grpc client test request stream]
 async def test_grpc_client_mock_say_hello_request_stream(
     service_client,
-    mock_grpc_greeter,
+    grpc_mockserver_new,
 ):
-    @mock_grpc_greeter('SayHelloRequestStream')
+    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHelloRequestStream)
     async def mock_say_hello_request_stream(request_iterator, context):
         message = 'Hello, '
         async for request in request_iterator:
@@ -78,9 +82,9 @@ async def test_grpc_client_mock_say_hello_request_stream(
 # /// [grpc client test streams]
 async def test_grpc_client_mock_say_hello_streams(
     service_client,
-    mock_grpc_greeter,
+    grpc_mockserver_new,
 ):
-    @mock_grpc_greeter('SayHelloStreams')
+    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHelloStreams)
     async def mock_say_hello_streams(request_iterator, context):
         message = 'Hello, '
         async for request in request_iterator:
