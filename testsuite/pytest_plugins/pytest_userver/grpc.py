@@ -1,4 +1,3 @@
-from typing import List
 from typing import Optional
 
 import pytest
@@ -10,13 +9,7 @@ def _guess_servicer(module) -> str:
     return str(guesses[0])
 
 
-def make_mock_grpc(
-    module,
-    *,
-    fixture_name: str,
-    servicer: Optional[str] = None,
-    stream_method_names: Optional[List[str]] = None,
-):
+def make_mock_grpc(module, *, fixture_name: str, servicer: Optional[str] = None):
     """
     @deprecated Use
     @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new"

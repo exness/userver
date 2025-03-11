@@ -332,7 +332,6 @@ def _wrap_grpc_method(
     default_unimplemented_method: Callable,
     response_streaming: bool,
     mocked_methods: Dict[str, Callable],
-    before_call_hook: Optional[Callable[..., None]],
 ):
     if response_streaming:
 
@@ -342,8 +341,6 @@ def _wrap_grpc_method(
             if method is None:
                 _raise_unimplemented_error(context, full_rpc_name)
 
-            if before_call_hook is not None:
-                before_call_hook(request_or_stream, context)
             async for response in await method(request_or_stream, context):
                 yield response
 
@@ -356,9 +353,11 @@ def _wrap_grpc_method(
             if method is None:
                 _raise_unimplemented_error(context, full_rpc_name)
 
-            if before_call_hook is not None:
-                before_call_hook(request_or_stream, context)
-            return await method(request_or_stream, context)
+            response = method(request_or_stream, context)
+            if inspect.isawaitable(response):
+                return await response
+            else:
+                return response
 
         return run_unary_response_method
 
@@ -375,7 +374,6 @@ def _create_servicer_mock(
     *,
     # TODO remove, these no longer do anything
     stream_method_names: Optional[List[str]] = None,
-    before_call_hook: Optional[Callable[..., None]] = None,
 ) -> GrpcServiceMock:
     _check_is_servicer_class(servicer_class)
     reflection = _reflect_servicer(servicer_class)
@@ -397,7 +395,6 @@ def _create_servicer_mock(
                 default_unimplemented_method=value,
                 response_streaming=reflection[attname].response_streaming,
                 mocked_methods=mocked_methods,
-                before_call_hook=before_call_hook,
             )
     mocked_servicer_class = type(
         f'Mock{servicer_class.__name__}',
