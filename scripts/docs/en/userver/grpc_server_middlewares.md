@@ -89,12 +89,12 @@ MiddlewareComponent::MiddlewareComponent(const components::ComponentConfig& conf
 ## Middlewares groups
 
 The middlewares pipeline consists of groups (ordered from begin to end):
- - `ugrpc::server::groups::PreCore`
- - `ugrpc::server::groups::Logging`
- - `ugrpc::server::groups::Auth`
- - `ugrpc::server::groups::Core`
- - `ugrpc::server::groups::PostCore`
- - `ugrpc::server::groups::User`
+ - `ugrpc::groups::PreCore`
+ - `ugrpc::groups::Logging`
+ - `ugrpc::groups::Auth`
+ - `ugrpc::groups::Core`
+ - `ugrpc::groups::PostCore`
+ - `ugrpc::groups::User`
 
 All user middlewares will be in `ugrpc::server::groups::User` group by default. But you can register your middleware in any group such as:
 

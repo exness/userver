@@ -13,7 +13,8 @@ namespace ugrpc::tests {
 
 namespace impl {
 
-using ClientPipeline = ugrpc::impl::SimpleMiddlewarePipeline<ugrpc::client::MiddlewareBase, ugrpc::client::ClientInfo>;
+using ClientPipeline = USERVER_NAMESPACE::middlewares ::impl::
+    SimpleMiddlewarePipeline<ugrpc::client::MiddlewareBase, ugrpc::client::ClientInfo>;
 
 }  // namespace impl
 

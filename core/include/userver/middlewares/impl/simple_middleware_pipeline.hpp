@@ -5,7 +5,7 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::impl {
+namespace middlewares::impl {
 
 // Interface for creating middlewares.
 template <typename MiddlewareBase, typename HandlerInfo>
@@ -34,6 +34,6 @@ private:
     Middlewares mids_;
 };
 
-}  // namespace ugrpc::impl
+}  // namespace middlewares::impl
 
 USERVER_NAMESPACE_END

@@ -14,7 +14,7 @@ public:
 
     // 'User' is a default group of user middlewares. See middlewares groups for more information.
     static inline const auto kDependency =
-        ugrpc::middlewares::MiddlewareDependencyBuilder().InGroup<ugrpc::server::groups::User>();
+        middlewares::MiddlewareDependencyBuilder().InGroup<middlewares::groups::User>();
 
     Middleware();
 

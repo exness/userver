@@ -2,9 +2,9 @@
 
 #include <userver/ugrpc/client/common_component.hpp>
 #include <userver/ugrpc/client/middlewares/baggage/component.hpp>
+#include <userver/ugrpc/client/middlewares/base.hpp>
 #include <userver/ugrpc/client/middlewares/deadline_propagation/component.hpp>
 #include <userver/ugrpc/client/middlewares/log/component.hpp>
-#include <userver/ugrpc/middlewares/pipeline.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
