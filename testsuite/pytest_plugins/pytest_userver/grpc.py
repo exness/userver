@@ -9,7 +9,7 @@ def _guess_servicer(module) -> str:
     return str(guesses[0])
 
 
-def make_mock_grpc(module, *, fixture_name: str, servicer: Optional[str] = None):
+def _make_mock_grpc(module, *, fixture_name: str, servicer: Optional[str] = None):
     """
     @deprecated Use
     @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new"
