@@ -235,7 +235,7 @@ collected functions and fixtures are applied.
 
 Example usage:
 
-@snippet samples/grpc_service/testsuite/conftest.py Prepare configs
+@snippet samples/http_caching/tests/conftest.py  patch configs
 
 #### Service client
 
