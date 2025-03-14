@@ -25,6 +25,8 @@ from typing_extensions import Final  # TODO use typing in Python 3.8
 
 from testsuite.utils import callinfo
 
+import pytest_userver.grpc
+
 MockDecorator = Callable[[Callable], callinfo.AsyncCallQueue]
 
 
@@ -34,6 +36,8 @@ MockDecorator = Callable[[Callable], callinfo.AsyncCallQueue]
 DEFAULT_PORT = 8091
 
 USERVER_CONFIG_HOOKS = ['userver_config_grpc_mockserver']
+
+_ERROR_CODE_KEY = 'x-testsuite-error-code'
 
 
 class GrpcServiceMock:
@@ -249,6 +253,12 @@ def grpc_mockserver_new(grpc_mockserver_session) -> GrpcMockserver:
     If you need the service needs the mock during startup, add the fixture that defines your mock to
     @ref pytest_userver.plugins.service.extra_client_deps "extra_client_deps".
 
+    It supports the ability to raise mocked errors from the mockserver,
+    which will cause the gRPC client to throw an exception.
+    Types of supported errors:
+    * @ref pytest_userver.grpc.NetworkError
+    * @ref pytest_userver.grpc.TimeoutError
+
     @ingroup userver_testsuite_fixtures
     """
     try:
@@ -261,16 +271,25 @@ def grpc_mockserver_new(grpc_mockserver_session) -> GrpcMockserver:
 def userver_config_grpc_mockserver(grpc_mockserver_endpoint):
     """
     Returns a function that adjusts the static config for testsuite.
-    Walks through config_vars *values* equal to `$grpc_mockserver`,
-    and replaces them with @ref grpc_mockserver_endpoint.
+    Finds `grpc-client-middleware-pipeline` in config_yaml and
+    enables `grpc-client-middleware-testsuite`.
 
     @ingroup userver_testsuite_fixtures
     """
 
-    def patch_config(_config_yaml, config_vars):
-        for name in config_vars:
-            if config_vars[name] == '$grpc_mockserver':
-                config_vars[name] = grpc_mockserver_endpoint
+    def get_dict_field(parent: dict, field_name: str) -> dict:
+        if parent.setdefault(field_name, {}) is None:
+            parent[field_name] = {}
+
+        return parent[field_name]
+
+    def patch_config(config_yaml, _config_vars):
+        components = config_yaml['components_manager']['components']
+        if components.get('grpc-client-common', None) is not None:
+            client_middlewares_pipeline = get_dict_field(components, 'grpc-client-middlewares-pipeline')
+            middlewares = get_dict_field(client_middlewares_pipeline, 'middlewares')
+            testsuite_middleware = get_dict_field(middlewares, 'grpc-client-middleware-testsuite')
+            testsuite_middleware['enabled'] = True
 
     return patch_config
 
@@ -326,6 +345,14 @@ def _raise_unimplemented_error(context: grpc.aio.ServicerContext, full_rpc_name:
     raise NotImplementedError(message)
 
 
+@contextlib.asynccontextmanager
+async def _transform_mocked_error(context: grpc.aio.ServicerContext):
+    try:
+        yield
+    except pytest_userver.grpc.MockedError as exc:
+        await context.abort(code=grpc.StatusCode.UNKNOWN, trailing_metadata=((_ERROR_CODE_KEY, exc.ERROR_CODE),))
+
+
 def _wrap_grpc_method(
     python_method_name: str,
     full_rpc_name: str,
@@ -353,11 +380,12 @@ def _wrap_grpc_method(
             if method is None:
                 _raise_unimplemented_error(context, full_rpc_name)
 
-            response = method(request_or_stream, context)
-            if inspect.isawaitable(response):
-                return await response
-            else:
-                return response
+            async with _transform_mocked_error(context):
+                response = method(request_or_stream, context)
+                if inspect.isawaitable(response):
+                    return await response
+                else:
+                    return response
 
         return run_unary_response_method
 
