@@ -16,14 +16,11 @@ from typing import Any
 from typing import Callable
 from typing import Collection
 from typing import Dict
-from typing import List
 from typing import Mapping
 from typing import NoReturn
-from typing import Optional
 from typing import Tuple
 
 import grpc
-import pytest
 from typing_extensions import Final  # TODO use typing in Python 3.8
 
 import testsuite.utils.callinfo
@@ -124,6 +121,7 @@ class MockserverSession:
         Starts the server.
         @note Prefer starting mockserver using the async contextmanager syntax if possible.
         """
+        await self._server.start()
 
     async def stop(self) -> None:
         """
@@ -132,11 +130,11 @@ class MockserverSession:
         await _stop_server(self._server)
 
     async def __aenter__(self) -> MockserverSession:
-        await self._server.start()
+        await self.start()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await _stop_server(self._server)
+        await self.stop()
 
 
 class Mockserver:
@@ -274,26 +272,6 @@ def _guess_servicer(module) -> str:
     return str(guesses[0])
 
 
-def make_mock_grpc(module, *, fixture_name: str, servicer: Optional[str] = None):
-    """
-    @deprecated Use
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new"
-    instead.
-    """
-
-    @pytest.fixture(name=fixture_name)
-    def mock_fixture(grpc_mockserver_new):
-        servicer_name = servicer
-        if servicer_name is None:
-            servicer_name = _guess_servicer(module)
-        resolved_servicer = getattr(module, servicer_name)
-
-        return grpc_mockserver_new.mock_factory(resolved_servicer)
-
-    # Returning a tuple for backwards compatibility.
-    return None, mock_fixture
-
-
 def _raise_unimplemented_error(context: grpc.aio.ServicerContext, full_rpc_name: str) -> NoReturn:
     message = f'Trying to call grpc_mockserver method "{full_rpc_name}", which is not mocked'
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -354,12 +332,7 @@ def _check_is_servicer_class(servicer_class: type) -> None:
         raise ValueError(f'Expected *Servicer class, got: {servicer_class}')
 
 
-def _create_servicer_mock(
-    servicer_class: type,
-    *,
-    # TODO remove, these no longer do anything
-    stream_method_names: Optional[List[str]] = None,
-) -> _ServiceMock:
+def _create_servicer_mock(servicer_class: type, /) -> _ServiceMock:
     _check_is_servicer_class(servicer_class)
     reflection = _reflect_servicer(servicer_class)
 

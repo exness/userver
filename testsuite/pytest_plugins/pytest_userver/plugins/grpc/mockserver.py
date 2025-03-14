@@ -4,8 +4,6 @@ Mocks for the gRPC servers.
 @sa @ref scripts/docs/en/userver/tutorial/grpc_service.md
 """
 
-from typing import Callable
-
 import grpc
 import pytest
 
@@ -116,33 +114,6 @@ def userver_config_grpc_mockserver(grpc_mockserver_endpoint):
             testsuite_middleware['enabled'] = True
 
     return patch_config
-
-
-@pytest.fixture(scope='session')
-def grpc_mockserver(grpc_mockserver_session) -> grpc.aio.Server:
-    """
-    Returns the gRPC mocking server.
-
-    @deprecated Please use @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new"
-    instead. Some time soon, `grpc_mockserver` will be removed.
-
-    @ingroup userver_testsuite_fixtures
-    """
-    return grpc_mockserver_session.server
-
-
-@pytest.fixture(scope='session')
-# pylint: disable=protected-access
-def create_grpc_mock() -> Callable[[type], pytest_userver.grpc._ServiceMock]:
-    """
-    Creates the gRPC mock server for the provided type.
-
-    @deprecated Please use @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new"
-    instead. Some time soon, `create_grpc_mock` will be removed.
-
-    @ingroup userver_testsuite_fixtures
-    """
-    return pytest_userver.grpc._create_servicer_mock  # pylint: disable=protected-access
 
 
 # @cond
