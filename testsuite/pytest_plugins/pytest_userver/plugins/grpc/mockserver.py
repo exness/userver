@@ -4,31 +4,12 @@ Mocks for the gRPC servers.
 @sa @ref scripts/docs/en/userver/tutorial/grpc_service.md
 """
 
-# pylint: disable=no-member
-import asyncio
-import contextlib
-import dataclasses
-import functools
-import inspect
 from typing import Callable
-from typing import Collection
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import NoReturn
-from typing import Optional
-from typing import Tuple
 
 import grpc
 import pytest
-from typing_extensions import Final  # TODO use typing in Python 3.8
-
-from testsuite.utils import callinfo
 
 import pytest_userver.grpc
-
-MockDecorator = Callable[[Callable], callinfo.AsyncCallQueue]
-
 
 # @cond
 
@@ -36,64 +17,6 @@ MockDecorator = Callable[[Callable], callinfo.AsyncCallQueue]
 DEFAULT_PORT = 8091
 
 USERVER_CONFIG_HOOKS = ['userver_config_grpc_mockserver']
-
-_ERROR_CODE_KEY = 'x-testsuite-error-code'
-
-
-class GrpcServiceMock:
-    def __init__(
-        self,
-        *,
-        servicer: object,
-        adder: Callable,
-        service_name: str,
-        known_methods: Collection[str],
-        mocked_methods: Dict[str, Callable],
-    ) -> None:
-        self._servicer = servicer
-        self._adder = adder
-        self._service_name = service_name
-        self._known_methods = known_methods
-        # Note: methods of `servicer` look into `mocked_methods` for implementations.
-        # (Specifically into the instance our constructor is given.)
-        self._methods: Final[Dict[str, Callable]] = mocked_methods
-
-    @property
-    def servicer(self) -> object:
-        return self._servicer
-
-    @property
-    def service_name(self) -> str:
-        return self._service_name
-
-    def get(self, method_name, default, /) -> Callable:
-        return self._methods.get(method_name, default)
-
-    def add_to_server(self, server: grpc.aio.Server) -> None:
-        self._adder(self._servicer, server)
-
-    def reset_handlers(self) -> None:
-        self._methods.clear()
-
-    @contextlib.contextmanager
-    def mock(self):
-        try:
-            yield self.install_handler
-        finally:
-            self._methods.clear()
-
-    def install_handler(self, method_name: str, /) -> MockDecorator:
-        def decorator(func):
-            if method_name not in self._known_methods:
-                raise RuntimeError(
-                    f'Trying to mock unknown grpc method {method_name} in service {self._service_name}',
-                )
-
-            wrapped = callinfo.acallqueue(func)
-            self._methods[method_name] = wrapped
-            return wrapped
-
-        return decorator
 
 
 # @endcond
@@ -120,45 +43,8 @@ def grpc_mockserver_endpoint(pytestconfig, get_free_port) -> str:
     return f'{pytestconfig.option.grpc_mockserver_host}:{port}'
 
 
-class GrpcMockserverSession:
-    """
-    Allows to install mocks that are kept active between tests, see
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_session "grpc_mockserver_session".
-
-    @warning This is a sharp knife, use with caution! For most use-cases, prefer
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new" instead.
-    """
-
-    # @cond
-    def __init__(self, *, _server: grpc.aio.Server) -> None:
-        self._server = _server
-        self._auto_service_mocks: Dict[type, GrpcServiceMock] = {}
-
-    def get_auto_service_mock(self, servicer_class: type, /) -> GrpcServiceMock:
-        existing_mock = self._auto_service_mocks.get(servicer_class)
-        if existing_mock:
-            return existing_mock
-        new_mock = _create_servicer_mock(servicer_class)
-        self._auto_service_mocks[servicer_class] = new_mock
-        new_mock.add_to_server(self._server)
-        return new_mock
-
-    def reset_auto_service_mocks(self) -> None:
-        for mock in self._auto_service_mocks.values():
-            mock.reset_handlers()
-
-    # @endcond
-
-    @property
-    def server(self) -> grpc.aio.Server:
-        """
-        The underlying [grpc.aio.Server](https://grpc.github.io/grpc/python/grpc_asyncio.html#grpc.aio.Server).
-        """
-        return self._server
-
-
 @pytest.fixture(scope='session')
-async def grpc_mockserver_session(grpc_mockserver_endpoint) -> GrpcMockserverSession:
+async def grpc_mockserver_session(grpc_mockserver_endpoint) -> pytest_userver.grpc.MockserverSession:
     """
     Returns the gRPC mocking server.
 
@@ -169,75 +55,13 @@ async def grpc_mockserver_session(grpc_mockserver_endpoint) -> GrpcMockserverSes
     """
     server = grpc.aio.server()
     server.add_insecure_port(grpc_mockserver_endpoint)
-    await server.start()
 
-    try:
-        yield GrpcMockserverSession(_server=server)
-    finally:
-
-        async def stop_server():
-            await server.stop(grace=None)
-            await server.wait_for_termination()
-
-        stop_server_task = asyncio.shield(asyncio.create_task(stop_server()))
-        # asyncio.shield does not protect our await from cancellations, and we
-        # really need to wait for the server stopping before continuing.
-        try:
-            await stop_server_task
-        except asyncio.CancelledError:
-            await stop_server_task
-            # Propagate cancellation when we are done
-            raise
-
-
-class GrpcMockserver:
-    """
-    Allows to install mocks that are reset between tests, see
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new".
-    """
-
-    # @cond
-    def __init__(self, *, _mockserver_session: GrpcMockserverSession) -> None:
-        self._mockserver_session = _mockserver_session
-
-    # @endcond
-
-    def __call__(self, servicer_method, /) -> MockDecorator:
-        """
-        Returns a decorator to mock the specified gRPC service method implementation.
-
-        Example:
-
-        @snippet samples/grpc_service/testsuite/test_grpc.py  Prepare modules
-        @snippet samples/grpc_service/testsuite/test_grpc.py  grpc client test
-        """
-        servicer_class = _get_class_from_method(servicer_method)
-        mock = self._mockserver_session.get_auto_service_mock(servicer_class)
-        return mock.install_handler(servicer_method.__name__)
-
-    def mock_factory(self, servicer_class, /) -> Callable[[str], MockDecorator]:
-        """
-        Allows to create a fixture as a shorthand for mocking methods of the specified gRPC service.
-
-        Example:
-
-        @snippet grpc/functional_tests/metrics/tests/conftest.py  Prepare modules
-        @snippet grpc/functional_tests/metrics/tests/conftest.py  Prepare server mock
-        @snippet grpc/functional_tests/metrics/tests/test_metrics.py  grpc client test
-        """
-
-        def factory(method_name):
-            method = getattr(servicer_class, method_name, None)
-            if method is None:
-                raise ValueError(f'No method "{method_name}" in servicer class "{servicer_class.__name__}"')
-            return self(method)
-
-        _check_is_servicer_class(servicer_class)
-        return factory
+    async with pytest_userver.grpc.MockserverSession(server=server, experimental=True) as mockserver:
+        yield mockserver
 
 
 @pytest.fixture
-def grpc_mockserver_new(grpc_mockserver_session) -> GrpcMockserver:
+def grpc_mockserver_new(grpc_mockserver_session) -> pytest_userver.grpc.Mockserver:
     """
     Returns the gRPC mocking server.
     In order for gRPC clients in your service to work, mock handlers need to be installed for them using this fixture.
@@ -262,9 +86,9 @@ def grpc_mockserver_new(grpc_mockserver_session) -> GrpcMockserver:
     @ingroup userver_testsuite_fixtures
     """
     try:
-        yield GrpcMockserver(_mockserver_session=grpc_mockserver_session)
+        yield pytest_userver.grpc.Mockserver(mockserver_session=grpc_mockserver_session, experimental=True)
     finally:
-        grpc_mockserver_session.reset_auto_service_mocks()
+        grpc_mockserver_session.reset_mocks()
 
 
 @pytest.fixture(scope='session')
@@ -308,7 +132,8 @@ def grpc_mockserver(grpc_mockserver_session) -> grpc.aio.Server:
 
 
 @pytest.fixture(scope='session')
-def create_grpc_mock():
+# pylint: disable=protected-access
+def create_grpc_mock() -> Callable[[type], pytest_userver.grpc._ServiceMock]:
     """
     Creates the gRPC mock server for the provided type.
 
@@ -317,7 +142,7 @@ def create_grpc_mock():
 
     @ingroup userver_testsuite_fixtures
     """
-    return _create_servicer_mock
+    return pytest_userver.grpc._create_servicer_mock  # pylint: disable=protected-access
 
 
 # @cond
@@ -336,162 +161,6 @@ def pytest_addoption(parser):
         default=0,
         help='gRPC mockserver port, by default random port is used',
     )
-
-
-def _raise_unimplemented_error(context: grpc.aio.ServicerContext, full_rpc_name: str) -> NoReturn:
-    message = f'Trying to call grpc_mockserver method "{full_rpc_name}", which is not mocked'
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details(message)
-    raise NotImplementedError(message)
-
-
-@contextlib.asynccontextmanager
-async def _transform_mocked_error(context: grpc.aio.ServicerContext):
-    try:
-        yield
-    except pytest_userver.grpc.MockedError as exc:
-        await context.abort(code=grpc.StatusCode.UNKNOWN, trailing_metadata=((_ERROR_CODE_KEY, exc.ERROR_CODE),))
-
-
-def _wrap_grpc_method(
-    python_method_name: str,
-    full_rpc_name: str,
-    default_unimplemented_method: Callable,
-    response_streaming: bool,
-    mocked_methods: Dict[str, Callable],
-):
-    if response_streaming:
-
-        @functools.wraps(default_unimplemented_method)
-        async def run_stream_response_method(self, request_or_stream, context: grpc.aio.ServicerContext):
-            method = mocked_methods.get(python_method_name)
-            if method is None:
-                _raise_unimplemented_error(context, full_rpc_name)
-
-            async for response in await method(request_or_stream, context):
-                yield response
-
-        return run_stream_response_method
-    else:
-
-        @functools.wraps(default_unimplemented_method)
-        async def run_unary_response_method(self, request_or_stream, context: grpc.aio.ServicerContext):
-            method = mocked_methods.get(python_method_name)
-            if method is None:
-                _raise_unimplemented_error(context, full_rpc_name)
-
-            async with _transform_mocked_error(context):
-                response = method(request_or_stream, context)
-                if inspect.isawaitable(response):
-                    return await response
-                else:
-                    return response
-
-        return run_unary_response_method
-
-
-def _check_is_servicer_class(servicer_class: type) -> None:
-    if not isinstance(servicer_class, type):
-        raise ValueError(f'Expected *Servicer class (type), got: {servicer_class} ({type(servicer_class)})')
-    if not servicer_class.__name__.endswith('Servicer'):
-        raise ValueError(f'Expected *Servicer class, got: {servicer_class}')
-
-
-def _create_servicer_mock(
-    servicer_class: type,
-    *,
-    # TODO remove, these no longer do anything
-    stream_method_names: Optional[List[str]] = None,
-) -> GrpcServiceMock:
-    _check_is_servicer_class(servicer_class)
-    reflection = _reflect_servicer(servicer_class)
-
-    if reflection:
-        service_name, _ = _split_rpc_name(next(iter(reflection.values())).name)
-    else:
-        service_name = 'UNKNOWN'
-    adder = getattr(inspect.getmodule(servicer_class), f'add_{servicer_class.__name__}_to_server')
-
-    mocked_methods: Dict[str, Callable] = {}
-
-    methods = {}
-    for attname, value in servicer_class.__dict__.items():
-        if callable(value):
-            methods[attname] = _wrap_grpc_method(
-                python_method_name=attname,
-                full_rpc_name=reflection[attname].name,
-                default_unimplemented_method=value,
-                response_streaming=reflection[attname].response_streaming,
-                mocked_methods=mocked_methods,
-            )
-    mocked_servicer_class = type(
-        f'Mock{servicer_class.__name__}',
-        (servicer_class,),
-        methods,
-    )
-    servicer = mocked_servicer_class()
-
-    return GrpcServiceMock(
-        servicer=servicer,
-        adder=adder,
-        service_name=service_name,
-        known_methods=frozenset(methods),
-        mocked_methods=mocked_methods,
-    )
-
-
-@dataclasses.dataclass(frozen=True)
-class _MethodInfo:
-    name: str  # in the format "/with.package.ServiceName/MethodName"
-    request_streaming: bool
-    response_streaming: bool
-
-
-class _FakeChannel:
-    def unary_unary(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=False, response_streaming=False)
-
-    def unary_stream(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=False, response_streaming=True)
-
-    def stream_unary(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=True, response_streaming=False)
-
-    def stream_stream(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=True, response_streaming=True)
-
-
-def _reflect_servicer(servicer_class: type) -> Mapping[str, _MethodInfo]:
-    service_name = servicer_class.__name__.removesuffix('Servicer')
-    stub_class = getattr(inspect.getmodule(servicer_class), f'{service_name}Stub')
-    return _reflect_stub(stub_class)
-
-
-def _reflect_stub(stub_class: type) -> Mapping[str, _MethodInfo]:
-    # HACK: relying on the implementation of generated *Stub classes.
-    return stub_class(_FakeChannel()).__dict__
-
-
-def _split_rpc_name(rpc_name: str) -> Tuple[str, str]:
-    normalized = rpc_name.removeprefix('/')
-    results = normalized.split('/')
-    if len(results) != 2:
-        raise ValueError(
-            f'Invalid RPC name: "{rpc_name}". RPC name must be of the form "with.package.ServiceName/MethodName"'
-        )
-    return results
-
-
-def _get_class_from_method(method) -> type:
-    # https://stackoverflow.com/a/54597033/5173839
-    assert inspect.isfunction(method), 'Expected an unbound method: foo(ClassName.MethodName)'
-    class_name = method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0]
-    try:
-        cls = getattr(inspect.getmodule(method), class_name)
-    except AttributeError:
-        cls = method.__globals__.get(class_name)
-    assert isinstance(cls, type)
-    return cls
 
 
 # @endcond
