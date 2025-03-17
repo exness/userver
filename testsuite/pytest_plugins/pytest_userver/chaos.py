@@ -511,8 +511,10 @@ class BaseGate:
 
     _NOT_IMPLEMENTED_MESSAGE = 'Do not use BaseGate itself, use one of specializations TcpGate or UdpGate'
 
-    def __init__(self, route: GateRoute, loop: EvLoop) -> None:
+    def __init__(self, route: GateRoute, loop: typing.Optional[EvLoop] = None) -> None:
         self._route = route
+        if loop is None:
+            loop = asyncio.get_running_loop()
         self._loop = loop
 
         self._to_server_intercept: Interceptor = _intercept_ok
@@ -849,9 +851,9 @@ class TcpGate(BaseGate):
     @see @ref scripts/docs/en/userver/chaos_testing.md
     """
 
-    def __init__(self, route: GateRoute, loop: EvLoop) -> None:
+    def __init__(self, route: GateRoute, loop: typing.Optional[EvLoop] = None) -> None:
         self._connected_event = asyncio.Event()
-        BaseGate.__init__(self, route, loop)
+        super().__init__(route, loop)
 
     def connections_count(self) -> int:
         """
@@ -956,9 +958,9 @@ class UdpGate(BaseGate):
     @see @ref scripts/docs/en/userver/chaos_testing.md
     """
 
-    def __init__(self, route: GateRoute, loop: EvLoop):
+    def __init__(self, route: GateRoute, loop: typing.Optional[EvLoop] = None):
         self._clients: typing.Set[_UdpDemuxSocketMock] = set()
-        BaseGate.__init__(self, route, loop)
+        super().__init__(route, loop)
 
     def is_connected(self) -> bool:
         """

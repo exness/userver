@@ -35,14 +35,14 @@ async def recv_all_data(sock, loop):
     assert answer == b''.join(DATA)
 
 
-async def test_basic(service_client, loop, monitor_client, tcp_service_port):
+async def test_basic(service_client, asyncio_loop, monitor_client, tcp_service_port):
     await service_client.reset_metrics()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    await loop.sock_connect(sock, ('localhost', tcp_service_port))
+    await asyncio_loop.sock_connect(sock, ('localhost', tcp_service_port))
 
-    send_task = asyncio.create_task(send_all_data(sock, loop))
-    await recv_all_data(sock, loop)
+    send_task = asyncio.create_task(send_all_data(sock, asyncio_loop))
+    await recv_all_data(sock, asyncio_loop)
     await send_task
     metrics = await monitor_client.metrics(prefix='tcp-echo.')
     assert metrics.value_at('tcp-echo.sockets.opened') == 1
@@ -52,17 +52,17 @@ async def test_basic(service_client, loop, monitor_client, tcp_service_port):
 
 
 @pytest.fixture(name='gate', scope='function')
-async def _gate(loop, tcp_service_port):
+async def _gate(tcp_service_port):
     gate_config = chaos.GateRoute(
         name='tcp proxy',
         host_to_server='localhost',
         port_to_server=tcp_service_port,
     )
-    async with chaos.TcpGate(gate_config, loop) as proxy:
+    async with chaos.TcpGate(gate_config) as proxy:
         yield proxy
 
 
-async def test_delay_recv(service_client, loop, monitor_client, gate):
+async def test_delay_recv(service_client, asyncio_loop, monitor_client, gate):
     await service_client.reset_metrics()
     timeout = 10.0
 
@@ -70,11 +70,11 @@ async def test_delay_recv(service_client, loop, monitor_client, gate):
     gate.to_client_delay(timeout)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    await loop.sock_connect(sock, gate.get_sockname_for_clients())
+    await asyncio_loop.sock_connect(sock, gate.get_sockname_for_clients())
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-    recv_task = asyncio.create_task(recv_all_data(sock, loop))
-    await send_all_data(sock, loop)
+    recv_task = asyncio.create_task(recv_all_data(sock, asyncio_loop))
+    await send_all_data(sock, asyncio_loop)
 
     done, _ = await asyncio.wait(
         [recv_task],
@@ -92,16 +92,16 @@ async def test_delay_recv(service_client, loop, monitor_client, gate):
     assert metrics.value_at('tcp-echo.bytes.read') == DATA_LENGTH
 
 
-async def test_data_combine(service_client, loop, monitor_client, gate):
+async def test_data_combine(service_client, asyncio_loop, monitor_client, gate):
     await service_client.reset_metrics()
     gate.to_client_concat_packets(DATA_LENGTH)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    await loop.sock_connect(sock, gate.get_sockname_for_clients())
+    await asyncio_loop.sock_connect(sock, gate.get_sockname_for_clients())
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-    send_task = asyncio.create_task(send_all_data(sock, loop))
-    await recv_all_data(sock, loop)
+    send_task = asyncio.create_task(send_all_data(sock, asyncio_loop))
+    await recv_all_data(sock, asyncio_loop)
     await send_task
 
     gate.to_client_pass()
@@ -112,18 +112,18 @@ async def test_data_combine(service_client, loop, monitor_client, gate):
     assert metrics.value_at('tcp-echo.bytes.read') == DATA_LENGTH
 
 
-async def test_down_pending_recv(service_client, loop, gate):
+async def test_down_pending_recv(service_client, asyncio_loop, gate):
     gate.to_client_noop()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    await loop.sock_connect(sock, gate.get_sockname_for_clients())
+    await asyncio_loop.sock_connect(sock, gate.get_sockname_for_clients())
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
     async def _recv_no_data():
         answer = b''
         try:
             while True:
-                answer += await loop.sock_recv(sock, 2)
+                answer += await asyncio_loop.sock_recv(sock, 2)
                 assert False
         except Exception:  # pylint: disable=broad-except
             pass
@@ -132,7 +132,7 @@ async def test_down_pending_recv(service_client, loop, gate):
 
     recv_task = asyncio.create_task(_recv_no_data())
 
-    await send_all_data(sock, loop)
+    await send_all_data(sock, asyncio_loop)
 
     await asyncio.wait(
         [recv_task],
@@ -147,15 +147,15 @@ async def test_down_pending_recv(service_client, loop, gate):
 
     sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock2.connect(gate.get_sockname_for_clients())
-    await loop.sock_sendall(sock2, b'hi')
-    hello = await loop.sock_recv(sock2, 2)
+    await asyncio_loop.sock_sendall(sock2, b'hi')
+    hello = await asyncio_loop.sock_recv(sock2, 2)
     assert hello == b'hi'
     assert gate.connections_count() == 1
 
 
 async def test_multiple_socks(
     service_client,
-    loop,
+    asyncio_loop,
     monitor_client,
     tcp_service_port,
 ):
@@ -165,10 +165,10 @@ async def test_multiple_socks(
     tasks = []
     for _ in range(sockets_count):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        await loop.sock_connect(sock, ('localhost', tcp_service_port))
+        await asyncio_loop.sock_connect(sock, ('localhost', tcp_service_port))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        tasks.append(asyncio.create_task(send_all_data(sock, loop)))
-        tasks.append(asyncio.create_task(recv_all_data(sock, loop)))
+        tasks.append(asyncio.create_task(send_all_data(sock, asyncio_loop)))
+        tasks.append(asyncio.create_task(recv_all_data(sock, asyncio_loop)))
     await asyncio.gather(*tasks)
 
     metrics = await monitor_client.metrics(prefix='tcp-echo.')
@@ -178,7 +178,7 @@ async def test_multiple_socks(
 
 async def test_multiple_send_only(
     service_client,
-    loop,
+    asyncio_loop,
     monitor_client,
     tcp_service_port,
 ):
@@ -188,9 +188,9 @@ async def test_multiple_send_only(
     tasks = []
     for _ in range(sockets_count):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        await loop.sock_connect(sock, ('localhost', tcp_service_port))
+        await asyncio_loop.sock_connect(sock, ('localhost', tcp_service_port))
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        tasks.append(asyncio.create_task(send_all_data(sock, loop)))
+        tasks.append(asyncio.create_task(send_all_data(sock, asyncio_loop)))
     await asyncio.gather(*tasks)
 
 
