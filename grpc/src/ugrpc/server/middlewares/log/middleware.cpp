@@ -1,10 +1,7 @@
 #include "middleware.hpp"
 
-#include <userver/logging/level_serialization.hpp>
 #include <userver/logging/log_extra.hpp>
-#include <userver/tracing/span.hpp>
 #include <userver/tracing/tags.hpp>
-#include <userver/yaml_config/yaml_config.hpp>
 
 #include <ugrpc/impl/logging.hpp>
 
@@ -34,38 +31,27 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, const
 Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 
 void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::protobuf::Message& request) {
-    auto& storage = context.GetCall().GetStorageContext();
     auto& span = context.GetCall().GetSpan();
-    logging::LogExtra log_extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(request, settings_)}};
-
-    if (storage.Get(kIsFirstRequest)) {
-        storage.Set(kIsFirstRequest, false);
-
-        const auto call_kind = context.GetCall().GetCallKind();
-        if (!IsRequestStream(call_kind)) {
-            log_extra.Extend("type", "request");
-        }
+    logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(request, settings_)}};
+    if (!IsRequestStream(context.GetCall().GetCallKind())) {
+        extra.Extend("type", "request");
     }
-    LOG(span.GetLogLevel()) << "gRPC request message" << std::move(log_extra);
+    LOG(span.GetLogLevel()) << "gRPC request message" << std::move(extra);
 }
 
 void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::protobuf::Message& response) {
     auto& span = context.GetCall().GetSpan();
-    const auto call_kind = context.GetCall().GetCallKind();
-
-    if (!IsResponseStream(call_kind)) {
+    if (!IsResponseStream(context.GetCall().GetCallKind())) {
         span.AddTag("grpc_type", "response");
         span.AddNonInheritableTag("body", GetMessageForLogging(response, settings_));
     } else {
-        logging::LogExtra log_extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
-        LOG(span.GetLogLevel()) << "gRPC response message" << std::move(log_extra);
+        logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
+        LOG(span.GetLogLevel()) << "gRPC response message" << std::move(extra);
     }
 }
 
 void Middleware::Handle(MiddlewareCallContext& context) const {
-    auto& storage = context.GetCall().GetStorageContext();
     const auto call_kind = context.GetCall().GetCallKind();
-    storage.Emplace(kIsFirstRequest, true);
 
     auto& span = context.GetCall().GetSpan();
     if (settings_.local_log_level) {
