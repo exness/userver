@@ -31,7 +31,7 @@ def get_userver_version(self) -> str:
 
 class UserverConan(ConanFile):
     name = 'userver'
-    version = '2.2.5'
+    version = '2.2.6'
     description = 'The C++ Asynchronous Framework'
     topics = ('framework', 'coroutines', 'asynchronous')
     url = 'https://github.com/userver-framework/userver'

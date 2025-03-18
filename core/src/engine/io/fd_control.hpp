@@ -178,7 +178,7 @@ ErrorMode Direction::TryHandleError(int error_code, size_t processed_bytes,
     ex << ", fd=" << Fd();
     auto log_level = logging::Level::kError;
     if (error_code == ECONNRESET || error_code == EPIPE) {
-      log_level = logging::Level::kInfo;
+      log_level = logging::Level::kDebug;
     }
     LOG(log_level) << ex;
     if (processed_bytes != 0) {
