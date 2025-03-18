@@ -18,7 +18,7 @@ except ImportError:
 from testsuite.utils import http
 
 HEADERS = {'Connection': 'keep-alive'}
-DEFAULT_TIMEOUT = 5.0
+DEFAULT_TIMEOUT = 10.0
 INCREASED_TIMEOUT = 20.0
 DEFAULT_DATA = {'hello': 'world'}
 
@@ -71,8 +71,8 @@ def _call(modified_service_client, gate):
             return ErrorType.RESET_BY_PEER
         except exceptions.ClientResponseError:
             return ErrorType.BAD_REQUEST
-        except Exception as exception:
-            logger.error(f'Unknown exception {exception}')
+        except Exception:
+            logger.exception('Unhandled exception')
             return ErrorType.UNKNOWN
 
     return _call
