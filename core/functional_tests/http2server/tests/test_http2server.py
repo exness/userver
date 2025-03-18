@@ -179,11 +179,13 @@ async def test_http1_ping(service_client):
 
 async def test_http1_broken_bytes(service_client, loop, service_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(False)
     await loop.sock_connect(sock, ('localhost', service_port))
     await loop.sock_sendall(sock, 'GET / HTTP/1.1'.encode('utf-8'))
     sock.settimeout(1)
     with pytest.raises(TimeoutError):
-        sock.recv(1024)
+        async with asyncio.timeout(2.0):
+            await loop.sock_recv(sock, 1024)
     await loop.sock_sendall(sock, 'garbage'.encode('utf-8'))
     r = await loop.sock_recv(sock, 1024)
     assert 'HTTP/1.1 400 Bad Request' in r.decode('utf-8')
@@ -192,12 +194,13 @@ async def test_http1_broken_bytes(service_client, loop, service_port):
 
 async def _send_and_receive(loop, sock, conn):
     await loop.sock_sendall(sock, conn.data_to_send())
-    receive = sock.recv(RECEIVE_SIZE)
+    receive = await loop.sock_recv(sock, RECEIVE_SIZE)
     return conn.receive_data(receive)
 
 
 async def test_settings_and_ping(service_client, loop, service_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(False)
     await loop.sock_connect(sock, ('localhost', service_port))
 
     conn = h2.connection.H2Connection()
@@ -234,6 +237,7 @@ async def test_settings_and_ping(service_client, loop, service_port):
 
 async def _create_connection(loop, service_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(False)
     await loop.sock_connect(sock, ('localhost', service_port))
 
     conn = h2.connection.H2Connection()
@@ -271,7 +275,7 @@ async def test_invalid_stream(service_client, loop, service_port):
         payload=b'This is some data',
     )
     await loop.sock_sendall(sock, invalid_data_frame)
-    receive = sock.recv(RECEIVE_SIZE)
+    receive = await loop.sock_recv(sock, RECEIVE_SIZE)
     events = conn.receive_data(receive)
     assert 1 == len(events)
     assert isinstance(
@@ -293,7 +297,7 @@ async def test_many_resets(service_client, loop, service_port):
         conn.reset_stream(stream_id, 42)
         await loop.sock_sendall(sock, conn.data_to_send())
 
-    receive = sock.recv(RECEIVE_SIZE)
+    receive = await loop.sock_recv(sock, RECEIVE_SIZE)
     events = conn.receive_data(receive)
     assert 0 == len(events)
 
@@ -347,7 +351,7 @@ async def test_many_in_flight(
     events = []
     expected_frames_count = MAX_CONCURRENT_STREAMS * 3  # 1 response =  (ResponseReceived, DataReceived, StreamEnded)
     while len(events) != expected_frames_count:
-        receive = sock.recv(RECEIVE_SIZE)
+        receive = await loop.sock_recv(sock, RECEIVE_SIZE)
         events += conn.receive_data(receive)
     _assert_responses(events)
 
@@ -366,7 +370,7 @@ async def test_many_in_flight(
 
     events = []
     while len(events) != expected_frames_count:
-        receive = sock.recv(RECEIVE_SIZE)
+        receive = await loop.sock_recv(sock, RECEIVE_SIZE)
         events += conn.receive_data(receive)
     _assert_responses(events)
 
@@ -409,7 +413,7 @@ async def test_limit_concurrent_streams(
     )
 
     await loop.sock_sendall(sock, begin_stream_frame)
-    receive = sock.recv(RECEIVE_SIZE)
+    receive = await loop.sock_recv(sock, RECEIVE_SIZE)
 
     assert GOAWAY_FRAME == receive[FRAME_TYPE_INDEX]  # GOAWAY frame
     assert 'request HEADERS: max concurrent streams exceeded' in str(receive)
@@ -438,7 +442,7 @@ async def test_stream_already_closed(service_client, loop, service_port):
 
     # Send the stream that already cloced
     await loop.sock_sendall(sock, double_stream)
-    receive = sock.recv(RECEIVE_SIZE)
+    receive = await loop.sock_recv(sock, RECEIVE_SIZE)
 
     assert GOAWAY_FRAME == receive[FRAME_TYPE_INDEX]  # GOAWAY frame
     assert 'HEADERS: stream closed' in str(receive)
@@ -457,7 +461,7 @@ async def test_streams_with_the_same_id(service_client, loop, service_port):
     )
     await loop.sock_sendall(sock, begin_stream_frame)
     await loop.sock_sendall(sock, begin_stream_frame)
-    receive = sock.recv(RECEIVE_SIZE)
+    receive = await loop.sock_recv(sock, RECEIVE_SIZE)
 
     assert GOAWAY_FRAME == receive[FRAME_TYPE_INDEX]  # GOAWAY frame
     assert 'unexpected non-CONTINUATION frame or stream_id is invalid' in str(
