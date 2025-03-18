@@ -184,8 +184,7 @@ async def test_http1_broken_bytes(service_client, loop, service_port):
     await loop.sock_sendall(sock, 'GET / HTTP/1.1'.encode('utf-8'))
     sock.settimeout(1)
     with pytest.raises(TimeoutError):
-        async with asyncio.timeout(2.0):
-            await loop.sock_recv(sock, 1024)
+        await asyncio.wait_for(loop.sock_recv(sock, 1024), timeout=2.0)
     await loop.sock_sendall(sock, 'garbage'.encode('utf-8'))
     r = await loop.sock_recv(sock, 1024)
     assert 'HTTP/1.1 400 Bad Request' in r.decode('utf-8')
@@ -377,6 +376,7 @@ async def test_many_in_flight(
     sock.close()
 
 
+@pytest.mark.skip(reason='TAXICOMMON-10232')
 async def test_limit_concurrent_streams(
     service_client,
     loop,

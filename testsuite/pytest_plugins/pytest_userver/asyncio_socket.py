@@ -2,9 +2,12 @@
 import asyncio
 import select
 import socket
+import sys
 import typing
 
 DEFAULT_TIMEOUT = 10.0
+
+_ASYNCIO_HAS_SENDTO = sys.version_info >= (3, 11)
 
 
 class AsyncioSocket:
@@ -32,42 +35,44 @@ class AsyncioSocket:
         return self._sock.fileno()
 
     async def connect(self, address, *, timeout=None):
-        async with self._timeout(timeout):
-            return await self._loop.sock_connect(self._sock, address)
+        coro = self._loop.sock_connect(self._sock, address)
+        return await self._with_timeout(coro, timeout=timeout)
 
     async def send(self, data, *, timeout=None):
-        async with self._timeout(timeout):
-            return await self._loop.sock_send(self._sock, data)
+        coro = self._loop.sock_send(self._sock, data)
+        return self._with_timeout(coro, timeout=timeout)
 
     async def sendto(self, *args, timeout=None):
-        async with self._timeout(timeout):
-            try:
-                return await self._loop.sock_sendto(self._sock, *args)
-            except NotImplementedError:
-                # uvloop: use blocking sendto instead
-                return self._sock.sendto(*args)
+        # asyncio support added in version 3.11
+        if not _ASYNCIO_HAS_SENDTO:
+            return await self._sendto_legacy(*args, timeout=timeout)
+        coro = self._loop.sock_sendto(self._sock, *args)
+        try:
+            return await self._with_timeout(coro, timeout=timeout)
+        except NotImplementedError:
+            return await self._sendto_legacy(*args, timeout=timeout)
 
     async def sendall(self, data, *, timeout=None):
-        async with self._timeout(timeout):
-            return await self._loop.sock_sendall(self._sock, data)
+        coro = self._loop.sock_sendall(self._sock, data)
+        return await self._with_timeout(coro, timeout=timeout)
 
     async def recv(self, size, *, timeout=None):
-        async with self._timeout(timeout):
-            return await self._loop.sock_recv(self._sock, size)
+        coro = self._loop.sock_recv(self._sock, size)
+        return await self._with_timeout(coro, timeout=timeout)
 
     async def recvfrom(self, *args, timeout=None):
-        async with self._timeout(timeout):
-            try:
-                return await self._loop.sock_recvfrom(self._sock, *args)
-            except NotImplementedError:
-                # uvloop use blocking recvfrom() instead
-                while not self.has_data():
-                    await asyncio.sleep(0.001)
-                return self._sock.recvfrom(*args)
+        # asyncio support added in version 3.11
+        if not _ASYNCIO_HAS_SENDTO:
+            return await self._recvfrom_legacy(*args, timeout=timeout)
+        coro = self._loop.sock_recvfrom(self._sock, *args)
+        try:
+            return await self._with_timeout(coro, timeout=timeout)
+        except NotImplementedError:
+            return await self._recvfrom_legacy(*args, timeout=timeout)
 
     async def accept(self, *, timeout=None):
-        async with self._timeout(timeout):
-            conn, address = await self._loop.sock_accept(self._sock)
+        coro = self._loop.sock_accept(self._sock)
+        conn, address = await self._with_timeout(coro, timeout=timeout)
         return from_socket(conn), address
 
     def bind(self, address):
@@ -89,10 +94,34 @@ class AsyncioSocket:
         rlist, _, _ = select.select([self._sock], [], [], 0)
         return bool(rlist)
 
-    def _timeout(self, timeout=None):
+    def can_write(self) -> bool:
+        _, wlist, _ = select.select([], [self._sock], [], 0)
+        return bool(wlist)
+
+    async def _with_timeout(self, awaitable, timeout=None):
+        # TODO(python3.11): switch to `asyncio.timeout()`
         if timeout is None:
             timeout = self._default_timeout
-        return asyncio.timeout(timeout)
+
+        return await asyncio.wait_for(awaitable, timeout=timeout)
+
+    async def _sendto_legacy(self, *args, timeout):
+        # uvloop and python < 3.11
+        async def do_sendto():
+            while not self.can_write():
+                await asyncio.sleep(0.001)
+            return self._sock.sendto(*args)
+
+        return await self._with_timeout(do_sendto(), timeout=timeout)
+
+    async def _recvfrom_legacy(self, *args, timeout):
+        # uvloop and python < 3.11
+        async def do_recvfrom():
+            while not self.has_data():
+                await asyncio.sleep(0.001)
+            return self._sock.recvfrom(*args)
+
+        return await self._with_timeout(do_recvfrom(), timeout=timeout)
 
 
 class AsyncioSocketsFactory:
