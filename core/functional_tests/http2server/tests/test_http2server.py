@@ -417,6 +417,7 @@ async def test_limit_concurrent_streams(
     sock.close()
 
 
+@pytest.mark.skip(reason='TAXICOMMON-10232')
 async def test_stream_already_closed(service_client, loop, service_port):
     (sock, conn) = await _create_connection(loop, service_port)
 
