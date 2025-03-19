@@ -3591,6 +3591,7 @@
   "scripts/docs/en/userver/security_changelog.md":"taxi/uservices/userver/scripts/docs/en/userver/security_changelog.md",
   "scripts/docs/en/userver/service_monitor.md":"taxi/uservices/userver/scripts/docs/en/userver/service_monitor.md",
   "scripts/docs/en/userver/sql_files.md":"taxi/uservices/userver/scripts/docs/en/userver/sql_files.md",
+  "scripts/docs/en/userver/stack.md":"taxi/uservices/userver/scripts/docs/en/userver/stack.md",
   "scripts/docs/en/userver/supported_platforms.md":"taxi/uservices/userver/scripts/docs/en/userver/supported_platforms.md",
   "scripts/docs/en/userver/synchronization.md":"taxi/uservices/userver/scripts/docs/en/userver/synchronization.md",
   "scripts/docs/en/userver/task_processors_guide.md":"taxi/uservices/userver/scripts/docs/en/userver/task_processors_guide.md",
