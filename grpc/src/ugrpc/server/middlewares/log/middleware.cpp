@@ -23,30 +23,26 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, const
 Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 
 void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::protobuf::Message& request) {
-    auto& span = context.GetCall().GetSpan();
     logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(request, settings_)}};
     if (!context.IsClientStreaming()) {
         extra.Extend("type", "request");
     }
-    LOG(span.GetLogLevel()) << "gRPC request message" << std::move(extra);
+    LOG_INFO() << "gRPC request message" << std::move(extra);
 }
 
 void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::protobuf::Message& response) {
-    auto& span = context.GetCall().GetSpan();
     if (!context.IsServerStreaming()) {
+        auto& span = context.GetCall().GetSpan();
         span.AddTag("grpc_type", "response");
         span.AddNonInheritableTag("body", GetMessageForLogging(response, settings_));
     } else {
-        logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
-        LOG(span.GetLogLevel()) << "gRPC response message" << std::move(extra);
+        LOG_INFO() << "gRPC response message"
+                   << logging::LogExtra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
     }
 }
 
 void Middleware::Handle(MiddlewareCallContext& context) const {
     auto& span = context.GetCall().GetSpan();
-    if (settings_.local_log_level) {
-        span.SetLocalLogLevel(settings_.local_log_level);
-    }
 
     span.AddTag("meta_type", std::string{context.GetCall().GetCallName()});
     span.AddNonInheritableTag("type", "response");
@@ -69,8 +65,8 @@ void Middleware::Handle(MiddlewareCallContext& context) const {
         // with type=request and some body. We don't have a real single request
         // (requests are written separately, 1 log per request), so we fake
         // the required request log.
-        LOG(span.GetLogLevel()) << "gRPC request stream"
-                                << logging::LogExtra{{"body", "request stream started"}, {"type", "request"}};
+        LOG_INFO() << "gRPC request stream"
+                   << logging::LogExtra{{"body", "request stream started"}, {"type", "request"}};
     }
 
     context.Next();
