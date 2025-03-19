@@ -3,8 +3,8 @@
 /// @file userver/ugrpc/server/middlewares/base.hpp
 /// @brief @copybrief ugrpc::server::MiddlewareBase
 
-#include <memory>
 #include <optional>
+#include <string_view>
 
 #include <google/protobuf/message.h>
 
@@ -12,9 +12,6 @@
 #include <userver/middlewares/groups.hpp>
 #include <userver/middlewares/runner.hpp>
 #include <userver/utils/function_ref.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
-#include <userver/yaml_config/schema.hpp>
-#include <userver/yaml_config/yaml_config.hpp>
 
 #include <userver/ugrpc/server/call.hpp>
 #include <userver/ugrpc/server/middlewares/fwd.hpp>
@@ -43,6 +40,12 @@ public:
 
     /// @brief Call next plugin, or gRPC handler if none.
     void Next();
+
+    /// @returns Is a client-side streaming call
+    bool IsClientStreaming() const noexcept;
+
+    /// @returns Is a server-side streaming call
+    bool IsServerStreaming() const noexcept;
 
     /// @brief Get original gRPC Call
     CallAnyBase& GetCall() const;

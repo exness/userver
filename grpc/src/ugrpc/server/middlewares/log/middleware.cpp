@@ -11,14 +11,6 @@ namespace ugrpc::server::middlewares::log {
 
 namespace {
 
-bool IsRequestStream(CallKind kind) {
-    return kind == CallKind::kRequestStream || kind == CallKind::kBidirectionalStream;
-}
-
-bool IsResponseStream(CallKind kind) {
-    return kind == CallKind::kResponseStream || kind == CallKind::kBidirectionalStream;
-}
-
 std::string GetMessageForLogging(const google::protobuf::Message& message, const Settings& settings) {
     return ugrpc::impl::GetMessageForLogging(
         message,
@@ -33,7 +25,7 @@ Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::protobuf::Message& request) {
     auto& span = context.GetCall().GetSpan();
     logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(request, settings_)}};
-    if (!IsRequestStream(context.GetCall().GetCallKind())) {
+    if (!context.IsClientStreaming()) {
         extra.Extend("type", "request");
     }
     LOG(span.GetLogLevel()) << "gRPC request message" << std::move(extra);
@@ -41,7 +33,7 @@ void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::p
 
 void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::protobuf::Message& response) {
     auto& span = context.GetCall().GetSpan();
-    if (!IsResponseStream(context.GetCall().GetCallKind())) {
+    if (!context.IsServerStreaming()) {
         span.AddTag("grpc_type", "response");
         span.AddNonInheritableTag("body", GetMessageForLogging(response, settings_));
     } else {
@@ -51,8 +43,6 @@ void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::
 }
 
 void Middleware::Handle(MiddlewareCallContext& context) const {
-    const auto call_kind = context.GetCall().GetCallKind();
-
     auto& span = context.GetCall().GetSpan();
     if (settings_.local_log_level) {
         span.SetLocalLogLevel(settings_.local_log_level);
@@ -61,7 +51,7 @@ void Middleware::Handle(MiddlewareCallContext& context) const {
     span.AddTag("meta_type", std::string{context.GetCall().GetCallName()});
     span.AddNonInheritableTag("type", "response");
     span.AddNonInheritableTag(tracing::kSpanKind, tracing::kSpanKindServer);
-    if (IsResponseStream(call_kind)) {
+    if (context.IsServerStreaming()) {
         // Just like in HTTP, there must be a single trailing Span log
         // with type=response and some `body`. We don't have a real single response
         // (responses are written separately, 1 log per response), so we fake
@@ -74,7 +64,7 @@ void Middleware::Handle(MiddlewareCallContext& context) const {
         span.AddNonInheritableTag("body", "error status");
     }
 
-    if (IsRequestStream(call_kind)) {
+    if (context.IsClientStreaming()) {
         // Just like in HTTP, there must be a single initial log
         // with type=request and some body. We don't have a real single request
         // (requests are written separately, 1 log per request), so we fake

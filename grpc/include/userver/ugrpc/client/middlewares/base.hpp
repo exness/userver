@@ -3,20 +3,29 @@
 /// @file userver/ugrpc/client/middlewares/base.hpp
 /// @brief @copybrief ugrpc::client::MiddlewareBase
 
-#include <memory>
-#include <vector>
+#include <string_view>
+
+#include <google/protobuf/message.h>
+#include <grpcpp/client_context.h>
+#include <grpcpp/support/status.h>
 
 #include <userver/components/component_base.hpp>
 #include <userver/middlewares/groups.hpp>
 #include <userver/middlewares/impl/simple_middleware_pipeline.hpp>
 #include <userver/middlewares/runner.hpp>
+#include <userver/tracing/span.hpp>
 
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
-#include <userver/ugrpc/client/rpc.hpp>
+#include <userver/ugrpc/deadline_timepoint.hpp>
+#include <userver/ugrpc/impl/internal_tag_fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client {
+
+namespace impl {
+class RpcData;
+}  // namespace impl
 
 /// @brief Client meta info for a middleware construction.
 struct ClientInfo final {
@@ -44,11 +53,14 @@ public:
     /// @returns RPC name
     std::string_view GetCallName() const noexcept;
 
-    /// @returns RPC kind
-    CallKind GetCallKind() const noexcept;
-
     /// @returns RPC span
     tracing::Span& GetSpan() noexcept;
+
+    /// @returns Is a client-side streaming call
+    bool IsClientStreaming() const noexcept;
+
+    /// @returns Is a server-side streaming call
+    bool IsServerStreaming() const noexcept;
 
     /// @cond
     // For internal use only

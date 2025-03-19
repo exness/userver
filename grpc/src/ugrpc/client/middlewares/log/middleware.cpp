@@ -11,10 +11,6 @@ namespace ugrpc::client::middlewares::log {
 
 namespace {
 
-bool IsSingleRequest(CallKind kind) { return CallKind::kUnaryCall == kind || CallKind::kInputStream == kind; }
-
-bool IsSingleResponse(CallKind kind) { return CallKind::kUnaryCall == kind || CallKind::kOutputStream == kind; }
-
 std::string GetMessageForLogging(const google::protobuf::Message& message, const Settings& settings) {
     return ugrpc::impl::GetMessageForLogging(
         message,
@@ -47,7 +43,7 @@ void Middleware::PreStartCall(MiddlewareCallContext& context) const {
     span.AddTag("meta_type", std::string{context.GetCallName()});
     span.AddTag(tracing::kSpanKind, tracing::kSpanKindClient);
 
-    if (!IsSingleRequest(context.GetCallKind())) {
+    if (context.IsClientStreaming()) {
         SpanLogger{context.GetSpan(), settings_.log_level}.Log(
             "gRPC request stream started", logging::LogExtra{{"grpc_type", "request"}}
         );
@@ -57,25 +53,25 @@ void Middleware::PreStartCall(MiddlewareCallContext& context) const {
 void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     SpanLogger logger{context.GetSpan(), settings_.log_level};
     logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(message, settings_)}};
-    if (IsSingleRequest(context.GetCallKind())) {
-        logger.Log("gRPC request", std::move(extra));
-    } else {
+    if (context.IsClientStreaming()) {
         logger.Log("gRPC request stream message", std::move(extra));
+    } else {
+        logger.Log("gRPC request", std::move(extra));
     }
 }
 
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     SpanLogger logger{context.GetSpan(), settings_.log_level};
     logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(message, settings_)}};
-    if (IsSingleResponse(context.GetCallKind())) {
-        logger.Log("gRPC response", std::move(extra));
-    } else {
+    if (context.IsServerStreaming()) {
         logger.Log("gRPC response stream message", std::move(extra));
+    } else {
+        logger.Log("gRPC response", std::move(extra));
     }
 }
 
 void Middleware::PostFinish(MiddlewareCallContext& context, const grpc::Status& /*status*/) const {
-    if (!IsSingleResponse(context.GetCallKind())) {
+    if (context.IsServerStreaming()) {
         SpanLogger{context.GetSpan(), settings_.log_level}.Log(
             "gRPC response stream finished", logging::LogExtra{{"grpc_type", "response"}}
         );
