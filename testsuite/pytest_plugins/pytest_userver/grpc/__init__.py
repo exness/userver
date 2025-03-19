@@ -18,17 +18,22 @@ from typing import Collection
 from typing import Dict
 from typing import Mapping
 from typing import NoReturn
+from typing import Optional
 from typing import Tuple
 
+import google.protobuf.descriptor
+import google.protobuf.descriptor_pool
+import google.protobuf.message
 import grpc
-from typing_extensions import Final  # TODO use typing in Python 3.8
 
 import testsuite.utils.callinfo
 
 Handler = Callable[[Any, grpc.aio.ServicerContext], Any]
 MockDecorator = Callable[[Handler], testsuite.utils.callinfo.AsyncCallQueue]
+AsyncExcAppend = Callable[[Exception], None]
 
 _ERROR_CODE_KEY = 'x-testsuite-error-code'
+_MethodDescriptor = google.protobuf.descriptor.MethodDescriptor
 
 
 class MockedError(Exception):
@@ -92,22 +97,42 @@ class MockserverSession:
         assert experimental
         self._server = server
         self._auto_service_mocks: Dict[type, _ServiceMock] = {}
+        self._asyncexc_append: Optional[AsyncExcAppend] = None
 
     def _get_auto_service_mock(self, servicer_class: type, /) -> _ServiceMock:
         existing_mock = self._auto_service_mocks.get(servicer_class)
         if existing_mock:
             return existing_mock
         new_mock = _create_servicer_mock(servicer_class)
+        new_mock.set_asyncexc_append(self._asyncexc_append)
         self._auto_service_mocks[servicer_class] = new_mock
         new_mock.add_to_server(self._server)
         return new_mock
 
+    def _set_asyncexc_append(self, asyncexc_append: Optional[AsyncExcAppend], /) -> None:
+        self._asyncexc_append = asyncexc_append
+        for mock in self._auto_service_mocks.values():
+            mock.set_asyncexc_append(asyncexc_append)
+
     def reset_mocks(self) -> None:
         """
-        Removes all mocks for this mockserver, regardless of the way they were installed.
+        @brief Removes all mocks for this mockserver that have been installed using
+        `MockserverSession` or @ref pytest_userver.grpc.Mockserver "Mockserver" API.
+        @note Mocks installed manually using @ref server will not be removed, though.
         """
         for mock in self._auto_service_mocks.values():
             mock.reset_handlers()
+
+    @contextlib.contextmanager
+    def asyncexc_append_scope(self, asyncexc_append: Optional[AsyncExcAppend], /):
+        """
+        Sets testsuite's `asyncexc_append` for use in the returned scope.
+        """
+        self._set_asyncexc_append(asyncexc_append)
+        try:
+            yield
+        finally:
+            self._set_asyncexc_append(None)
 
     @property
     def server(self) -> grpc.aio.Server:
@@ -193,6 +218,13 @@ class Mockserver:
 # @cond
 
 
+@dataclasses.dataclass
+class _ServiceMockState:
+    mocked_methods: Dict[str, Handler] = dataclasses.field(default_factory=dict)
+    asyncexc_append: Optional[AsyncExcAppend] = None
+
+
+# TODO move `_ServiceMock` into `pytest_userver.grpc._service_mock` module.
 class _ServiceMock:
     def __init__(
         self,
@@ -201,15 +233,13 @@ class _ServiceMock:
         adder: Callable[[object, grpc.aio.Server], None],
         service_name: str,
         known_methods: Collection[str],
-        mocked_methods: Dict[str, Handler],
+        state: _ServiceMockState,
     ) -> None:
         self._servicer = servicer
         self._adder = adder
         self._service_name = service_name
         self._known_methods = known_methods
-        # Note: methods of `servicer` look into `mocked_methods` for implementations.
-        # (Specifically into the instance our constructor is given.)
-        self._methods: Final[Dict[str, Handler]] = mocked_methods
+        self._state = state
 
     @property
     def servicer(self) -> object:
@@ -219,21 +249,11 @@ class _ServiceMock:
     def service_name(self) -> str:
         return self._service_name
 
-    def get(self, method_name, default, /):
-        return self._methods.get(method_name, default)
-
     def add_to_server(self, server: grpc.aio.Server) -> None:
         self._adder(self._servicer, server)
 
     def reset_handlers(self) -> None:
-        self._methods.clear()
-
-    @contextlib.contextmanager
-    def mock(self):
-        try:
-            yield self.install_handler
-        finally:
-            self._methods.clear()
+        self._state.mocked_methods.clear()
 
     def install_handler(self, method_name: str, /) -> MockDecorator:
         def decorator(func):
@@ -244,10 +264,13 @@ class _ServiceMock:
                 )
 
             wrapped = testsuite.utils.callinfo.acallqueue(func)
-            self._methods[method_name] = wrapped
+            self._state.mocked_methods[method_name] = wrapped
             return wrapped
 
         return decorator
+
+    def set_asyncexc_append(self, asyncexc_append: Optional[AsyncExcAppend]) -> None:
+        self._state.asyncexc_append = asyncexc_append
 
 
 async def _stop_server(server: grpc.aio.Server, /) -> None:
@@ -266,61 +289,67 @@ async def _stop_server(server: grpc.aio.Server, /) -> None:
         raise
 
 
-def _guess_servicer(module) -> str:
-    guesses = [member for member in dir(module) if str(member).endswith('Servicer')]
-    assert len(guesses) == 1, f"Don't know what servicer to choose: {guesses}"
-    return str(guesses[0])
+async def _raise_unimplemented_error(
+    context: grpc.aio.ServicerContext,
+    method_descriptor: _MethodDescriptor,
+    state: _ServiceMockState,
+) -> NoReturn:
+    message = f"Trying to call a missing grpc mock for '{_get_full_method_name(method_descriptor)}' method"
+    if state.asyncexc_append is not None:
+        state.asyncexc_append(NotImplementedError(message))
+    # This error is identical to the builtin pytest error.
+    await context.abort(grpc.StatusCode.UNIMPLEMENTED, 'Method not found!')
 
 
-def _raise_unimplemented_error(context: grpc.aio.ServicerContext, full_rpc_name: str) -> NoReturn:
-    message = f'Trying to call grpc_mockserver method "{full_rpc_name}", which is not mocked'
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details(message)
-    raise NotImplementedError(message)
+def _is_error_status_set(context: grpc.aio.ServicerContext) -> bool:
+    code = context.code()
+    return code != grpc.StatusCode.OK and code is not None and code != 0
 
 
 @contextlib.asynccontextmanager
-async def _transform_mocked_error(context: grpc.aio.ServicerContext):
+async def _handle_exceptions(context: grpc.aio.ServicerContext, state: _ServiceMockState):
     try:
         yield
     except MockedError as exc:
         await context.abort(code=grpc.StatusCode.UNKNOWN, trailing_metadata=((_ERROR_CODE_KEY, exc.ERROR_CODE),))
+    except Exception as exc:  # pylint: disable=broad-except
+        if not _is_error_status_set(context) and state.asyncexc_append is not None:
+            state.asyncexc_append(exc)
+        raise
 
 
 def _wrap_grpc_method(
     python_method_name: str,
-    full_rpc_name: str,
+    method_descriptor: _MethodDescriptor,
     default_unimplemented_method: Handler,
-    response_streaming: bool,
-    mocked_methods: Dict[str, Handler],
+    state: _ServiceMockState,
 ):
-    if response_streaming:
+    if method_descriptor.server_streaming:
 
         @functools.wraps(default_unimplemented_method)
         async def run_stream_response_method(self, request_or_stream, context: grpc.aio.ServicerContext):
-            method = mocked_methods.get(python_method_name)
+            method = state.mocked_methods.get(python_method_name)
             if method is None:
-                _raise_unimplemented_error(context, full_rpc_name)
+                await _raise_unimplemented_error(context, method_descriptor, state)
 
-            async with _transform_mocked_error(context):
+            async with _handle_exceptions(context, state):
                 async for response in await method(request_or_stream, context):
-                    yield response
+                    yield _check_is_valid_response(response, method_descriptor)
 
         return run_stream_response_method
     else:
 
         @functools.wraps(default_unimplemented_method)
         async def run_unary_response_method(self, request_or_stream, context: grpc.aio.ServicerContext):
-            method = mocked_methods.get(python_method_name)
-            if method is None:
-                _raise_unimplemented_error(context, full_rpc_name)
+            async with _handle_exceptions(context, state):
+                method = state.mocked_methods.get(python_method_name)
+                if method is None:
+                    await _raise_unimplemented_error(context, method_descriptor, state)
 
-            async with _transform_mocked_error(context):
                 response = method(request_or_stream, context)
                 if inspect.isawaitable(response):
-                    return await response
-                else:
-                    return response
+                    response = await response
+                return _check_is_valid_response(response, method_descriptor)
 
         return run_unary_response_method
 
@@ -332,27 +361,57 @@ def _check_is_servicer_class(servicer_class: type) -> None:
         raise ValueError(f'Expected *Servicer class, got: {servicer_class}')
 
 
+def _check_is_valid_response(
+    response: object,
+    method_descriptor: _MethodDescriptor,
+) -> Optional[google.protobuf.message.Message]:
+    if not isinstance(response, google.protobuf.message.Message):
+        raise ValueError(
+            f'In grpc_mockserver handler for {_get_full_method_name(method_descriptor)}: '
+            'Expected a protobuf Message response, '
+            f'got: {response!r} ({type(response).__qualname__})'
+        )
+    descriptor = type(response).DESCRIPTOR
+    assert isinstance(descriptor, google.protobuf.descriptor.Descriptor)
+    if descriptor.full_name != method_descriptor.output_type.full_name:
+        raise ValueError(
+            f'In grpc_mockserver handler for {_get_full_method_name(method_descriptor)}: '
+            f'Expected a response of type "{method_descriptor.output_type.full_name}", '
+            f'got: "{descriptor.full_name}"'
+        )
+    return response
+
+
+def _get_full_method_name(method_descriptor: _MethodDescriptor) -> str:
+    """
+    Protobuf returns "namespace.ServiceName.MethodName", we need "namespace.ServiceName/MethodName".
+    """
+    return f'{method_descriptor.containing_service.full_name}/{method_descriptor.name}'
+
+
 def _create_servicer_mock(servicer_class: type, /) -> _ServiceMock:
     _check_is_servicer_class(servicer_class)
     reflection = _reflect_servicer(servicer_class)
 
     if reflection:
-        service_name, _ = _split_rpc_name(next(iter(reflection.values())).name)
+        any_method_descriptor: _MethodDescriptor = next(iter(reflection.values()))
+        service_name = any_method_descriptor.containing_service.full_name
+        assert '/' not in service_name, service_name
     else:
         service_name = 'UNKNOWN'
+
     adder = getattr(inspect.getmodule(servicer_class), f'add_{servicer_class.__name__}_to_server')
 
-    mocked_methods: Dict[str, Handler] = {}
+    state = _ServiceMockState()
 
     methods = {}
     for attname, value in servicer_class.__dict__.items():
         if callable(value) and not attname.startswith('_'):
             methods[attname] = _wrap_grpc_method(
                 python_method_name=attname,
-                full_rpc_name=reflection[attname].name,
+                method_descriptor=reflection[attname],
                 default_unimplemented_method=value,
-                response_streaming=reflection[attname].response_streaming,
-                mocked_methods=mocked_methods,
+                state=state,
             )
     mocked_servicer_class = type(
         f'Mock{servicer_class.__name__}',
@@ -366,40 +425,48 @@ def _create_servicer_mock(servicer_class: type, /) -> _ServiceMock:
         adder=adder,
         service_name=service_name,
         known_methods=frozenset(methods),
-        mocked_methods=mocked_methods,
+        state=state,
     )
 
 
 @dataclasses.dataclass(frozen=True)
-class _MethodInfo:
-    name: str  # in the format "/with.package.ServiceName/MethodName"
-    request_streaming: bool
-    response_streaming: bool
+class _RawMethodInfo:
+    full_rpc_name: str  # in the format "/with.package.ServiceName/MethodName"
 
 
 class _FakeChannel:
     def unary_unary(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=False, response_streaming=False)
+        return _RawMethodInfo(full_rpc_name=name)
 
     def unary_stream(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=False, response_streaming=True)
+        return _RawMethodInfo(full_rpc_name=name)
 
     def stream_unary(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=True, response_streaming=False)
+        return _RawMethodInfo(full_rpc_name=name)
 
     def stream_stream(self, name, *args, **kwargs):
-        return _MethodInfo(name=name, request_streaming=True, response_streaming=True)
+        return _RawMethodInfo(full_rpc_name=name)
 
 
-def _reflect_servicer(servicer_class: type) -> Mapping[str, _MethodInfo]:
+def _to_method_descriptor(raw_info: _RawMethodInfo) -> _MethodDescriptor:
+    full_service_name, method_name = _split_rpc_name(raw_info.full_rpc_name)
+    service_descriptor = google.protobuf.descriptor_pool.Default().FindServiceByName(full_service_name)
+    method_descriptor = service_descriptor.FindMethodByName(method_name)
+    assert method_descriptor is not None
+    return method_descriptor
+
+
+def _reflect_servicer(servicer_class: type) -> Mapping[str, _MethodDescriptor]:
     service_name = servicer_class.__name__.removesuffix('Servicer')
     stub_class = getattr(inspect.getmodule(servicer_class), f'{service_name}Stub')
     return _reflect_stub(stub_class)
 
 
-def _reflect_stub(stub_class: type) -> Mapping[str, _MethodInfo]:
+def _reflect_stub(stub_class: type) -> Mapping[str, _MethodDescriptor]:
     # HACK: relying on the implementation of generated *Stub classes.
-    return stub_class(_FakeChannel()).__dict__
+    raw_infos = stub_class(_FakeChannel()).__dict__.items()
+
+    return {python_method_name: _to_method_descriptor(raw_info) for python_method_name, raw_info in raw_infos}
 
 
 def _split_rpc_name(rpc_name: str) -> Tuple[str, str]:
@@ -414,7 +481,7 @@ def _split_rpc_name(rpc_name: str) -> Tuple[str, str]:
 
 def _get_class_from_method(method) -> type:
     # https://stackoverflow.com/a/54597033/5173839
-    assert inspect.isfunction(method), 'Expected an unbound method: foo(ClassName.MethodName)'
+    assert inspect.isfunction(method), f'Expected an unbound method: foo(ClassName.MethodName), got: {method}'
     class_name = method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0]
     try:
         cls = getattr(inspect.getmodule(method), class_name)

@@ -59,7 +59,11 @@ async def grpc_mockserver_session(grpc_mockserver_endpoint) -> pytest_userver.gr
 
 
 @pytest.fixture
-def grpc_mockserver_new(grpc_mockserver_session) -> pytest_userver.grpc.Mockserver:
+def grpc_mockserver_new(
+    grpc_mockserver_session,
+    asyncexc_append,
+    _grpc_mockserver_ignore_errors,
+) -> pytest_userver.grpc.Mockserver:
     """
     Returns the gRPC mocking server.
     In order for gRPC clients in your service to work, mock handlers need to be installed for them using this fixture.
@@ -71,22 +75,32 @@ def grpc_mockserver_new(grpc_mockserver_session) -> pytest_userver.grpc.Mockserv
 
     Alternatively, you can create a shorthand for mocking frequently-used services:
 
+    @snippet grpc/functional_tests/metrics/tests/conftest.py  Prepare modules
+    @snippet grpc/functional_tests/metrics/tests/conftest.py  Prepare server mock
+    @snippet grpc/functional_tests/metrics/tests/test_metrics.py  grpc client test
+
     Mocks are only active within tests after their respective handler functions are created, not between tests.
     If you need the service needs the mock during startup, add the fixture that defines your mock to
     @ref pytest_userver.plugins.service.extra_client_deps "extra_client_deps".
 
-    It supports the ability to raise mocked errors from the mockserver,
-    which will cause the gRPC client to throw an exception.
-    Types of supported errors:
+    To return an error status instead of response, use `context` (see
+    [ServicerContext](https://grpc.github.io/grpc/python/grpc_asyncio.html#grpc.aio.ServicerContext)
+    docs):
+
+    @snippet grpc/functional_tests/middleware_client/tests/test_error_status.py  Mocked error status
+
+    To trigger special exceptions in the service's gRPC client, raise these mocked errors from the mock handler:
+
     * @ref pytest_userver.grpc.NetworkError
     * @ref pytest_userver.grpc.TimeoutError
 
     @ingroup userver_testsuite_fixtures
     """
-    try:
-        yield pytest_userver.grpc.Mockserver(mockserver_session=grpc_mockserver_session, experimental=True)
-    finally:
-        grpc_mockserver_session.reset_mocks()
+    with grpc_mockserver_session.asyncexc_append_scope(None if _grpc_mockserver_ignore_errors else asyncexc_append):
+        try:
+            yield pytest_userver.grpc.Mockserver(mockserver_session=grpc_mockserver_session, experimental=True)
+        finally:
+            grpc_mockserver_session.reset_mocks()
 
 
 @pytest.fixture(scope='session')
@@ -132,6 +146,11 @@ def pytest_addoption(parser):
         default=0,
         help='gRPC mockserver port, by default random port is used',
     )
+
+
+@pytest.fixture(scope='session')
+def _grpc_mockserver_ignore_errors() -> bool:
+    return False
 
 
 # @endcond
