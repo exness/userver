@@ -8,8 +8,8 @@ import samples.greeter_pb2_grpc as greeter_services
 
 
 # /// [Mocked error status]
-async def test_error_status(service_client, grpc_mockserver_new):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_error_status(service_client, grpc_mockserver):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context: grpc.aio.ServicerContext):
         # Don't forget the `await`!
         await context.abort(grpc.StatusCode.UNAVAILABLE, 'Greeter is down')
@@ -20,8 +20,8 @@ async def test_error_status(service_client, grpc_mockserver_new):
     # /// [Mocked error status]
 
 
-async def test_error_status_via_result(service_client, grpc_mockserver_new):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_error_status_via_result(service_client, grpc_mockserver):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context: grpc.aio.ServicerContext):
         context.set_code(grpc.StatusCode.UNAVAILABLE)
         context.set_details('Greeter is down')

@@ -38,7 +38,7 @@ class MockserverSession:
     @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_session "grpc_mockserver_session".
 
     @warning This is a sharp knife, use with caution! For most use-cases, prefer
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new" instead.
+    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver" instead.
     """
 
     def __init__(self, *, server: grpc.aio.Server, experimental: bool = False) -> None:
@@ -128,18 +128,18 @@ class MockserverSession:
 class Mockserver:
     """
     Allows to install mocks that are reset between tests, see
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new".
+    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver".
     """
 
     def __init__(self, *, mockserver_session: MockserverSession, experimental: bool = False) -> None:
         """
         @warning This initializer is an **experimental API**, likely to break in the future. Consider using
-        @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new" instead.
+        @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver" instead.
 
         Initializes Mockserver.
 
         @note `Mockserver` is usually obtained from
-        @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new".
+        @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver".
         """
         assert experimental
         self._mockserver_session = mockserver_session
