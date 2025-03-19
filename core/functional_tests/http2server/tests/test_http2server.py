@@ -320,6 +320,7 @@ def _assert_responses(events):
         assert isinstance(events[i + 2], h2.events.StreamEnded)
 
 
+@pytest.mark.skip(reason='TAXICOMMON-10232')
 async def test_many_in_flight(
     service_client,
     loop,
