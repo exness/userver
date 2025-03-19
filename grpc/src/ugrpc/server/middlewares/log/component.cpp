@@ -28,8 +28,6 @@ Component::Component(const components::ComponentConfig& config, const components
               .InGroup<USERVER_NAMESPACE::middlewares::groups::Logging>()
       ) {}
 
-Component::~Component() = default;
-
 std::shared_ptr<MiddlewareBase>
 Component::CreateMiddleware(const ugrpc::server::ServiceInfo&, const yaml_config::YamlConfig& middleware_config) const {
     return std::make_shared<Middleware>(middleware_config.As<Settings>());

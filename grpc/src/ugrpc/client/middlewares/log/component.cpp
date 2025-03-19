@@ -2,7 +2,6 @@
 
 #include <userver/components/component_config.hpp>
 #include <userver/logging/level_serialization.hpp>
-#include <userver/middlewares/groups.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 
 #include <ugrpc/client/middlewares/log/middleware.hpp>

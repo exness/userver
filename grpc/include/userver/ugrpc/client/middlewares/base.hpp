@@ -111,10 +111,21 @@ protected:
 /// @ingroup userver_components userver_base_classes
 ///
 /// @brief Factory that creates specific client middlewares for clients.
+///
+/// Override ugrpc::client::SimpleMiddlewareFactoryComponent::CreateMiddleware to create middleware for your gRPC
+/// client. If you declare a static config for a middleware, you must override
+/// ugrpc::client::SimpleMiddlewareFactoryComponent::GetMiddlewareConfigSchema.
+///
+/// If you are not going to use static config, ugrpc::client::ClientInfo and your middleware is default constructible,
+/// just use ugrpc::client::SimpleMiddlewareFactoryComponent.
+///
+/// ## Example:
+///
+/// @snippet samples/grpc_middleware_service/src/middlewares/client/chaos.hpp gRPC middleware sample
+/// @snippet samples/grpc_middleware_service/src/middlewares/client/chaos.cpp gRPC middleware sample
+
 using MiddlewareFactoryComponentBase =
     USERVER_NAMESPACE::middlewares::MiddlewareFactoryComponentBase<MiddlewareBase, ClientInfo>;
-
-// clang-format off
 
 /// @ingroup userver_components
 ///
@@ -127,26 +138,22 @@ using MiddlewareFactoryComponentBase =
 ///
 /// ## Example usage:
 ///
-/// @snippet samples/grpc_middleware_service/src/middlewares/client/middleware.hpp gRPC middleware sample - Middleware declaration
+/// @snippet samples/grpc_middleware_service/src/middlewares/client/auth.hpp Middleware declaration
 ///
 /// ## Static config example
 ///
-/// @snippet samples/grpc_middleware_service/static_config.yaml gRPC middleware sample - static config grpc-auth-client
-
-// clang-format on
+/// @snippet samples/grpc_middleware_service/static_config.yaml static config grpc-auth-client
 
 template <typename Middleware>
 using SimpleMiddlewareFactoryComponent =
     USERVER_NAMESPACE::middlewares::impl::SimpleMiddlewareFactoryComponent<MiddlewareBase, Middleware, ClientInfo>;
-
-// clang-format off
 
 /// @ingroup userver_components
 ///
 /// @brief Component to create middlewares pipeline.
 ///
 /// You must register your client middleware in this component.
-/// Use `MiddlewareDependencyBuilder` to set a dependency of your middleware from others.
+/// Use middlewares::MiddlewareDependencyBuilder to set a dependency of your middleware from others.
 ///
 /// ## Static options:
 /// Name | Description | Default value
@@ -155,9 +162,7 @@ using SimpleMiddlewareFactoryComponent =
 ///
 /// ## Static config example
 ///
-/// @snippet samples/grpc_middleware_service/static_config.yaml gRPC middleware sample - static config grpc-auth-client
-
-// clang-format on
+/// @snippet samples/grpc_middleware_service/static_config.yaml static config grpc-auth-client
 
 class MiddlewarePipelineComponent final : public USERVER_NAMESPACE::middlewares::impl::AnyMiddlewarePipelineComponent {
 public:
