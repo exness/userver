@@ -15,6 +15,53 @@ constexpr size_t kReservedConn = 5;
 
 constexpr int kMaxStepsWithError = 3;
 constexpr size_t kFallbackConnlimit = 20;
+
+// Check if u_clients exists and has the correct schema
+[[maybe_unused]] constexpr const char* kCreateUClients = R"(
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'u_clients'
+        AND column_name = 'hostname'
+        AND data_type = 'text'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'u_clients'
+        AND column_name = 'updated'
+        AND data_type = 'timestamp with time zone'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'u_clients'
+        AND column_name = 'max_connections'
+        AND data_type = 'integer'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'u_clients'
+        AND column_name = 'cur_user'
+        AND data_type = 'text'
+        AND is_nullable = 'NO'
+    ) THEN
+        RAISE NOTICE 'Table u_clients already exists with the correct schema.';
+    ELSE
+        RAISE NOTICE 'Drop u_clients';
+
+        DROP TABLE IF EXISTS u_clients;
+
+        CREATE TABLE u_clients (
+            hostname TEXT PRIMARY KEY,
+            updated TIMESTAMPTZ NOT NULL,
+            max_connections INTEGER NOT NULL,
+            cur_user TEXT NOT NULL
+        );
+    END IF;
+END $$;
+)";
+
 }  // namespace
 
 ConnlimitWatchdog::ConnlimitWatchdog(
@@ -32,11 +79,8 @@ ConnlimitWatchdog::ConnlimitWatchdog(
 void ConnlimitWatchdog::Start() {
     try {
         auto trx = cluster_.Begin({ClusterHostType::kMaster}, {}, kCommandControl);
-        trx.Execute(
-            "CREATE TABLE IF NOT EXISTS u_clients (hostname TEXT PRIMARY KEY, "
-            "updated "
-            "TIMESTAMPTZ NOT NULL, max_connections INTEGER NOT NULL)"
-        );
+        current_user_ = trx.Execute("SELECT current_user").AsSingleRow<std::string>();
+        trx.Execute(kCreateUClients);
         trx.Commit();
     } catch (const storages::postgres::AccessRuleViolation& e) {
         // Possible in some CREATE TABLE IF NOT EXISTS races with other services
@@ -45,6 +89,7 @@ void ConnlimitWatchdog::Start() {
         // Possible in some CREATE TABLE IF NOT EXISTS races with other services
         LOG_WARNING() << "Table already exists (not a fatal error): " << e;
     }
+    UINVARIANT(!current_user_.empty(), "current_user_ must be not empty");
 
     if (testsuite_tasks_.IsEnabled()) {
         connlimit_ = kTestsuiteConnlimit;
@@ -79,16 +124,18 @@ void ConnlimitWatchdog::Step() {
             max_connections = 1;
 
         trx.Execute(
-            "INSERT INTO u_clients (hostname, updated, max_connections) VALUES "
+            "INSERT INTO u_clients (hostname, updated, max_connections, cur_user) VALUES "
             "($1, "
-            "NOW(), $2) ON CONFLICT (hostname) DO UPDATE SET updated = NOW(), "
+            "NOW(), $2, $3) ON CONFLICT (hostname) DO UPDATE SET updated = NOW(), "
             "max_connections = $2",
             kHostname,
-            static_cast<int>(GetConnlimit())
+            static_cast<int>(GetConnlimit()),
+            current_user_
         );
         auto instances = trx.Execute(
                                 "SELECT count(*) FROM u_clients WHERE updated >= "
-                                "NOW() - make_interval(secs => 15)"
+                                "NOW() - make_interval(secs => 15) AND current_user = $1",
+                                current_user_
         )
                              .AsSingleRow<int>();
         if (instances == 0) instances = 1;
