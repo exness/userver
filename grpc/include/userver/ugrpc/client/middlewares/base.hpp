@@ -3,6 +3,7 @@
 /// @file userver/ugrpc/client/middlewares/base.hpp
 /// @brief @copybrief ugrpc::client::MiddlewareBase
 
+#include <optional>
 #include <string_view>
 
 #include <google/protobuf/message.h>
@@ -29,7 +30,10 @@ class RpcData;
 
 /// @brief Client meta info for a middleware construction.
 struct ClientInfo final {
+    /// The name that is passed to `ClientFactory::MakeClient`.
     std::string client_name{};
+    /// `std::nullopt` for generic clients.
+    std::optional<std::string> service_full_name{};
 };
 
 /// @brief Context for middleware-specific data during gRPC call
