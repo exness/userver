@@ -204,11 +204,6 @@ endif()
 
 add_subdirectory(universal)
 
-if (USERVER_FEATURE_CORE)
-  add_subdirectory(core)
-  list(APPEND USERVER_AVAILABLE_COMPONENTS core)
-endif()
-
 if (USERVER_FEATURE_CHAOTIC)
   add_subdirectory(chaotic)
   list(APPEND USERVER_AVAILABLE_COMPONENTS chaotic)
@@ -218,6 +213,14 @@ if (USERVER_FEATURE_CHAOTIC)
     add_subdirectory(chaotic-openapi)
     list(APPEND USERVER_AVAILABLE_COMPONENTS chaotic-openapi)
   endif()
+endif()
+
+if (USERVER_FEATURE_CORE)
+  if (NOT USERVER_FEATURE_CHAOTIC)
+    message(FATAL_ERROR "'USERVER_FEATURE_CORE' requires 'USERVER_FEATURE_CHAOTIC=ON'")
+  endif()
+  add_subdirectory(core)
+  list(APPEND USERVER_AVAILABLE_COMPONENTS core)
 endif()
 
 if (USERVER_FEATURE_MONGODB)
