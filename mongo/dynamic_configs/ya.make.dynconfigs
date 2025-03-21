@@ -36,6 +36,8 @@ RUN_PROGRAM(
         userver/chaotic/io/std/chrono/days.hpp
         userver/chaotic/io/std/set.hpp
         userver/chaotic/io/std/unordered_set.hpp
+        userver/chaotic/io/std/unordered_map.hpp
+        userver/chaotic/io/std/vector.hpp
         userver/chaotic/io/std/uint32_t.hpp
         userver/chaotic/io/std/uint64_t.hpp
         userver/chaotic/io/std/size_t.hpp
@@ -45,6 +47,8 @@ RUN_PROGRAM(
         userver/chaotic/io/userver/utils/datetime/time_point_tz.hpp
         userver/chaotic/io/userver/utils/datetime/time_point_tz_iso_basic.hpp
         userver/chaotic/io/boost/uuids/uuid.hpp
+        userver/chaotic/type_bundle_hpp.hpp
+        userver/chaotic/dynamic_config_variable_bundle.hpp
     IN_NOPARSE
         
             dynamic_configs/MONGO_CONGESTION_CONTROL_ENABLED.yaml
