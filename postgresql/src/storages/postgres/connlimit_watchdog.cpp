@@ -46,8 +46,6 @@ BEGIN
         AND data_type = 'text'
         AND is_nullable = 'NO'
     ) THEN
-        RAISE NOTICE 'Table u_clients already exists with the correct schema.';
-    ELSE
         RAISE NOTICE 'Drop u_clients';
 
         DROP TABLE IF EXISTS u_clients;
@@ -56,7 +54,16 @@ BEGIN
             hostname TEXT PRIMARY KEY,
             updated TIMESTAMPTZ NOT NULL,
             max_connections INTEGER NOT NULL,
-            cur_user TEXT NOT NULL
+            cur_user TEXT
+        );
+    ELSE
+        RAISE NOTICE 'schema is ok';
+
+        CREATE TABLE IF NOT EXISTS u_clients (
+            hostname TEXT PRIMARY KEY,
+            updated TIMESTAMPTZ NOT NULL,
+            max_connections INTEGER NOT NULL,
+            cur_user TEXT
         );
     END IF;
 END $$;
@@ -89,7 +96,6 @@ void ConnlimitWatchdog::Start() {
         // Possible in some CREATE TABLE IF NOT EXISTS races with other services
         LOG_WARNING() << "Table already exists (not a fatal error): " << e;
     }
-    UINVARIANT(!current_user_.empty(), "current_user_ must be not empty");
 
     if (testsuite_tasks_.IsEnabled()) {
         connlimit_ = kTestsuiteConnlimit;
