@@ -44,7 +44,6 @@ BEGIN
         WHERE table_name = 'u_clients'
         AND column_name = 'cur_user'
         AND data_type = 'text'
-        AND is_nullable = 'NO'
     ) THEN
         RAISE NOTICE 'Drop u_clients';
 
@@ -53,17 +52,15 @@ BEGIN
         CREATE TABLE u_clients (
             hostname TEXT PRIMARY KEY,
             updated TIMESTAMPTZ NOT NULL,
-            max_connections INTEGER NOT NULL,
-            cur_user TEXT
+            max_connections INTEGER NOT NULL
         );
     ELSE
-        RAISE NOTICE 'schema is ok';
+        RAISE NOTICE 'u_clients schema is ok';
 
         CREATE TABLE IF NOT EXISTS u_clients (
             hostname TEXT PRIMARY KEY,
             updated TIMESTAMPTZ NOT NULL,
-            max_connections INTEGER NOT NULL,
-            cur_user TEXT
+            max_connections INTEGER NOT NULL
         );
     END IF;
 END $$;
@@ -130,18 +127,16 @@ void ConnlimitWatchdog::Step() {
             max_connections = 1;
 
         trx.Execute(
-            "INSERT INTO u_clients (hostname, updated, max_connections, cur_user) VALUES "
+            "INSERT INTO u_clients (hostname, updated, max_connections) VALUES "
             "($1, "
-            "NOW(), $2, $3) ON CONFLICT (hostname) DO UPDATE SET updated = NOW(), "
+            "NOW(), $2) ON CONFLICT (hostname) DO UPDATE SET updated = NOW(), "
             "max_connections = $2",
             kHostname,
-            static_cast<int>(GetConnlimit()),
-            current_user_
+            static_cast<int>(GetConnlimit())
         );
         auto instances = trx.Execute(
                                 "SELECT count(*) FROM u_clients WHERE updated >= "
-                                "NOW() - make_interval(secs => 15) AND current_user = $1",
-                                current_user_
+                                "NOW() - make_interval(secs => 15)"
         )
                              .AsSingleRow<int>();
         if (instances == 0) instances = 1;
