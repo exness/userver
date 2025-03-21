@@ -1,3 +1,6 @@
+# This file is generated from taxi/uservices/scripts/userver/copy_dynamic_config_schemas/ya.make.jinja
+# DO NOT EDIT!
+
 RUN_PROGRAM(
     taxi/uservices/userver/chaotic/bin-dynamic-configs
         -o ${BINDIR}/dynamic_configs/
@@ -41,6 +44,8 @@ RUN_PROGRAM(
         userver/chaotic/io/std/chrono/days.hpp
         userver/chaotic/io/std/set.hpp
         userver/chaotic/io/std/unordered_set.hpp
+        userver/chaotic/io/std/uint32_t.hpp
+        userver/chaotic/io/std/uint64_t.hpp
         userver/chaotic/io/std/size_t.hpp
         userver/chaotic/io/userver/decimal64/decimal.hpp
         userver/chaotic/io/userver/utils/default_dict.hpp
