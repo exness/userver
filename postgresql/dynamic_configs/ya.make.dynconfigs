@@ -61,6 +61,7 @@ RUN_PROGRAM(
         userver/chaotic/io/boost/uuids/uuid.hpp
         userver/chaotic/type_bundle_hpp.hpp
         userver/chaotic/dynamic_config_variable_bundle.hpp
+        userver/chaotic/type_bundle_cpp.hpp
     IN_NOPARSE
         
             dynamic_configs/POSTGRES_CONGESTION_CONTROL_SETTINGS.yaml
