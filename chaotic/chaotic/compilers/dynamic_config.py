@@ -163,8 +163,8 @@ class CompilerBase:
         self,
         filepath: str,
         name: str,
+        namespace: str,
         include_dirs: List[str] = [],
-        namespace: str = 'taxi_config',
     ) -> None:
         name_lower = self.format_ns_name(name)
         name_map = [

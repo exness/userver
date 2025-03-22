@@ -17,7 +17,7 @@ def parse_variable_content(
         json.dump(content, ofile)
         ofile.flush()
 
-        compiler.parse_variable(ofile.name, varname)
+        compiler.parse_variable(ofile.name, varname, namespace='taxi_config')
     return compiler.extract_variable_type()
 
 
