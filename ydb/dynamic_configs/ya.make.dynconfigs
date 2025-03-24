@@ -51,12 +51,16 @@ RUN_PROGRAM(
     OUT
         
             dynamic_configs/src/dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.cpp
+            dynamic_configs/src/dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.types.cpp
             dynamic_configs/include/dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.hpp
+            dynamic_configs/include/dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.types_parsers.ipp
             dynamic_configs/include/dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.types.hpp
             dynamic_configs/include/dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.types_fwd.hpp
         
             dynamic_configs/src/dynamic_config/variables/YDB_RETRY_BUDGET.cpp
+            dynamic_configs/src/dynamic_config/variables/YDB_RETRY_BUDGET.types.cpp
             dynamic_configs/include/dynamic_config/variables/YDB_RETRY_BUDGET.hpp
+            dynamic_configs/include/dynamic_config/variables/YDB_RETRY_BUDGET.types_parsers.ipp
             dynamic_configs/include/dynamic_config/variables/YDB_RETRY_BUDGET.types.hpp
             dynamic_configs/include/dynamic_config/variables/YDB_RETRY_BUDGET.types_fwd.hpp
         

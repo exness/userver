@@ -185,7 +185,7 @@
     {% endfor %}
 
     {% if type.need_operator_eq() %}
-        bool operator==(const {{ name }} & lhs,const {{ name }} & rhs);
+        bool operator==(const ::{{ name }} & lhs,const ::{{ name }} & rhs);
     {% endif %}
 {% endmacro %}
 
@@ -201,14 +201,14 @@
 
     {% if type.need_operator_lshift() %}
         {% if type.get_py_type() == 'CppStringEnum' or generate_serializer %}
-            {{ userver }}::logging::LogHelper& operator<<({{ userver }}::logging::LogHelper& lh, const {{ name }}& value);
+            {{ userver }}::logging::LogHelper& operator<<({{ userver }}::logging::LogHelper& lh, const ::{{ name }}& value);
         {% endif %}
     {% endif %}
 {% endmacro %}
 
 {% macro generate_parser_declaration(name, type, format) %}
     {% if not type.may_generate_for_format(format) %}
-        /* Parse({{ format }}::Value, To<{{ name }}>) was not generated: {{ type.only_json_reason() }} */
+        /* Parse({{ format }}::Value, To<::{{ name }}>) was not generated: {{ type.only_json_reason() }} */
     {% else %}
         {{ _generate_parser_declaration(name, type, format) }}
     {% endif %}
@@ -227,7 +227,7 @@
 
     {% if type.need_dom_parser() %}
         {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} Parse({{ format }}::Value json,
-                         {{ userver }}::formats::parse::To<{{ name }}>);
+                         {{ userver }}::formats::parse::To<::{{ name }}>);
     {% endif %}
 {% endmacro %}
 
@@ -244,11 +244,11 @@
     {% if type.need_dom_parser() %}
         {% if type.get_py_type() == 'CppStringEnum' %}
             {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} FromString(std::string_view value,
-                            {{ userver }}::formats::parse::To<{{ name }}>);
+                            {{ userver }}::formats::parse::To<::{{ name }}>);
 
             {# backward compatibility #}
             {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} Parse(std::string_view value,
-                            {{ userver }}::formats::parse::To<{{ name }}>);
+                            {{ userver }}::formats::parse::To<::{{ name }}>);
         {% endif %}
     {% endif %}
 {% endmacro %}
@@ -265,7 +265,7 @@
 
     {% if type.need_serializer() %}
         {{ userver }}::formats::json::Value Serialize(
-            const {{ name }}& value,
+            const ::{{ name }}& value,
             {{ userver }}::formats::serialize::To<{{ userver }}::formats::json::Value>
         );
     {% endif %}

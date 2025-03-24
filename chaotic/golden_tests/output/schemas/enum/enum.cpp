@@ -6,38 +6,40 @@
 
 namespace ns {
 
-bool operator==(const ns::Enum& lhs, const ns::Enum& rhs) { return lhs.foo == rhs.foo && true; }
+bool operator==(const ::ns::Enum& lhs, const ::ns::Enum& rhs) { return lhs.foo == rhs.foo && true; }
 
 USERVER_NAMESPACE::logging::LogHelper&
-operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::Enum::Foo& value) {
+operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ::ns::Enum::Foo& value) {
     return lh << ToString(value);
 }
 
-USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::Enum& value) {
+USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ::ns::Enum& value) {
     return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
 }
 
-Enum::Foo Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::Enum::Foo> to) {
+Enum::Foo
+Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo> to) {
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-Enum Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::Enum> to) {
+Enum Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::Enum> to) {
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-Enum::Foo Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<ns::Enum::Foo> to) {
+Enum::Foo
+Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo> to) {
     return Parse<USERVER_NAMESPACE::formats::yaml::Value>(json, to);
 }
 
-Enum Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<ns::Enum> to) {
+Enum Parse(USERVER_NAMESPACE::formats::yaml::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::Enum> to) {
     return Parse<USERVER_NAMESPACE::formats::yaml::Value>(json, to);
 }
 
-Enum::Foo Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<ns::Enum::Foo> to) {
+Enum::Foo Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo> to) {
     return Parse<USERVER_NAMESPACE::yaml_config::Value>(json, to);
 }
 
-Enum Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<ns::Enum> to) {
+Enum Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::Enum> to) {
     return Parse<USERVER_NAMESPACE::yaml_config::Value>(json, to);
 }
 
@@ -49,7 +51,7 @@ ns::Enum::Foo FromString(std::string_view value, USERVER_NAMESPACE::formats::par
     throw std::runtime_error(fmt::format("Invalid enum value ({}) for type ns::Enum::Foo", value));
 }
 
-ns::Enum::Foo Parse(std::string_view value, USERVER_NAMESPACE::formats::parse::To<ns::Enum::Foo> to) {
+ns::Enum::Foo Parse(std::string_view value, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo> to) {
     return FromString(value, to);
 }
 
@@ -59,7 +61,7 @@ Serialize(const ns::Enum::Foo& value, USERVER_NAMESPACE::formats::serialize::To<
 }
 
 USERVER_NAMESPACE::formats::json::Value
-Serialize([[maybe_unused]] const ns::Enum& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+Serialize([[maybe_unused]] const ::ns::Enum& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
 
     if (value.foo) {

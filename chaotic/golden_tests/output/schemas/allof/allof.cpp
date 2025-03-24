@@ -6,13 +6,13 @@
 
 namespace ns {
 
-bool operator==(const ns::AllOf::Foo__P0& lhs, const ns::AllOf::Foo__P0& rhs) {
+bool operator==(const ::ns::AllOf::Foo__P0& lhs, const ::ns::AllOf::Foo__P0& rhs) {
     return lhs.foo == rhs.foo && lhs.extra == rhs.extra &&
 
            true;
 }
 
-bool operator==(const ns::AllOf::Foo__P1& lhs, const ns::AllOf::Foo__P1& rhs) {
+bool operator==(const ::ns::AllOf::Foo__P1& lhs, const ::ns::AllOf::Foo__P1& rhs) {
     return lhs.bar == rhs.bar && lhs.extra == rhs.extra &&
 
            true;
@@ -23,54 +23,54 @@ bool operator==(const ns::AllOf::Foo& lhs, const ns::AllOf::Foo& rhs) {
            static_cast<const ns::AllOf::Foo__P1&>(lhs) == static_cast<const ns::AllOf::Foo__P1&>(rhs);
 }
 
-bool operator==(const ns::AllOf& lhs, const ns::AllOf& rhs) { return lhs.foo == rhs.foo && true; }
+bool operator==(const ::ns::AllOf& lhs, const ::ns::AllOf& rhs) { return lhs.foo == rhs.foo && true; }
 
 USERVER_NAMESPACE::logging::LogHelper&
-operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::AllOf::Foo__P0& value) {
+operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ::ns::AllOf::Foo__P0& value) {
     return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
 }
 
 USERVER_NAMESPACE::logging::LogHelper&
-operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::AllOf::Foo__P1& value) {
+operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ::ns::AllOf::Foo__P1& value) {
     return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
 }
 
 USERVER_NAMESPACE::logging::LogHelper&
-operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::AllOf::Foo& value) {
+operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ::ns::AllOf::Foo& value) {
     return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
 }
 
-USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ns::AllOf& value) {
+USERVER_NAMESPACE::logging::LogHelper& operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const ::ns::AllOf& value) {
     return lh << ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(value).ExtractValue());
 }
 
 AllOf::Foo__P0
-Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::AllOf::Foo__P0> to) {
+Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::AllOf::Foo__P0> to) {
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
 AllOf::Foo__P1
-Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::AllOf::Foo__P1> to) {
+Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::AllOf::Foo__P1> to) {
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
 AllOf::Foo
-Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::AllOf::Foo> to) {
+Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::AllOf::Foo> to) {
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-AllOf Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<ns::AllOf> to) {
+AllOf Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::AllOf> to) {
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has JSON-specific
- * field "extra" */
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has
+ * JSON-specific field "extra" */
 
-/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has JSON-specific
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has JSON-specific
  * field "extra" */
 
 USERVER_NAMESPACE::formats::json::Value
-Serialize([[maybe_unused]] const ns::AllOf::Foo__P0& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+Serialize([[maybe_unused]] const ::ns::AllOf::Foo__P0& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = value.extra;
 
     if (value.foo) {
@@ -81,7 +81,7 @@ Serialize([[maybe_unused]] const ns::AllOf::Foo__P0& value, USERVER_NAMESPACE::f
 }
 
 USERVER_NAMESPACE::formats::json::Value
-Serialize([[maybe_unused]] const ns::AllOf::Foo__P1& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+Serialize([[maybe_unused]] const ::ns::AllOf::Foo__P1& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = value.extra;
 
     if (value.bar) {
@@ -104,7 +104,7 @@ Serialize(const ns::AllOf::Foo& value, USERVER_NAMESPACE::formats::serialize::To
 }
 
 USERVER_NAMESPACE::formats::json::Value
-Serialize([[maybe_unused]] const ns::AllOf& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+Serialize([[maybe_unused]] const ::ns::AllOf& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
 
     if (value.foo) {

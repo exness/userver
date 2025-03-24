@@ -21,7 +21,6 @@
 #include <userver/logging/level_serialization.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/server/component.hpp>
-#include <userver/server/handlers/impl/deadline_propagation_config.hpp>
 #include <userver/server/http/http_error.hpp>
 #include <userver/server/http/http_method.hpp>
 #include <userver/server/http/http_response_body_stream.hpp>
