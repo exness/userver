@@ -29,7 +29,7 @@ def test_smoke():
         user_cpp_type=None,
         json_schema=None,
         validators=types.CppPrimitiveValidator(
-            namespace='taxi_config::var',
+            namespace='::taxi_config::var',
             prefix='VariableTypeRaw',
         ),
     )
@@ -117,4 +117,4 @@ def test_variable_name_invalid_symbols():
         },
         varname='kebab-case',
     )
-    assert var.cpp_user_name() == 'taxi_config::kebab_case::VariableTypeRaw'
+    assert var.cpp_user_name() == '::taxi_config::kebab_case::VariableTypeRaw'

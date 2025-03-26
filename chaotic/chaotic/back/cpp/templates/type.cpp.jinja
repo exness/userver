@@ -7,7 +7,7 @@
 
 {% macro generate_parser_definition_call(name, type, format) %}
     {% if not type.may_generate_for_format(format) %}
-        /* Parse({{ format }}::Value, To<::{{ name }}>) was not generated: {{ type.only_json_reason() }} */
+        /* Parse({{ format }}::Value, To<{{ name }}>) was not generated: {{ type.only_json_reason() }} */
     {% else %}
         {{ _generate_parser_definition_call(name, type, format) }}
     {% endif %}
@@ -27,7 +27,7 @@
 
     {% if type.need_dom_parser() %}
         {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} Parse({{ format }}::Value json,
-                                                 {{ userver }}::formats::parse::To<::{{ name }}> to)
+                                                 {{ userver }}::formats::parse::To<{{ name }}> to)
     {
         return Parse<{{ format }}::Value>(json, to);
     }
@@ -58,7 +58,7 @@
             }
 
             {{ name }} Parse(std::string_view value,
-                            {{userver}}::formats::parse::To<::{{ name }}> to)
+                            {{userver}}::formats::parse::To<{{ name }}> to)
             {
                 return FromString(value, to);
             }
@@ -79,7 +79,7 @@
 
     {% if type.get_py_type() == 'CppStruct' %}
         {{ userver }}::formats::json::Value Serialize(
-            [[maybe_unused]] const ::{{ name }}& value,
+            [[maybe_unused]] const {{ name }}& value,
             {{ userver }}::formats::serialize::To<{{ userver }}::formats::json::Value>
         )
         {
@@ -207,7 +207,7 @@
     {% endfor %}
 
     {% if type.get_py_type() == 'CppStruct' %}
-        bool operator==(const ::{{ name }} & lhs,const ::{{ name }} & rhs) {
+        bool operator==(const {{ name }} & lhs,const {{ name }} & rhs) {
           {%- if not type.fields %} 
             (void)lhs;
             (void)rhs;
@@ -251,13 +251,13 @@
     {% endfor %}
 
     {% if type.get_py_type() == 'CppStringEnum' %}
-        {{ userver }}::logging::LogHelper& operator<<({{ userver }}::logging::LogHelper& lh, const ::{{ name }}& value)
+        {{ userver }}::logging::LogHelper& operator<<({{ userver }}::logging::LogHelper& lh, const {{ name }}& value)
         {
             return lh << ToString(value);
         }
     {% elif type.need_operator_lshift() %}
         {% if generate_serializer %}
-            {{ userver }}::logging::LogHelper& operator<<({{ userver }}::logging::LogHelper& lh, const ::{{ name }}& value)
+            {{ userver }}::logging::LogHelper& operator<<({{ userver }}::logging::LogHelper& lh, const {{ name }}& value)
             {
                 return lh << ToString({{ userver }}::formats::json::ValueBuilder(value).ExtractValue());
             }

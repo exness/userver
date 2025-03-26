@@ -23,7 +23,7 @@ struct Enum {
         Foo::kThree,
     };
 
-    std::optional<ns::Enum::Foo> foo{};
+    std::optional<::ns::Enum::Foo> foo{};
 };
 
 bool operator==(const ::ns::Enum& lhs, const ::ns::Enum& rhs);
@@ -55,13 +55,13 @@ Serialize(const ::ns::Enum::Foo& value, USERVER_NAMESPACE::formats::serialize::T
 USERVER_NAMESPACE::formats::json::Value
 Serialize(const ::ns::Enum& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>);
 
-std::string ToString(ns::Enum::Foo value);
+std::string ToString(::ns::Enum::Foo value);
 
 }  // namespace ns
 
 template <>
-struct fmt::formatter<ns::Enum::Foo> {
-    fmt::format_context::iterator format(const ns::Enum::Foo&, fmt::format_context&) const;
+struct fmt::formatter<::ns::Enum::Foo> {
+    fmt::format_context::iterator format(const ::ns::Enum::Foo&, fmt::format_context&) const;
 
     constexpr fmt::format_parse_context::iterator parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
 };

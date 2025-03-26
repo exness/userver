@@ -43,20 +43,20 @@ Enum Parse(USERVER_NAMESPACE::yaml_config::Value json, USERVER_NAMESPACE::format
     return Parse<USERVER_NAMESPACE::yaml_config::Value>(json, to);
 }
 
-ns::Enum::Foo FromString(std::string_view value, USERVER_NAMESPACE::formats::parse::To<ns::Enum::Foo>) {
-    const auto result = kns__Enum__Foo_Mapping.TryFindBySecond(value);
+::ns::Enum::Foo FromString(std::string_view value, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo>) {
+    const auto result = k__ns__Enum__Foo_Mapping.TryFindBySecond(value);
     if (result.has_value()) {
         return *result;
     }
-    throw std::runtime_error(fmt::format("Invalid enum value ({}) for type ns::Enum::Foo", value));
+    throw std::runtime_error(fmt::format("Invalid enum value ({}) for type ::ns::Enum::Foo", value));
 }
 
-ns::Enum::Foo Parse(std::string_view value, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo> to) {
+::ns::Enum::Foo Parse(std::string_view value, USERVER_NAMESPACE::formats::parse::To<::ns::Enum::Foo> to) {
     return FromString(value, to);
 }
 
 USERVER_NAMESPACE::formats::json::Value
-Serialize(const ns::Enum::Foo& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+Serialize(const ::ns::Enum::Foo& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
     return USERVER_NAMESPACE::formats::json::ValueBuilder(ToString(value)).ExtractValue();
 }
 
@@ -65,14 +65,14 @@ Serialize([[maybe_unused]] const ::ns::Enum& value, USERVER_NAMESPACE::formats::
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
 
     if (value.foo) {
-        vb["foo"] = USERVER_NAMESPACE::chaotic::Primitive<ns::Enum::Foo>{*value.foo};
+        vb["foo"] = USERVER_NAMESPACE::chaotic::Primitive<::ns::Enum::Foo>{*value.foo};
     }
 
     return vb.ExtractValue();
 }
 
-std::string ToString(ns::Enum::Foo value) {
-    const auto result = kns__Enum__Foo_Mapping.TryFindByFirst(value);
+std::string ToString(::ns::Enum::Foo value) {
+    const auto result = k__ns__Enum__Foo_Mapping.TryFindByFirst(value);
     if (result.has_value()) {
         return std::string{*result};
     }
@@ -82,6 +82,6 @@ std::string ToString(ns::Enum::Foo value) {
 }  // namespace ns
 
 fmt::format_context::iterator
-fmt::formatter<ns::Enum::Foo>::format(const ns::Enum::Foo& value, fmt::format_context& ctx) const {
+fmt::formatter<::ns::Enum::Foo>::format(const ::ns::Enum::Foo& value, fmt::format_context& ctx) const {
     return fmt::format_to(ctx.out(), "{}", ToString(value));
 }

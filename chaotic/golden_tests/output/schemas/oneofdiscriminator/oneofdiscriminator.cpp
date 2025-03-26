@@ -20,10 +20,11 @@ A Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::A>) was not generated: ns::A has JSON-specific field "extra"
- */
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::A>) was not generated: ::ns::A has JSON-specific field
+ * "extra" */
 
-/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::A>) was not generated: ns::A has JSON-specific field "extra" */
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::A>) was not generated: ::ns::A has JSON-specific field "extra"
+ */
 
 USERVER_NAMESPACE::formats::json::Value
 Serialize([[maybe_unused]] const ::ns::A& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
@@ -54,10 +55,11 @@ B Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::B>) was not generated: ns::B has JSON-specific field "extra"
- */
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::B>) was not generated: ::ns::B has JSON-specific field
+ * "extra" */
 
-/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::B>) was not generated: ns::B has JSON-specific field "extra" */
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::B>) was not generated: ::ns::B has JSON-specific field "extra"
+ */
 
 USERVER_NAMESPACE::formats::json::Value
 Serialize([[maybe_unused]] const ::ns::B& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
@@ -149,10 +151,10 @@ IntegerOneOfDiscriminator Parse(
 }
 
 /* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::IntegerOneOfDiscriminator>) was not generated:
- * ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
+ * ::ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
 
 /* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::IntegerOneOfDiscriminator>) was not generated:
- * ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
+ * ::ns::IntegerOneOfDiscriminator::Foo has JSON-specific field "extra" */
 
 USERVER_NAMESPACE::formats::json::Value
 Serialize([[maybe_unused]] const ::ns::IntegerOneOfDiscriminator& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
@@ -160,9 +162,9 @@ Serialize([[maybe_unused]] const ::ns::IntegerOneOfDiscriminator& value, USERVER
 
     if (value.foo) {
         vb["foo"] = USERVER_NAMESPACE::chaotic::OneOfWithDiscriminator<
-            &ns::IntegerOneOfDiscriminator::kFoo_Settings,
-            USERVER_NAMESPACE::chaotic::Primitive<ns::C>,
-            USERVER_NAMESPACE::chaotic::Primitive<ns::D>>{*value.foo};
+            &::ns::IntegerOneOfDiscriminator::kFoo_Settings,
+            USERVER_NAMESPACE::chaotic::Primitive<::ns::C>,
+            USERVER_NAMESPACE::chaotic::Primitive<::ns::D>>{*value.foo};
     }
 
     return vb.ExtractValue();
@@ -185,10 +187,10 @@ OneOfDiscriminator Parse(
 }
 
 /* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::OneOfDiscriminator>) was not generated:
- * ns::OneOfDiscriminator::Foo has JSON-specific field "extra" */
+ * ::ns::OneOfDiscriminator::Foo has JSON-specific field "extra" */
 
 /* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::OneOfDiscriminator>) was not generated:
- * ns::OneOfDiscriminator::Foo has JSON-specific field "extra" */
+ * ::ns::OneOfDiscriminator::Foo has JSON-specific field "extra" */
 
 USERVER_NAMESPACE::formats::json::Value
 Serialize([[maybe_unused]] const ::ns::OneOfDiscriminator& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
@@ -196,9 +198,9 @@ Serialize([[maybe_unused]] const ::ns::OneOfDiscriminator& value, USERVER_NAMESP
 
     if (value.foo) {
         vb["foo"] = USERVER_NAMESPACE::chaotic::OneOfWithDiscriminator<
-            &ns::OneOfDiscriminator::kFoo_Settings,
-            USERVER_NAMESPACE::chaotic::Primitive<ns::A>,
-            USERVER_NAMESPACE::chaotic::Primitive<ns::B>>{*value.foo};
+            &::ns::OneOfDiscriminator::kFoo_Settings,
+            USERVER_NAMESPACE::chaotic::Primitive<::ns::A>,
+            USERVER_NAMESPACE::chaotic::Primitive<::ns::B>>{*value.foo};
     }
 
     return vb.ExtractValue();

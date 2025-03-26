@@ -24,14 +24,14 @@ struct AllOf {
         USERVER_NAMESPACE::formats::json::Value extra;
     };
 
-    struct Foo : public ns::AllOf::Foo__P0, public ns::AllOf::Foo__P1 {
+    struct Foo : public ::ns::AllOf::Foo__P0, public ::ns::AllOf::Foo__P1 {
         Foo() = default;
 
-        Foo(ns::AllOf::Foo__P0&& a0, ns::AllOf::Foo__P1&& a1)
-            : ns::AllOf::Foo__P0(std::move(a0)), ns::AllOf::Foo__P1(std::move(a1)) {}
+        Foo(::ns::AllOf::Foo__P0&& a0, ::ns::AllOf::Foo__P1&& a1)
+            : ::ns::AllOf::Foo__P0(std::move(a0)), ::ns::AllOf::Foo__P1(std::move(a1)) {}
     };
 
-    std::optional<ns::AllOf::Foo> foo{};
+    std::optional<::ns::AllOf::Foo> foo{};
 };
 
 bool operator==(const ::ns::AllOf::Foo__P0& lhs, const ::ns::AllOf::Foo__P0& rhs);
@@ -63,11 +63,11 @@ AllOf::Foo Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE
 
 AllOf Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::formats::parse::To<::ns::AllOf>);
 
-/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::AllOf>) was not generated: ::ns::AllOf::Foo__P0 has
  * JSON-specific field "extra" */
 
-/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has JSON-specific
- * field "extra" */
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::AllOf>) was not generated: ::ns::AllOf::Foo__P0 has
+ * JSON-specific field "extra" */
 
 USERVER_NAMESPACE::formats::json::Value
 Serialize(const ::ns::AllOf::Foo__P0& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>);

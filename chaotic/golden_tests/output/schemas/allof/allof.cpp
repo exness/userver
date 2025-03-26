@@ -18,9 +18,9 @@ bool operator==(const ::ns::AllOf::Foo__P1& lhs, const ::ns::AllOf::Foo__P1& rhs
            true;
 }
 
-bool operator==(const ns::AllOf::Foo& lhs, const ns::AllOf::Foo& rhs) {
-    return static_cast<const ns::AllOf::Foo__P0&>(lhs) == static_cast<const ns::AllOf::Foo__P0&>(rhs) &&
-           static_cast<const ns::AllOf::Foo__P1&>(lhs) == static_cast<const ns::AllOf::Foo__P1&>(rhs);
+bool operator==(const ::ns::AllOf::Foo& lhs, const ::ns::AllOf::Foo& rhs) {
+    return static_cast<const ::ns::AllOf::Foo__P0&>(lhs) == static_cast<const ::ns::AllOf::Foo__P0&>(rhs) &&
+           static_cast<const ::ns::AllOf::Foo__P1&>(lhs) == static_cast<const ::ns::AllOf::Foo__P1&>(rhs);
 }
 
 bool operator==(const ::ns::AllOf& lhs, const ::ns::AllOf& rhs) { return lhs.foo == rhs.foo && true; }
@@ -63,11 +63,11 @@ AllOf Parse(USERVER_NAMESPACE::formats::json::Value json, USERVER_NAMESPACE::for
     return Parse<USERVER_NAMESPACE::formats::json::Value>(json, to);
 }
 
-/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has
+/* Parse(USERVER_NAMESPACE::formats::yaml::Value, To<::ns::AllOf>) was not generated: ::ns::AllOf::Foo__P0 has
  * JSON-specific field "extra" */
 
-/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::AllOf>) was not generated: ns::AllOf::Foo__P0 has JSON-specific
- * field "extra" */
+/* Parse(USERVER_NAMESPACE::yaml_config::Value, To<::ns::AllOf>) was not generated: ::ns::AllOf::Foo__P0 has
+ * JSON-specific field "extra" */
 
 USERVER_NAMESPACE::formats::json::Value
 Serialize([[maybe_unused]] const ::ns::AllOf::Foo__P0& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
@@ -92,13 +92,13 @@ Serialize([[maybe_unused]] const ::ns::AllOf::Foo__P1& value, USERVER_NAMESPACE:
 }
 
 USERVER_NAMESPACE::formats::json::Value
-Serialize(const ns::AllOf::Foo& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
+Serialize(const ::ns::AllOf::Foo& value, USERVER_NAMESPACE::formats::serialize::To<USERVER_NAMESPACE::formats::json::Value>) {
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
     USERVER_NAMESPACE::formats::common::Merge(
-        vb, USERVER_NAMESPACE::formats::json::ValueBuilder{static_cast<ns::AllOf::Foo__P0>(value)}.ExtractValue()
+        vb, USERVER_NAMESPACE::formats::json::ValueBuilder{static_cast<::ns::AllOf::Foo__P0>(value)}.ExtractValue()
     );
     USERVER_NAMESPACE::formats::common::Merge(
-        vb, USERVER_NAMESPACE::formats::json::ValueBuilder{static_cast<ns::AllOf::Foo__P1>(value)}.ExtractValue()
+        vb, USERVER_NAMESPACE::formats::json::ValueBuilder{static_cast<::ns::AllOf::Foo__P1>(value)}.ExtractValue()
     );
     return vb.ExtractValue();
 }
@@ -108,7 +108,7 @@ Serialize([[maybe_unused]] const ::ns::AllOf& value, USERVER_NAMESPACE::formats:
     USERVER_NAMESPACE::formats::json::ValueBuilder vb = USERVER_NAMESPACE::formats::common::Type::kObject;
 
     if (value.foo) {
-        vb["foo"] = USERVER_NAMESPACE::chaotic::Primitive<ns::AllOf::Foo>{*value.foo};
+        vb["foo"] = USERVER_NAMESPACE::chaotic::Primitive<::ns::AllOf::Foo>{*value.foo};
     }
 
     return vb.ExtractValue();

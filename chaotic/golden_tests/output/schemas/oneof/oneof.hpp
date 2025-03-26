@@ -15,7 +15,7 @@ namespace ns {
 struct OneOf {
     using Foo = std::variant<int, std::string>;
 
-    std::optional<ns::OneOf::Foo> foo{};
+    std::optional<::ns::OneOf::Foo> foo{};
 };
 
 bool operator==(const ::ns::OneOf& lhs, const ::ns::OneOf& rhs);
