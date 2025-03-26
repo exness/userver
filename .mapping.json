@@ -3605,6 +3605,7 @@
   "scripts/docs/en/userver/caches.md":"taxi/uservices/userver/scripts/docs/en/userver/caches.md",
   "scripts/docs/en/userver/chaos_testing.md":"taxi/uservices/userver/scripts/docs/en/userver/chaos_testing.md",
   "scripts/docs/en/userver/chaotic.md":"taxi/uservices/userver/scripts/docs/en/userver/chaotic.md",
+  "scripts/docs/en/userver/codegen_overview.md":"taxi/uservices/userver/scripts/docs/en/userver/codegen_overview.md",
   "scripts/docs/en/userver/component_system.md":"taxi/uservices/userver/scripts/docs/en/userver/component_system.md",
   "scripts/docs/en/userver/congestion_control.md":"taxi/uservices/userver/scripts/docs/en/userver/congestion_control.md",
   "scripts/docs/en/userver/deadline_propagation.md":"taxi/uservices/userver/scripts/docs/en/userver/deadline_propagation.md",
