@@ -9,11 +9,9 @@ chaos tests; see
 
 import asyncio
 import dataclasses
-import fcntl
 import functools
 import io
 import logging
-import os
 import random
 import re
 import select
@@ -26,6 +24,14 @@ import pytest
 from testsuite.utils import callinfo
 
 from pytest_userver import asyncio_socket
+
+
+class BaseError(Exception):
+    pass
+
+
+class ConnectionClosedError(BaseError):
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
@@ -99,6 +105,8 @@ async def _intercept_ok(
     socket_to: Socket,
 ) -> None:
     data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+    if not data:
+        raise ConnectionClosedError()
     await loop.sock_sendall(socket_to, data)
 
 
@@ -107,7 +115,7 @@ async def _intercept_noop(
     socket_from: Socket,
     socket_to: Socket,
 ) -> None:
-    pass
+    await _yield()
 
 
 async def _intercept_drop(
@@ -115,7 +123,9 @@ async def _intercept_drop(
     socket_from: Socket,
     socket_to: Socket,
 ) -> None:
-    await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+    data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+    if not data:
+        raise ConnectionClosedError()
 
 
 async def _intercept_delay(
@@ -125,6 +135,8 @@ async def _intercept_delay(
     socket_to: Socket,
 ) -> None:
     data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+    if not data:
+        raise ConnectionClosedError()
     await asyncio.sleep(delay)
     await loop.sock_sendall(socket_to, data)
 
@@ -134,7 +146,9 @@ async def _intercept_close_on_data(
     socket_from: Socket,
     socket_to: Socket,
 ) -> None:
-    await loop.sock_recv(socket_from, 1)
+    data = await loop.sock_recv(socket_from, 1)
+    if not data:
+        raise ConnectionClosedError()
     raise GateInterceptException('Closing socket on data')
 
 
@@ -144,6 +158,8 @@ async def _intercept_corrupt(
     socket_to: Socket,
 ) -> None:
     data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+    if not data:
+        raise ConnectionClosedError()
     await loop.sock_sendall(socket_to, bytearray([not x for x in data]))
 
 
@@ -177,7 +193,7 @@ class _InterceptBpsLimit:
         if bytes_to_recv > 0:
             data = await loop.sock_recv(socket_from, bytes_to_recv)
             if not data:
-                raise RuntimeError('Socket connection was closed by the other side')
+                raise ConnectionClosedError()
             self._bytes_left -= len(data)
 
             await loop.sock_sendall(socket_to, data)
@@ -228,7 +244,7 @@ class _InterceptSmallerParts:
     ) -> None:
         data = await loop.sock_recv(socket_from, self._max_size)
         if not data:
-            raise RuntimeError('Socket connection was closed by the other side')
+            raise ConnectionClosedError()
         await asyncio.sleep(self._sleep_per_packet)
         await loop.sock_sendall(socket_to, data)
 
@@ -258,6 +274,8 @@ class _InterceptConcatPackets:
             )
 
         data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+        if not data:
+            raise ConnectionClosedError()
         self._buf.write(data)
         if self._buf.tell() >= self._packet_size:
             await loop.sock_sendall(socket_to, self._buf.getvalue())
@@ -280,7 +298,7 @@ class _InterceptBytesLimit:
     ) -> None:
         data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
         if not data:
-            raise RuntimeError('Socket connection was closed by the other side')
+            raise ConnectionClosedError()
         if self._bytes_remain <= len(data):
             await loop.sock_sendall(socket_to, data[0 : self._bytes_remain])
             await self._gate.sockets_close()
@@ -303,6 +321,8 @@ class _InterceptSubstitute:
         socket_to: Socket,
     ) -> None:
         data = await loop.sock_recv(socket_from, RECV_MAX_SIZE)
+        if not data:
+            raise ConnectionClosedError()
         try:
             res = self._pattern.sub(self._repl, data.decode(self._encoding))
             data = res.encode(self._encoding)
@@ -328,7 +348,6 @@ def _make_socket_nonblocking(sock: Socket) -> None:
     sock.setblocking(False)
     if sock.type == socket.SOCK_STREAM:
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    fcntl.fcntl(sock, fcntl.F_SETFL, os.O_NONBLOCK)
 
 
 class _UdpDemuxSocketMock:
@@ -428,7 +447,6 @@ class _SocketsPaired:
 
                 logging.trace('running interceptor: %s', interceptor)
                 await interceptor(self._loop, socket_from, socket_to)
-                await _yield()
         except GateInterceptException as exc:
             logger.info('In "%s": %s', self._proxy_name, exc)
         except socket.error as exc:
