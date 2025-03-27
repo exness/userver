@@ -280,7 +280,7 @@ template <typename Response>
 UnaryCall<Response>::~UnaryCall() {
     if (!is_finished_) {
         impl::CancelWithError(stream_, GetCallName());
-        LogFinish(impl::kUnknownErrorStatus);
+        WriteAccessLog(impl::kUnknownErrorStatus);
     }
 }
 
@@ -298,7 +298,7 @@ void UnaryCall<Response>::Finish(Response& response) {
     // Otherwise, there would be no way to call FinishWithError there.
     is_finished_ = true;
 
-    LogFinish(grpc::Status::OK);
+    WriteAccessLog(grpc::Status::OK);
     impl::Finish(stream_, response, grpc::Status::OK, GetCallName());
     GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
     ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
@@ -308,7 +308,7 @@ template <typename Response>
 void UnaryCall<Response>::FinishWithError(const grpc::Status& status) {
     if (IsFinished()) return;
     is_finished_ = true;
-    LogFinish(status);
+    WriteAccessLog(status);
     impl::FinishWithError(stream_, status, GetCallName());
     GetStatistics().OnExplicitFinish(status.error_code());
     ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
@@ -327,7 +327,7 @@ template <typename Request, typename Response>
 InputStream<Request, Response>::~InputStream() {
     if (state_ != State::kFinished) {
         impl::CancelWithError(stream_, GetCallName());
-        LogFinish(impl::kUnknownErrorStatus);
+        WriteAccessLog(impl::kUnknownErrorStatus);
     }
 }
 
@@ -357,12 +357,11 @@ void InputStream<Request, Response>::Finish(Response& response) {
     // Otherwise, there would be no way to call FinishWithError there.
     state_ = State::kFinished;
 
-    const auto& status = grpc::Status::OK;
-    LogFinish(status);
+    WriteAccessLog(grpc::Status::OK);
 
-    impl::Finish(stream_, response, status, GetCallName());
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    impl::Finish(stream_, response, grpc::Status::OK, GetCallName());
+    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
+    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
 }
 
 template <typename Request, typename Response>
@@ -370,7 +369,7 @@ void InputStream<Request, Response>::FinishWithError(const grpc::Status& status)
     UASSERT(!status.ok());
     if (IsFinished()) return;
     state_ = State::kFinished;
-    LogFinish(status);
+    WriteAccessLog(status);
     impl::FinishWithError(stream_, status, GetCallName());
     GetStatistics().OnExplicitFinish(status.error_code());
     ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
@@ -389,7 +388,7 @@ template <typename Response>
 OutputStream<Response>::~OutputStream() {
     if (state_ != State::kFinished) {
         impl::Cancel(stream_, GetCallName());
-        LogFinish(impl::kUnknownErrorStatus);
+        WriteAccessLog(impl::kUnknownErrorStatus);
     }
 }
 
@@ -419,11 +418,10 @@ void OutputStream<Response>::Finish() {
     UINVARIANT(state_ != State::kFinished, "'Finish' called on a finished stream");
     state_ = State::kFinished;
 
-    const auto& status = grpc::Status::OK;
-    LogFinish(status);
-    impl::Finish(stream_, status, GetCallName());
+    WriteAccessLog(grpc::Status::OK);
+    impl::Finish(stream_, grpc::Status::OK, GetCallName());
     GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
 }
 
 template <typename Response>
@@ -431,7 +429,7 @@ void OutputStream<Response>::FinishWithError(const grpc::Status& status) {
     UASSERT(!status.ok());
     if (IsFinished()) return;
     state_ = State::kFinished;
-    LogFinish(status);
+    WriteAccessLog(status);
     impl::Finish(stream_, status, GetCallName());
     GetStatistics().OnExplicitFinish(status.error_code());
     ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
@@ -455,12 +453,11 @@ void OutputStream<Response>::WriteAndFinish(Response& response) {
     // may never actually be delivered
     grpc::WriteOptions write_options{};
 
-    const auto& status = grpc::Status::OK;
-    LogFinish(status);
+    WriteAccessLog(grpc::Status::OK);
 
-    impl::WriteAndFinish(stream_, response, write_options, status, GetCallName());
+    impl::WriteAndFinish(stream_, response, write_options, grpc::Status::OK, GetCallName());
     GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
 }
 
 template <typename Response>
@@ -480,7 +477,7 @@ template <typename Request, typename Response>
 BidirectionalStream<Request, Response>::~BidirectionalStream() {
     if (!is_finished_) {
         impl::Cancel(stream_, GetCallName());
-        LogFinish(impl::kUnknownErrorStatus);
+        WriteAccessLog(impl::kUnknownErrorStatus);
     }
 }
 
@@ -526,11 +523,10 @@ void BidirectionalStream<Request, Response>::Finish() {
     UINVARIANT(!is_finished_, "'Finish' called on a finished stream");
     is_finished_ = true;
 
-    const auto& status = grpc::Status::OK;
-    LogFinish(status);
-    impl::Finish(stream_, status, GetCallName());
+    WriteAccessLog(grpc::Status::OK);
+    impl::Finish(stream_, grpc::Status::OK, GetCallName());
     GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
 }
 
 template <typename Request, typename Response>
@@ -538,7 +534,7 @@ void BidirectionalStream<Request, Response>::FinishWithError(const grpc::Status&
     UASSERT(!status.ok());
     if (IsFinished()) return;
     is_finished_ = true;
-    LogFinish(status);
+    WriteAccessLog(status);
     impl::Finish(stream_, status, GetCallName());
     GetStatistics().OnExplicitFinish(status.error_code());
     ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
@@ -563,12 +559,11 @@ void BidirectionalStream<Request, Response>::WriteAndFinish(Response& response) 
     // Don't buffer writes, optimize for ping-pong-style interaction
     grpc::WriteOptions write_options{};
 
-    const auto& status = grpc::Status::OK;
-    LogFinish(status);
+    WriteAccessLog(grpc::Status::OK);
 
-    impl::WriteAndFinish(stream_, response, write_options, status, GetCallName());
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    impl::WriteAndFinish(stream_, response, write_options, grpc::Status::OK, GetCallName());
+    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
+    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
 }
 
 template <typename Request, typename Response>

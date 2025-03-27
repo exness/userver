@@ -28,7 +28,7 @@ void CallAnyBase::SetMetricsCallName(std::string_view call_name) {
 
 ugrpc::impl::RpcStatisticsScope& CallAnyBase::GetStatistics(ugrpc::impl::InternalTag) { return params_.statistics; }
 
-void CallAnyBase::LogFinish(grpc::Status status) const {
+void CallAnyBase::WriteAccessLog(grpc::Status status) const {
     constexpr auto kLevel = logging::Level::kInfo;
     if (!params_.access_tskv_logger.ShouldLog(kLevel)) {
         return;
