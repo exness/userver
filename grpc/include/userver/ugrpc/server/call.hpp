@@ -103,6 +103,8 @@ protected:
 
     void ApplyResponseHook(google::protobuf::Message* response);
 
+    void PostFinish(grpc::Status status);
+
 private:
     impl::CallParams params_;
     impl::CallKind call_kind_;

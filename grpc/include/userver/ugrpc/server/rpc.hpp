@@ -9,7 +9,6 @@
 
 #include <userver/ugrpc/deadline_timepoint.hpp>
 #include <userver/ugrpc/impl/internal_tag_fwd.hpp>
-#include <userver/ugrpc/impl/span.hpp>
 #include <userver/ugrpc/server/call.hpp>
 #include <userver/ugrpc/server/exceptions.hpp>
 #include <userver/ugrpc/server/impl/async_methods.hpp>
@@ -299,9 +298,9 @@ void UnaryCall<Response>::Finish(Response& response) {
     is_finished_ = true;
 
     WriteAccessLog(grpc::Status::OK);
+
     impl::Finish(stream_, response, grpc::Status::OK, GetCallName());
-    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
+    PostFinish(grpc::Status::OK);
 }
 
 template <typename Response>
@@ -310,8 +309,7 @@ void UnaryCall<Response>::FinishWithError(const grpc::Status& status) {
     is_finished_ = true;
     WriteAccessLog(status);
     impl::FinishWithError(stream_, status, GetCallName());
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    PostFinish(status);
 }
 
 template <typename Response>
@@ -360,8 +358,7 @@ void InputStream<Request, Response>::Finish(Response& response) {
     WriteAccessLog(grpc::Status::OK);
 
     impl::Finish(stream_, response, grpc::Status::OK, GetCallName());
-    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
+    PostFinish(grpc::Status::OK);
 }
 
 template <typename Request, typename Response>
@@ -371,8 +368,7 @@ void InputStream<Request, Response>::FinishWithError(const grpc::Status& status)
     state_ = State::kFinished;
     WriteAccessLog(status);
     impl::FinishWithError(stream_, status, GetCallName());
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    PostFinish(status);
 }
 
 template <typename Request, typename Response>
@@ -419,9 +415,9 @@ void OutputStream<Response>::Finish() {
     state_ = State::kFinished;
 
     WriteAccessLog(grpc::Status::OK);
+
     impl::Finish(stream_, grpc::Status::OK, GetCallName());
-    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
+    PostFinish(grpc::Status::OK);
 }
 
 template <typename Response>
@@ -431,8 +427,7 @@ void OutputStream<Response>::FinishWithError(const grpc::Status& status) {
     state_ = State::kFinished;
     WriteAccessLog(status);
     impl::Finish(stream_, status, GetCallName());
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    PostFinish(status);
 }
 
 template <typename Response>
@@ -456,8 +451,7 @@ void OutputStream<Response>::WriteAndFinish(Response& response) {
     WriteAccessLog(grpc::Status::OK);
 
     impl::WriteAndFinish(stream_, response, write_options, grpc::Status::OK, GetCallName());
-    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
+    PostFinish(grpc::Status::OK);
 }
 
 template <typename Response>
@@ -524,9 +518,9 @@ void BidirectionalStream<Request, Response>::Finish() {
     is_finished_ = true;
 
     WriteAccessLog(grpc::Status::OK);
+
     impl::Finish(stream_, grpc::Status::OK, GetCallName());
-    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
+    PostFinish(grpc::Status::OK);
 }
 
 template <typename Request, typename Response>
@@ -536,8 +530,7 @@ void BidirectionalStream<Request, Response>::FinishWithError(const grpc::Status&
     is_finished_ = true;
     WriteAccessLog(status);
     impl::Finish(stream_, status, GetCallName());
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    PostFinish(status);
 }
 
 template <typename Request, typename Response>
@@ -562,8 +555,7 @@ void BidirectionalStream<Request, Response>::WriteAndFinish(Response& response) 
     WriteAccessLog(grpc::Status::OK);
 
     impl::WriteAndFinish(stream_, response, write_options, grpc::Status::OK, GetCallName());
-    GetStatistics().OnExplicitFinish(grpc::StatusCode::OK);
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), grpc::Status::OK);
+    PostFinish(grpc::Status::OK);
 }
 
 template <typename Request, typename Response>
