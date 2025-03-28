@@ -47,7 +47,7 @@ docs:
 	@( \
 	    cat scripts/docs/doxygen.conf; \
 	    echo OUTPUT_DIRECTORY=docs \
-	  ) | $(DOXYGEN) -
+	  ) | $(DOXYGEN) - 2>&1 | python3 scripts/docs/clean_doxygen_logs.py
 	@echo 'userver.tech' > docs/html/CNAME
 	@cp docs/html/d8/dee/md_en_2userver_2404.html docs/html/404.html || :
 	@sed -i 's|\.\./\.\./|/|g' docs/html/404.html

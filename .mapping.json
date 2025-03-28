@@ -3570,6 +3570,7 @@
   "scripts/docker/ubuntu-24.04-base.dockerfile":"taxi/uservices/userver/scripts/docker/ubuntu-24.04-base.dockerfile",
   "scripts/docker/ubuntu-24.04-userver.dockerfile":"taxi/uservices/userver/scripts/docker/ubuntu-24.04-userver.dockerfile",
   "scripts/docs/README.md":"taxi/uservices/userver/scripts/docs/README.md",
+  "scripts/docs/clean_doxygen_logs.py":"taxi/uservices/userver/scripts/docs/clean_doxygen_logs.py",
   "scripts/docs/customdoxygen.css":"taxi/uservices/userver/scripts/docs/customdoxygen.css",
   "scripts/docs/doxygen-awesome-css/README.md":"taxi/uservices/userver/scripts/docs/doxygen-awesome-css/README.md",
   "scripts/docs/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js":"taxi/uservices/userver/scripts/docs/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js",
