@@ -2917,6 +2917,7 @@
   "postgresql/src/storages/postgres/transaction.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/transaction.cpp",
   "postgresql/src/storages/postgres/util_benchmark.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/util_benchmark.cpp",
   "postgresql/src/storages/postgres/util_benchmark.hpp":"taxi/uservices/userver/postgresql/src/storages/postgres/util_benchmark.hpp",
+  "pyproject.toml":"taxi/uservices/userver/pyproject.toml",
   "pytest.ini":"taxi/uservices/userver/pytest.ini",
   "rabbitmq/CMakeLists.txt":"taxi/uservices/userver/rabbitmq/CMakeLists.txt",
   "rabbitmq/README.md":"taxi/uservices/userver/rabbitmq/README.md",
