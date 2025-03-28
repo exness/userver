@@ -278,8 +278,8 @@ UnaryCall<Response>::UnaryCall(impl::CallParams&& call_params, impl::RawResponse
 template <typename Response>
 UnaryCall<Response>::~UnaryCall() {
     if (!is_finished_) {
-        impl::CancelWithError(stream_, GetCallName());
         WriteAccessLog(impl::kUnknownErrorStatus);
+        impl::CancelWithError(stream_, GetCallName());
     }
 }
 
@@ -324,8 +324,8 @@ InputStream<Request, Response>::InputStream(impl::CallParams&& call_params, impl
 template <typename Request, typename Response>
 InputStream<Request, Response>::~InputStream() {
     if (state_ != State::kFinished) {
-        impl::CancelWithError(stream_, GetCallName());
         WriteAccessLog(impl::kUnknownErrorStatus);
+        impl::CancelWithError(stream_, GetCallName());
     }
 }
 
@@ -383,8 +383,8 @@ OutputStream<Response>::OutputStream(impl::CallParams&& call_params, impl::RawWr
 template <typename Response>
 OutputStream<Response>::~OutputStream() {
     if (state_ != State::kFinished) {
-        impl::Cancel(stream_, GetCallName());
         WriteAccessLog(impl::kUnknownErrorStatus);
+        impl::Cancel(stream_, GetCallName());
     }
 }
 
@@ -470,8 +470,8 @@ BidirectionalStream<Request, Response>::BidirectionalStream(
 template <typename Request, typename Response>
 BidirectionalStream<Request, Response>::~BidirectionalStream() {
     if (!is_finished_) {
-        impl::Cancel(stream_, GetCallName());
         WriteAccessLog(impl::kUnknownErrorStatus);
+        impl::Cancel(stream_, GetCallName());
     }
 }
 
