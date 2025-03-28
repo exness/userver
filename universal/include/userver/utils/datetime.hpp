@@ -12,6 +12,8 @@
 
 #include <cctz/civil_time.h>
 
+#include <userver/utils/datetime/wall_coarse_clock.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace utils::datetime {
@@ -63,6 +65,12 @@ std::chrono::system_clock::time_point Epoch() noexcept;
 /// @warning You MUST NOT pass time points received from this function outside
 /// of your own code. Otherwise this will break your service in production.
 std::chrono::steady_clock::time_point SteadyNow() noexcept;
+
+/// @brief utils::datetime::WallCoarseClock::now() that could be mocked
+///
+/// Returns last time point passed to utils::datetime::MockNowSet(), or utils::datetime::WallCoarseClock::now() if
+/// the timepoint is not mocked.
+WallCoarseClock::time_point WallCoarseNow() noexcept;
 
 // See the comment to SteadyNow()
 class SteadyClock : public std::chrono::steady_clock {
