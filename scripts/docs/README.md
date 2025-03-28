@@ -2,7 +2,7 @@
 
 ## Requirement 📋
 
-The build was tested on Ubuntu 22.04 (and Mac OS Ventura 13.5 for development purposes)
+The build was tested on Ubuntu 22.04 (and macOS Ventura 13.5 for development purposes)
 
 ❗️ Requires doxygen 1.10.0+
 
@@ -10,9 +10,8 @@ The build was tested on Ubuntu 22.04 (and Mac OS Ventura 13.5 for development pu
 
 1. install dependencies: `sudo apt install make graphviz`
 2. download doxygen 1.10.0+: `wget https://www.doxygen.nl/files/doxygen-1.10.0.linux.bin.tar.gz && tar -xvzf doxygen-1.10.0.linux.bin.tar.gz`
-3. in project folder run: `make docs DOXYGEN=/PATH_TO/doxygen-1.10.0/bin/doxygen`
-
-P.S. Do not be afraid of the huge number of errors at the beginning of the build 🙃
+3. run cmake and perform a full build of userver to get `compile_commands.json` and run codegen
+4. in project folder run: `make docs DOXYGEN=/PATH_TO/doxygen-1.10.0/bin/doxygen BUILD_DIR=/absolute/path/to/build_dir`
 
 ## How to develop? 🛠️
 

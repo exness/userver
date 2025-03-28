@@ -34,6 +34,16 @@ docs:
 			exit 2; \
 		fi \
 	}
+	@if [ -z "$$BUILD_DIR" ]; then \
+        echo "!!! Set BUILD_DIR environment variable to cmake build directory with fully built userver."; \
+        echo "!!! See userver/scripts/docs/README.md"; \
+        exit 2; \
+	fi
+	@if [ ! -f "$$BUILD_DIR/compile_commands.json" ]; then \
+        echo "!!! Fully build userver before running 'make docs'."; \
+        echo "!!! See userver/scripts/docs/README.md"; \
+        exit 2; \
+	fi
 	@( \
 	    cat scripts/docs/doxygen.conf; \
 	    echo OUTPUT_DIRECTORY=docs \
