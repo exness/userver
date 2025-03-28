@@ -257,6 +257,9 @@ UTEST_F(RedisClusterClientTest, EvalSha) {
     }
     EXPECT_EQ(val2.Get(), "del");
     /// [Sample evalsha usage]
+
+    // Make sure that it is fine to load the same script multiple times
+    upload_scripts();
 }
 
 UTEST_F(RedisClusterClientTest, Subscribe) {
