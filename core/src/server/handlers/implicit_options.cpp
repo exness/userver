@@ -23,19 +23,16 @@ namespace {
 using AuthCheckers = std::unordered_map<std::string, auth::AuthCheckerBasePtr>;
 
 AuthCheckers MakeAuthCheckers(const components::ComponentConfig& config, const components::ComponentContext& context) {
-    constexpr auto kAuthCheckers = "auth_checkers";
+    const auto auth_config_raw = config["auth_checkers"];
+    if (auth_config_raw.IsMissing()) return {};
 
-    if (!config.HasMember(kAuthCheckers)) return {};
-
-    auth::HandlerAuthConfig auth_config(config[kAuthCheckers]);
-
-    const auto& auth_settings = context.FindComponent<components::AuthCheckerSettings>().Get();
+    const auth::HandlerAuthConfig auth_config(auth_config_raw);
 
     AuthCheckers checkers;
     for (const auto& type : auth_config.GetTypes()) {
         try {
-            const auto& auth_factory = auth::GetAuthCheckerFactory(type);
-            auto sp_checker = auth_factory(context, auth_config, auth_settings);
+            const auto auth_factory = auth::impl::MakeAuthCheckerFactory(type, context);
+            auto sp_checker = auth_factory->MakeAuthChecker(auth_config);
             if (sp_checker) {
                 checkers[type] = sp_checker;
                 LOG_INFO() << "Loaded " << type << " auth checker for implicit options handler";

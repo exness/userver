@@ -1526,6 +1526,7 @@
   "core/src/server/handlers/auth/apikey/auth_checker_apikey.cpp":"taxi/uservices/userver/core/src/server/handlers/auth/apikey/auth_checker_apikey.cpp",
   "core/src/server/handlers/auth/apikey/auth_checker_apikey.hpp":"taxi/uservices/userver/core/src/server/handlers/auth/apikey/auth_checker_apikey.hpp",
   "core/src/server/handlers/auth/apikey/factories.cpp":"taxi/uservices/userver/core/src/server/handlers/auth/apikey/factories.cpp",
+  "core/src/server/handlers/auth/apikey/factories.hpp":"taxi/uservices/userver/core/src/server/handlers/auth/apikey/factories.hpp",
   "core/src/server/handlers/auth/auth_checker.cpp":"taxi/uservices/userver/core/src/server/handlers/auth/auth_checker.cpp",
   "core/src/server/handlers/auth/auth_checker.hpp":"taxi/uservices/userver/core/src/server/handlers/auth/auth_checker.hpp",
   "core/src/server/handlers/auth/auth_checker_base.cpp":"taxi/uservices/userver/core/src/server/handlers/auth/auth_checker_base.cpp",
