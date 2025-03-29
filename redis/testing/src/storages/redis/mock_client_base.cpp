@@ -8,7 +8,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
 
-using utils::impl::AbortWithStacktrace;
+using utils::AbortWithStacktrace;
 
 MockClientBase::MockClientBase()
     : mock_transaction_impl_creator_(std::make_unique<MockTransactionImplCreator<MockTransactionImplBase>>()) {}

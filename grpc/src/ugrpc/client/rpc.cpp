@@ -111,7 +111,7 @@ engine::FutureStatus UnaryFuture::WaitUntil(engine::Deadline deadline) const noe
             return engine::FutureStatus::kTimeout;
     }
 
-    utils::impl::AbortWithStacktrace("Invalid WaitStatus");
+    utils::AbortWithStacktrace("Invalid WaitStatus");
 }
 
 void UnaryFuture::Get() {

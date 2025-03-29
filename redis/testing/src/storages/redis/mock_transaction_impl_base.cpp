@@ -6,7 +6,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
 
-using utils::impl::AbortWithStacktrace;
+using utils::AbortWithStacktrace;
 
 // redis commands:
 
