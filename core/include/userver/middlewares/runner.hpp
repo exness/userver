@@ -158,7 +158,7 @@ protected:
     );
 
     /// @cond
-    /// Only for internal use.
+    // Only for internal use.
     std::vector<std::shared_ptr<MiddlewareBase>> CreateMiddlewares(const HandlerInfo& info) const override;
     /// @endcond
 
@@ -189,6 +189,7 @@ RunnerComponentBase<MiddlewareBase, HandlerInfo>::RunnerComponentBase(
     }
 }
 
+/// @cond
 template <typename MiddlewareBase, typename HandlerInfo>
 std::vector<std::shared_ptr<MiddlewareBase>> RunnerComponentBase<MiddlewareBase, HandlerInfo>::CreateMiddlewares(
     const HandlerInfo& info
@@ -203,6 +204,7 @@ std::vector<std::shared_ptr<MiddlewareBase>> RunnerComponentBase<MiddlewareBase,
     }
     return middlewares;
 }
+/// @endcond
 
 namespace impl {
 

@@ -224,8 +224,8 @@ std::time_t LocalTimezoneUnlocalize(const cctz::civil_second& local_tp);
 std::string TimestampToString(std::time_t timestamp);
 
 /// @brief Convert time_point to DotNet ticks
-/// @param time point day time
-/// @return number of 100nanosec intervals between current date and 01/01/0001
+/// @param tp time point
+/// @return number of 100-nanosecond intervals between current date and 01/01/0001
 ///
 /// Example:
 ///

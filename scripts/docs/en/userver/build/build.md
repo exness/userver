@@ -384,7 +384,7 @@ Alternatively see @ref userver_install "userver install"
 @note The above image is build from `scripts/docker/ubuntu-22.04-pg.dockerfile`,
    `scripts/docker/ubuntu-22.04.dockerfile`
    and `scripts/docker/base-ubuntu-22.04.dockerfile` respectively.
-   See `scripts/docker/` directory and @ref scripts/docker/Readme.md for more
+   See `scripts/docker/` directory and `scripts/docker/Readme.md` for more
    inspiration on building your own custom docker containers.
 
 
