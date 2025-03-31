@@ -330,4 +330,28 @@ if(USERVER_FEATURE_CORE)
   )
 endif()
 
+if (USERVER_BUILD_TESTS)
+  function (_add_create_service_test FEATURE CMAKE_OPTS)
+    add_test(
+      NAME create-service${FEATURE} 
+      COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/create-service-test-helper"
+          "${CMAKE_CURRENT_SOURCE_DIR}"
+          "${CMAKE_CURRENT_BINARY_DIR}"
+          "${CMAKE_OPTS}"
+          ${FEATURE}
+    )
+  endfunction()
+  
+  _add_create_service_test("" "")
+  if(USERVER_FEATURE_MONGODB)
+    _add_create_service_test("--mongo" "")
+  endif()
+  if(USERVER_FEATURE_POSTGRESQL)
+    _add_create_service_test("--postgres" "")
+  endif()
+  if(USERVER_FEATURE_GRPC)
+    _add_create_service_test("--grpc" "-DUSERVER_GOOGLE_COMMON_PROTOS=${USERVER_GOOGLE_COMMON_PROTOS} -DUSERVER_DOWNLOAD_PACKAGES=${USERVER_DOWNLOAD_PACKAGES}")
+  endif()
+endif()
+
 _userver_print_features_list()

@@ -3553,6 +3553,7 @@
   "scripts/build_and_install_all.sh":"taxi/uservices/userver/scripts/build_and_install_all.sh",
   "scripts/chaotic/requirements.txt":"taxi/uservices/userver/scripts/chaotic/requirements.txt",
   "scripts/clickhouse/ubuntu-install-clickhouse.sh":"taxi/uservices/userver/scripts/clickhouse/ubuntu-install-clickhouse.sh",
+  "scripts/create-service-test-helper":"taxi/uservices/userver/scripts/create-service-test-helper",
   "scripts/docker/Readme.md":"taxi/uservices/userver/scripts/docker/Readme.md",
   "scripts/docker/base-debian-11.dockerfile":"taxi/uservices/userver/scripts/docker/base-debian-11.dockerfile",
   "scripts/docker/base-ubuntu-22.04-ci.dockerfile":"taxi/uservices/userver/scripts/docker/base-ubuntu-22.04-ci.dockerfile",
