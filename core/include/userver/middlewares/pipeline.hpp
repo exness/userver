@@ -106,11 +106,12 @@ private:
 class MiddlewareDependencyBuilder final {
 public:
     /// @brief Make an empty dependency builder. For middlewares, `InGroup` must be called at some point.
-    explicit MiddlewareDependencyBuilder() = default;
+    MiddlewareDependencyBuilder() = default;
 
     MiddlewareDependencyBuilder(const MiddlewareDependencyBuilder&) = default;
-
     MiddlewareDependencyBuilder(MiddlewareDependencyBuilder&&) noexcept = default;
+    MiddlewareDependencyBuilder& operator=(const MiddlewareDependencyBuilder&) = default;
+    MiddlewareDependencyBuilder& operator=(MiddlewareDependencyBuilder&&) = default;
 
     /// @brief Add dependency for your middleware. Your middleware will be before `MiddlewareBefore` in the pipeline
     /// @param type is connection type between middlewares
@@ -138,10 +139,13 @@ public:
 
     /// @cond
     // Only for internal use.
-    impl::MiddlewareDependency Extract(std::string_view middleware_name) &&;
+    impl::MiddlewareDependency ExtractDependency(std::string_view middleware_name) &&;
+    impl::MiddlewareDependency ExtractGroupDependency(std::string_view group_name) &&;
     /// @endcond
 
 private:
+    void InUserGroupByDefault();
+
     impl::MiddlewareDependency dep_{};
 };
 

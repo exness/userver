@@ -62,7 +62,7 @@ public:
     )
         : impl::WithMiddlewareDependencyComponentBase(config, context),
           global_config_(config.As<formats::yaml::Value>()),
-          dependency_(std::move(builder).Extract(config.Name())) {}
+          dependency_(std::move(builder).ExtractDependency(/*middleware_name=*/config.Name())) {}
 
     /// @brief Returns a middleware according to the component's settings.
     ///
