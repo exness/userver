@@ -4,7 +4,7 @@
 
 Make sure that you can compile and run core tests and read a basic example @ref scripts/docs/en/userver/tutorial/hello_service.md.
 
-Make sure that you understand the basic concepts of @ref scripts/docs/en/userver/grpc.md "userver grpc driver".
+Make sure that you understand the basic concepts of @ref scripts/docs/en/userver/grpc/grpc.md "userver grpc driver".
 
 ## Step by step guide
 

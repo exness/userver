@@ -91,8 +91,12 @@ are available at the
 
 
 ## Protocols
-* @ref scripts/docs/en/userver/grpc.md
-    * @ref scripts/docs/en/userver/grpc_server_middlewares.md
+* @ref scripts/docs/en/userver/grpc/grpc.md
+    * Middlewares
+        * @ref scripts/docs/en/userver/grpc/server_middlewares.md
+        * @ref scripts/docs/en/userver/grpc/client_middlewares.md
+        * @ref scripts/docs/en/userver/grpc/middlewares_order.md
+        * @ref scripts/docs/en/userver/grpc/middlewares_configuration.md
 * HTTP:
     * @ref clients::http::Client "Client"
     * @ref scripts/docs/en/userver/http_server.md

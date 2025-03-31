@@ -18,7 +18,7 @@ namespace middlewares {
 
 /// @brief The dependency type between middlewares.
 ///
-/// Iff dependency type from 'X' to 'Y' is `kStrong` and 'Y' is disabled, userver will failure when start,
+/// Iff dependency type from 'X' to 'Y' is `kStrong` and 'Y' is disabled, middlewares pipeline will failure when start,
 /// otherwise (in `kWeak`) we ignore this dependency.
 enum class DependencyType {
     kStrong = 0,

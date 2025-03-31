@@ -255,7 +255,7 @@ Changelog news also go to the
   * Improved schemes validation messages, including config validation messages because no schema is written.
   * Disambiguated diagnostic messages for component system.
   * Better log messages for the dist locks.
-  * Better docs for gRPC middlewares and gRPC logs at @ref scripts/docs/en/userver/grpc.md.
+  * Better docs for gRPC middlewares and gRPC logs at @ref scripts/docs/en/userver/grpc/grpc.md.
   * Added topology and heartbeats logs and metrics for Mongo.
   * Clarified docs on PostgreSQL data types with timezones. See @ref scripts/docs/en/userver/pg_types.md.
   * Added @ref scripts/docs/en/userver/tutorial/kafka_service.md tutorial.
@@ -321,7 +321,7 @@ Changelog news also go to the
   * Started the work to enable builds in directories with whitespace in names.
 
 * Documentation:
-  * More docs for gRPC middlewares at @ref scripts/docs/en/userver/grpc.md
+  * More docs for gRPC middlewares at @ref scripts/docs/en/userver/grpc/grpc.md
     and @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md.
   * More docs for otlp::LoggerComponent. Thanks to
     [TertiumOrganum1](https://github.com/TertiumOrganum1) for the PR!
@@ -869,7 +869,7 @@ Binary Ubuntu 22.04 amd64 package could be found at
   * TESTPOINT() and TESTPOINT_CALLBACK() now produce less instructions and
     guaranteed to not throw it the testpoints are disabled.
 * Documentation:
-  * @ref scripts/docs/en/userver/grpc.md now has a deeper explanation of
+  * @ref scripts/docs/en/userver/grpc/grpc.md now has a deeper explanation of
     middlewares
   * New @ref scripts/docs/en/userver/dynamic_config.md page and related samples.
   * Samples were significantly simplified, more static configuration options
@@ -918,7 +918,7 @@ Binary Ubuntu 22.04 amd64 package could be found at
 * Documentation:
     * Documentation version switch was added to the bottom of the page.
     * gRPC SSL server credentials setup info was added into
-      @ref scripts/docs/en/userver/grpc.md
+      @ref scripts/docs/en/userver/grpc/grpc.md
     * Clarified behavior of server::http::HttpRequest::GetArg()
     * Added @ref scripts/docs/en/userver/tutorial/multipart_service.md
     * More clarifications for the
