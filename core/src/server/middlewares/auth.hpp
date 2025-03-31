@@ -4,6 +4,7 @@
 #include <userver/server/handlers/auth/auth_checker_factory.hpp>
 #include <userver/server/middlewares/builtin.hpp>
 #include <userver/server/middlewares/http_middleware_base.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 #include <userver/utils/impl/transparent_hash.hpp>
 #include <userver/utils/not_null.hpp>
 
@@ -43,6 +44,8 @@ public:
     static constexpr std::string_view kName = Auth::kName;
 
     AuthFactory(const components::ComponentConfig&, const components::ComponentContext&);
+
+    const handlers::auth::AuthCheckerFactoryBase& GetAuthCheckerFactory(std::string_view auth_type) const;
 
 private:
     std::unique_ptr<HttpMiddlewareBase> Create(const handlers::HttpHandlerBase&, yaml_config::YamlConfig)

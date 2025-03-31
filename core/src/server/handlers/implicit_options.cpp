@@ -7,6 +7,7 @@
 #include <server/http/handler_info_index.hpp>
 #include <server/http/handler_methods.hpp>
 #include <server/http/http_request_handler.hpp>
+#include <server/middlewares/auth.hpp>
 #include <userver/components/component.hpp>
 #include <userver/http/common_headers.hpp>
 #include <userver/server/component.hpp>
@@ -28,11 +29,14 @@ AuthCheckers MakeAuthCheckers(const components::ComponentConfig& config, const c
 
     const auth::HandlerAuthConfig auth_config(auth_config_raw);
 
+    const auto* auth_middleware_factory = context.FindComponentOptional<server::middlewares::AuthFactory>();
+    if (!auth_middleware_factory) return {};
+
     AuthCheckers checkers;
     for (const auto& type : auth_config.GetTypes()) {
         try {
-            const auto auth_factory = auth::impl::MakeAuthCheckerFactory(type, context);
-            auto sp_checker = auth_factory->MakeAuthChecker(auth_config);
+            const auto& auth_factory = auth_middleware_factory->GetAuthCheckerFactory(type);
+            auto sp_checker = auth_factory.MakeAuthChecker(auth_config);
             if (sp_checker) {
                 checkers[type] = sp_checker;
                 LOG_INFO() << "Loaded " << type << " auth checker for implicit options handler";

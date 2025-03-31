@@ -1,5 +1,7 @@
 #include <server/middlewares/auth.hpp>
 
+#include <fmt/format.h>
+
 #include <server/handlers/auth/auth_checker.hpp>
 #include <userver/server/http/http_request.hpp>
 
@@ -44,6 +46,13 @@ bool Auth::CheckAuth(const http::HttpRequest& request, request::RequestContext& 
 
 AuthFactory::AuthFactory(const components::ComponentConfig& config, const components::ComponentContext& context)
     : HttpMiddlewareFactoryBase{config, context}, factories_(handlers::auth::CreateAuthCheckerFactories(context)) {}
+
+const handlers::auth::AuthCheckerFactoryBase& AuthFactory::GetAuthCheckerFactory(std::string_view auth_type) const {
+    if (const auto* checker_factory = utils::impl::FindTransparentOrNullptr(factories_, auth_type)) {
+        return **checker_factory;
+    }
+    throw std::runtime_error(fmt::format("Unknown auth type '{}'", auth_type));
+}
 
 std::unique_ptr<HttpMiddlewareBase>
 AuthFactory::Create(const handlers::HttpHandlerBase& handler, yaml_config::YamlConfig) const {
