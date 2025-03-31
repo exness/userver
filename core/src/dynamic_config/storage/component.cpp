@@ -16,6 +16,7 @@
 #include <userver/dynamic_config/storage_mock.hpp>
 #include <userver/engine/condition_variable.hpp>
 #include <userver/engine/mutex.hpp>
+#include <userver/formats/json/serialize.hpp>
 #include <userver/fs/read.hpp>
 #include <userver/fs/write.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
