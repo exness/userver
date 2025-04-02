@@ -95,17 +95,17 @@ public:
 protected:
     ugrpc::impl::RpcStatisticsScope& GetStatistics() { return params_.statistics; }
 
-    logging::TextLoggerRef AccessTskvLogger() { return params_.access_tskv_logger; }
-
-    void WriteAccessLog(grpc::Status status) const;
-
     void ApplyRequestHook(google::protobuf::Message* request);
 
     void ApplyResponseHook(google::protobuf::Message* response);
 
-    void PostFinish(grpc::Status status);
+    void PreSendStatus(const grpc::Status& status) noexcept;
+
+    void PostFinish(const grpc::Status& status) noexcept;
 
 private:
+    void WriteAccessLog(const grpc::Status& status) const;
+
     impl::CallParams params_;
     impl::CallKind call_kind_;
     MiddlewareCallContext* middleware_call_context_{nullptr};

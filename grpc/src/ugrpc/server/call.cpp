@@ -39,22 +39,6 @@ void CallAnyBase::RunMiddlewarePipeline(utils::impl::InternalTag, MiddlewareCall
     md_call_context.Next();
 }
 
-void CallAnyBase::WriteAccessLog(grpc::Status status) const {
-    constexpr auto kLevel = logging::Level::kInfo;
-    if (!params_.access_tskv_logger.ShouldLog(kLevel)) {
-        return;
-    }
-
-    logging::impl::TextLogItem str{impl::FormatLogMessage(
-        params_.context.client_metadata(),
-        params_.context.peer(),
-        params_.call_span.GetStartSystemTime(),
-        params_.call_name,
-        status.error_code()
-    )};
-    params_.access_tskv_logger.Log(logging::Level::kInfo, str);
-}
-
 void CallAnyBase::ApplyRequestHook(google::protobuf::Message* request) {
     UINVARIANT(middleware_call_context_, "MiddlewareCallContext must be invoked");
     if (request) {
@@ -75,9 +59,37 @@ void CallAnyBase::ApplyResponseHook(google::protobuf::Message* response) {
     }
 }
 
-void CallAnyBase::PostFinish(grpc::Status status) {
-    GetStatistics().OnExplicitFinish(status.error_code());
-    ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+void CallAnyBase::PreSendStatus(const grpc::Status& status) noexcept {
+    try {
+        WriteAccessLog(status);
+    } catch (const std::exception& ex) {
+        LOG_ERROR() << "Error in CallAnyBase::PreSendStatus: " << ex;
+    }
+}
+
+void CallAnyBase::PostFinish(const grpc::Status& status) noexcept {
+    try {
+        GetStatistics().OnExplicitFinish(status.error_code());
+        ugrpc::impl::UpdateSpanWithStatus(GetSpan(), status);
+    } catch (const std::exception& ex) {
+        LOG_ERROR() << "Error in CallAnyBase::PostFinish: " << ex;
+    }
+}
+
+void CallAnyBase::WriteAccessLog(const grpc::Status& status) const {
+    constexpr auto kLevel = logging::Level::kInfo;
+    if (!params_.access_tskv_logger.ShouldLog(kLevel)) {
+        return;
+    }
+
+    logging::impl::TextLogItem str{impl::FormatLogMessage(
+        params_.context.client_metadata(),
+        params_.context.peer(),
+        params_.call_span.GetStartSystemTime(),
+        params_.call_name,
+        status.error_code()
+    )};
+    params_.access_tskv_logger.Log(logging::Level::kInfo, str);
 }
 
 }  // namespace ugrpc::server
