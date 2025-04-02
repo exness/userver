@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 
 #include <userver/compiler/demangle.hpp>
+#include <userver/components/component_context.hpp>
 #include <userver/concurrent/variable.hpp>
 #include <userver/engine/sleep.hpp>
 #include <userver/engine/task/task_with_result.hpp>
@@ -106,15 +107,24 @@ ComponentContextImpl::ComponentContextImpl(const Manager& manager, std::vector<s
     StartPrintAddingComponentsTask();
 }
 
-RawComponentBase*
-ComponentContextImpl::AddComponent(std::string_view name, const ComponentFactory& factory, ComponentContext& context) {
+RawComponentBase* ComponentContextImpl::AddComponent(
+    std::string_view name,
+    const ComponentConfig& config,
+    const ComponentAdderBase& adder
+) {
     auto& component_info = components_.at(impl::ComponentNameFromInfo{name});
     TaskToComponentMapScope task_to_component_map_scope(*this, component_info.Name());
 
     if (component_info.GetComponent())
         throw std::runtime_error("trying to add component " + std::string{name} + " multiple times");
 
-    component_info.SetComponent(factory(context));
+    // Put `name` on heap to detect use-after-free consistently.
+    const auto name_string = std::make_unique<std::string>(name);
+    // Put `context` on heap to detect use-after-free consistently.
+    const auto context = std::make_unique<ComponentContext>(utils::impl::InternalTag{}, *this, *name_string);
+
+    component_info.SetComponent(adder.MakeComponent(config, *context));
+
     auto* component = component_info.GetComponent();
     if (component) {
         // Call the following command on logs to get the component dependencies:

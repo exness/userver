@@ -1,5 +1,6 @@
 #include <userver/components/manager_controller_component.hpp>
 
+#include <components/manager.hpp>
 #include <components/manager_config.hpp>
 #include <engine/task/task_processor.hpp>
 #include <engine/task/task_processor_pools.hpp>
@@ -8,8 +9,6 @@
 #include <userver/dynamic_config/value.hpp>
 #include <userver/logging/component.hpp>
 #include <userver/utils/algo.hpp>
-
-#include <components/manager.hpp>
 
 #include <dynamic_config/variables/USERVER_TASK_PROCESSOR_QOS.hpp>
 
@@ -59,7 +58,7 @@ ManagerControllerComponent::ManagerControllerComponent(
     const components::ComponentConfig&,
     const components::ComponentContext& context
 )
-    : components_manager_(context.GetManager()) {
+    : components_manager_(context.GetManager(utils::impl::InternalTag{})) {
     auto& storage = context.FindComponent<components::StatisticsStorage>().GetStorage();
 
     auto config_source = context.FindComponent<DynamicConfig>().GetSource();

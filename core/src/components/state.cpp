@@ -8,7 +8,7 @@ USERVER_NAMESPACE_BEGIN
 namespace components {
 
 // Hiding reference to ComponentContext from users
-State::State(const ComponentContext& cc) noexcept : impl_{*cc.impl_} {}
+State::State(const ComponentContext& cc) noexcept : impl_{cc.GetImpl(utils::impl::InternalTag{})} {}
 
 bool State::IsAnyComponentInFatalState() const { return impl_.IsAnyComponentInFatalState(); }
 

@@ -29,6 +29,10 @@ namespace components {
 class ComponentList;
 struct ManagerConfig;
 
+namespace impl {
+class ComponentAdderBase;
+}  // namespace impl
+
 using ComponentConfigMap = std::unordered_map<std::string, const ComponentConfig&>;
 
 class Manager final {
@@ -74,19 +78,10 @@ private:
     void CreateComponentContext(const ComponentList& component_list);
     void AddComponents(const ComponentList& component_list);
 
-    friend void impl::AddComponentImpl(
-        Manager& manager,
-        const components::ComponentConfigMap& config_map,
-        const std::string& name,
-        impl::ComponentBaseFactory factory
-    );
-
     void AddComponentImpl(
         const components::ComponentConfigMap& config_map,
         const std::string& name,
-        std::function<std::unique_ptr<
-            components::RawComponentBase>(const components::ComponentConfig&, const components::ComponentContext&)>
-            factory
+        const impl::ComponentAdderBase& adder
     );
     void ClearComponents() noexcept;
     components::ComponentConfigMap MakeComponentConfigMap(const ComponentList& component_list);
@@ -96,7 +91,7 @@ private:
     TaskProcessorsStorage task_processors_storage_;
 
     mutable std::shared_timed_mutex context_mutex_;
-    components::ComponentContext component_context_;
+    std::unique_ptr<impl::ComponentContextImpl> component_context_;
     bool components_cleared_{false};
 
     engine::TaskProcessor* default_task_processor_{nullptr};

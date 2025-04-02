@@ -17,8 +17,8 @@ namespace impl {
 class ComponentContextImpl;
 }
 
-/// State of components that is usable after the components constructor and
-/// until all the components were not destroyed.
+/// A view of the components' state that is usable after the components are
+/// constructed and until all the components are destroyed.
 ///
 /// @see components::ComponentContext
 class State final {

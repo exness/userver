@@ -1,7 +1,5 @@
 #pragma once
 
-#include <userver/components/component_context.hpp>
-
 #include <atomic>
 #include <set>
 #include <stdexcept>
@@ -21,13 +19,24 @@
 
 USERVER_NAMESPACE_BEGIN
 
+namespace components {
+class Manager;
+class ComponentConfig;
+class ComponentContext;
+}  // namespace components
+
 namespace components::impl {
+
+enum class ComponentLifetimeStage;
+class ComponentInfo;
+class ComponentAdderBase;
 
 class ComponentContextImpl {
 public:
     ComponentContextImpl(const Manager& manager, std::vector<std::string>&& loading_component_names);
 
-    RawComponentBase* AddComponent(std::string_view name, const ComponentFactory& factory, ComponentContext& context);
+    RawComponentBase*
+    AddComponent(std::string_view name, const ComponentConfig& config, const ComponentAdderBase& adder);
 
     void OnAllComponentsLoaded();
 
