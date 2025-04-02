@@ -89,6 +89,9 @@ class SourceLocation:
     # e.g. /definitions/Type
     location: str
 
+    def stringify(self) -> str:
+        return f'{self.filepath}#{self.location}'
+
 
 @dataclasses.dataclass
 class Base:

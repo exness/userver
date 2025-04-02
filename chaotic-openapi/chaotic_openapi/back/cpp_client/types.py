@@ -71,6 +71,7 @@ class Operation:
 @dataclasses.dataclass
 class ClientSpec:
     client_name: str
+    description: str
     cpp_namespace: str
     operations: List[Operation]
 
