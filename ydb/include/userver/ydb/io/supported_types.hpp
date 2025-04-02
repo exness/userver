@@ -12,6 +12,7 @@
 ///  * ValueType::String,      std::string
 ///  * ValueType::Utf8,        ydb::Utf8
 ///  * ValueType::Timestamp,   std::chrono::system_clock::time_point
+///  * ValueType::Uuid,        boost::uuids::uuid
 ///
 /// Available composite types:
 ///  * Optional,    std::optional for primitive types
