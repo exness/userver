@@ -1,4 +1,3 @@
-# pylint: disable=protected-access,redefined-outer-name
 import asyncio
 import logging
 
@@ -6,8 +5,6 @@ import grpc
 import pytest
 from pytest_userver import chaos
 from service import GreeterService
-
-import samples.greeter_pb2_grpc as greeter_pb2_grpc  # noqa: E402, E501
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +23,7 @@ def _grpc_client_port(request) -> int:
 
 
 @pytest.fixture(scope='session')
-async def _gate_started(grpc_client_port):
+async def _gate_started(grpc_client_port, grpc_mockserver_session):
     gate_config = chaos.GateRoute(
         name='grpc client tcp proxy',
         host_for_client='::1',
@@ -58,12 +55,12 @@ def prepare_service_config(grpc_service_port_local):
 
 
 @pytest.fixture
-def extra_client_deps(_gate_started):
+def extra_client_deps(gate):
     pass
 
 
 @pytest.fixture(name='gate')
-async def _gate_ready(service_client, _gate_started):
+async def _gate_ready(_gate_started, greeter_mock):
     _gate_started.to_server_pass()
     _gate_started.to_client_pass()
     _gate_started.start_accepting()
@@ -73,30 +70,24 @@ async def _gate_ready(service_client, _gate_started):
     yield _gate_started
 
 
+# Overriding userver fixture
 @pytest.fixture(scope='session')
-async def server_run(grpc_client_port):
-    server = grpc.aio.server()
-    greeter_pb2_grpc.add_GreeterServiceServicer_to_server(
-        GreeterService(),
-        server,
-    )
-    listen_addr = f'[::]:{grpc_client_port}'
-    server.add_insecure_port(listen_addr)
-    logging.info('Starting server on %s', listen_addr)
-    server_task = asyncio.create_task(server.start())
-    try:
-        yield server
-    finally:
-        await server.stop(grace=None)
-        await server.wait_for_termination()
-        await server_task
+def grpc_mockserver_endpoint(grpc_client_port):
+    return f'[::]:{grpc_client_port}'
+
+
+# [installing mockserver servicer]
+@pytest.fixture(name='greeter_mock')
+def _greeter_mock(grpc_mockserver):
+    mock = GreeterService()
+    grpc_mockserver.install_servicer(mock)
+    return mock
+    # [installing mockserver servicer]
 
 
 @pytest.fixture(scope='session')
-async def _grpc_session_ch(server_run, grpc_service_port_local):
-    async with grpc.aio.insecure_channel(
-        f'[::1]:{grpc_service_port_local}',
-    ) as channel:
+async def _grpc_session_ch(grpc_mockserver_session, grpc_service_port_local):
+    async with grpc.aio.insecure_channel(f'[::1]:{grpc_service_port_local}') as channel:
         yield channel
 
 

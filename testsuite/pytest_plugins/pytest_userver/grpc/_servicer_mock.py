@@ -57,6 +57,10 @@ class _ServiceMock:
     def service_name(self) -> str:
         return self._service_name
 
+    @property
+    def known_methods(self) -> Collection[str]:
+        return self._known_methods
+
     def add_to_server(self, server: grpc.aio.Server) -> None:
         self._adder(self._servicer, server)
 
