@@ -4774,6 +4774,7 @@
   "ydb/include/userver/ydb/impl/stats_scope.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/impl/stats_scope.hpp",
   "ydb/include/userver/ydb/impl/string.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/impl/string.hpp",
   "ydb/include/userver/ydb/impl/string_view.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/impl/string_view.hpp",
+  "ydb/include/userver/ydb/io/generic_optional.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/io/generic_optional.hpp",
   "ydb/include/userver/ydb/io/insert_row.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/io/insert_row.hpp",
   "ydb/include/userver/ydb/io/list.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/io/list.hpp",
   "ydb/include/userver/ydb/io/primitives.hpp":"taxi/uservices/userver/ydb/include/userver/ydb/io/primitives.hpp",

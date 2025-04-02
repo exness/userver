@@ -15,7 +15,7 @@
 ///  * ValueType::Uuid,        boost::uuids::uuid
 ///
 /// Available composite types:
-///  * Optional,    std::optional for primitive types
+///  * Optional,    std::optional for primitive types, List and Struct
 ///  * List,        std::vector and non-map containers
 ///  * Struct,      @ref ydb::kStructMemberNames "C++ structs"
 
