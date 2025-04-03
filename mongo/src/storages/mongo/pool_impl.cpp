@@ -26,14 +26,7 @@ PoolImpl::PoolImpl(std::string&& id, const PoolConfig& static_config, dynamic_co
           config_source,
           [](const dynamic_config::Snapshot& snapshot) {
               const auto& cfg = snapshot[::dynamic_config::MONGO_CONGESTION_CONTROL_SETTINGS];
-              congestion_control::v2::Config config;
-              config.errors_threshold_percent = cfg.errors_threshold_percent;
-              config.safe_delta_limit = cfg.safe_delta_limit;
-              config.timings_burst_threshold = cfg.timings_burst_times_threshold;
-              config.min_timings = cfg.min_timings_ms;
-              config.min_limit = cfg.min_limit;
-              config.min_qps = cfg.min_qps;
-              return config;
+              return congestion_control::v2::ConvertConfig(cfg);
           }
       ) {}
 
