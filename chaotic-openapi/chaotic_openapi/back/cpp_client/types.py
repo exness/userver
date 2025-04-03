@@ -1,6 +1,7 @@
 import dataclasses
 from typing import List
 from typing import Optional
+from typing import Set
 
 from chaotic import cpp_names
 from chaotic.back.cpp import types as cpp_types
@@ -8,12 +9,14 @@ from chaotic.back.cpp import types as cpp_types
 
 @dataclasses.dataclass
 class Parameter:
+    description: str
     raw_name: str
     cpp_name: str
     cpp_type: str
     parser: str
+    required: bool
 
-    def declaration_includes(self) -> str:
+    def declaration_includes(self) -> List[str]:
         # TODO
         return []
 
@@ -82,7 +85,7 @@ class ClientSpec:
         return False
 
     def requests_declaration_includes(self) -> List[str]:
-        includes = set()
+        includes: Set[str] = set()
         for op in self.operations:
             # TODO: for body in op.request_bodies:
             # TODO:     if body.schema:

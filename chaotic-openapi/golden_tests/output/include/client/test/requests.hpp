@@ -12,7 +12,9 @@ namespace testme_post {
 using Body = int;
 
 struct Request {
-    int number;
+    std::string number;
+
+    std::vector<std::string> array;
 
     Body body;
 };

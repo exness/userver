@@ -79,6 +79,7 @@
   "chaotic-openapi/include/userver/chaotic/openapi/parameters.hpp":"taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/parameters.hpp",
   "chaotic-openapi/include/userver/chaotic/openapi/parameters_read.hpp":"taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/parameters_read.hpp",
   "chaotic-openapi/include/userver/chaotic/openapi/parameters_write.hpp":"taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/parameters_write.hpp",
+  "chaotic-openapi/mypy/conftest.py":"taxi/uservices/userver/chaotic-openapi/mypy/conftest.py",
   "chaotic-openapi/src/chaotic/openapi/client/command_control.cpp":"taxi/uservices/userver/chaotic-openapi/src/chaotic/openapi/client/command_control.cpp",
   "chaotic-openapi/src/chaotic/openapi/client/config.cpp":"taxi/uservices/userver/chaotic-openapi/src/chaotic/openapi/client/config.cpp",
   "chaotic-openapi/src/chaotic/openapi/parameters.cpp":"taxi/uservices/userver/chaotic-openapi/src/chaotic/openapi/parameters.cpp",

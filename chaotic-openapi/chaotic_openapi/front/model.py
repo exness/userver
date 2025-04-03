@@ -23,6 +23,7 @@ class Style(str, enum.Enum):
     simple = 'simple'
     spaceDelimited = 'spaceDelimited'
     pipeDelimited = 'pipeDelimited'
+    deepObject = 'deepObject'
 
 
 @dataclasses.dataclass

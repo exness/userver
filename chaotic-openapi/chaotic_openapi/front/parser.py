@@ -1,5 +1,6 @@
 import dataclasses
 import re
+import typing
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -47,7 +48,7 @@ class Parser:
 
     def _convert_header(self, header: openapi.Header) -> model.Parameter:
         # TODO:
-        return model.Parameter()
+        assert False
 
     def _convert_media_type(self, media_type: openapi.MediaType) -> model.MediaType:
         schema_ref = self._parse_schema(media_type.schema, 'TODO')
@@ -70,7 +71,7 @@ class Parser:
         p = model.Parameter(
             name=parameter.name,
             in_=model.In(parameter.in_),
-            description=parameter.description,
+            description=parameter.description or '',
             examples=parameter.examples,
             deprecated=parameter.deprecated,
             required=parameter.required,
@@ -99,7 +100,7 @@ class Parser:
 
             # components/responses
             for name, response in parsed.components.responses.items():
-                self._state.service.responses[self._state.full_filepath + '#/compoents/responses/' + name] = (
+                self._state.service.responses[self._state.full_filepath + f'#/compoents/responses/{name}'] = (
                     model.Response(
                         description=response.description,
                         headers={key: self._convert_header(value) for (key, value) in response.headers.items()},
@@ -115,17 +116,18 @@ class Parser:
                 )
 
         elif isinstance(parsed, swagger.Swagger):
+            parsed = typing.cast(swagger.Swagger, parsed)
             components_schemas = parsed.definitions
             components_schemas_path = '/definitions'
 
-            for path, path_item in parsed.paths.items():
-                self._append_swagger_operation(parsed.basePath + path, 'get', path_item.get)
-                self._append_swagger_operation(parsed.basePath + path, 'post', path_item.post)
-                self._append_swagger_operation(parsed.basePath + path, 'put', path_item.put)
-                self._append_swagger_operation(parsed.basePath + path, 'delete', path_item.delete)
-                self._append_swagger_operation(parsed.basePath + path, 'options', path_item.options)
-                self._append_swagger_operation(parsed.basePath + path, 'head', path_item.head)
-                self._append_swagger_operation(parsed.basePath + path, 'patch', path_item.patch)
+            for sw_path, sw_path_item in parsed.paths.items():
+                self._append_swagger_operation(parsed.basePath + sw_path, 'get', sw_path_item.get)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'post', sw_path_item.post)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'put', sw_path_item.put)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'delete', sw_path_item.delete)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'options', sw_path_item.options)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'head', sw_path_item.head)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'patch', sw_path_item.patch)
         else:
             assert False
 
@@ -149,7 +151,7 @@ class Parser:
     REF_SHRINK_RE = re.compile('/[^/]+/../')
 
     @staticmethod
-    def _normalize_ref(ref: str) -> None:
+    def _normalize_ref(ref: str) -> str:
         while Parser.REF_SHRINK_RE.search(ref):
             ref = re.sub(Parser.REF_SHRINK_RE, '/', ref)
         return ref

@@ -40,7 +40,7 @@ class Parameter(pydantic.BaseModel):
 
     def model_post_init(self, context: Any, /) -> None:
         if self.in_ == In.body:
-            assert self.schema
+            assert self.schema_
         else:
             assert self.type
             if self.type == 'array':

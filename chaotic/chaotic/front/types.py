@@ -89,7 +89,7 @@ class SourceLocation:
     # e.g. /definitions/Type
     location: str
 
-    def stringify(self) -> str:
+    def __str__(self) -> str:
         return f'{self.filepath}#{self.location}'
 
 

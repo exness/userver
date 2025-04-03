@@ -26,6 +26,13 @@ paths:
                 required: true
                 schema:
                     type: string
+              - in: query
+                name: array
+                required: true
+                schema:
+                    type: array
+                    items:
+                        type: string
             requestBody:
                 content:
                     application/json:

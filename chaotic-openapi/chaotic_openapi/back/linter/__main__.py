@@ -9,7 +9,7 @@ from . import validators
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='OpenApi/Swagger linter for Yandex')
     parser.add_argument('file', type=str, nargs='+')
     return parser.parse_args()
 
