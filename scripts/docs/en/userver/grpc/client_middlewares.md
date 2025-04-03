@@ -86,7 +86,7 @@ Register the Middleware component in the component system
 
 The static YAML config.
 
-@snippet samples/grpc_middleware_service/static_config.yaml static config grpc-auth-client
+@snippet samples/grpc_middleware_service/configs/static_config.yaml static config grpc-auth-client
 
 ### PreSendMessage and PostRecvMessage
 

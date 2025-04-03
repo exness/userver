@@ -29,7 +29,7 @@ The static yaml config of middleware. You must register it in the config `grpc-s
                     enabled: true
 ```
 
-@snippet samples/grpc_middleware_service/static_config.yaml gRPC middleware sample - static config server middleware
+@snippet samples/grpc_middleware_service/configs/static_config.yaml gRPC middleware sample - static config server middleware
 
 To see full src:
 

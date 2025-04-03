@@ -85,7 +85,7 @@ Register the component
 
 The static YAML config.
 
-@snippet samples/grpc_middleware_service/static_config.yaml grpc-server-auth static config
+@snippet samples/grpc_middleware_service/configs/static_config.yaml grpc-server-auth static config
 
 ### CallRequestHook and CallResponseHook
 
