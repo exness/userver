@@ -8,6 +8,10 @@
 #include <type_traits>
 #include <unordered_set>
 
+#include <userver/utils/impl/projecting_view.hpp>
+#include <userver/utils/impl/transparent_hash.hpp>
+#include <userver/utils/meta_light.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace utils {
@@ -67,6 +71,18 @@ void DoInsert(Set& set, Value&& value) {
     }
 }
 
+class ConstCastTransform {
+public:
+    template <typename T>
+    T& operator()(const T& item) const {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        return const_cast<T&>(item);
+    }
+};
+
+template <typename T>
+using HasHasher = typename T::hasher;
+
 }  // namespace impl::projected_set
 
 /// @ingroup userver_universal
@@ -77,20 +93,23 @@ void DoInsert(Set& set, Value&& value) {
 /// Usage example:
 /// @snippet utils/projected_set_test.cpp  user
 /// @snippet utils/projected_set_test.cpp  usage
+///
+/// @see @ref utils::ProjectedInsertOrAssign
+/// @see @ref utils::ProjectedFind
 template <
     typename Value,
     auto Projection,
     typename Hash = void,
     typename Equal = std::equal_to<>,
     typename Allocator = std::allocator<Value>>
-using ProjectedUnorderedSet = std::unordered_set<
+using ProjectedUnorderedSet = utils::impl::TransparentSet<
     Value,
     impl::projected_set::Hash<Value, Projection, Hash>,
     impl::projected_set::Compare<Value, Projection, Equal>,
     Allocator>;
 
 /// @ingroup userver_universal
-/// @brief Same as ProjectedUnorderedSet, but for `std::set`.
+/// @brief Same as @ref utils::ProjectedUnorderedSet, but for `std::set`.
 template <typename Value, auto Projection, typename Compare = std::less<>, typename Allocator = std::allocator<Value>>
 using ProjectedSet = std::set<Value, impl::projected_set::Compare<Value, Projection, Compare>, Allocator>;
 
@@ -100,6 +119,54 @@ template <typename Container, typename Value>
 void ProjectedInsertOrAssign(Container& set, Value&& value) {
     impl::projected_set::DoInsert(set, std::forward<Value>(value));
 }
+
+/// @brief An equivalent of `std::unordered_map::find` for @ref utils::ProjectedUnorderedSet
+/// and @ref utils::ProjectedSet.
+///
+/// Only required for pre-C++20 compilers, can just use `set.find(key)` otherwise.
+///
+/// @note Always returns const iterator, even for a non-const `set` parameter.
+template <typename Container, typename Key>
+auto ProjectedFind(Container& set, const Key& key) {
+    if constexpr (meta::kIsDetected<impl::projected_set::HasHasher, std::decay_t<Container>>) {
+        return utils::impl::FindTransparent(set, key);
+    } else {
+        return set.find(key);
+    }
+}
+
+namespace impl {
+
+/// @brief An equivalent of @ref utils::FindOrNullptr for @ref utils::ProjectedUnorderedSet
+/// and @ref utils::ProjectedSet.
+///
+/// @warning Use with utmost caution! Mutating the part of the values that serves as key invokes UB.
+template <typename Container, typename Key>
+auto* ProjectedFindOrNullptrUnsafe(Container& set, const Key& key) {
+    const auto iter = utils::ProjectedFind(set, key);
+    if constexpr (std::is_const_v<Container>) {
+        return iter != set.end() ? &*iter : nullptr;
+    } else {
+        using SetValue = std::decay_t<decltype(*iter)>;
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        return iter != set.end() ? &const_cast<SetValue&>(*iter) : nullptr;
+    }
+}
+
+/// @brief Iterates @ref utils::ProjectedUnorderedSet or @ref utils::ProjectedSet, returning non-const references
+/// in case of a non-const container. Normal iteration would return const references regardless.
+///
+/// @warning Use with utmost caution! Mutating the part of the values that serves as key invokes UB.
+template <typename Container>
+decltype(auto) ProjectedUnsafeView(Container& set) {
+    if constexpr (std::is_const_v<Container>) {
+        return set;
+    } else {
+        return utils::impl::ProjectingView<Container, impl::projected_set::ConstCastTransform>(set);
+    }
+}
+
+}  // namespace impl
 
 namespace impl::projected_set {
 
