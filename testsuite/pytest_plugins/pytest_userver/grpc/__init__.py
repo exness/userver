@@ -189,13 +189,15 @@ class Mockserver:
 
         @example grpc/functional_tests/basic_chaos/tests-grpcclient/service.py
         """
-        for servicer_class in inspect.getmro(type(servicer)):
-            if servicer_class.__name__.endswith('Servicer'):
-                # pylint: disable=protected-access
-                mock = self._mockserver_session._get_auto_service_mock(servicer_class)
-                for python_method_name in mock.known_methods:
-                    handler_func = getattr(servicer, python_method_name)
-                    mock.install_handler(python_method_name)(handler_func)
+        base_servicer_classes = [cls for cls in inspect.getmro(type(servicer))[1:] if cls.__name__.endswith('Servicer')]
+        if not base_servicer_classes:
+            raise ValueError(f"Given object's type ({type(servicer)}) is not inherited from any grpc *Servicer class")
+        for servicer_class in base_servicer_classes:
+            # pylint: disable=protected-access
+            mock = self._mockserver_session._get_auto_service_mock(servicer_class)
+            for python_method_name in mock.known_methods:
+                handler_func = getattr(servicer, python_method_name)
+                mock.install_handler(python_method_name)(handler_func)
 
 
 # @cond
