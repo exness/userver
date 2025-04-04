@@ -1,15 +1,24 @@
 import argparse
+import sys
 
 import yaml
 
+from chaotic import error as chaotic_error
 from chaotic_openapi.back.cpp_client import renderer
 from chaotic_openapi.back.cpp_client import translator
 from chaotic_openapi.front import parser as front_parser
 
 
 def main():
-    args = parse_args()
+    try:
+        do_main()
+    except chaotic_error.BaseError as exc:
+        print(exc, file=sys.stderr)
+        sys.exit(1)
 
+
+def do_main():
+    args = parse_args()
     # parse
     parser = front_parser.Parser(args.name)
     for file in args.file:

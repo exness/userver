@@ -1,4 +1,5 @@
 from chaotic_openapi.back.cpp_client import types
+import pytest
 
 from chaotic.back.cpp import type_name
 from chaotic.back.cpp import types as cpp_types
@@ -46,7 +47,7 @@ def test_parameters(translate_single_schema):
                             json_schema=chaotic_types.Integer(
                                 type='integer',
                             ),
-                            validators=cpp_types.CppPrimitiveValidator(prefix='/paths///get/parameters/0/schema'),
+                            validators=cpp_types.CppPrimitiveValidator(prefix='/paths/[/]/get/parameters/0/schema'),
                         ),
                         parser='openapi::TrivialParameter<openapi::In::kQuery, kparam, int, int>',
                         required=False,
@@ -184,7 +185,10 @@ def test_parameters_schemas_ref(translate_single_schema):
                                 json_schema=chaotic_types.Integer(
                                     type='integer',
                                 ),
-                                validators=cpp_types.CppPrimitiveValidator(prefix='/components/schemas/Parameter'),
+                                validators=cpp_types.CppPrimitiveValidator(
+                                    prefix='Parameter',
+                                    namespace='::test_namespace',
+                                ),
                             ),
                         ),
                         parser='openapi::TrivialParameter<openapi::In::kQuery, kparam, int, int>',
@@ -196,7 +200,7 @@ def test_parameters_schemas_ref(translate_single_schema):
             )
         ],
         schemas={
-            '::/components/schemas/Parameter': cpp_types.CppPrimitiveType(
+            '::test_namespace::Parameter': cpp_types.CppPrimitiveType(
                 raw_cpp_type=type_name.TypeName('int'),
                 json_schema=chaotic_types.Integer(
                     type='integer',
@@ -205,8 +209,47 @@ def test_parameters_schemas_ref(translate_single_schema):
                 user_cpp_type=None,
                 default=None,
                 validators=cpp_types.CppPrimitiveValidator(
-                    prefix='/components/schemas/Parameter',
+                    prefix='Parameter',
+                    namespace='::test_namespace',
                 ),
             ),
         },
+    )
+
+
+def test_parameters_too_complex_schema(translate_single_schema):
+    schema = {
+        'openapi': '3.0.0',
+        'info': {'title': '', 'version': '1.0'},
+        'paths': {
+            '/': {
+                'get': {
+                    'parameters': [
+                        {
+                            'in': 'query',
+                            'name': 'param',
+                            'description': 'parameter description',
+                            'schema': {
+                                'type': 'object',
+                                'properties': {},
+                                'additionalProperties': False,
+                            },
+                        },
+                    ],
+                    'responses': {},
+                },
+            },
+        },
+    }
+    with pytest.raises(Exception) as exc:
+        translate_single_schema(schema)
+    assert (
+        str(exc.value)
+        == """
+===============================================================
+Unhandled error while processing <inline>
+Path "/paths/[/]/get/parameters/0/schema", Format "jsonschema"
+Error:
+Unsupported parameter type
+==============================================================="""
     )

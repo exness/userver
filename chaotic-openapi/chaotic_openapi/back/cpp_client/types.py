@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Set
 
 from chaotic import cpp_names
+from chaotic import error
 from chaotic.back.cpp import types as cpp_types
 
 
@@ -23,17 +24,50 @@ class Parameter:
             return ['optional']
         return []
 
+    @classmethod
+    def _validate_schema(cls, schema: cpp_types.CppType, *, is_array_allowed: bool) -> None:
+        assert schema.json_schema
+        if not is_array_allowed and isinstance(schema, cpp_types.CppArray):
+            source_location = schema.json_schema.source_location()
+            raise error.BaseError(
+                full_filepath=source_location.filepath,
+                infile_path=source_location.location,
+                schema_type='jsonschema',
+                msg='Too deep array for parameter schema',
+            )
+
+        if not isinstance(
+            schema,
+            (
+                cpp_types.CppPrimitiveType,
+                cpp_types.CppStringWithFormat,
+                cpp_types.CppRef,
+                cpp_types.CppArray,
+                cpp_types.CppIntEnum,
+                cpp_types.CppStringEnum,
+            ),
+        ):
+            source_location = schema.json_schema.source_location()
+            raise error.BaseError(
+                full_filepath=source_location.filepath,
+                infile_path=source_location.location,
+                schema_type='jsonschema',
+                msg='Unsupported parameter type',
+            )
+
+        if isinstance(schema, cpp_types.CppRef):
+            cls._validate_schema(schema.orig_cpp_type, is_array_allowed=is_array_allowed)
+        if isinstance(schema, cpp_types.CppArray):
+            cls._validate_schema(schema.items, is_array_allowed=False)
+
+    def __post_init__(self) -> None:
+        self._validate_schema(self.cpp_type, is_array_allowed=True)
+
 
 @dataclasses.dataclass
 class Body:
     content_type: str
     schema: Optional[cpp_types.CppType]
-
-    def cpp_body_type(self) -> str:
-        name = cpp_names.camel_case(
-            cpp_names.cpp_identifier(self.content_type),
-        )
-        return f'Body{name}'
 
 
 @dataclasses.dataclass
@@ -100,3 +134,36 @@ class ClientSpec:
                 includes.update(param.declaration_includes())
 
         return list(includes)
+
+    def cpp_includes(self) -> List[str]:
+        includes = []
+        for cpp_type in self.extract_cpp_types().values():
+            assert cpp_type.json_schema
+            filepath = cpp_type.json_schema.source_location().filepath
+            includes.append(
+                'client/{}/{}.hpp'.format(
+                    self.client_name,
+                    filepath.split('/')[-1].split('.')[0],
+                ),
+            )
+        return includes
+
+    def extract_cpp_types(self) -> Dict[str, cpp_types.CppType]:
+        types = self.schemas.copy()
+
+        for operation in self.operations:
+            for body in operation.request_bodies:
+                if body.schema:
+                    name = '{}::{}_{}::Body{}'.format(
+                        self.cpp_namespace,
+                        operation.path[1:],
+                        operation.method.lower(),
+                        cpp_names.camel_case(
+                            cpp_names.cpp_identifier(body.content_type),
+                        ),
+                    )
+                    types[name] = body.schema
+
+        # TODO: response.content
+
+        return types

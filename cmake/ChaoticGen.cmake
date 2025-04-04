@@ -211,6 +211,8 @@ function(userver_target_generate_openapi_client TARGET)
 	      --name "${PARSE_NAME}"
           -o "${PARSE_OUTPUT_DIR}"
           ${PARSE_SCHEMAS}
+      COMMENT
+          "Generating OpenAPI client ${PARSE_NAME}"
       DEPENDS
           ${PARSE_SCHEMAS}
       WORKING_DIRECTORY
@@ -237,8 +239,10 @@ function(userver_target_generate_chaotic_dynamic_configs TARGET SCHEMAS_REGEX)
   _userver_initialize_codegen_flag()
 
   set(OUTPUT_FILENAMES)
+  set(CONFIG_NAMES)
   foreach(FILENAME ${CHGEN_FILENAMES}) 
     string(REGEX REPLACE "^(.*)/([^/]*)\\.([^.]*)\$" "\\2" SCHEMA "${FILENAME}")
+    set(CONFIG_NAMES "${CONFIG_NAMES} ${SCHEMA}")
 
     list(APPEND OUTPUT_FILENAMES
          ${OUTPUT_DIR}/include/dynamic_config/variables/${SCHEMA}.types_fwd.hpp
@@ -261,6 +265,8 @@ function(userver_target_generate_chaotic_dynamic_configs TARGET SCHEMAS_REGEX)
           -I ${CMAKE_CURRENT_LIST_DIR}/../chaotic/include
           -o "${OUTPUT_DIR}"
           ${CHGEN_FILENAMES}
+      COMMENT
+          "Generating dynamic configs${CONFIG_NAMES}"
       DEPENDS
           ${CHGEN_FILENAMES}
       WORKING_DIRECTORY

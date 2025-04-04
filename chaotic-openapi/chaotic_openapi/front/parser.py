@@ -248,7 +248,7 @@ class Parser:
             for content_type, media_type in operation.requestBody.content.items():
                 schema = self._parse_schema(
                     media_type.schema_,
-                    f'/paths/{path}/{method}/requestBody/content/[{content_type}]/schema',
+                    f'/paths/[{path}]/{method}/requestBody/content/[{content_type}]/schema',
                 )
                 requestBody.append(
                     model.RequestBody(
@@ -258,7 +258,7 @@ class Parser:
                     )
                 )
 
-        infile_path = f'/paths/{path}/{method}'
+        infile_path = f'/paths/[{path}]/{method}'
         self._state.service.operations.append(
             model.Operation(
                 description=operation.description,
@@ -295,7 +295,7 @@ class Parser:
                 body_parameter = parameter
                 body_parameter_num = i
         if body_parameter:
-            infile_path = f'/paths/{path}/{method}/parameters/{body_parameter_num}/schema'
+            infile_path = f'/paths/[{path}]/{method}/parameters/{body_parameter_num}/schema'
             schema = self._parse_schema(body_parameter.schema_, infile_path)
             requestBody.append(
                 model.RequestBody(

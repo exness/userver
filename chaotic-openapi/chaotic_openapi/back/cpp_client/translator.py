@@ -1,3 +1,4 @@
+import re
 import typing
 from typing import Union
 
@@ -27,7 +28,8 @@ class Translator:
         resolved_schemas = ref_resolver.RefResolver().sort_schemas(parsed_schemas)
         gen = chaotic_translator.Generator(
             chaotic_translator.GeneratorConfig(
-                namespaces={schema.source_location().filepath: '' for schema in service.schemas.values()}
+                namespaces={schema.source_location().filepath: '' for schema in service.schemas.values()},
+                infile_to_name_func=self.map_infile_path_to_cpp_type,
             )
         )
         self._spec.schemas = gen.generate_types(resolved_schemas)
@@ -50,6 +52,26 @@ class Translator:
         # TODO: responses
         # TODO: parameters
 
+    def map_infile_path_to_cpp_type(self, name: str) -> str:
+        if name.startswith('/components/schemas/'):
+            return '{}::{}'.format(
+                self._spec.cpp_namespace,
+                name.split('/')[-1],
+            )
+
+        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-z]*)/requestBody/content/\\[([^\\]]*)\\]/schema', name)
+        if match:
+            return '{}::{}_{}::Body{}'.format(
+                self._spec.cpp_namespace,
+                match.group(1)[1:],
+                match.group(2),
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(3)),
+                ),
+            )
+
+        return name
+
     def _translate_single_schema(self, schema: chaotic_types.Schema) -> cpp_types.CppType:
         parsed_schemas = chaotic_types.ParsedSchemas(
             schemas={str(schema.source_location()): schema},
@@ -62,7 +84,10 @@ class Translator:
             ),
         )
         gen = chaotic_translator.Generator(
-            chaotic_translator.GeneratorConfig(namespaces={schema.source_location().filepath: ''})
+            chaotic_translator.GeneratorConfig(
+                namespaces={schema.source_location().filepath: ''},
+                infile_to_name_func=self.map_infile_path_to_cpp_type,
+            )
         )
         gen_types = gen.generate_types(
             resolved_schemas,
@@ -94,14 +119,16 @@ class Translator:
         )
 
     def _translate_request_body(self, request_body: model.RequestBody) -> types.Body:
-        # TODO: $ref
         parsed_schemas = chaotic_types.ParsedSchemas(
             schemas={str(request_body.schema.source_location()): request_body.schema},
         )
         # TODO: components/schemas (external schemas)
         resolved_schemas = ref_resolver.RefResolver().sort_schemas(parsed_schemas)
         gen = chaotic_translator.Generator(
-            chaotic_translator.GeneratorConfig(namespaces={request_body.schema.source_location().filepath: ''})
+            chaotic_translator.GeneratorConfig(
+                namespaces={request_body.schema.source_location().filepath: ''},
+                infile_to_name_func=self.map_infile_path_to_cpp_type,
+            )
         )
         gen_types = gen.generate_types(resolved_schemas)
 
