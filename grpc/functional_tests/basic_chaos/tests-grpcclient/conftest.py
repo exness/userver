@@ -61,8 +61,8 @@ def extra_client_deps(gate):
 
 @pytest.fixture(name='gate')
 async def _gate_ready(_gate_started, greeter_mock):
-    _gate_started.to_server_pass()
-    _gate_started.to_client_pass()
+    await _gate_started.to_server_pass()
+    await _gate_started.to_client_pass()
     _gate_started.start_accepting()
 
     await _gate_started.sockets_close()

@@ -41,9 +41,7 @@ class UdpServer:
         Returns an address of the client as seen by the server
         """
         await client_sock.sendall(b'ping')
-        msg, addr = await chaos._get_message_task(  # pylint: disable=protected-access
-            self._sock._sock,  # XXX
-        )
+        msg, addr = await self._sock.recvfrom(RECV_MAX_SIZE)
         assert msg == b'ping'
         return addr
 
@@ -204,13 +202,13 @@ async def test_to_server_parallel_udp_message(udp_server, udp_client_factory):
 async def test_to_client_noop(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_noop()
+    await gate.to_client_noop()
 
     await udp_server.sock.sendto(b'ping', udp_client.addr_at_server)
     await _assert_data_from_client(udp_client, udp_server)
     assert not udp_client.sock.has_data()
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     hello = await udp_client.sock.recv(4)
     assert hello == b'ping'
     await _assert_data_to_client(udp_server, udp_client)
@@ -220,13 +218,13 @@ async def test_to_client_noop(udp_server, udp_client_factory, gate):
 async def test_to_server_noop(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_noop()
+    await gate.to_server_noop()
 
     await udp_client.sock.sendall(b'ping')
     await _assert_data_to_client(udp_server, udp_client)
     assert not udp_server.sock.has_data()
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     server_incoming_data = await udp_server.sock.recv(4)
     assert server_incoming_data == b'ping'
     await _assert_data_to_client(udp_server, udp_client)
@@ -236,34 +234,34 @@ async def test_to_server_noop(udp_server, udp_client_factory, gate):
 async def test_to_client_drop(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_drop()
+    await gate.to_client_drop()
 
     await udp_server.sock.sendto(b'ping', udp_client.addr_at_server)
     await _assert_data_from_client(udp_client, udp_server)
     assert not udp_client.sock.has_data()
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_receive_timeout(udp_client.sock)
 
 
 async def test_to_server_drop(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    drop_queue = gate.to_server_drop()
+    drop_queue = await gate.to_server_drop()
 
     await udp_client.sock.sendall(b'ping')
     await _assert_data_to_client(udp_server, udp_client)
     assert not udp_server.sock.has_data()
     await drop_queue.wait_call()
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_receive_timeout(udp_server.sock)
 
 
 async def test_to_client_delay(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_delay(2 * _NOTICEABLE_DELAY)
+    await gate.to_client_delay(2 * _NOTICEABLE_DELAY)
 
     await _assert_data_from_client(udp_client, udp_server)
 
@@ -275,7 +273,7 @@ async def test_to_client_delay(udp_server, udp_client_factory, gate):
 async def test_to_server_delay(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_delay(2 * _NOTICEABLE_DELAY)
+    await gate.to_server_delay(2 * _NOTICEABLE_DELAY)
 
     await _assert_data_to_client(udp_server, udp_client)
 
@@ -287,7 +285,7 @@ async def test_to_server_delay(udp_server, udp_client_factory, gate):
 async def test_to_client_close_on_data(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_close_on_data()
+    await gate.to_client_close_on_data()
 
     await _assert_data_from_client(udp_client, udp_server)
     assert gate.is_connected()
@@ -299,7 +297,7 @@ async def test_to_client_close_on_data(udp_server, udp_client_factory, gate):
 async def test_to_server_close_on_data(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_close_on_data()
+    await gate.to_server_close_on_data()
 
     await _assert_data_to_client(udp_server, udp_client)
     assert gate.is_connected()
@@ -311,7 +309,7 @@ async def test_to_server_close_on_data(udp_server, udp_client_factory, gate):
 async def test_to_client_corrupt_data(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_corrupt_data()
+    await gate.to_client_corrupt_data()
 
     await _assert_data_from_client(udp_client, udp_server)
     assert gate.is_connected()
@@ -321,7 +319,7 @@ async def test_to_client_corrupt_data(udp_server, udp_client_factory, gate):
     assert data
     assert data != b'break me'
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_data_to_client(udp_server, udp_client)
     await _assert_data_from_client(udp_client, udp_server)
 
@@ -329,7 +327,7 @@ async def test_to_client_corrupt_data(udp_server, udp_client_factory, gate):
 async def test_to_server_corrupt_data(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_corrupt_data()
+    await gate.to_server_corrupt_data()
 
     await _assert_data_to_client(udp_server, udp_client)
     assert gate.is_connected()
@@ -339,7 +337,7 @@ async def test_to_server_corrupt_data(udp_server, udp_client_factory, gate):
     assert data
     assert data != b'break me'
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_data_to_client(udp_server, udp_client)
     await _assert_data_from_client(udp_client, udp_server)
 
@@ -347,7 +345,7 @@ async def test_to_server_corrupt_data(udp_server, udp_client_factory, gate):
 async def test_to_client_limit_bps(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_limit_bps(2)
+    await gate.to_client_limit_bps(2)
 
     start_time = time.monotonic()
 
@@ -367,7 +365,7 @@ async def test_to_client_limit_bps(udp_server, udp_client_factory, gate):
 async def test_to_server_limit_bps(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_limit_bps(2)
+    await gate.to_server_limit_bps(2)
 
     start_time = time.monotonic()
 
@@ -387,7 +385,7 @@ async def test_to_server_limit_bps(udp_server, udp_client_factory, gate):
 async def test_to_client_limit_time(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
+    await gate.to_client_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
 
     await _assert_data_from_client(udp_client, udp_server)
     assert gate.is_connected()
@@ -403,7 +401,7 @@ async def test_to_client_limit_time(udp_server, udp_client_factory, gate):
 async def test_to_server_limit_time(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
+    await gate.to_server_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
 
     await _assert_data_to_client(udp_server, udp_client)
     assert gate.is_connected()
@@ -419,7 +417,7 @@ async def test_to_server_limit_time(udp_server, udp_client_factory, gate):
 async def test_to_client_limit_bytes(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_client_limit_bytes(14)
+    await gate.to_client_limit_bytes(14)
 
     await _assert_data_from_client(udp_client, udp_server)
     assert gate.is_connected()
@@ -440,7 +438,7 @@ async def test_to_client_limit_bytes(udp_server, udp_client_factory, gate):
 async def test_to_server_limit_bytes(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_limit_bytes(14)
+    await gate.to_server_limit_bytes(14)
 
     await _assert_data_to_client(udp_server, udp_client)
     assert gate.is_connected()
@@ -459,8 +457,8 @@ async def test_to_server_limit_bytes(udp_server, udp_client_factory, gate):
 async def test_substitute(udp_server, udp_client_factory, gate):
     udp_client = await udp_client_factory()
 
-    gate.to_server_substitute('hello', 'die')
-    gate.to_client_substitute('hello', 'die')
+    await gate.to_server_substitute('hello', 'die')
+    await gate.to_client_substitute('hello', 'die')
 
     await _assert_data_to_client(udp_server, udp_client)
     await _assert_data_from_client(udp_client, udp_server)

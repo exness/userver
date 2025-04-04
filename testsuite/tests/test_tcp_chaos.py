@@ -120,13 +120,13 @@ async def test_basic(tcp_client, gate, server_connection):
 
 
 async def test_to_client_noop(tcp_client, gate, server_connection):
-    gate.to_client_noop()
+    await gate.to_client_noop()
 
     await server_connection.sendall(b'ping')
     await _assert_data_from_to(tcp_client, server_connection)
     assert not tcp_client.has_data()
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     hello = await tcp_client.recv(4)
     assert hello == b'ping'
     await _assert_data_from_to(server_connection, tcp_client)
@@ -134,13 +134,13 @@ async def test_to_client_noop(tcp_client, gate, server_connection):
 
 
 async def test_to_server_noop(tcp_client, gate, server_connection):
-    gate.to_server_noop()
+    await gate.to_server_noop()
 
     await tcp_client.sendall(b'ping')
     await _assert_data_from_to(server_connection, tcp_client)
     assert not server_connection.has_data()
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     server_incoming_data = await server_connection.recv(4)
     assert server_incoming_data == b'ping'
     await _assert_data_from_to(server_connection, tcp_client)
@@ -148,29 +148,29 @@ async def test_to_server_noop(tcp_client, gate, server_connection):
 
 
 async def test_to_client_drop(tcp_client, gate, server_connection):
-    gate.to_client_drop()
+    await gate.to_client_drop()
 
     await server_connection.sendall(b'ping')
     await _assert_data_from_to(tcp_client, server_connection)
     assert not tcp_client.has_data()
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_receive_timeout(tcp_client)
 
 
 async def test_to_server_drop(tcp_client, gate, server_connection):
-    gate.to_server_drop()
+    await gate.to_server_drop()
 
     await tcp_client.sendall(b'ping')
     await _assert_data_from_to(server_connection, tcp_client)
     assert not server_connection.has_data()
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_receive_timeout(server_connection)
 
 
 async def test_to_client_delay(tcp_client, gate, server_connection):
-    gate.to_client_delay(2 * _NOTICEABLE_DELAY)
+    await gate.to_client_delay(2 * _NOTICEABLE_DELAY)
 
     await _assert_data_from_to(tcp_client, server_connection)
 
@@ -180,7 +180,7 @@ async def test_to_client_delay(tcp_client, gate, server_connection):
 
 
 async def test_to_server_delay(tcp_client, gate, server_connection):
-    gate.to_server_delay(2 * _NOTICEABLE_DELAY)
+    await gate.to_server_delay(2 * _NOTICEABLE_DELAY)
 
     await _assert_data_from_to(server_connection, tcp_client)
 
@@ -196,7 +196,7 @@ async def test_to_client_close_on_data(
     server_connection,
     tcp_server,
 ):
-    gate.to_client_close_on_data()
+    await gate.to_client_close_on_data()
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -208,7 +208,7 @@ async def test_to_client_close_on_data(
     await _assert_connection_dead(server_connection)
     await _assert_connection_dead(tcp_client)
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_data_from_to(server_connection2, tcp_client2)
     await _assert_data_from_to(tcp_client2, server_connection2)
 
@@ -220,7 +220,7 @@ async def test_to_server_close_on_data(
     server_connection,
     tcp_server,
 ):
-    gate.to_server_close_on_data()
+    await gate.to_server_close_on_data()
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -232,7 +232,7 @@ async def test_to_server_close_on_data(
     await _assert_connection_dead(server_connection)
     await _assert_connection_dead(tcp_client)
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_data_from_to(server_connection2, tcp_client2)
     await _assert_data_from_to(tcp_client2, server_connection2)
 
@@ -244,7 +244,7 @@ async def test_to_client_corrupt_data(
     server_connection,
     tcp_server,
 ):
-    gate.to_client_corrupt_data()
+    await gate.to_client_corrupt_data()
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -257,7 +257,7 @@ async def test_to_client_corrupt_data(
     assert data
     assert data != b'break me'
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_data_from_to(server_connection2, tcp_client2)
     await _assert_data_from_to(tcp_client2, server_connection2)
     await _assert_data_from_to(server_connection, tcp_client)
@@ -271,7 +271,7 @@ async def test_to_server_corrupt_data(
     server_connection,
     tcp_server,
 ):
-    gate.to_server_corrupt_data()
+    await gate.to_server_corrupt_data()
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -284,7 +284,7 @@ async def test_to_server_corrupt_data(
     assert data
     assert data != b'break me'
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_data_from_to(server_connection2, tcp_client2)
     await _assert_data_from_to(tcp_client2, server_connection2)
     await _assert_data_from_to(server_connection, tcp_client)
@@ -297,7 +297,7 @@ async def test_to_client_limit_bps(
     make_client,
     server_connection,
 ):
-    gate.to_client_limit_bps(2)
+    await gate.to_client_limit_bps(2)
 
     start_time = time.monotonic()
 
@@ -320,7 +320,7 @@ async def test_to_server_limit_bps(
     make_client,
     server_connection,
 ):
-    gate.to_server_limit_bps(2)
+    await gate.to_server_limit_bps(2)
 
     start_time = time.monotonic()
 
@@ -344,7 +344,7 @@ async def test_to_client_limit_time(
     server_connection,
     tcp_server,
 ):
-    gate.to_client_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
+    await gate.to_client_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -360,7 +360,7 @@ async def test_to_client_limit_time(
     await _assert_connection_dead(server_connection)
     await _assert_connection_dead(tcp_client)
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_data_from_to(server_connection2, tcp_client2)
     await _assert_data_from_to(tcp_client2, server_connection2)
 
@@ -372,7 +372,7 @@ async def test_to_server_limit_time(
     server_connection,
     tcp_server,
 ):
-    gate.to_server_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
+    await gate.to_server_limit_time(_NOTICEABLE_DELAY, jitter=0.0)
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -388,7 +388,7 @@ async def test_to_server_limit_time(
     await _assert_connection_dead(server_connection)
     await _assert_connection_dead(tcp_client)
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_data_from_to(server_connection2, tcp_client2)
     await _assert_data_from_to(tcp_client2, server_connection2)
 
@@ -399,7 +399,7 @@ async def test_to_client_smaller_parts(
     make_client,
     server_connection,
 ):
-    gate.to_client_smaller_parts(2)
+    await gate.to_client_smaller_parts(2)
 
     await server_connection.sendall(b'hello')
     data = await tcp_client.recv(5)
@@ -420,7 +420,7 @@ async def test_to_server_smaller_parts(
     make_client,
     server_connection,
 ):
-    gate.to_server_smaller_parts(2)
+    await gate.to_server_smaller_parts(2)
 
     await tcp_client.sendall(b'hello')
     data = await server_connection.recv(5)
@@ -436,7 +436,7 @@ async def test_to_server_smaller_parts(
 
 
 async def test_to_client_concat(tcp_client, gate, server_connection):
-    gate.to_client_concat_packets(10)
+    await gate.to_client_concat_packets(10)
 
     await server_connection.sendall(b'hello')
     await _assert_data_from_to(tcp_client, server_connection)
@@ -446,13 +446,13 @@ async def test_to_client_concat(tcp_client, gate, server_connection):
     data = await tcp_client.recv(10)
     assert data == b'hellohello'
 
-    gate.to_client_pass()
+    await gate.to_client_pass()
     await _assert_data_from_to(server_connection, tcp_client)
     await _assert_data_from_to(tcp_client, server_connection)
 
 
 async def test_to_server_concat(tcp_client, gate, server_connection):
-    gate.to_server_concat_packets(10)
+    await gate.to_server_concat_packets(10)
 
     await tcp_client.sendall(b'hello')
     await _assert_data_from_to(server_connection, tcp_client)
@@ -462,7 +462,7 @@ async def test_to_server_concat(tcp_client, gate, server_connection):
     data = await server_connection.recv(10)
     assert data == b'hellohello'
 
-    gate.to_server_pass()
+    await gate.to_server_pass()
     await _assert_data_from_to(server_connection, tcp_client)
     await _assert_data_from_to(tcp_client, server_connection)
 
@@ -474,7 +474,7 @@ async def test_to_client_limit_bytes(
     server_connection,
     tcp_server,
 ):
-    gate.to_client_limit_bytes(12)
+    await gate.to_client_limit_bytes(12)
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -516,7 +516,7 @@ async def test_to_server_limit_bytes(
     server_connection,
     tcp_server,
 ):
-    gate.to_server_limit_bytes(8)
+    await gate.to_server_limit_bytes(8)
     tcp_client2 = await make_client()
     server_connection2 = await tcp_server.accept()
 
@@ -545,8 +545,8 @@ async def test_substitute(
     server_connection,
     tcp_server,
 ):
-    gate.to_server_substitute('hello', 'die')
-    gate.to_client_substitute('hello', 'die')
+    await gate.to_server_substitute('hello', 'die')
+    await gate.to_client_substitute('hello', 'die')
 
     await _assert_data_from_to(server_connection, tcp_client)
     await _assert_data_from_to(tcp_client, server_connection)
