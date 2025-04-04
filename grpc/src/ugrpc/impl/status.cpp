@@ -28,6 +28,9 @@ grpc::Status ToGrpcStatus(const google::rpc::Status& gstatus) {
 }
 
 std::optional<google::rpc::Status> ToGoogleRpcStatus(const grpc::Status& status) {
+    if (status.error_details().empty()) {
+        return {};
+    }
     google::rpc::Status gstatus;
     if (!gstatus.ParseFromString(status.error_details())) {
         return {};

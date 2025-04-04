@@ -104,8 +104,6 @@ protected:
     void PostFinish(const grpc::Status& status) noexcept;
 
 private:
-    void WriteAccessLog(const grpc::Status& status) const;
-
     impl::CallParams params_;
     impl::CallKind call_kind_;
     MiddlewareCallContext* middleware_call_context_{nullptr};
