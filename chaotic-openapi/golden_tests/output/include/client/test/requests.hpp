@@ -5,6 +5,8 @@
 
 #include <userver/clients/http/request.hpp>
 
+#include <cstdint>
+
 namespace clients::test {
 
 namespace testme_post {

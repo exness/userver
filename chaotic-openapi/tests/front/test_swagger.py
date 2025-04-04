@@ -34,6 +34,7 @@ def test_openapi_body_schema():
             '/': {
                 'get': {
                     'requestBody': {
+                        'required': True,
                         'content': {
                             'application/json': {
                                 'schema': {
@@ -56,7 +57,14 @@ def test_openapi_body_schema():
                 method='get',
                 operationId='Get',
                 parameters=[],
-                requestBody={'application/json': types.Boolean()},
+                requestBody=[
+                    model.RequestBody(
+                        content_type='application/json',
+                        schema=types.Boolean(),
+                        required=True,
+                    )
+                ],
+                responses={},
             )
         ],
     )
@@ -94,7 +102,14 @@ def test_swagger_body_schema():
                 method='get',
                 operationId='Get',
                 parameters=[],
-                requestBody={'application/json': types.Boolean()},
+                requestBody=[
+                    model.RequestBody(
+                        content_type='application/json',
+                        schema=types.Boolean(),
+                        required=True,
+                    )
+                ],
+                responses={},
             )
         ],
     )

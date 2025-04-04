@@ -45,7 +45,7 @@ class Header(pydantic.BaseModel):
     style: Optional[Style] = None
     explode: Optional[bool] = None
     allowReserved: bool = False
-    schema_: Schema = pydantic.Field(alias='schema', default=None)
+    schema_: Schema = pydantic.Field(alias='schema')
     example: Any = None
     examples: Dict[str, Any] = {}
 
@@ -57,9 +57,13 @@ class MediaType(pydantic.BaseModel):
     # encoding: Dict[str, Encoding] = {}
 
 
+class Ref(pydantic.BaseModel):
+    ref: str = pydantic.Field(alias='$ref')
+
+
 class Response(pydantic.BaseModel):
     description: str
-    headers: Dict[str, Header] = {}
+    headers: Dict[str, Union[Header, Ref]] = {}
     content: Dict[str, MediaType] = {}
     # TODO: links
 
@@ -69,10 +73,6 @@ class In(str, enum.Enum):
     query = 'query'
     header = 'header'
     cookie = 'cookie'
-
-
-class Ref(pydantic.BaseModel):
-    ref: str = pydantic.Field(alias='$ref')
 
 
 class Parameter(pydantic.BaseModel):
@@ -86,7 +86,7 @@ class Parameter(pydantic.BaseModel):
     style: Optional[Style] = None
     explode: Optional[bool] = None
     allowReserved: bool = False
-    schema_: Schema = pydantic.Field(alias='schema', default=None)
+    schema_: Schema = pydantic.Field(alias='schema')
     example: Any = None
     examples: Dict[str, Any] = {}
 
@@ -106,9 +106,9 @@ class Parameter(pydantic.BaseModel):
 
 class Components(pydantic.BaseModel):
     schemas: Dict[str, Schema] = {}
-    responses: Dict[Union[str, int], Response] = {}
+    responses: Dict[str, Response] = {}
     parameters: Dict[str, Parameter] = {}
-    # TODO: more
+    headers: Dict[str, Header] = {}
 
 
 class RequestBody(pydantic.BaseModel):
@@ -159,7 +159,7 @@ class Operation(pydantic.BaseModel):
     operationId: Optional[str] = None
     parameters: List[Union[Parameter, Ref]] = []
     requestBody: Optional[RequestBody] = None
-    responses: Dict[Union[str, int], Response]
+    responses: Dict[Union[str, int], Union[Response, Ref]]
     deprecated: bool = False
     security: Optional[Security] = None
     servers: List[Server] = []

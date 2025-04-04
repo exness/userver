@@ -1,5 +1,9 @@
+import typing
+from typing import Union
+
 from chaotic import cpp_names
 from chaotic.back.cpp import translator as chaotic_translator
+from chaotic.back.cpp import types as cpp_types
 from chaotic.front import ref_resolver
 from chaotic.front import types as chaotic_types
 from chaotic_openapi.back.cpp_client import types
@@ -13,7 +17,24 @@ class Translator:
             description=service.description,
             cpp_namespace=cpp_namespace,
             operations=[],
+            schemas={},
         )
+
+        # TODO: external $refs
+        parsed_schemas = chaotic_types.ParsedSchemas(
+            schemas={str(schema.source_location()): schema for schema in service.schemas.values()},
+        )
+        resolved_schemas = ref_resolver.RefResolver().sort_schemas(parsed_schemas)
+        gen = chaotic_translator.Generator(
+            chaotic_translator.GeneratorConfig(
+                namespaces={schema.source_location().filepath: '' for schema in service.schemas.values()}
+            )
+        )
+        self._spec.schemas = gen.generate_types(resolved_schemas)
+        self._raw_schemas = {str(schema.source_location()): schema for schema in service.schemas.values()}
+
+        # components/responses
+        self._raw_responses = {f'{name}': response for name, response in service.responses.items()}
 
         for operation in service.operations:
             op = types.Operation(
@@ -21,35 +42,74 @@ class Translator:
                 path=operation.path,
                 description=operation.description,
                 parameters=[self._translate_parameter(parameter) for parameter in operation.parameters],
-                request_bodies=[
-                    self._translate_request_body(content_type, body)
-                    for content_type, body in operation.requestBody.items()
-                ],
-                responses=[],  # TODO
+                request_bodies=[self._translate_request_body(body) for body in operation.requestBody],
+                responses=[self._translate_response(r, status) for status, r in operation.responses.items()],
             )
             self._spec.operations.append(op)
 
-        # TODO: schemas
         # TODO: responses
         # TODO: parameters
 
-    def _translate_request_body(self, content_type: str, request_body: model.RequestBody) -> types.RequestBody:
+    def _translate_single_schema(self, schema: chaotic_types.Schema) -> cpp_types.CppType:
+        parsed_schemas = chaotic_types.ParsedSchemas(
+            schemas={str(schema.source_location()): schema},
+        )
+        # TODO: external components/schemas
+        resolved_schemas = ref_resolver.RefResolver().sort_schemas(
+            parsed_schemas,
+            external_schemas=chaotic_types.ResolvedSchemas(
+                self._raw_schemas,
+            ),
+        )
+        gen = chaotic_translator.Generator(
+            chaotic_translator.GeneratorConfig(namespaces={schema.source_location().filepath: ''})
+        )
+        gen_types = gen.generate_types(
+            resolved_schemas,
+            external_schemas=self._spec.schemas,
+        )
+
+        assert len(gen_types) == 1
+        return list(gen_types.values())[0]
+
+    def _translate_response(
+        self,
+        response: Union[model.Response, model.Ref],
+        status: int,
+    ) -> types.Response:
+        if isinstance(response, model.Ref):
+            response = self._raw_responses[response.ref]
+
+        headers = []
+        for name, header in response.headers.items():
+            headers.append(self._translate_parameter(header))
+
+        return types.Response(
+            status=status,
+            headers=headers,
+            body={
+                content_type: self._translate_single_schema(schema.schema)
+                for content_type, schema in response.content.items()
+            },
+        )
+
+    def _translate_request_body(self, request_body: model.RequestBody) -> types.Body:
         # TODO: $ref
         parsed_schemas = chaotic_types.ParsedSchemas(
-            schemas={str(request_body.source_location()): request_body},
+            schemas={str(request_body.schema.source_location()): request_body.schema},
         )
         # TODO: components/schemas (external schemas)
         resolved_schemas = ref_resolver.RefResolver().sort_schemas(parsed_schemas)
         gen = chaotic_translator.Generator(
-            chaotic_translator.GeneratorConfig(namespaces={request_body.source_location().filepath: ''})
+            chaotic_translator.GeneratorConfig(namespaces={request_body.schema.source_location().filepath: ''})
         )
         gen_types = gen.generate_types(resolved_schemas)
 
         assert len(gen_types) == 1
         schema = list(gen_types.values())[0]
 
-        return types.RequestBody(
-            content_type=content_type,
+        return types.Body(
+            content_type=request_body.content_type,
             schema=schema,
         )
 
@@ -84,18 +144,22 @@ class Translator:
                 model.Style.spaceDelimited: ' ',
                 model.Style.pipeDelimited: '|',
             }[parameter.style]
-            raw_item_type = self._translate_schema_type(parameter.schema.items)
-            user_item_type = raw_item_type
-            cpp_type = self._translate_schema_type(parameter.schema)
+
+            cpp_type = self._translate_single_schema(parameter.schema)
+            cpp_type = typing.cast(cpp_types.CppArray, cpp_type)
+
+            raw_item_type = cpp_type.items.cpp_global_name()
+            user_item_type = cpp_type.items.cpp_user_name()
+
             parser = f"openapi::ArrayParameter<openapi::In::k{in_str}, k{parameter.name}, '{delimiter}', {raw_item_type}, {user_item_type}>"
         else:
-            raw_type = self._translate_schema_type(parameter.schema)
-            user_type = raw_type
-            cpp_type = user_type
-            parser = f'openapi::TrivialParameter<openapi::In::k{in_str}, k{parameter.name}, {raw_type}, {user_type}>'
+            cpp_type = self._translate_single_schema(parameter.schema)
+            user_type = cpp_type
+
+            parser = f'openapi::TrivialParameter<openapi::In::k{in_str}, k{parameter.name}, {cpp_type.cpp_global_name()}, {user_type.cpp_global_name()}>'
 
         if not parameter.required:
-            cpp_type = f'std::optional<{cpp_type}>'
+            cpp_type.nullable = True
 
         return types.Parameter(
             description=parameter.description,

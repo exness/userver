@@ -54,7 +54,16 @@ class Response:
     content: Dict[str, MediaType]
 
 
-RequestBody = Union[types.Ref, types.Schema]
+@dataclasses.dataclass
+class RequestBody:
+    content_type: str
+    required: bool
+    schema: Union[types.Ref, types.Schema]
+
+
+@dataclasses.dataclass
+class Ref:
+    ref: str
 
 
 @dataclasses.dataclass
@@ -64,7 +73,8 @@ class Operation:
     method: str
     operationId: str
     parameters: List[Parameter]
-    requestBody: Dict[str, RequestBody]
+    requestBody: List[RequestBody]
+    responses: Dict[int, Union[Response, Ref]]
 
 
 @dataclasses.dataclass
@@ -76,3 +86,4 @@ class Service:
     schemas: Dict[str, types.Schema] = dataclasses.field(default_factory=dict)
     responses: Dict[str, Response] = dataclasses.field(default_factory=dict)
     parameters: Dict[str, Parameter] = dataclasses.field(default_factory=dict)
+    headers: Dict[str, Parameter] = dataclasses.field(default_factory=dict)

@@ -1,4 +1,5 @@
 import dataclasses
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Set
@@ -12,17 +13,19 @@ class Parameter:
     description: str
     raw_name: str
     cpp_name: str
-    cpp_type: str
+    cpp_type: cpp_types.CppType
     parser: str
     required: bool
 
     def declaration_includes(self) -> List[str]:
         # TODO
+        if not self.required:
+            return ['optional']
         return []
 
 
 @dataclasses.dataclass
-class RequestBody:
+class Body:
     content_type: str
     schema: Optional[cpp_types.CppType]
 
@@ -36,7 +39,8 @@ class RequestBody:
 @dataclasses.dataclass
 class Response:
     status: int
-    # TODO
+    body: Dict[str, cpp_types.CppType]
+    headers: List[Parameter] = dataclasses.field(default_factory=list)
 
     def is_error(self) -> bool:
         return self.status >= 400
@@ -47,10 +51,10 @@ class Operation:
     method: str
     path: str
 
-    description: str
-    parameters: List[Parameter]
-    request_bodies: List[RequestBody]
-    responses: List[Response]
+    description: str = ''
+    parameters: List[Parameter] = dataclasses.field(default_factory=list)
+    request_bodies: List[Body] = dataclasses.field(default_factory=list)
+    responses: List[Response] = dataclasses.field(default_factory=list)
 
     client_generate: bool = True
 
@@ -74,9 +78,11 @@ class Operation:
 @dataclasses.dataclass
 class ClientSpec:
     client_name: str
-    description: str
     cpp_namespace: str
-    operations: List[Operation]
+    description: str = ''
+    operations: List[Operation] = dataclasses.field(default_factory=list)
+
+    schemas: Dict[str, cpp_types.CppType] = dataclasses.field(default_factory=dict)
 
     def has_multiple_content_type_request(self) -> bool:
         for op in self.operations:
@@ -87,9 +93,9 @@ class ClientSpec:
     def requests_declaration_includes(self) -> List[str]:
         includes: Set[str] = set()
         for op in self.operations:
-            # TODO: for body in op.request_bodies:
-            # TODO:     if body.schema:
-            # TODO:         includes.update(body.schema.declaration_includes())
+            for body in op.request_bodies:
+                if body.schema:
+                    includes.update(body.schema.declaration_includes())
             for param in op.parameters:
                 includes.update(param.declaration_includes())
 
