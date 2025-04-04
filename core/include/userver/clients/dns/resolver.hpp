@@ -4,13 +4,14 @@
 /// @brief @copybrief clients::dns::Resolver
 
 #include <userver/clients/dns/common.hpp>
-#include <userver/clients/dns/config.hpp>
 #include <userver/clients/dns/exception.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/io/sockaddr.hpp>
 #include <userver/engine/task/task_processor_fwd.hpp>
 #include <userver/utils/fast_pimpl.hpp>
 #include <userver/utils/statistics/relaxed_counter.hpp>
+
+#include <userver/static_config/dns_client.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -34,7 +35,7 @@ public:
         utils::statistics::RelaxedCounter<size_t> network_failure{0};
     };
 
-    Resolver(engine::TaskProcessor& fs_task_processor, const ResolverConfig& config);
+    Resolver(engine::TaskProcessor& fs_task_processor, const ::userver::static_config::DnsClient& config);
     Resolver(const Resolver&) = delete;
     Resolver(Resolver&&) = delete;
     ~Resolver();

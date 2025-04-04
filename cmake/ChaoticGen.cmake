@@ -65,9 +65,10 @@ _userver_prepare_chaotic()
 # - FORMAT - can be ON/OFF, enable to format generated files, defaults to USERVER_CHAOTIC_FORMAT
 # - SCHEMAS - JSONSchema source files
 # - ARGS - extra args to chaotic-gen
+# - INSTALL_INCLUDES_COMPONENT - component to install generated includes
 function(userver_target_generate_chaotic TARGET)
   set(OPTIONS)
-  set(ONE_VALUE_ARGS OUTPUT_DIR RELATIVE_TO FORMAT)
+  set(ONE_VALUE_ARGS OUTPUT_DIR RELATIVE_TO FORMAT INSTALL_INCLUDES_COMPONENT OUTPUT_PREFIX)
   set(MULTI_VALUE_ARGS SCHEMAS ARGS)
   cmake_parse_arguments(
       PARSE "${OPTIONS}" "${ONE_VALUE_ARGS}" "${MULTI_VALUE_ARGS}" ${ARGN}
@@ -105,9 +106,13 @@ function(userver_target_generate_chaotic TARGET)
     file(RELATIVE_PATH SCHEMA "${PARSE_RELATIVE_TO}" "${PARSE_SCHEMA}")
 
     string(REGEX REPLACE "^(.*)\\.([^.]*)\$" "\\1" SCHEMA "${SCHEMA}")
-    set(SCHEMA "${PARSE_OUTPUT_DIR}/${SCHEMA}.cpp")
 
-    list(APPEND SCHEMAS "${SCHEMA}")
+    list(APPEND SCHEMAS
+	    "${PARSE_OUTPUT_DIR}/${PARSE_OUTPUT_PREFIX}/${SCHEMA}.cpp"
+	    "${PARSE_OUTPUT_DIR}/${PARSE_OUTPUT_PREFIX}/${SCHEMA}.hpp"
+	    "${PARSE_OUTPUT_DIR}/${PARSE_OUTPUT_PREFIX}/${SCHEMA}_fwd.hpp"
+	    "${PARSE_OUTPUT_DIR}/${PARSE_OUTPUT_PREFIX}/${SCHEMA}_parsers.ipp"
+    )
   endforeach()
 
   _userver_initialize_codegen_flag()
@@ -120,7 +125,7 @@ function(userver_target_generate_chaotic TARGET)
           "${CHAOTIC_BIN}"
           ${CHAOTIC_EXTRA_ARGS}
           ${PARSE_ARGS}
-          -o "${PARSE_OUTPUT_DIR}"
+          -o "${PARSE_OUTPUT_DIR}/${PARSE_OUTPUT_PREFIX}"
           --relative-to "${PARSE_RELATIVE_TO}"
           --clang-format "${CLANG_FORMAT}"
           ${PARSE_SCHEMAS}
@@ -134,8 +139,23 @@ function(userver_target_generate_chaotic TARGET)
   _userver_codegen_register_files("${SCHEMAS}")
   add_library("${TARGET}" ${SCHEMAS})
   target_link_libraries("${TARGET}" userver::chaotic)
-  target_include_directories("${TARGET}" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-  target_include_directories("${TARGET}" PUBLIC "${PARSE_OUTPUT_DIR}")
+  target_include_directories("${TARGET}" PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>")
+  target_include_directories("${TARGET}" PUBLIC "$<BUILD_INTERFACE:${PARSE_OUTPUT_DIR}>")
+
+  if(PARSE_INSTALL_INCLUDES_COMPONENT)
+    foreach(FILE ${SCHEMAS})
+      string(REGEX REPLACE "^(.*)\\.([^.]*)\$" "\\2" SUFFIX "${FILE}")
+      if(SUFFIX STREQUAL cpp)
+        continue()
+      endif()
+      
+      _userver_directory_install(
+          COMPONENT ${PARSE_INSTALL_INCLUDES_COMPONENT}
+          FILES "${FILE}"
+          DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PARSE_OUTPUT_PREFIX}"
+      )
+    endforeach()
+  endif()
 endfunction()
 
 function(userver_target_generate_openapi_client TARGET)

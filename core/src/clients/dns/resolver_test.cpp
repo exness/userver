@@ -4,7 +4,6 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-#include <userver/clients/dns/config.hpp>
 #include <userver/clients/dns/exception.hpp>
 #include <userver/clients/dns/resolver.hpp>
 #include <userver/engine/sleep.hpp>
@@ -77,9 +76,9 @@ struct MockedResolver {
               throw std::exception{};
           }},
           resolver{engine::current_task::GetTaskProcessor(), [&] {
-                       clients::dns::ResolverConfig config;
-                       config.file_path = hosts_file.GetPath();
-                       config.file_update_interval = utest::kMaxTestWaitTime;
+                       ::userver::static_config::DnsClient config;
+                       config.hosts_file_path = hosts_file.GetPath();
+                       config.hosts_file_update_interval = utest::kMaxTestWaitTime;
                        config.network_timeout = utest::kMaxTestWaitTime;
                        config.network_attempts = 1;
                        config.cache_max_reply_ttl = std::chrono::seconds{cache_max_ttl};
