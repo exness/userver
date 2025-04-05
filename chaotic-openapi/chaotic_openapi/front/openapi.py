@@ -104,17 +104,18 @@ class Parameter(pydantic.BaseModel):
         }[self.in_]
 
 
+class RequestBody(pydantic.BaseModel):
+    description: Optional[str] = None
+    content: Dict[str, MediaType]
+    required: bool = False
+
+
 class Components(pydantic.BaseModel):
     schemas: Dict[str, Schema] = {}
     responses: Dict[str, Response] = {}
     parameters: Dict[str, Parameter] = {}
     headers: Dict[str, Header] = {}
-
-
-class RequestBody(pydantic.BaseModel):
-    description: Optional[str] = None
-    content: Dict[str, MediaType]
-    required: bool = False
+    requestBodies: Dict[str, RequestBody] = {}
 
 
 class SecurityType(str, enum.Enum):
@@ -158,7 +159,7 @@ class Operation(pydantic.BaseModel):
 
     operationId: Optional[str] = None
     parameters: List[Union[Parameter, Ref]] = []
-    requestBody: Optional[RequestBody] = None
+    requestBody: Optional[Union[RequestBody, Ref]] = None
     responses: Dict[Union[str, int], Union[Response, Ref]]
     deprecated: bool = False
     security: Optional[Security] = None

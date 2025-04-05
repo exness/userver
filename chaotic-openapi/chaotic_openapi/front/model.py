@@ -73,7 +73,7 @@ class Operation:
     method: str
     operationId: str
     parameters: List[Parameter]
-    requestBody: List[RequestBody]
+    requestBody: Union[List[RequestBody], Ref]
     responses: Dict[int, Union[Response, Ref]]
 
 
@@ -87,3 +87,4 @@ class Service:
     responses: Dict[str, Response] = dataclasses.field(default_factory=dict)
     parameters: Dict[str, Parameter] = dataclasses.field(default_factory=dict)
     headers: Dict[str, Parameter] = dataclasses.field(default_factory=dict)
+    requestBodies: Dict[str, List[RequestBody]] = dataclasses.field(default_factory=dict)

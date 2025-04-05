@@ -3,6 +3,7 @@ import re
 import typing
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -14,6 +15,7 @@ from chaotic.front import types
 from . import errors
 from . import model
 from . import openapi
+from . import ref_resolver
 from . import swagger
 
 
@@ -53,9 +55,10 @@ class Parser:
         infile_path: str,
     ) -> model.Parameter:
         if isinstance(header, openapi.Ref):
-            # assert False, (self._state.service.headers, header.ref)
             return self._state.service.headers[self._locate_ref(header.ref)]
 
+        # Header is a Parameter w/o name and in
+        # We're lazy, convert it using model_dump()
         header_dict = header.model_dump(by_alias=True)
         header_dict['name'] = name
         header_dict['in'] = 'header'
@@ -63,8 +66,14 @@ class Parser:
         parameter = openapi.Parameter(**header_dict)
         return self._convert_parameter(parameter, infile_path)
 
-    def _convert_media_type(self, media_type: openapi.MediaType) -> model.MediaType:
-        schema_ref = self._parse_schema(media_type.schema_, 'TODO')
+    def _convert_media_type(
+        self,
+        media_type: openapi.MediaType,
+        infile_path: str,
+    ) -> model.MediaType:
+        assert '#' not in infile_path, infile_path
+
+        schema_ref = self._parse_schema(media_type.schema_, infile_path + '/schema')
         mt = model.MediaType(schema=schema_ref, examples=media_type.examples)
         if media_type.example:
             mt.examples['example'] = media_type.example
@@ -83,7 +92,6 @@ class Parser:
     ) -> model.Parameter:
         if isinstance(parameter, openapi.Ref):
             return self._state.service.parameters[self._locate_ref(parameter.ref)]
-
         p = model.Parameter(
             name=parameter.name,
             in_=model.In(parameter.in_),
@@ -102,18 +110,22 @@ class Parser:
         response: Union[openapi.Response, openapi.Ref],
         infile_path: str,
     ) -> Union[model.Response, model.Ref]:
+        assert infile_path.count('#') <= 1
+
         if isinstance(response, openapi.Ref):
-            if response.ref.startswith('#'):
-                ref = self._state.full_filepath + response.ref
-            else:
-                # TODO: normalize
-                ref = response.ref
-                assert False, ref
+            ref = ref_resolver.normalize_ref(
+                self._state.full_filepath,
+                response.ref,
+            )
+            assert ref.count('#') == 1, ref
             return model.Ref(ref)
 
         content = {}
         for content_type, openapi_content in response.content.items():
-            content[content_type] = self._convert_media_type(openapi_content)
+            content[content_type] = self._convert_media_type(
+                openapi_content,
+                infile_path + f'/content/{content_type}',
+            )
         return model.Response(
             description=response.description,
             headers={
@@ -122,6 +134,33 @@ class Parser:
             },
             content=content,  # TODO
         )
+
+    def _convert_request_body(
+        self,
+        request_body: Union[openapi.RequestBody, openapi.Ref],
+        infile_path: str,
+    ) -> Union[List[model.RequestBody], model.Ref]:
+        if isinstance(request_body, openapi.Ref):
+            ref = ref_resolver.normalize_ref(
+                self._state.full_filepath,
+                request_body.ref,
+            )
+            return model.Ref(ref)
+
+        requestBody = []
+        for content_type, media_type in request_body.content.items():
+            schema = self._parse_schema(
+                media_type.schema_,
+                f'{infile_path}content/[{content_type}]/schema',
+            )
+            requestBody.append(
+                model.RequestBody(
+                    content_type=content_type,
+                    schema=schema,
+                    required=request_body.required,
+                )
+            )
+        return requestBody
 
     def _append_schema(
         self,
@@ -142,6 +181,16 @@ class Parser:
                     infile_path,
                 )
 
+            # components/requestBodies
+            for name, requestBody in parsed.components.requestBodies.items():
+                infile_path = f'/components/requestBodies/{name}'
+                body = self._convert_request_body(
+                    requestBody,
+                    infile_path,
+                )
+                assert not isinstance(body, model.Ref)
+                self._state.service.requestBodies[self._state.full_filepath + '#' + infile_path] = body
+
             # components/parameters
             for name, parameter in parsed.components.parameters.items():
                 infile_path = '/components/parameters/' + name
@@ -161,14 +210,17 @@ class Parser:
 
             # components/responses
             for name, response in parsed.components.responses.items():
-                infile_path = self._state.full_filepath + f'#/components/responses/{name}'
-                self._state.service.responses[infile_path] = model.Response(
+                infile_path = f'/components/responses/{name}'
+                self._state.service.responses[self._state.full_filepath + '#' + infile_path] = model.Response(
                     description=response.description,
                     headers={
                         key: self._convert_header(key, value, infile_path + f'/headers/{key}')
                         for (key, value) in response.headers.items()
                     },
-                    content={key: self._convert_media_type(value) for (key, value) in response.content.items()},
+                    content={
+                        key: self._convert_media_type(value, infile_path + f'/content/{key}')
+                        for (key, value) in response.content.items()
+                    },
                 )
 
         elif isinstance(parsed, swagger.Swagger):
@@ -243,20 +295,13 @@ class Parser:
         if not operation:
             return
 
-        requestBody = []
         if operation.requestBody:
-            for content_type, media_type in operation.requestBody.content.items():
-                schema = self._parse_schema(
-                    media_type.schema_,
-                    f'/paths/[{path}]/{method}/requestBody/content/[{content_type}]/schema',
-                )
-                requestBody.append(
-                    model.RequestBody(
-                        content_type=content_type,
-                        schema=schema,
-                        required=operation.requestBody.required,
-                    )
-                )
+            requestBody = self._convert_request_body(
+                operation.requestBody,
+                f'/paths/[{path}]/{method}/requestBody/',
+            )
+        else:
+            requestBody = []
 
         infile_path = f'/paths/[{path}]/{method}'
         self._state.service.operations.append(

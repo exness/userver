@@ -7,6 +7,7 @@ from chaotic import error as chaotic_error
 from chaotic_openapi.back.cpp_client import renderer
 from chaotic_openapi.back.cpp_client import translator
 from chaotic_openapi.front import parser as front_parser
+from chaotic_openapi.front import ref_resolver
 
 
 def main():
@@ -19,11 +20,18 @@ def main():
 
 def do_main():
     args = parse_args()
-    # parse
-    parser = front_parser.Parser(args.name)
+
+    # sort
+    contents = {}
     for file in args.file:
         with open(file) as ifile:
             content = yaml.safe_load(ifile)
+        contents[file] = content
+    sorted_contents = ref_resolver.sort_openapis(contents)
+
+    # parse
+    parser = front_parser.Parser(args.name)
+    for file, content in sorted_contents:
         parser.parse_schema(content, file)
 
     # translate

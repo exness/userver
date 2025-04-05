@@ -22,6 +22,7 @@ class Translator:
         )
 
         # TODO: external $refs
+        # components/schemas
         parsed_schemas = chaotic_types.ParsedSchemas(
             schemas={str(schema.source_location()): schema for schema in service.schemas.values()},
         )
@@ -38,13 +39,23 @@ class Translator:
         # components/responses
         self._raw_responses = {f'{name}': response for name, response in service.responses.items()}
 
+        # components/requestBodies
+        self._raw_request_bodies = {f'{name}': body for name, body in service.requestBodies.items()}
+
         for operation in service.operations:
+            if isinstance(operation.requestBody, model.Ref):
+                request_bodies = [
+                    self._translate_request_body(body) for body in self._raw_request_bodies[operation.requestBody.ref]
+                ]
+            else:
+                request_bodies = [self._translate_request_body(body) for body in operation.requestBody]
+
             op = types.Operation(
                 method=operation.method.upper(),
                 path=operation.path,
                 description=operation.description,
                 parameters=[self._translate_parameter(parameter) for parameter in operation.parameters],
-                request_bodies=[self._translate_request_body(body) for body in operation.requestBody],
+                request_bodies=request_bodies,
                 responses=[self._translate_response(r, status) for status, r in operation.responses.items()],
             )
             self._spec.operations.append(op)
@@ -123,14 +134,22 @@ class Translator:
             schemas={str(request_body.schema.source_location()): request_body.schema},
         )
         # TODO: components/schemas (external schemas)
-        resolved_schemas = ref_resolver.RefResolver().sort_schemas(parsed_schemas)
+        resolved_schemas = ref_resolver.RefResolver().sort_schemas(
+            parsed_schemas,
+            external_schemas=chaotic_types.ResolvedSchemas(
+                self._raw_schemas,
+            ),
+        )
         gen = chaotic_translator.Generator(
             chaotic_translator.GeneratorConfig(
                 namespaces={request_body.schema.source_location().filepath: ''},
                 infile_to_name_func=self.map_infile_path_to_cpp_type,
             )
         )
-        gen_types = gen.generate_types(resolved_schemas)
+        gen_types = gen.generate_types(
+            resolved_schemas,
+            external_schemas=self._spec.schemas,
+        )
 
         assert len(gen_types) == 1
         schema = list(gen_types.values())[0]

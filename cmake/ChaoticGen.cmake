@@ -172,7 +172,7 @@ function(userver_target_generate_openapi_client TARGET)
       GLOBAL PROPERTY userver_chaotic_python_binary)
 
   if (NOT DEFINED PARSE_OUTPUT_DIR)
-    set(PARSE_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+          set(PARSE_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/${PARSE_NAME}")
   endif()
   file(MAKE_DIRECTORY "${PARSE_OUTPUT_DIR}")
 

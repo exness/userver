@@ -16,11 +16,10 @@ file(GLOB CLIENTS
 foreach(CLIENT ${CLIENTS})
     string(REPLACE "-" "_" CLIENT_NAME ${CLIENT})
     file(GLOB SCHEMAS ${CMAKE_CURRENT_SOURCE_DIR}/clients/${CLIENT}/*.yaml)
-    userver_target_generate_openapi_client(${PROJECT_NAME}-client-${CLIENT}
+    userver_target_generate_openapi_client(
+        ${PROJECT_NAME}-client-${CLIENT}
         NAME
             ${CLIENT_NAME}
-        OUTPUT_DIR
-            "${CMAKE_CURRENT_BINARY_DIR}/${CLIENT}"
         SCHEMAS
             ${SCHEMAS}
     )
