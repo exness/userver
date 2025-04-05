@@ -20,28 +20,9 @@ components_manager:
 
         testsuite-support:
 
-        http-client:
-            fs-task-processor: main-task-processor
-
-        tests-control:
-            method: POST
-            path: /tests/{action}
-            skip-unregistered-testpoints: true
-            task_processor: main-task-processor
-            testpoint-timeout: 10s
-            testpoint-url: $mockserver/testpoint
-            throttling_enabled: false
-
         server:
             listener:
                 port: 8187
-                task_processor: main-task-processor
-            listener-monitor:
-                port: $monitor-server-port
-                port#fallback: 8086
-                connection:
-                    in_buffer_size: 32768
-                    requests_queue_size_threshold: 100
                 task_processor: main-task-processor
         logging:
             fs-task-processor: fs-task-processor
@@ -50,17 +31,6 @@ components_manager:
                     file_path: '@stderr'
                     level: debug
                     overflow_behavior: discard
-
-        handler-server-monitor:
-            path: /service/monitor
-            method: GET
-            task_processor: main-task-processor
-
-        dynamic-config:
-            defaults:
-                POSTGRES_STATEMENT_METRICS_SETTINGS:
-                    key-value-database:
-                        max_statement_metrics: 5
 
         dns-client:
             fs-task-processor: fs-task-processor

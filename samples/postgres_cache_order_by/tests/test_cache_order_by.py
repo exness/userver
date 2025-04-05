@@ -5,16 +5,8 @@ import pytest
 @pytest.mark.parametrize(
     'order, expected',
     (
-        pytest.param(
-            'last',
-            'one3',
-            id='last',
-        ),
-        pytest.param(
-            'first',
-            'one1',
-            id='first',
-        ),
+        pytest.param('last', 'one3', id='last'),
+        pytest.param('first', 'one1', id='first'),
     ),
 )
 async def test_cache_order_by(service_client, order, expected):
@@ -26,6 +18,4 @@ async def test_cache_order_by(service_client, order, expected):
         },
     )
     assert response.status == 200
-    assert response.json() == {
-        'result': expected,
-    }
+    assert response.json() == {'result': expected}

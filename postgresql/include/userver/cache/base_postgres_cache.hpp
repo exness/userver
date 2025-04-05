@@ -91,6 +91,14 @@ namespace components {
 ///
 /// @snippet cache/postgres_cache_test.cpp Pg Cache Policy Custom Updated Example
 ///
+/// Cache can also store only subset of data. For example for the database that is is defined in the following way:
+///
+/// @include samples/postgres_cache_order_by/schemas/postgresql/key_value.sql
+///
+/// it is possible to create a cache that stores only the latest `value`:
+///
+/// @snippet samples/postgres_cache_order_by/main.cpp  Last pg cache
+///
 /// In case one provides a custom CacheContainer within Policy, it is notified
 /// of Update completion via its public member function OnWritesDone, if any.
 /// See the following code snippet for an example of usage:
