@@ -98,6 +98,7 @@ void PeriodicTask::Stop() noexcept {
 }
 
 void PeriodicTask::SetSettings(Settings settings) {
+
     bool should_notify_task{};
     {
         auto writer = settings_.StartWrite();
@@ -106,7 +107,7 @@ void PeriodicTask::SetSettings(Settings settings) {
             return;
         }
         settings.flags = writer->flags;
-        should_notify_task = settings.period != writer->period || settings.exception_period != writer->exception_period;
+        should_notify_task = settings.period != writer->period || settings.exception_period != writer->exception_period || || settings.enabled != writer->enabled;
         *writer = std::move(settings);
         writer.Commit();
     }
@@ -118,7 +119,12 @@ void PeriodicTask::SetSettings(Settings settings) {
 }
 
 void PeriodicTask::ForceStepAsync() {
+
     should_force_step_ = true;
+    if (!writer->enabled) {
+      writer->enabled = true;
+      writer.Commit();
+    }
     changed_event_.Send();
 }
 
@@ -133,6 +139,7 @@ bool PeriodicTask::SynchronizeDebug(bool preserve_span) {
 bool PeriodicTask::IsRunning() const { return task_.IsValid(); }
 
 void PeriodicTask::Run() {
+
     bool skip_step = false;
     {
         auto settings = settings_.Read();
@@ -145,11 +152,12 @@ void PeriodicTask::Run() {
         const auto before = std::chrono::steady_clock::now();
         bool no_exception = true;
 
-        if (!std::exchange(skip_step, false)) {
+        const auto settings = settings_.Read();
+        bool taskEnabled = settings->enabled;
+        if (!std::exchange(skip_step, false) && taskEnabled) {
             no_exception = Step();
         }
 
-        const auto settings = settings_.Read();
         auto period = settings->period;
         const auto exception_period = settings->exception_period.value_or(period);
 
@@ -162,12 +170,17 @@ void PeriodicTask::Run() {
             start = std::chrono::steady_clock::now();
         }
 
-        while (changed_event_.WaitForEventUntil(start + MutatePeriod(period))) {
+        while ((!taskEnabled && changed_event_.WaitForEvent()) || (taskEnabled && changed_event_.WaitForEventUntil(start + MutatePeriod(period)))) {
             if (should_force_step_.exchange(false)) {
-                break;
+              break;
             }
             // The config variable value has been changed, reload
             const auto settings = settings_.Read();
+            taskEnabled = settings->enabled;
+            if(!taskEnabled) {
+              break;
+            }
+
             period = settings->period;
             const auto exception_period = settings->exception_period.value_or(period);
             if (!no_exception) period = exception_period;
