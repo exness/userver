@@ -21,7 +21,6 @@ class Translator:
             schemas={},
         )
 
-        # TODO: external $refs
         # components/schemas
         parsed_schemas = chaotic_types.ParsedSchemas(
             schemas={str(schema.source_location()): schema for schema in service.schemas.values()},

@@ -8,7 +8,6 @@ from chaotic.front import ref_resolver
 
 
 def normalize_ref(filepath: str, ref: str) -> str:
-    # print('normalize_ref: ', filepath, ref)
     if ref.startswith('#'):
         return filepath + ref
 
