@@ -124,6 +124,9 @@ public:
         /// PeriodicTask::Start() calls engine::current_task::GetTaskProcessor()
         /// to get the TaskProcessor.
         engine::TaskProcessor* task_processor{nullptr};
+
+        /// @brief enabled allows to enable/disable timer during run
+        bool enabled{true};
     };
 
     /// Signature of the task to be executed each period.
