@@ -22,8 +22,8 @@ namespace {
 
 auto TieSettings(const PeriodicTask::Settings& settings) {
     // Can't use Boost.Pfr, because Settings has custom constructors.
-    const auto& [f1, f2, f3, f4, f5, f6] = settings;
-    return std::tie(f1, f2, f3, f4, f5, f6);
+    const auto& [f1, f2, f3, f4, f5, f6, f7] = settings;
+    return std::tie(f1, f2, f3, f4, f5, f6, f7);
 }
 
 }  // namespace
@@ -121,6 +121,7 @@ void PeriodicTask::SetSettings(Settings settings) {
 void PeriodicTask::ForceStepAsync() {
 
     should_force_step_ = true;
+    auto writer = settings_.StartWrite();
     if (!writer->enabled) {
       writer->enabled = true;
       writer.Commit();
