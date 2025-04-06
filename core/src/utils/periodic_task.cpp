@@ -107,7 +107,7 @@ void PeriodicTask::SetSettings(Settings settings) {
             return;
         }
         settings.flags = writer->flags;
-        should_notify_task = settings.period != writer->period || settings.exception_period != writer->exception_period || || settings.enabled != writer->enabled;
+        should_notify_task = settings.period != writer->period || settings.exception_period != writer->exception_period || settings.enabled != writer->enabled;
         *writer = std::move(settings);
         writer.Commit();
     }
@@ -139,7 +139,6 @@ bool PeriodicTask::SynchronizeDebug(bool preserve_span) {
 bool PeriodicTask::IsRunning() const { return task_.IsValid(); }
 
 void PeriodicTask::Run() {
-
     bool skip_step = false;
     {
         auto settings = settings_.Read();
