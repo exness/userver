@@ -110,15 +110,6 @@ public:
     /// If all OnCallStart succeeded => OnCallFinish will invoked after a success method call.
     virtual void OnCallStart(MiddlewareCallContext& context) const;
 
-    /// @brief This hook is invoked once per Call (RPC), after the handler function returns, but before the message is
-    /// sent to the upstream client.
-    ///
-    /// All OnCallStart invoked in the reverse order relatively OnCallFinish. You can change grpc status and it will
-    /// apply for a rpc call.
-    ///
-    /// @warning If Handler (grpc method) returns !ok status, OnCallFinish won't be called.
-    virtual void OnCallFinish(MiddlewareCallContext& context, const grpc::Status& status) const;
-
     /// @brief The function is invoked after each received message.
     ///
     /// PostRecvMessage is called:
@@ -132,6 +123,15 @@ public:
     ///  * unary: 0 or 1 per Call (RPC), depending on whether the RPC returns a response or a failed status
     ///  * stream: once per response message, that is, 0, 1, more times per Call (RPC).
     virtual void PreSendMessage(MiddlewareCallContext& context, google::protobuf::Message& response) const;
+
+    /// @brief This hook is invoked once per Call (RPC), after the handler function returns, but before the message is
+    /// sent to the upstream client.
+    ///
+    /// All OnCallStart invoked in the reverse order relatively OnCallFinish. You can change grpc status and it will
+    /// apply for a rpc call.
+    ///
+    /// @warning If Handler (grpc method) returns !ok status, OnCallFinish won't be called.
+    virtual void OnCallFinish(MiddlewareCallContext& context, const grpc::Status& status) const;
 };
 
 /// @ingroup userver_base_classes
