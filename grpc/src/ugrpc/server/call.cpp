@@ -1,7 +1,5 @@
 #include <userver/ugrpc/server/call.hpp>
 
-#include <fmt/format.h>
-
 #include <boost/range/adaptor/reversed.hpp>
 
 #include <userver/logging/impl/logger_base.hpp>
@@ -15,8 +13,8 @@
 #include <userver/ugrpc/status_codes.hpp>
 
 #include <ugrpc/impl/internal_tag.hpp>
+#include <ugrpc/impl/logging.hpp>
 #include <ugrpc/impl/span.hpp>
-#include <ugrpc/impl/status.hpp>
 #include <ugrpc/server/impl/format_log_message.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -43,17 +41,8 @@ void WriteAccessLog(
 
 void LogErrorDetails(const grpc::Status& status) {
     const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
-    const auto gstatus = ugrpc::impl::ToGoogleRpcStatus(status);
-    auto body =
-        gstatus.has_value()
-            ? fmt::format(
-                  "code: {}, error message: {}\nerror details:\n{}",
-                  ugrpc::ToString(status.error_code()),
-                  status.error_message(),
-                  ugrpc::impl::GetGStatusLimitedMessage(*gstatus)
-              )
-            : fmt::format("code: {}, error message: {}", ugrpc::ToString(status.error_code()), status.error_message());
-    LOG(log_level) << "gRPC error" << logging::LogExtra{{"type", "response"}, {"body", std::move(body)}};
+    auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
+    LOG(log_level) << "gRPC error" << logging::LogExtra{{"type", "response"}, {"body", std::move(error_details)}};
 }
 
 }  // namespace
