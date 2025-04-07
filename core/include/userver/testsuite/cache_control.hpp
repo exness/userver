@@ -182,14 +182,23 @@ CacheControl& FindCacheControl(const components::ComponentContext& context);
 /// *after* all FindComponent calls. This ensures that reset will first be
 /// called for dependencies, then for dependent components.
 template <typename Component>
-CacheResetRegistration RegisterCache(
-    const components::ComponentConfig& config,
+CacheResetRegistration
+RegisterCache(const components::ComponentContext& context, Component* self, void (Component::*reset_method)()) {
+    auto& cc = testsuite::FindCacheControl(context);
+    return cc.RegisterCache(self, components::GetCurrentComponentName(context), reset_method);
+}
+
+/// @overload
+///
+/// @deprecated Use the overload without the `config` parameter.
+template <typename Component>
+[[deprecated("Remove 'context' parameter from RegisterCache call")]] CacheResetRegistration RegisterCache(
+    [[maybe_unused]] const components::ComponentConfig& config,
     const components::ComponentContext& context,
     Component* self,
     void (Component::*reset_method)()
 ) {
-    auto& cc = testsuite::FindCacheControl(context);
-    return cc.RegisterCache(self, components::GetCurrentComponentName(config), reset_method);
+    return testsuite::RegisterCache(context, self, reset_method);
 }
 
 /// @cond

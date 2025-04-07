@@ -45,6 +45,8 @@ void ComponentContext::ThrowComponentTypeMismatch(
 
 RawComponentBase* ComponentContext::DoFindComponent(std::string_view name) const { return impl_.DoFindComponent(name); }
 
+std::string_view GetCurrentComponentName(const ComponentContext& context) { return context.GetComponentName(); }
+
 }  // namespace components
 
 USERVER_NAMESPACE_END
