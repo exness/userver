@@ -41,7 +41,11 @@ components_manager:
       unknown-field: 123
   )";
 
-TEST(DnsClient, InvalidComponentConfig) {
+using DnsClient = ComponentList;
+
+}  // namespace
+
+TEST_F(DnsClient, InvalidComponentConfig) {
     auto component_list = components::ComponentList()
                               .Append<clients::dns::Component>()
                               .Append<components::Logging>()
@@ -54,7 +58,5 @@ TEST(DnsClient, InvalidComponentConfig) {
         "Cannot start component dns-client: Unknown property 'unknown-field'"
     );
 }
-
-}  // namespace
 
 USERVER_NAMESPACE_END
