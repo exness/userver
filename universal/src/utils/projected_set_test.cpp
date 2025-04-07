@@ -107,34 +107,46 @@ TYPED_TEST(ProjectedSet, ProjectedInsertOrAssign) {
     EXPECT_EQ(utils::ProjectedFind(set, 1)->second, "b");
 }
 
+namespace {
+
+// gcc-9 and gcc-11 get confused when using this function in userver-core. Unit tests are fine, though.
+template <typename Value, auto Projection>
+decltype(auto) ProjectedUnwrapThen(const utils::impl::MutableWrapper<Value>& value) {
+    return std::invoke(Projection, std::as_const(*value));
+}
+
+}  // namespace
+
 TYPED_TEST(ProjectedSet, ProjectedFindOrNullptrUnsafe) {
-    using Set = typename TypeParam::template type<Pair, kFirst>;
+    using Set = typename TypeParam::template type<utils::impl::MutableWrapper<Pair>, ProjectedUnwrapThen<Pair, kFirst>>;
     const std::vector<Pair> original{{10, "x"}};
 
     auto set = utils::AsContainer<Set>(original);
 
     Pair* const value = utils::impl::ProjectedFindOrNullptrUnsafe(set, 10);
     ASSERT_TRUE(value);
+    // item->first = 20;  // UB!
     value->second = "y";
 
     const auto iter = utils::ProjectedFind(set, 10);
     ASSERT_TRUE(iter != set.end());
-    EXPECT_EQ(*iter, Pair(10, "y"));
+    EXPECT_EQ(**iter, Pair(10, "y"));
 }
 
-TYPED_TEST(ProjectedSet, ProjectedUnsafeView) {
-    using Set = typename TypeParam::template type<Pair, kFirst>;
+TYPED_TEST(ProjectedSet, ProjectedUnsafeIteration) {
+    using Set = typename TypeParam::template type<utils::impl::MutableWrapper<Pair>, ProjectedUnwrapThen<Pair, kFirst>>;
     const std::vector<Pair> original{{10, "x"}};
 
     auto set = utils::AsContainer<Set>(original);
 
-    for (Pair& item : utils::impl::ProjectedUnsafeView(set)) {
-        item.second = "y";
+    for (auto& item : set) {
+        // item->first = 20;  // UB!
+        item->second = "y";
     }
 
     const auto iter = utils::ProjectedFind(set, 10);
     ASSERT_TRUE(iter != set.end());
-    EXPECT_EQ(*iter, Pair(10, "y"));
+    EXPECT_EQ(**iter, Pair(10, "y"));
 }
 
 USERVER_NAMESPACE_END

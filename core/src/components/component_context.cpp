@@ -15,24 +15,24 @@ ComponentsLoadCancelledException::ComponentsLoadCancelledException(std::string_v
 ComponentContext::ComponentContext(
     utils::impl::InternalTag,
     impl::ComponentContextImpl& impl,
-    std::string_view component_name
+    impl::ComponentInfo& component_info
 ) noexcept
-    : impl_(impl), component_name_(component_name) {}
+    : impl_(impl), component_info_(component_info) {}
 
-engine::TaskProcessor& ComponentContext::GetTaskProcessor(const std::string& name) const {
+engine::TaskProcessor& ComponentContext::GetTaskProcessor(std::string_view name) const {
     return impl_.GetTaskProcessor(name);
 }
 
-std::string_view ComponentContext::GetComponentName() const { return component_name_; }
+std::string_view ComponentContext::GetComponentName() const { return component_info_.GetName(); }
 
 impl::ComponentContextImpl& ComponentContext::GetImpl(utils::impl::InternalTag) const { return impl_; }
 
-const Manager& ComponentContext::GetManager(utils::impl::InternalTag) const { return impl_.GetManager(); }
+const impl::Manager& ComponentContext::GetManager(utils::impl::InternalTag) const { return impl_.GetManager(); }
 
 bool ComponentContext::Contains(std::string_view name) const noexcept { return impl_.Contains(name); }
 
 void ComponentContext::ThrowNonRegisteredComponent(std::string_view name, std::string_view type) const {
-    impl_.ThrowNonRegisteredComponent(name, type);
+    impl_.ThrowNonRegisteredComponent(name, type, component_info_);
 }
 
 void ComponentContext::ThrowComponentTypeMismatch(
@@ -40,10 +40,12 @@ void ComponentContext::ThrowComponentTypeMismatch(
     std::string_view type,
     RawComponentBase* component
 ) const {
-    impl_.ThrowComponentTypeMismatch(name, type, component);
+    impl_.ThrowComponentTypeMismatch(name, type, component, component_info_);
 }
 
-RawComponentBase* ComponentContext::DoFindComponent(std::string_view name) const { return impl_.DoFindComponent(name); }
+RawComponentBase* ComponentContext::DoFindComponent(std::string_view name) const {
+    return impl_.DoFindComponent(name, component_info_);
+}
 
 std::string_view GetCurrentComponentName(const ComponentContext& context) { return context.GetComponentName(); }
 

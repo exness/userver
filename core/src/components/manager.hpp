@@ -1,18 +1,16 @@
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <shared_mutex>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 #include <userver/components/component_context.hpp>
 #include <userver/components/component_fwd.hpp>
 #include <userver/components/component_list.hpp>
-#include <userver/components/raw_component_base.hpp>
 #include <userver/engine/task/task_processor_fwd.hpp>
+#include <userver/utils/impl/transparent_hash.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -25,26 +23,28 @@ class ProcessorComponent;
 }  // namespace os_signals
 
 namespace components {
-
 class ComponentList;
 struct ManagerConfig;
+}  // namespace components
 
-namespace impl {
+namespace components::impl {
+
 class ComponentAdderBase;
-}  // namespace impl
 
 using ComponentConfigMap = std::unordered_map<std::string, const ComponentConfig&>;
+using TaskProcessorsMap = utils::impl::TransparentMap<std::string, std::unique_ptr<engine::TaskProcessor>>;
 
+// Responsible for instantiating coroutine engine, wrapping ComponentContextImpl in it and bridging it
+// to the outside world.
 class Manager final {
 public:
-    using TaskProcessorsMap = std::unordered_map<std::string, std::unique_ptr<engine::TaskProcessor>>;
-
     Manager(std::unique_ptr<ManagerConfig>&& config, const ComponentList& component_list);
     ~Manager();
 
     const ManagerConfig& GetConfig() const;
     const std::shared_ptr<engine::impl::TaskProcessorPools>& GetTaskProcessorPools() const;
     const TaskProcessorsMap& GetTaskProcessorsMap() const;
+    engine::TaskProcessor& GetTaskProcessor(std::string_view name) const;
 
     void OnSignal(int signum);
 
@@ -101,6 +101,6 @@ private:
     os_signals::ProcessorComponent* signal_processor_{nullptr};
 };
 
-}  // namespace components
+}  // namespace components::impl
 
 USERVER_NAMESPACE_END

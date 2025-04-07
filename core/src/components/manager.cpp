@@ -100,7 +100,7 @@ void ValidateConfigs(
 
 }  // namespace
 
-namespace components {
+namespace components::impl {
 
 Manager::TaskProcessorsStorage::TaskProcessorsStorage(
     std::shared_ptr<engine::impl::TaskProcessorPools> task_processor_pools
@@ -221,7 +221,15 @@ const std::shared_ptr<engine::impl::TaskProcessorPools>& Manager::GetTaskProcess
     return task_processors_storage_.GetTaskProcessorPools();
 }
 
-const Manager::TaskProcessorsMap& Manager::GetTaskProcessorsMap() const { return task_processors_storage_.GetMap(); }
+const TaskProcessorsMap& Manager::GetTaskProcessorsMap() const { return task_processors_storage_.GetMap(); }
+
+engine::TaskProcessor& Manager::GetTaskProcessor(std::string_view name) const {
+    const auto& map = task_processors_storage_.GetMap();
+    if (const auto* const task_processor = utils::impl::FindTransparentOrNullptr(map, name)) {
+        return **task_processor;
+    }
+    throw std::runtime_error(fmt::format("Failed to find task processor with name: {}", name));
+}
 
 void Manager::OnSignal(int signum) {
     std::shared_lock<std::shared_timed_mutex> lock(context_mutex_);
@@ -411,6 +419,6 @@ void Manager::ClearComponents() noexcept {
     }
 }
 
-}  // namespace components
+}  // namespace components::impl
 
 USERVER_NAMESPACE_END

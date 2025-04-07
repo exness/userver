@@ -26,11 +26,11 @@ class TaskContext;
 
 namespace components {
 
-class Manager;
-
 namespace impl {
 
+class Manager;
 class ComponentContextImpl;
+class ComponentInfo;
 
 template <class T>
 constexpr auto NameFromComponentType() -> decltype(std::string_view{T::kName}) {
@@ -136,7 +136,7 @@ public:
     }
 
     /// @brief Returns an engine::TaskProcessor with the specified name.
-    engine::TaskProcessor& GetTaskProcessor(const std::string& name) const;
+    engine::TaskProcessor& GetTaskProcessor(std::string_view name) const;
 
     template <typename T>
     engine::TaskProcessor& GetTaskProcessor(const T&) {
@@ -157,14 +157,14 @@ public:
     ComponentContext(
         utils::impl::InternalTag,
         impl::ComponentContextImpl& impl,
-        std::string_view component_name
+        impl::ComponentInfo& component_info
     ) noexcept;
 
     // For internal use only.
     impl::ComponentContextImpl& GetImpl(utils::impl::InternalTag) const;
 
     // For internal use only.
-    const Manager& GetManager(utils::impl::InternalTag) const;
+    const impl::Manager& GetManager(utils::impl::InternalTag) const;
     /// @endcond
 
 private:
@@ -197,7 +197,7 @@ private:
     RawComponentBase* DoFindComponent(std::string_view name) const;
 
     impl::ComponentContextImpl& impl_;
-    const std::string_view component_name_;
+    impl::ComponentInfo& component_info_;
 };
 
 }  // namespace components

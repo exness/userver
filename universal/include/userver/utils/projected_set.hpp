@@ -7,6 +7,7 @@
 #include <set>
 #include <type_traits>
 #include <unordered_set>
+#include <utility>
 
 #include <userver/utils/impl/projecting_view.hpp>
 #include <userver/utils/impl/transparent_hash.hpp>
@@ -71,15 +72,6 @@ void DoInsert(Set& set, Value&& value) {
     }
 }
 
-class ConstCastTransform {
-public:
-    template <typename T>
-    T& operator()(const T& item) const {
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-        return const_cast<T&>(item);
-    }
-};
-
 template <typename T>
 using HasHasher = typename T::hasher;
 
@@ -137,34 +129,35 @@ auto ProjectedFind(Container& set, const Key& key) {
 
 namespace impl {
 
-/// @brief An equivalent of @ref utils::FindOrNullptr for @ref utils::ProjectedUnorderedSet
-/// and @ref utils::ProjectedSet.
-///
-/// @warning Use with utmost caution! Mutating the part of the values that serves as key invokes UB.
-template <typename Container, typename Key>
-auto* ProjectedFindOrNullptrUnsafe(Container& set, const Key& key) {
-    const auto iter = utils::ProjectedFind(set, key);
-    if constexpr (std::is_const_v<Container>) {
-        return iter != set.end() ? &*iter : nullptr;
-    } else {
-        using SetValue = std::decay_t<decltype(*iter)>;
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-        return iter != set.end() ? &const_cast<SetValue&>(*iter) : nullptr;
-    }
-}
+/// @name Mutating elements inside utils::ProjectedUnorderedSet.
+/// @{
 
-/// @brief Iterates @ref utils::ProjectedUnorderedSet or @ref utils::ProjectedSet, returning non-const references
-/// in case of a non-const container. Normal iteration would return const references regardless.
+/// @brief Used to work around the fact that mutation is prohibited inside utils::ProjectedUnorderedSet.
 ///
 /// @warning Use with utmost caution! Mutating the part of the values that serves as key invokes UB.
-template <typename Container>
-decltype(auto) ProjectedUnsafeView(Container& set) {
+template <typename Value>
+class MutableWrapper {
+public:
+    template <typename... Args>
+    /*implicit*/ MutableWrapper(Args&&... args) : value_(std::forward<Args>(args)...) {}
+
+    Value& operator*() const { return value_; }
+    Value* operator->() const { return std::addressof(value_); }
+
+private:
+    mutable Value value_;
+};
+
+template <typename Container, typename Key>
+auto ProjectedFindOrNullptrUnsafe(Container& set, const Key& key) {
+    auto iter = utils::ProjectedFind(set, key);
     if constexpr (std::is_const_v<Container>) {
-        return set;
+        return iter == set.end() ? nullptr : std::addressof(std::as_const(**iter));
     } else {
-        return utils::impl::ProjectingView<Container, impl::projected_set::ConstCastTransform>(set);
+        return iter == set.end() ? nullptr : std::addressof(**iter);
     }
 }
+/// @}
 
 }  // namespace impl
 
