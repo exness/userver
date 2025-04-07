@@ -12,7 +12,7 @@ class MetaFilter final : public ugrpc::server::MiddlewareBase {
 public:
     MetaFilter(MiddlewareConfig&& config);
 
-    void Handle(ugrpc::server::MiddlewareCallContext& context) const override;
+    void OnCallStart(ugrpc::server::MiddlewareCallContext& context) const override;
 
 private:
     const std::vector<std::string> headers_;

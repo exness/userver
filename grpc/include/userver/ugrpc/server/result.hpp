@@ -36,6 +36,16 @@ public:
     /// @cond
     bool IsSuccess() const { return std::holds_alternative<Response>(result_); }
 
+    grpc::Status&& ExtractErrorStatus() {
+        UINVARIANT(!IsSuccess(), "ExtractErrorStatus allowed only in error state");
+        return std::move(std::get<grpc::Status>(result_));
+    }
+
+    const grpc::Status& GetErrorStatus() const {
+        UINVARIANT(!IsSuccess(), "GetErrorStatus allowed only in error state");
+        return std::get<grpc::Status>(result_);
+    }
+
     Response&& ExtractResponse() && {
         UINVARIANT(IsSuccess(), "ExtractResponse allowed only in success state");
         return std::get<Response>(std::move(result_));
@@ -46,10 +56,6 @@ public:
         return std::get<Response>(result_);
     }
 
-    const grpc::Status& GetErrorStatus() const {
-        UINVARIANT(!IsSuccess(), "GetErrorStatus allowed only in error state");
-        return std::get<grpc::Status>(result_);
-    }
     /// @endcond
 
 private:
@@ -77,9 +83,12 @@ public:
 
     Response&& ExtractLastResponse() && { return std::move(last_response_).value(); }
 
-    const Response& GetLastResponse() const { return last_response_.value(); }
+    bool IsSuccess() const { return status_.ok(); }
+
+    grpc::Status&& ExtractStatus() { return std::move(status_); }
 
     const grpc::Status& GetStatus() const { return status_; }
+
     /// @endcond
 
 private:

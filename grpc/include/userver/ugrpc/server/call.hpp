@@ -89,7 +89,9 @@ public:
     ugrpc::impl::RpcStatisticsScope& GetStatistics(ugrpc::impl::InternalTag);
 
     // For internal use only
-    void RunMiddlewarePipeline(utils::impl::InternalTag, MiddlewareCallContext& md_call_context);
+    void SetMiddlewareCallContext(utils::impl::InternalTag, MiddlewareCallContext& md_call_context) {
+        middleware_call_context_ = &md_call_context;
+    }
     /// @endcond
 
 protected:

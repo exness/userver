@@ -74,27 +74,28 @@ void CallAnyBase::SetMetricsCallName(std::string_view call_name) {
 
 ugrpc::impl::RpcStatisticsScope& CallAnyBase::GetStatistics(ugrpc::impl::InternalTag) { return params_.statistics; }
 
-void CallAnyBase::RunMiddlewarePipeline(utils::impl::InternalTag, MiddlewareCallContext& md_call_context) {
-    middleware_call_context_ = &md_call_context;
-    md_call_context.Next();
-}
-
 void CallAnyBase::ApplyRequestHook(google::protobuf::Message* request) {
-    UINVARIANT(middleware_call_context_, "MiddlewareCallContext must be invoked");
+    UINVARIANT(middleware_call_context_, "CallContext must be invoked");
     if (request) {
         for (const auto& middleware : params_.middlewares) {
-            middleware->CallRequestHook(*middleware_call_context_, *request);
-            if (IsFinished()) throw impl::MiddlewareRpcInterruptionError();
+            middleware->PostRecvMessage(*middleware_call_context_, *request);
+            auto& status = middleware_call_context_->GetStatus();
+            if (!status.ok()) {
+                throw impl::MiddlewareRpcInterruptionError(std::move(status));
+            }
         }
     }
 }
 
 void CallAnyBase::ApplyResponseHook(google::protobuf::Message* response) {
-    UINVARIANT(middleware_call_context_, "MiddlewareCallContext must be invoked");
+    UINVARIANT(middleware_call_context_, "CallContext must be invoked");
     if (response) {
         for (const auto& middleware : boost::adaptors::reverse(params_.middlewares)) {
-            middleware->CallResponseHook(*middleware_call_context_, *response);
-            if (IsFinished()) throw impl::MiddlewareRpcInterruptionError();
+            middleware->PreSendMessage(*middleware_call_context_, *response);
+            auto& status = middleware_call_context_->GetStatus();
+            if (!status.ok()) {
+                throw impl::MiddlewareRpcInterruptionError(std::move(status));
+            }
         }
     }
 }

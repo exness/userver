@@ -22,7 +22,7 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, const
 
 Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 
-void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::protobuf::Message& request) {
+void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobuf::Message& request) const {
     logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(request, settings_)}};
     if (context.IsClientStreaming()) {
         LOG_INFO() << "gRPC request stream message" << std::move(extra);
@@ -32,7 +32,7 @@ void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::p
     }
 }
 
-void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::protobuf::Message& response) {
+void Middleware::PreSendMessage(MiddlewareCallContext& context, google::protobuf::Message& response) const {
     logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
     if (context.IsServerStreaming()) {
         LOG_INFO() << "gRPC response stream message" << std::move(extra);
@@ -42,18 +42,18 @@ void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::
     }
 }
 
-void Middleware::Handle(MiddlewareCallContext& context) const {
-    auto& span = context.GetCall().GetSpan();
+void Middleware::OnCallStart(MiddlewareCallContext& context) const {
+    auto& span = context.GetSpan();
 
-    span.AddTag("meta_type", std::string{context.GetCall().GetCallName()});
+    span.AddTag("meta_type", std::string{context.GetCallName()});
     span.AddNonInheritableTag(tracing::kSpanKind, tracing::kSpanKindServer);
 
     if (context.IsClientStreaming()) {
         LOG_INFO() << "gRPC request stream started" << logging::LogExtra{{"type", "request"}};
     }
+}
 
-    context.Next();
-
+void Middleware::OnCallFinish(MiddlewareCallContext& context, const grpc::Status& /*status*/) const {
     if (context.IsServerStreaming()) {
         LOG_INFO() << "gRPC response stream finished" << logging::LogExtra{{"type", "response"}};
     }

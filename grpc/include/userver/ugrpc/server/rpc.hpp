@@ -30,15 +30,7 @@ public:
     ///
     /// @param response the single Response to send to the client
     /// @throws ugrpc::server::RpcError on an RPC error
-    void Finish(Response& response);
-
-    /// @brief Complete the RPC successfully
-    ///
-    /// `Finish` must not be called multiple times for the same RPC.
-    ///
-    /// @param response the single Response to send to the client
-    /// @throws ugrpc::server::RpcError on an RPC error
-    void Finish(Response&& response);
+    void Finish(const Response& response);
 
     /// @brief Complete the RPC with an error
     ///
@@ -84,15 +76,7 @@ public:
     ///
     /// @param response the single Response to send to the client
     /// @throws ugrpc::server::RpcError on an RPC error
-    void Finish(Response& response);
-
-    /// @brief Complete the RPC successfully
-    ///
-    /// `Finish` must not be called multiple times for the same RPC.
-    ///
-    /// @param response the single Response to send to the client
-    /// @throws ugrpc::server::RpcError on an RPC error
-    void Finish(Response&& response);
+    void Finish(const Response& response);
 
     /// @brief Complete the RPC with an error
     ///
@@ -162,17 +146,7 @@ public:
     ///
     /// @param response the final response message
     /// @throws ugrpc::server::RpcError on an RPC error
-    void WriteAndFinish(Response& response);
-
-    /// @brief Equivalent to `Write + Finish`
-    ///
-    /// This call saves one round-trip, compared to separate `Write` and `Finish`.
-    ///
-    /// `Finish` must not be called multiple times.
-    ///
-    /// @param response the final response message
-    /// @throws ugrpc::server::RpcError on an RPC error
-    void WriteAndFinish(Response&& response);
+    void Finish(const Response& response);
 
     /// For internal use only
     OutputStream(impl::CallParams&& call_params, impl::RawWriter<Response>& stream);
@@ -196,7 +170,7 @@ private:
 ///
 ///   - `GetContext`
 ///   - `Read`;
-///   - one of (`Write`, `Finish`, `FinishWithError`, `WriteAndFinish`).
+///   - one of (`Write`, `Finish`, `FinishWithError`).
 ///
 /// The RPC is cancelled on destruction unless the stream has been finished.
 ///
@@ -244,17 +218,7 @@ public:
     ///
     /// @param response the final response message
     /// @throws ugrpc::server::RpcError on an RPC error
-    void WriteAndFinish(Response& response);
-
-    /// @brief Equivalent to `Write + Finish`
-    ///
-    /// This call saves one round-trip, compared to separate `Write` and `Finish`.
-    ///
-    /// `Finish` must not be called multiple times.
-    ///
-    /// @param response the final response message
-    /// @throws ugrpc::server::RpcError on an RPC error
-    void WriteAndFinish(Response&& response);
+    void Finish(const Response& response);
 
     /// For internal use only
     BidirectionalStream(impl::CallParams&& call_params, impl::RawReaderWriter<Request, Response>& stream);
@@ -284,17 +248,8 @@ UnaryCall<Response>::~UnaryCall() {
 }
 
 template <typename Response>
-void UnaryCall<Response>::Finish(Response&& response) {
-    Finish(response);
-}
-
-template <typename Response>
-void UnaryCall<Response>::Finish(Response& response) {
+void UnaryCall<Response>::Finish(const Response& response) {
     UINVARIANT(!is_finished_, "'Finish' called on a finished call");
-    ApplyResponseHook(&response);
-
-    // It is important to set is_finished_ after ApplyResponseHook.
-    // Otherwise, there would be no way to call FinishWithError there.
     is_finished_ = true;
 
     PreSendStatus(grpc::Status::OK);
@@ -342,17 +297,8 @@ bool InputStream<Request, Response>::Read(Request& request) {
 }
 
 template <typename Request, typename Response>
-void InputStream<Request, Response>::Finish(Response&& response) {
-    Finish(response);
-}
-
-template <typename Request, typename Response>
-void InputStream<Request, Response>::Finish(Response& response) {
+void InputStream<Request, Response>::Finish(const Response& response) {
     UINVARIANT(state_ != State::kFinished, "'Finish' called on a finished stream");
-    ApplyResponseHook(&response);
-
-    // It is important to set the state_ after ApplyResponseHook.
-    // Otherwise, there would be no way to call FinishWithError there.
     state_ = State::kFinished;
 
     PreSendStatus(grpc::Status::OK);
@@ -431,17 +377,8 @@ void OutputStream<Response>::FinishWithError(const grpc::Status& status) {
 }
 
 template <typename Response>
-void OutputStream<Response>::WriteAndFinish(Response&& response) {
-    WriteAndFinish(response);
-}
-
-template <typename Response>
-void OutputStream<Response>::WriteAndFinish(Response& response) {
-    UINVARIANT(state_ != State::kFinished, "'WriteAndFinish' called on a finished stream");
-    ApplyResponseHook(&response);
-
-    // It is important to set the state_ after ApplyResponseHook.
-    // Otherwise, there would be no way to call FinishWithError there.
+void OutputStream<Response>::Finish(const Response& response) {
+    UINVARIANT(state_ != State::kFinished, "'Finish' called on a finished stream");
     state_ = State::kFinished;
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
@@ -534,19 +471,8 @@ void BidirectionalStream<Request, Response>::FinishWithError(const grpc::Status&
 }
 
 template <typename Request, typename Response>
-void BidirectionalStream<Request, Response>::WriteAndFinish(Response&& response) {
-    WriteAndFinish(response);
-}
-
-template <typename Request, typename Response>
-void BidirectionalStream<Request, Response>::WriteAndFinish(Response& response) {
-    UINVARIANT(!is_finished_, "'WriteAndFinish' called on a finished stream");
-    if constexpr (std::is_base_of_v<google::protobuf::Message, Response>) {
-        ApplyResponseHook(&response);
-    }
-
-    // It is important to set is_finished_ after ApplyResponseHook.
-    // Otherwise, there would be no way to call FinishWithError there.
+void BidirectionalStream<Request, Response>::Finish(const Response& response) {
+    UINVARIANT(!is_finished_, "'Finish' called on a finished stream");
     is_finished_ = true;
 
     // Don't buffer writes, optimize for ping-pong-style interaction
