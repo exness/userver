@@ -53,7 +53,7 @@ def test_headers(translate_single_schema):
                                         type='integer',
                                     ),
                                     validators=cpp_types.CppPrimitiveValidator(
-                                        prefix='/paths/[/]/get/responses/200/headers/Header/schema'
+                                        namespace='::test_namespace::/_get', prefix='Response200HeaderHeader'
                                     ),
                                 ),
                                 parser='openapi::TrivialParameter<openapi::In::kHeader, kHeader, int, int>',

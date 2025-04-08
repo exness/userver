@@ -69,7 +69,7 @@ class Translator:
                 name.split('/')[-1],
             )
 
-        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-z]*)/requestBody/content/\\[([^\\]]*)\\]/schema', name)
+        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/requestBody/content/\\[([^\\]]*)\\]/schema', name)
         if match:
             return '{}::{}_{}::Body{}'.format(
                 self._spec.cpp_namespace,
@@ -80,6 +80,79 @@ class Translator:
                 ),
             )
 
+        match = re.fullmatch(
+            '/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/headers/([a-zA-Z0-9_]*)/schema', name
+        )
+        if match:
+            return '{}::{}_{}::Response{}Header{}'.format(
+                self._spec.cpp_namespace,
+                match.group(1)[:1],
+                match.group(2),
+                match.group(3),
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(4)),
+                ),
+            )
+
+        match = re.fullmatch('/components/responses/([a-zA-Z_0-9]*)/content/(.*)/schema', name)
+        if match:
+            return '{}::Response{}Body{}'.format(
+                self._spec.cpp_namespace,
+                match.group(1),
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(2)),
+                ),
+            )
+
+        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/parameters/([0-9]*)/schema', name)
+        if match:
+            return '{}::{}_{}::Parameter{}'.format(
+                self._spec.cpp_namespace,
+                match.group(1)[1:],
+                match.group(2),
+                match.group(3),
+            )
+
+        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/content/(.*)/schema', name)
+        if match:
+            return '{}::{}_{}::Response{}Body{}'.format(
+                self._spec.cpp_namespace,
+                match.group(1)[1:],
+                match.group(2),
+                match.group(3),
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(4)),
+                ),
+            )
+
+        match = re.fullmatch('/components/requestBodies/([a-zA-Z0-9_]*)/content/\\[([^\\]]*)\\]/schema', name)
+        if match:
+            return '{}::{}{}'.format(
+                self._spec.cpp_namespace,
+                cpp_names.cpp_identifier(match.group(1)),
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(2)),
+                ),
+            )
+
+        match = re.fullmatch('/components/parameters/([a-zA-Z0-9_]*)/schema', name)
+        if match:
+            return '{}::Parameter{}'.format(
+                self._spec.cpp_namespace,
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(1)),
+                ),
+            )
+        match = re.fullmatch('/components/headers/([a-zA-Z0-9]*)/schema', name)
+        if match:
+            return '{}::Header{}'.format(
+                self._spec.cpp_namespace,
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(1)),
+                ),
+            )
+
+        assert False, name
         return name
 
     def _translate_single_schema(self, schema: chaotic_types.Schema) -> cpp_types.CppType:
@@ -157,24 +230,6 @@ class Translator:
             content_type=request_body.content_type,
             schema=schema,
         )
-
-    def _translate_schema_type(self, schema: chaotic_types.Schema) -> str:
-        if isinstance(schema, chaotic_types.Boolean):
-            return 'bool'
-        if isinstance(schema, chaotic_types.Integer):
-            if schema.format == chaotic_types.IntegerFormat.INT32:
-                return 'std::int32_t'
-            if schema.format == chaotic_types.IntegerFormat.INT64:
-                return 'std::int64_t'
-            return 'int'
-        if isinstance(schema, chaotic_types.Number):
-            return 'double'
-        if isinstance(schema, chaotic_types.String):
-            return 'std::string'
-        if isinstance(schema, chaotic_types.Array):
-            item_type = self._translate_schema_type(schema.items)
-            return f'std::vector<{item_type}>'
-        assert False, 'Not implemented'
 
     def _translate_parameter(self, parameter: model.Parameter) -> types.Parameter:
         in_ = parameter.in_

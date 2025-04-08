@@ -47,7 +47,9 @@ def test_parameters(translate_single_schema):
                             json_schema=chaotic_types.Integer(
                                 type='integer',
                             ),
-                            validators=cpp_types.CppPrimitiveValidator(prefix='/paths/[/]/get/parameters/0/schema'),
+                            validators=cpp_types.CppPrimitiveValidator(
+                                prefix='Parameter0', namespace='::test_namespace::_get'
+                            ),
                         ),
                         parser='openapi::TrivialParameter<openapi::In::kQuery, kparam, int, int>',
                         required=False,
@@ -109,7 +111,7 @@ def test_parameters_ref(translate_single_schema):
                                 type='integer',
                             ),
                             validators=cpp_types.CppPrimitiveValidator(
-                                prefix='/components/parameters/Parameter/schema'
+                                prefix='ParameterParameter', namespace='::test_namespace'
                             ),
                         ),
                         parser='openapi::TrivialParameter<openapi::In::kQuery, kparam, int, int>',

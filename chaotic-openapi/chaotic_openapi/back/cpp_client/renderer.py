@@ -66,6 +66,7 @@ def make_env() -> jinja2.Environment:
         'chaotic-openapi/chaotic_openapi/back/cpp_client',
         os.path.join(PARENT_DIR),
     )
+    env.globals['list'] = list
     env.filters['cpp_comment'] = cpp_comment
 
     return env

@@ -1,5 +1,6 @@
 import dataclasses
 from typing import Dict
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Set
@@ -79,6 +80,12 @@ class Response:
     def is_error(self) -> bool:
         return self.status >= 400
 
+    def is_single_contenttype(self) -> bool:
+        return len(self.body) == 1
+
+    def single_body(self) -> cpp_types.CppType:
+        return list(self.body.values())[0]
+
 
 @dataclasses.dataclass
 class Operation:
@@ -108,6 +115,22 @@ class Operation:
                 return False
         return True
 
+    def has_single_2xx_responses(self) -> bool:
+        return len(list(self.iter_2xx_responses())) == 1
+
+    def has_2xx_responses(self) -> bool:
+        return len(list(self.iter_2xx_responses())) > 0
+
+    def iter_2xx_responses(self) -> Generator[Response, None, None]:
+        for response in self.responses:
+            if not response.is_error():
+                yield response
+
+    def iter_error_responses(self) -> Generator[Response, None, None]:
+        for response in self.responses:
+            if response.is_error():
+                yield response
+
 
 @dataclasses.dataclass
 class ClientSpec:
@@ -127,13 +150,38 @@ class ClientSpec:
     def requests_declaration_includes(self) -> List[str]:
         includes: Set[str] = set()
         for op in self.operations:
+            if not op.client_generate:
+                continue
+
             for body in op.request_bodies:
                 if body.schema:
                     includes.update(body.schema.declaration_includes())
             for param in op.parameters:
                 includes.update(param.declaration_includes())
 
-        return list(includes)
+        return sorted(includes)
+
+    def responses_declaration_includes(self) -> List[str]:
+        includes: Set[str] = set()
+        for op in self.operations:
+            if not op.client_generate:
+                continue
+
+            for response in op.responses:
+                for _, body in response.body.items():
+                    includes.update(body.declaration_includes())
+        return sorted(includes)
+
+    def responses_definitions_includes(self) -> List[str]:
+        includes: Set[str] = set()
+        for op in self.operations:
+            if not op.client_generate:
+                continue
+
+            for response in op.responses:
+                for _, body in response.body.items():
+                    includes.update(body.definition_includes())
+        return sorted(includes)
 
     def cpp_includes(self) -> List[str]:
         includes = []
@@ -163,6 +211,18 @@ class ClientSpec:
                         ),
                     )
                     types[name] = body.schema
+            for response in operation.responses:
+                for content_type, cpp_type in response.body.items():
+                    name = '{}::{}_{}::Response{}Body{}'.format(
+                        self.cpp_namespace,
+                        operation.path[1:],
+                        operation.method.lower(),
+                        response.status,
+                        cpp_names.camel_case(
+                            cpp_names.cpp_identifier(content_type),
+                        ),
+                    )
+                    types[name] = cpp_type
 
         # TODO: response.content
 

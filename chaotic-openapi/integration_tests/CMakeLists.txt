@@ -1,15 +1,16 @@
 project(userver-chaotic-openapi-integration-tests CXX)
 
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*pp)
-add_executable(${PROJECT_NAME} ${SOURCES}) 
+add_executable(${PROJECT_NAME} ${SOURCES})
 add_google_tests(${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME}
     userver-chaotic-openapi
     userver-universal-utest
+    userver-utest
 )
 
-file(GLOB CLIENTS 
+file(GLOB CLIENTS
     RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/clients/
     ${CMAKE_CURRENT_SOURCE_DIR}/clients/*
 )

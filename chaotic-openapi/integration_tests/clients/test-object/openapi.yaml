@@ -26,6 +26,12 @@ paths:
                                     bar:
                                         type: string
                                 additionalProperties: false
+                '201':
+                    description: OK
+                '400':
+                    description: Some error
+                '500':
+                    description: Some error
 components:
     schemas:
         Type:

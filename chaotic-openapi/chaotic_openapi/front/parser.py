@@ -151,7 +151,7 @@ class Parser:
         for content_type, media_type in request_body.content.items():
             schema = self._parse_schema(
                 media_type.schema_,
-                f'{infile_path}content/[{content_type}]/schema',
+                f'{infile_path}/content/[{content_type}]/schema',
             )
             requestBody.append(
                 model.RequestBody(
@@ -298,7 +298,7 @@ class Parser:
         if operation.requestBody:
             requestBody = self._convert_request_body(
                 operation.requestBody,
-                f'/paths/[{path}]/{method}/requestBody/',
+                f'/paths/[{path}]/{method}/requestBody',
             )
         else:
             requestBody = []
