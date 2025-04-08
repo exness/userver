@@ -3,6 +3,8 @@
 #include <userver/logging/log_extra.hpp>
 #include <userver/tracing/tags.hpp>
 
+#include <userver/ugrpc/status_codes.hpp>
+
 #include <ugrpc/impl/logging.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -53,9 +55,15 @@ void Middleware::OnCallStart(MiddlewareCallContext& context) const {
     }
 }
 
-void Middleware::OnCallFinish(MiddlewareCallContext& context, const grpc::Status& /*status*/) const {
-    if (context.IsServerStreaming()) {
-        LOG_INFO() << "gRPC response stream finished" << logging::LogExtra{{"type", "response"}};
+void Middleware::OnCallFinish(MiddlewareCallContext& context, const grpc::Status& status) const {
+    if (status.ok()) {
+        if (context.IsServerStreaming()) {
+            LOG_INFO() << "gRPC response stream finished" << logging::LogExtra{{"type", "response"}};
+        }
+    } else {
+        const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
+        auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
+        LOG(log_level) << "gRPC error" << logging::LogExtra{{"type", "response"}, {"body", std::move(error_details)}};
     }
 }
 

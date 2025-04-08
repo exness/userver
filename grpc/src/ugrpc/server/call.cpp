@@ -3,17 +3,13 @@
 #include <boost/range/adaptor/reversed.hpp>
 
 #include <userver/logging/impl/logger_base.hpp>
-#include <userver/logging/log_extra.hpp>
-#include <userver/logging/logger.hpp>
 #include <userver/utils/algo.hpp>
 
 #include <userver/ugrpc/impl/statistics_storage.hpp>
 #include <userver/ugrpc/server/impl/exceptions.hpp>
 #include <userver/ugrpc/server/middlewares/base.hpp>
-#include <userver/ugrpc/status_codes.hpp>
 
 #include <ugrpc/impl/internal_tag.hpp>
-#include <ugrpc/impl/logging.hpp>
 #include <ugrpc/impl/span.hpp>
 #include <ugrpc/server/impl/format_log_message.hpp>
 
@@ -37,12 +33,6 @@ void WriteAccessLog(
         )};
         access_tskv_logger.Log(kLevel, log_item);
     }
-}
-
-void LogErrorDetails(const grpc::Status& status) {
-    const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
-    auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
-    LOG(log_level) << "gRPC error" << logging::LogExtra{{"type", "response"}, {"body", std::move(error_details)}};
 }
 
 }  // namespace
@@ -98,10 +88,6 @@ void CallAnyBase::PreSendStatus(const grpc::Status& status) noexcept {
             params_.call_name,
             status
         );
-
-        if (!status.ok() && !impl::IsServerStreaming(call_kind_)) {
-            LogErrorDetails(status);
-        }
     } catch (const std::exception& ex) {
         LOG_ERROR() << "Error in CallAnyBase::PreSendStatus: " << ex;
     }
