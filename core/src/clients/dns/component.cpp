@@ -23,7 +23,7 @@ Component::Component(const components::ComponentConfig& config, const components
     statistics_holder_ = storage.RegisterWriter(config.Name() + ".replies", [this](auto& writer) { Write(writer); });
 }
 
-clients::dns::Resolver& Component::GetResolver() { return resolver_; }
+Resolver& Component::GetResolver() { return resolver_; }
 
 void Component::Write(utils::statistics::Writer& writer) {
     const auto& counters = GetResolver().GetLookupSourceCounters();

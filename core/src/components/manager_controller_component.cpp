@@ -1,7 +1,6 @@
 #include <userver/components/manager_controller_component.hpp>
 
 #include <components/manager.hpp>
-#include <components/manager_config.hpp>
 #include <engine/task/task_processor.hpp>
 #include <engine/task/task_processor_pools.hpp>
 #include <userver/components/statistics_storage.hpp>
@@ -14,6 +13,15 @@
 
 USERVER_NAMESPACE_BEGIN
 
+namespace {
+
+void WriteRateAndLegacyMetrics(utils::statistics::Writer&& writer, utils::statistics::Rate metric) {
+    writer = metric.value;
+    writer["v2"] = metric;
+}
+
+}  // namespace
+
 namespace engine {
 
 void DumpMetric(utils::statistics::Writer& writer, const engine::TaskProcessor& task_processor) {
@@ -23,15 +31,14 @@ void DumpMetric(utils::statistics::Writer& writer, const engine::TaskProcessor& 
     const auto created = counter.GetCreatedTasks();
     const auto stopped = counter.GetStoppedTasks();
 
-    // TODO report RATE metrics
     if (auto tasks = writer["tasks"]) {
-        tasks["created"] = created.value;
+        WriteRateAndLegacyMetrics(tasks["created"], created);
         tasks["alive"] = (created - std::min(destroyed, created)).value;
         tasks["running"] = counter.GetRunningTasks();
         tasks["queued"] = task_processor.GetTaskQueueSize();
-        tasks["finished"] = stopped.value;
-        tasks["cancelled"] = counter.GetCancelledTasks().value;
-        tasks["cancelled_overload"] = counter.GetCancelledTasksOverload().value;
+        WriteRateAndLegacyMetrics(tasks["finished"], stopped);
+        WriteRateAndLegacyMetrics(tasks["cancelled"], counter.GetCancelledTasks());
+        WriteRateAndLegacyMetrics(tasks["cancelled_overload"], counter.GetCancelledTasksOverload());
     }
 
     writer["errors"].ValueWithLabels(
