@@ -126,6 +126,8 @@ public:
         engine::TaskProcessor* task_processor{nullptr};
 
         /// @brief enabled allows to enable/disable timer during run
+        /// SynchronizeDebug does not run the iteration on enabled=false, because its logic is just to imitate the passing of time
+        /// ForceStepAsync runs the iteration even for enabled=false
         bool enabled{true};
     };
 
@@ -173,6 +175,7 @@ public:
     /// @note If 'ForceStepAsync' is called multiple times while Step() is
     /// being executed, all events will be conflated (one extra Step() call will
     /// be executed).
+    /// Runs the iteration even for enabled=false
     void ForceStepAsync();
 
     /// Force next DoStep() iteration. It is guaranteed that there is at least one
@@ -184,6 +187,7 @@ public:
     /// @returns true if task was successfully executed.
     /// @note On concurrent invocations, the task is guaranteed to be invoked
     /// serially, one time after another.
+    /// Does not run the iteration on enabled=false, because its logic is just to imitate the passing of time
     bool SynchronizeDebug(bool preserve_span = false);
 
     /// Skip Step() calls from loop until ResumeDebug() is called. If DoStep()
