@@ -33,8 +33,6 @@ RpcCancelledError::RpcCancelledError(std::string_view call_name, std::string_vie
 
 const grpc::Status& ErrorWithStatus::GetStatus() const noexcept { return status_; }
 
-namespace impl {
-
 [[noreturn]] void ThrowErrorWithStatus(std::string_view call_name, grpc::Status&& status) {
     switch (status.error_code()) {
         case grpc::StatusCode::CANCELLED:
@@ -73,8 +71,6 @@ namespace impl {
             throw UnknownError(call_name, std::move(status));
     }
 }
-
-}  // namespace impl
 
 }  // namespace ugrpc::client
 

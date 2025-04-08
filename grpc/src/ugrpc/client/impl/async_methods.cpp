@@ -284,7 +284,7 @@ void ProcessFinish(RpcData& data, utils::function_ref<void(RpcData& data, const 
 void CheckFinishStatus(RpcData& data) {
     auto& status = data.GetStatus();
     if (!status.ok()) {
-        impl::ThrowErrorWithStatus(data.GetCallName(), std::move(status));
+        ThrowErrorWithStatus(data.GetCallName(), std::move(status));
     }
 }
 

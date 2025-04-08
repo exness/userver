@@ -146,11 +146,7 @@ public:
 };
 /// @}
 
-namespace impl {
-
 [[noreturn]] void ThrowErrorWithStatus(std::string_view call_name, grpc::Status&& status);
-
-}  // namespace impl
 
 }  // namespace ugrpc::client
 
