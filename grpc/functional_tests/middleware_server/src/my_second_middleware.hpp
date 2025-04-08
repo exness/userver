@@ -26,7 +26,7 @@ public:
         : ugrpc::server::MiddlewareFactoryComponentBase(config, ctx),
           middleware_(std::make_shared<MySecondMiddleware>()) {}
 
-    std::shared_ptr<ugrpc::server::MiddlewareBase> CreateMiddleware(
+    std::shared_ptr<const ugrpc::server::MiddlewareBase> CreateMiddleware(
         const ugrpc::server::ServiceInfo&,
         const yaml_config::YamlConfig& middleware_config
     ) const override;

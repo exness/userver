@@ -36,7 +36,7 @@ void MySecondMiddleware::PreSendMessage(
     }
 }
 
-std::shared_ptr<ugrpc::server::MiddlewareBase>
+std::shared_ptr<const ugrpc::server::MiddlewareBase>
 MySecondMiddlewareComponent::CreateMiddleware(const ugrpc::server::ServiceInfo&, const yaml_config::YamlConfig&) const {
     return middleware_;
 }

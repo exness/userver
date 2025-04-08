@@ -47,7 +47,7 @@ MetaFilterComponent::MetaFilterComponent(
       ) {}
 /// [MiddlewareDependencyBuilder After]
 
-std::shared_ptr<ugrpc::server::MiddlewareBase> MetaFilterComponent::CreateMiddleware(
+std::shared_ptr<const ugrpc::server::MiddlewareBase> MetaFilterComponent::CreateMiddleware(
     const ugrpc::server::ServiceInfo&,
     const yaml_config::YamlConfig& middleware_config
 ) const {
