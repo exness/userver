@@ -144,7 +144,11 @@ UTEST_F(GrpcClientWithDetailedErrorTest, UnaryRPC) {
     try {
         client.SayHello(out);
     } catch (ugrpc::client::ResourceExhaustedError& e) {
-        EXPECT_EQ(*(e.GetGStatusString()), kExpectedMessage);
+        const auto& status = e.GetStatus();
+        auto gstatus = ugrpc::impl::ToGoogleRpcStatus(status);
+        ASSERT_TRUE(gstatus.has_value());
+        const auto gstatus_string = ugrpc::impl::GetGStatusLimitedMessage(*gstatus);
+        EXPECT_EQ(gstatus_string, kExpectedMessage);
     }
 }
 
