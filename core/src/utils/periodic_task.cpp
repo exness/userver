@@ -135,8 +135,10 @@ bool PeriodicTask::IsRunning() const { return task_.IsValid(); }
 
 void PeriodicTask::Run() {
     bool skip_step = false;
+    bool task_enabled = true;
     {
         auto settings = settings_.Read();
+        task_enabled = settings->enabled;
         if (!(settings->flags & Flags::kNow)) {
             skip_step = true;
         }
@@ -146,12 +148,12 @@ void PeriodicTask::Run() {
         const auto before = std::chrono::steady_clock::now();
         bool no_exception = true;
 
-        bool task_enabled = settings->enabled;
         if (!std::exchange(skip_step, false) && task_enabled) {
             no_exception = Step();
         }
-        const auto settings = settings_.Read();
 
+        auto settings = settings_.Read();
+        task_enabled = settings->enabled;
         auto period = settings->period;
         const auto exception_period = settings->exception_period.value_or(period);
 
@@ -165,7 +167,7 @@ void PeriodicTask::Run() {
         }
 
         engine::Deadline dealine;
-        while (deadline = task_enabled ? start + MutatePeriod(period) : Deadline{}, WaitForEvent(deadline)) {
+        while (deadline = task_enabled ? start + MutatePeriod(period) : engine::Deadline{}, WaitForEvent(deadline)) {
             if (should_force_step_.exchange(false)) {
               break;
             }
