@@ -166,7 +166,7 @@ void PeriodicTask::Run() {
             start = std::chrono::steady_clock::now();
         }
 
-        engine::Deadline dealine;
+        engine::Deadline deadline;
         while (deadline = task_enabled ? start + MutatePeriod(period) : engine::Deadline{}, WaitForEvent(deadline)) {
             if (should_force_step_.exchange(false)) {
               break;
