@@ -69,6 +69,7 @@ There are two main interfaces for implementing a middleware:
 
 ## MiddlewareBase
 
+@anchor grpc_server_hooks
 ### Handle and Next
 
 There is a method `ugrpc::server::MiddlewareBase::Handle` that is called on each grpc Call (RPC).
@@ -89,6 +90,59 @@ The static YAML config.
 
 ### CallRequestHook and CallResponseHook
 
+`CallRequestHook` are called in the right order. 'CallResponseHook' are called in the reverse order
+
+@dot
+digraph Pipeline {
+  node [shape=box];
+  compound=true;
+  fixedsize=true;
+  rankdir=LR;
+  tooltip = "You didn't hit the arrow with the cursor :-)";
+  labeljust = "l";
+  labelloc = "t";
+
+  subgraph cluster_NetworkInteraction {
+    shape=box;
+    label = "Network interaction";
+
+    ReadMessageFromNetwork [label = "Read a message from network", shape=box];
+    WriteMessageToNetwork [label = "Write a message to network", shape=box];
+  }
+
+  subgraph cluster_FirstMiddleware {
+    shape=box;
+    label = "FirstMiddleware";
+
+    FirstMiddlewareCallRequestHook [label = "CallRequestHook", shape=box];
+    FirstMiddlewareCallResponseHook [label = "CallResponseHook", shape=box];
+  }
+
+  subgraph cluster_SecondMiddleware{
+    shape=box;
+    label = "SecondMiddleware";
+
+    SecondMiddlewareCallRequestHook [label = "CallRequestHook", shape=box];
+    SecondMiddlewareCallResponseHook [label = "CallResponseHook", shape=box];
+  }
+
+  subgraph cluster_UserServiceCode {
+    shape=box;
+    label = "User gRPC-service code";
+
+    AcceptMessage [label = "Accept a message", shape=box];
+    ReturnMessage [label = "Return a message", shape=box];
+  }
+
+  ReadMessageFromNetwork -> FirstMiddlewareCallRequestHook -> SecondMiddlewareCallRequestHook -> AcceptMessage
+  ReturnMessage -> SecondMiddlewareCallResponseHook -> FirstMiddlewareCallResponseHook -> WriteMessageToNetwork
+
+  Pipeline[label = "CallRequestHook/CallResponseHook middlewares hooks order", shape=plaintext, rank="main"];
+}
+@enddot
+
+For more info about the middlewares order see @ref scripts/docs/en/userver/grpc/middlewares_order.md
+
 Also, you can add some behavior on each request/response. Especially, it can be important for grpc-stream. See about streams in @ref scripts/docs/en/userver/grpc/grpc.md
 
 @snippet grpc/functional_tests/middleware_server/src/my_middleware.hpp gRPC CallRequestHook declaration example
@@ -106,7 +160,7 @@ Register the Middleware component in the component system
 
 There are simple cases above: we just set `Auth` group for one middleware and use a default constructor of `MiddlewareDependencyBuilder` in other middleware.
 Here we say that all server middlewares are located in these groups.
-More info about the middlewares order see @ref scripts/docs/en/userver/grpc/middlewares_order.md
+For more info about the middlewares order see @ref scripts/docs/en/userver/grpc/middlewares_order.md
 
 `PreCore` group is called firstly, then `Logging` and so forth...
 
@@ -126,11 +180,11 @@ digraph Pipeline {
     center=true;
     rankdir=LR;
 
-    Baggage [label = "grpc-server-baggage", shape=box, width=2.0 ];
-    HeadersPropagator [label = "grpc-server-headers-propagator", shape=box, width=2.0 ];
+    Baggage [label = "grpc-server-baggage", shape=box];
+    HeadersPropagator [label = "grpc-server-headers-propagator", shape=box];
 
 
-    HeadersPropagator -> Baggage [penwidth=3, dir=both  arrowtail=none];
+    HeadersPropagator -> Baggage;
   }
 
   subgraph cluster_Core {
@@ -139,10 +193,10 @@ digraph Pipeline {
     center=true;
     rankdir=LR;
 
-    CongestionControl [label = "congestion-control", shape=box, width=2.0 ];
-    DeadlinePropagation [label = "deadline-propagation", shape=box, width=2.0 ];
+    CongestionControl [label = "congestion-control", shape=box];
+    DeadlinePropagation [label = "deadline-propagation", shape=box];
 
-    DeadlinePropagation -> CongestionControl [penwidth=3, dir=both  arrowtail=none];
+    DeadlinePropagation -> CongestionControl;
   }
 
   subgraph cluster_Logging {
@@ -150,19 +204,17 @@ digraph Pipeline {
     label = "Logging";
     center=true;
 
-    Logging [label = "grpc-server-logging", shape=box, width=2.0 ];
+    Logging [label = "grpc-server-logging", shape=box];
   }
 
-  PreCore [label = "PreCore", shape=box, width=2.0];
-  Auth [label = "Auth", shape=box, width=2.0];
-  PostCore [label = "PostCore", shape=box, width=2.0];
+  PreCore [label = "PreCore", shape=box];
+  Auth [label = "Auth", shape=box];
+  PostCore [label = "PostCore", shape=box];
 
 
-  Baggage -> PostCore [penwidth=3, minlen=0, dir=both arrowtail = none];
-  PostCore -> DeadlinePropagation [penwidth=3, dir=both  arrowtail=none];
-  Auth -> Logging [penwidth=3, dir=both  arrowtail=none];
-  Logging -> PreCore [penwidth=3, minlen=0, dir=both arrowtail = none];
-  CongestionControl -> Auth [penwidth=3, dir=both  arrowtail=none];
+  Baggage -> PostCore -> DeadlinePropagation;
+  Auth -> Logging -> PreCore;
+  CongestionControl -> Auth;
 
   Pipeline[label = "grpc-server-middlewares-pipeline", shape=plaintext, rank="main"];
 }
