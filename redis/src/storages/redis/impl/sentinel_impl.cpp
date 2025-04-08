@@ -14,15 +14,17 @@
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
 
-#include <storages/redis/dynamic_config.hpp>
 #include <storages/redis/impl/command.hpp>
 #include <storages/redis/impl/keyshard_impl.hpp>
 #include <storages/redis/impl/sentinel.hpp>
 #include <userver/server/request/task_inherited_data.hpp>
 #include <userver/storages/redis/exception.hpp>
+#include <userver/storages/redis/redis_config.hpp>
 #include <userver/storages/redis/reply.hpp>
 
 #include "command_control_impl.hpp"
+
+#include <dynamic_config/variables/REDIS_DEADLINE_PROPAGATION_VERSION.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -239,7 +241,7 @@ bool AdjustDeadline(const SentinelImplBase::SentinelCommand& scommand, const dyn
     const auto inherited_deadline = GetDeadlineTimeLeft();
     if (!inherited_deadline) return true;
 
-    if (config[kDeadlinePropagationVersion] != kDeadlinePropagationExperimentVersion) {
+    if (config[::dynamic_config::REDIS_DEADLINE_PROPAGATION_VERSION] != kDeadlinePropagationExperimentVersion) {
         return true;
     }
 
