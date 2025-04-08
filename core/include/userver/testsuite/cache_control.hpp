@@ -11,7 +11,6 @@
 
 #include <userver/cache/update_type.hpp>
 #include <userver/components/component_fwd.hpp>
-#include <userver/components/state.hpp>
 #include <userver/utils/assert.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -23,6 +22,7 @@ struct Config;
 
 namespace components {
 class RawComponentBase;
+class State;
 }  // namespace components
 
 namespace testsuite {

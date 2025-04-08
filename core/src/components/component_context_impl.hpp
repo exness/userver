@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <userver/components/state.hpp>
 #include <userver/concurrent/variable.hpp>
 #include <userver/engine/condition_variable.hpp>
 #include <userver/engine/task/task_processor_fwd.hpp>
@@ -51,6 +52,8 @@ public:
     void CancelComponentsLoad();
 
     bool IsAnyComponentInFatalState() const;
+
+    ServiceLifetimeStage GetServiceLifetimeStage() const;
 
     bool HasDependencyOn(std::string_view component_name, std::string_view dependency) const;
 
@@ -168,12 +171,11 @@ private:
 
     ComponentMap components_;
     std::atomic_flag components_load_cancelled_ ATOMIC_FLAG_INIT;
+    std::atomic<ServiceLifetimeStage> service_lifetime_stage_{ServiceLifetimeStage::kLoading};
 
     engine::ConditionVariable print_adding_components_cv_;
     concurrent::Variable<ProtectedData> shared_data_;
     engine::TaskWithResult<void> print_adding_components_task_;
-
-    std::atomic<bool> shutdown_started_{false};
 };
 
 }  // namespace components::impl

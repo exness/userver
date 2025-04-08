@@ -117,18 +117,23 @@ RawComponentBase* ComponentContextImpl::AddComponent(
 
 void ComponentContextImpl::OnAllComponentsLoaded() {
     StopPrintAddingComponentsTask();
+
+    service_lifetime_stage_ = ServiceLifetimeStage::kOnAllComponentsLoadedIsRunning;
     tracing::Span span(kOnAllComponentsLoadedRootName);
-    return ProcessAllComponentLifetimeStageSwitchings(
+    ProcessAllComponentLifetimeStageSwitchings(
         {impl::ComponentLifetimeStage::kRunning,
          &impl::ComponentInfo::OnAllComponentsLoaded,
          "OnAllComponentsLoaded()",
          DependencyType::kNormal,
          true}
     );
+
+    // In case no exception flies out, the service is fully loaded at this point.
+    service_lifetime_stage_ = ServiceLifetimeStage::kRunning;
 }
 
 void ComponentContextImpl::OnGracefulShutdownStarted() {
-    shutdown_started_ = true;
+    service_lifetime_stage_ = ServiceLifetimeStage::kGracefulShutdown;
 
     const auto interval = manager_.GetConfig().graceful_shutdown_interval;
     if (interval > std::chrono::milliseconds{0}) {
@@ -138,6 +143,7 @@ void ComponentContextImpl::OnGracefulShutdownStarted() {
 }
 
 void ComponentContextImpl::OnAllComponentsAreStopping() {
+    service_lifetime_stage_ = ServiceLifetimeStage::kOnAllComponentsAreStoppingIsRunning;
     LOG_INFO() << "Sending stopping notification to all components";
     ProcessAllComponentLifetimeStageSwitchings(
         {impl::ComponentLifetimeStage::kReadyForClearing,
@@ -153,6 +159,7 @@ void ComponentContextImpl::ClearComponents() {
     tracing::Span span(kClearComponentsRootName);
     OnAllComponentsAreStopping();
 
+    service_lifetime_stage_ = ServiceLifetimeStage::kStopping;
     LOG_INFO() << "Stopping components";
     ProcessAllComponentLifetimeStageSwitchings(
         {impl::ComponentLifetimeStage::kNull,
@@ -205,13 +212,10 @@ bool ComponentContextImpl::IsAnyComponentInFatalState() const {
         }
     }
 
-    if (shutdown_started_) {
-        LOG_WARNING() << "Service is shutting down, returning 5xx from ping";
-        return true;
-    }
-
     return false;
 }
+
+ServiceLifetimeStage ComponentContextImpl::GetServiceLifetimeStage() const { return service_lifetime_stage_.load(); }
 
 bool ComponentContextImpl::HasDependencyOn(std::string_view component_name, std::string_view dependency) const {
     if (!Contains(component_name)) {
@@ -394,10 +398,11 @@ void ComponentContextImpl::ProcessAllComponentLifetimeStageSwitchings(ComponentL
         throw;
     }
 
-    if (params.is_component_lifetime_stage_switchings_cancelled)
+    if (params.is_component_lifetime_stage_switchings_cancelled) {
         throw std::logic_error(
             params.stage_switch_handler_name + " cancelled but only StageSwitchingCancelledExceptions were caught"
         );
+    }
 }
 
 RawComponentBase* ComponentContextImpl::DoFindComponent(std::string_view name, ComponentInfo& current_component) {
