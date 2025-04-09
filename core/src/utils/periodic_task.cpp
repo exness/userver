@@ -167,15 +167,16 @@ void PeriodicTask::Run() {
         }
 
         engine::Deadline deadline;
-        while (deadline = task_enabled ? start + MutatePeriod(period) : engine::Deadline{}, WaitForEvent(deadline)) {
+        while (deadline = task_enabled ? engine::Deadline::FromTimePoint(start + MutatePeriod(period) : engine::Deadline{}, changed_event_.WaitForEventUntil(deadline)) {
             if (should_force_step_.exchange(false)) {
               break;
             }
             // The config variable value has been changed, reload
             const auto settings = settings_.Read();
-            task_enabled = settings->enabled;
-            if(!task_enabled) {
-              break;
+            if(task_enabled != settings->enabled)
+            {
+                task_enabled = settings->enabled;
+                break;
             }
 
             period = settings->period;
