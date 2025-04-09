@@ -70,9 +70,80 @@ There are two main interfaces for implementing a middleware:
 ## MiddlewareBase
 
 @anchor grpc_server_hooks
-### Handle and Next
+### OnCallStart and OnCallFinish
 
-There is a method `ugrpc::server::MiddlewareBase::Handle` that is called on each grpc Call (RPC).
+`OnCallStart` is called after the client metadata is received.
+`OnCallFinish` is called before the last message is sent or before error status is sent to a client.
+
+`OnCallStart` hooks are called in the order of middlewares. `OnCallFinish` hooks are called in the reverse order of middlewares
+
+@dot
+digraph Pipeline {
+  node [shape=box];
+  compound=true;
+  fixedsize=true;
+  rankdir=LR;
+  tooltip = "You didn't hit the arrow with the cursor :-)";
+  labeljust = "l";
+  labelloc = "t";
+
+  subgraph cluster_FirstMiddleware {
+    shape=box;
+    label = "FirstMiddleware";
+    rankdir=TB;
+
+    FirstMiddlewareOnCallStart [label = "OnCallStart"];
+    FirstMiddlewareOnCallFinish [label = "OnCallFinish" ];
+  }
+
+  subgraph cluster_SecondMiddleware{
+    shape=box;
+    label = "SecondMiddleware";
+    rankdir=TB;
+
+    SecondMiddlewareOnCallStart [label = "OnCallStart"];
+    SecondMiddlewareOnCallFinish [label = "OnCallFinish"];
+  }
+
+  subgraph cluster_RpcHandling {
+    shape=box;
+    label = "RPC handling";
+    rankdir=TB;
+
+    HandleRPC [label = "Handle RPC", shape=box];
+  }
+
+  subgraph cluster_RpcHandling {
+    shape=box;
+    rankdir=TB;
+
+    {
+      rank=same;
+      // Invisible nodes are necessary for a good appearance
+      InvisibleRpcHandlingEmpty [shape=plaintext, label="", height=0];
+      ReceiveMessages [label = "Receive messages", shape=box];
+      HandleRPC [label = "Handle RPC", shape=box];
+      SendMessages [label = "Send messages", shape=box];
+      InvisibleRpcHandlingEnd [shape=plaintext, label="", height=0];
+
+    }
+  }
+  ReceiveMessages -> HandleRPC -> SendMessages
+
+  FirstMiddlewareOnCallStart -> SecondMiddlewareOnCallStart;
+  SecondMiddlewareOnCallStart -> ReceiveMessages [label = "once"];
+  SendMessages -> SecondMiddlewareOnCallFinish [label = "once"];
+  SecondMiddlewareOnCallFinish -> FirstMiddlewareOnCallFinish;
+
+  // fake edges and `invis` is need for a good appearance
+  SendMessages -> HandleRPC [style=invis];
+  HandleRPC -> ReceiveMessages [style=invis];
+
+  Pipeline[label = "OnCallStart/OnCallFinish middlewares hooks order", shape=plaintext, rank="main"];
+}
+@enddot
+
+There are methods @ref ugrpc::server::MiddlewareBase::OnCallStart and @ref ugrpc::server::MiddlewareBase::OnCallFinish that are called once per grpc Call (RPC).
 
 @snippet samples/grpc_middleware_service/src/middlewares/server/auth.hpp Middleware declaration
 
@@ -88,9 +159,9 @@ The static YAML config.
 
 @snippet samples/grpc_middleware_service/configs/static_config.yaml grpc-server-auth static config
 
-### CallRequestHook and CallResponseHook
+### PostRecvMessage and PreSendMessage
 
-`CallRequestHook` are called in the right order. 'CallResponseHook' are called in the reverse order
+`PostRecvMessage` are called in the right order. 'PreSendMessage' are called in the reverse order
 
 @dot
 digraph Pipeline {
@@ -114,16 +185,16 @@ digraph Pipeline {
     shape=box;
     label = "FirstMiddleware";
 
-    FirstMiddlewareCallRequestHook [label = "CallRequestHook", shape=box];
-    FirstMiddlewareCallResponseHook [label = "CallResponseHook", shape=box];
+    FirstMiddlewarePostRecvMessage [label = "PostRecvMessage", shape=box];
+    FirstMiddlewarePreSendMessage [label = "PreSendMessage", shape=box];
   }
 
   subgraph cluster_SecondMiddleware{
     shape=box;
     label = "SecondMiddleware";
 
-    SecondMiddlewareCallRequestHook [label = "CallRequestHook", shape=box];
-    SecondMiddlewareCallResponseHook [label = "CallResponseHook", shape=box];
+    SecondMiddlewarePostRecvMessage [label = "PostRecvMessage", shape=box];
+    SecondMiddlewarePreSendMessage [label = "PreSendMessage", shape=box];
   }
 
   subgraph cluster_UserServiceCode {
@@ -134,10 +205,10 @@ digraph Pipeline {
     ReturnMessage [label = "Return a message", shape=box];
   }
 
-  ReadMessageFromNetwork -> FirstMiddlewareCallRequestHook -> SecondMiddlewareCallRequestHook -> AcceptMessage
-  ReturnMessage -> SecondMiddlewareCallResponseHook -> FirstMiddlewareCallResponseHook -> WriteMessageToNetwork
+  ReadMessageFromNetwork -> FirstMiddlewarePostRecvMessage -> SecondMiddlewarePostRecvMessage -> AcceptMessage
+  ReturnMessage -> SecondMiddlewarePreSendMessage -> FirstMiddlewarePreSendMessage -> WriteMessageToNetwork
 
-  Pipeline[label = "CallRequestHook/CallResponseHook middlewares hooks order", shape=plaintext, rank="main"];
+  Pipeline[label = "PostRecvMessage/PreSendMessage middlewares hooks order", shape=plaintext, rank="main"];
 }
 @enddot
 
