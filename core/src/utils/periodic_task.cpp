@@ -167,7 +167,7 @@ void PeriodicTask::Run() {
         }
 
         engine::Deadline deadline;
-        while (deadline = task_enabled ? engine::Deadline::FromTimePoint(start + MutatePeriod(period) : engine::Deadline{}, changed_event_.WaitForEventUntil(deadline)) {
+        while (deadline = task_enabled ? engine::Deadline::FromTimePoint(start + MutatePeriod(period)) : engine::Deadline{}, changed_event_.WaitForEventUntil(deadline)) {
             if (should_force_step_.exchange(false)) {
               break;
             }
