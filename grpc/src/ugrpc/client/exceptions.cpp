@@ -4,7 +4,6 @@
 
 #include <fmt/format.h>
 
-#include <ugrpc/impl/status.hpp>
 #include <userver/ugrpc/status_codes.hpp>
 
 USERVER_NAMESPACE_BEGIN

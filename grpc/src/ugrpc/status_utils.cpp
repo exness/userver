@@ -1,4 +1,4 @@
-#include <ugrpc/impl/status.hpp>
+#include <userver/ugrpc/status_utils.hpp>
 
 #include <fmt/format.h>
 #include <cstddef>
@@ -7,11 +7,9 @@
 #include <google/protobuf/text_format.h>
 #include <google/rpc/status.pb.h>
 
-#include <userver/logging/log.hpp>
-
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::impl {
+namespace ugrpc {
 
 namespace {
 
@@ -54,6 +52,6 @@ std::string GetGStatusLimitedMessage(const google::rpc::Status& status) {
     return message;
 }
 
-}  // namespace ugrpc::impl
+}  // namespace ugrpc
 
 USERVER_NAMESPACE_END
