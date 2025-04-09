@@ -43,11 +43,11 @@ struct CommandSpecialPrinter {
 logging::LogHelper& operator<<(logging::LogHelper& os, CommandSpecialPrinter v) {
     const auto& command = v.command;
 
-    if (command->args.args.size() == 1 || command->invoke_counter + 1 >= command->args.args.size()) {
+    if (command->args.GetCommandCount() == 1 || command->invoke_counter + 1 >= command->args.GetCommandCount()) {
         os << command->args;
-    } else if (command->invoke_counter < command->args.args.size() && !command->args.args[command->invoke_counter].empty()) {
+    } else if (command->invoke_counter < command->args.GetCommandCount()) {
         os << fmt::format(
-            "subrequest idx={}, cmd={}", command->invoke_counter, command->args.args[command->invoke_counter].front()
+            "subrequest idx={}, cmd={}", command->invoke_counter, command->args.GetCommandName(command->invoke_counter)
         );
     }
 
@@ -298,7 +298,9 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
 
                     auto new_command = PrepareCommand(
                         ccommand->args.Clone(),
-                        command->Callback(),
+                        [command](const CommandPtr& cmd, ReplyPtr reply) {
+                            if (command->callback) command->callback(cmd, std::move(reply));
+                        },
                         command->control,
                         command->counter + 1,
                         command->asking,
@@ -458,10 +460,10 @@ void SentinelImpl::Stop() {
             std::lock_guard<std::mutex> lock(command_mutex_);
             while (!commands_.empty()) {
                 auto command = commands_.back().command;
-                for (const auto& args : command->args.args) {
-                    LOG_ERROR() << fmt::format("Killing request: {}", fmt::join(args, ", "));
+                for (const auto& args : command->args) {
+                    LOG_ERROR() << fmt::format("Killing request: {}", args.GetJoinedArgs(", "));
                     auto reply = std::make_shared<Reply>(
-                        args[0],
+                        args.GetCommandName(),
                         nullptr,
                         ReplyStatus::kEndOfFileError,
                         "Stopping, killing commands remaining in send queue"
@@ -664,9 +666,9 @@ void SentinelImpl::ProcessWaitingCommands() {
         const auto& command = scommand.command;
         const CommandControlImpl cc{command->control};
         if (scommand.start + cc.timeout_all < now) {
-            for (const auto& args : command->args.args) {
+            for (const auto& args : command->args) {
                 auto reply = std::make_shared<Reply>(
-                    args[0], nullptr, ReplyStatus::kTimeoutError, "Command in the send queue timed out"
+                    args.GetCommandName(), nullptr, ReplyStatus::kTimeoutError, "Command in the send queue timed out"
                 );
                 statistics_internal_.redis_not_ready++;
                 InvokeCommand(command, std::move(reply));
