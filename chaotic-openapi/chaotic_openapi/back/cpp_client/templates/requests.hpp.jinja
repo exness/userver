@@ -25,16 +25,20 @@ namespace {{ namespace }} {
         using Body = {{ op.request_bodies[0].schema.cpp_user_name() }};
       {% elif len(op.request_bodies) > 1 %}
         {%- for body in op.request_bodies -%}
-          struct {{ op.request_bodies[0].cpp_body_type() }} {
-            std::string data;
-          };
+          {% if body.content_type == 'application/json' %}
+            using {{ body.cpp_name() }} = {{ body.schema.cpp_user_name() }};
+          {% else %}
+            struct {{ body.cpp_name() }} {
+              std::string data;
+            };
+          {% endif %}
         {% endfor %}
         using Body = std::variant<
           {%- for body in op.request_bodies -%}
-            {{ op.request_bodies[0].cpp_body_type() }}
+            {{ body.cpp_name() }}
             {%- if not loop.last %},{% endif %}
           {% endfor %}
-        >
+        >;
       {% endif %}
         struct Request {
           {% for parameter in op.parameters %}

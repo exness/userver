@@ -2,6 +2,7 @@
 
 #include <userver/chaotic/openapi/parameters_write.hpp>
 #include <userver/formats/json/value_builder.hpp>
+#include <userver/http/common_headers.hpp>
 
 namespace {{ namespace }} {
 
@@ -39,16 +40,21 @@ void SerializeRequest(const Request& request, USERVER_NAMESPACE::clients::http::
   {% elif len(op.request_bodies) > 1 %}
     switch (request.body.index()) {
     {%- for num, body in enumerate(op.request_bodies) -%}
-      case {{ num }}:
-        http_request.headers({kContentType, "{{ body.content_type }}");
+      case {{ num }}: {
+      http_request.headers(USERVER_NAMESPACE::clients::http::Headers{ {USERVER_NAMESPACE::http::headers::kContentType, "{{ body.content_type }}"} });
         {% if body.content_type == 'application/json' %}
           // http_request.data(ToJsonString(std::get<{{ num }}>(request.body)));
           http_request.data(ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(std::get<{{ num }}>(request.body)).ExtractValue()));
         {% else %}
           http_request.data(std::get<{{ num }}>(request.body).data);
         {% endif %}
+        break;
+      }
     {% endfor %}
-    UASSERT(false);
+    default:
+    {# TODO #}
+      UASSERT(false);
+    }
   {% endif %}
 }
 

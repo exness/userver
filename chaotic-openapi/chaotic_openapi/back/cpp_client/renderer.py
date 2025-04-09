@@ -67,6 +67,7 @@ def make_env() -> jinja2.Environment:
         os.path.join(PARENT_DIR),
     )
     env.globals['list'] = list
+    env.globals['enumerate'] = enumerate
     env.filters['cpp_comment'] = cpp_comment
 
     return env

@@ -2,6 +2,8 @@
 
 #include <userver/clients/http/response.hpp>
 #include <userver/formats/json/serialize.hpp>
+#include <userver/http/common_headers.hpp>
+#include <userver/http/content_type.hpp>
 
 {% for include in spec.responses_definitions_includes() %}
   #include <{{ include }}>
@@ -26,7 +28,18 @@ namespace {{ namespace }} {
                   auto json = USERVER_NAMESPACE::formats::json::FromString(http_response.body());
                   r.body = json.As<{{ body.parser_type('TODO', 'TODO') }}>();
                 {% else %}
-                  {{ NOT_IMPLEMENTED("multiple content types in response.content") }}
+                  USERVER_NAMESPACE::http::ContentType content_type = http_response.headers()[USERVER_NAMESPACE::http::headers::kContentType];
+
+                  {% for content_type, body in response.body.items() %}
+                      if (content_type == USERVER_NAMESPACE::http::ContentType{"{{ content_type }}"}) {
+                        {% if content_type == 'application/json' %}
+                          auto json = USERVER_NAMESPACE::formats::json::FromString(http_response.body());
+                          r.body = json.As<{{ body.parser_type('TODO', 'TODO') }}>();
+                        {% else %}
+                            r.body = {{ response.body_cpp_name(content_type) }}{http_response.body()};
+                        {% endif %}
+                      }
+                  {% endfor %}
                 {% endif %}
             {% endif %}
 
