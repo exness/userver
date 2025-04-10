@@ -1,8 +1,5 @@
 #pragma once
 
-/// @file userver/ugrpc/server/call.hpp
-/// @brief @copybrief ugrpc::server::CallAnyBase
-
 #include <google/protobuf/message.h>
 #include <grpcpp/server_context.h>
 
@@ -16,20 +13,11 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::server {
+namespace ugrpc::server::impl {
 
 /// @brief A non-typed base class for any gRPC call
 class CallAnyBase {
 public:
-    /// @brief Complete the RPC with an error
-    ///
-    /// `Finish` must not be called multiple times for the same RPC.
-    ///
-    /// @param status error details
-    /// @throws ugrpc::server::RpcError on an RPC error
-    /// @see @ref IsFinished
-    virtual void FinishWithError(const grpc::Status& status) = 0;
-
     /// @returns the `ServerContext` used for this RPC
     /// @note Initial server metadata is not currently supported
     /// @note Trailing metadata, if any, must be set before the `Finish` call
@@ -75,9 +63,6 @@ public:
     /// @endcode
     utils::AnyStorage<StorageContext>& GetStorageContext() { return params_.storage_context; }
 
-    /// @brief Useful for generic error reporting via @ref FinishWithError
-    virtual bool IsFinished() const = 0;
-
     /// @brief Set a custom call name for metric labels
     void SetMetricsCallName(std::string_view call_name);
 
@@ -115,6 +100,6 @@ private:
     engine::SingleWaitingTaskMutex mutex_;
 };
 
-}  // namespace ugrpc::server
+}  // namespace ugrpc::server::impl
 
 USERVER_NAMESPACE_END

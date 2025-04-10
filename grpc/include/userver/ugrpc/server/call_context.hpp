@@ -15,13 +15,15 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server {
 
+namespace impl {
 class CallAnyBase;
+}  // namespace impl
 
 class CallContextBase {
 public:
     /// @cond
     /// For internal use only
-    CallContextBase(utils::impl::InternalTag, CallAnyBase& call);
+    CallContextBase(utils::impl::InternalTag, impl::CallAnyBase& call);
     /// @endcond
 
     CallContextBase(CallContextBase&&) = delete;
@@ -68,9 +70,9 @@ public:
 
 protected:
     /// @cond
-    const CallAnyBase& GetCall() const;
+    const impl::CallAnyBase& GetCall(utils::impl::InternalTag) const;
 
-    CallAnyBase& GetCall();
+    impl::CallAnyBase& GetCall(utils::impl::InternalTag);
 
     // Prevent destruction via pointer to base.
     ~CallContextBase() = default;
@@ -78,7 +80,7 @@ protected:
     /// @endcond
 
 private:
-    CallAnyBase& call_;
+    impl::CallAnyBase& call_;
 };
 
 /// @brief gRPC call context

@@ -1,4 +1,4 @@
-#include <userver/ugrpc/server/call.hpp>
+#include <userver/ugrpc/server/impl/call.hpp>
 
 #include <boost/range/adaptor/reversed.hpp>
 
@@ -15,7 +15,7 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::server {
+namespace ugrpc::server::impl {
 
 namespace {
 
@@ -126,6 +126,6 @@ void CallAnyBase::PostFinish(const grpc::Status& status) noexcept {
     }
 }
 
-}  // namespace ugrpc::server
+}  // namespace ugrpc::server::impl
 
 USERVER_NAMESPACE_END

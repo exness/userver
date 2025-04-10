@@ -1,8 +1,8 @@
 #pragma once
 
 #include <userver/ugrpc/server/call_context.hpp>
+#include <userver/ugrpc/server/impl/rpc.hpp>
 #include <userver/ugrpc/server/result.hpp>
-#include <userver/ugrpc/server/rpc.hpp>
 #include <userver/ugrpc/server/stream.hpp>
 
 USERVER_NAMESPACE_BEGIN

@@ -15,8 +15,8 @@
 #include <userver/utils/function_ref.hpp>
 #include <userver/utils/impl/internal_tag_fwd.hpp>
 
-#include <userver/ugrpc/server/call.hpp>
 #include <userver/ugrpc/server/call_context.hpp>
+#include <userver/ugrpc/server/impl/call.hpp>
 #include <userver/ugrpc/server/middlewares/fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -43,7 +43,7 @@ class MiddlewareCallContext final : public CallContextBase {
 public:
     /// @cond
     // For internal use only
-    MiddlewareCallContext(utils::impl::InternalTag, CallAnyBase& call, dynamic_config::Snapshot&& config);
+    MiddlewareCallContext(utils::impl::InternalTag, impl::CallAnyBase& call, dynamic_config::Snapshot&& config);
     /// @endcond
 
     /// @brief Aborts the RPC, returning the specified status to the upstream client, see details below.

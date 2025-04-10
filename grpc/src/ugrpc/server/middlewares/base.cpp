@@ -30,7 +30,7 @@ void MiddlewareBase::PreSendMessage(MiddlewareCallContext&, google::protobuf::Me
 
 MiddlewareCallContext::MiddlewareCallContext(
     utils::impl::InternalTag,
-    CallAnyBase& call,
+    impl::CallAnyBase& call,
     dynamic_config::Snapshot&& config
 )
     : CallContextBase(utils::impl::InternalTag{}, call), config_(std::move(config)) {}
@@ -43,11 +43,11 @@ void MiddlewareCallContext::SetError(grpc::Status&& status) noexcept {
 }
 
 bool MiddlewareCallContext::IsClientStreaming() const noexcept {
-    return impl::IsClientStreaming(GetCall().GetCallKind());
+    return impl::IsClientStreaming(GetCall(utils::impl::InternalTag{}).GetCallKind());
 }
 
 bool MiddlewareCallContext::IsServerStreaming() const noexcept {
-    return impl::IsServerStreaming(GetCall().GetCallKind());
+    return impl::IsServerStreaming(GetCall(utils::impl::InternalTag{}).GetCallKind());
 }
 
 const dynamic_config::Snapshot& MiddlewareCallContext::GetInitialDynamicConfig() const {
@@ -56,7 +56,7 @@ const dynamic_config::Snapshot& MiddlewareCallContext::GetInitialDynamicConfig()
 }
 
 ugrpc::impl::RpcStatisticsScope& MiddlewareCallContext::GetStatistics(ugrpc::impl::InternalTag tag) {
-    return GetCall().GetStatistics(tag);
+    return GetCall(utils::impl::InternalTag{}).GetStatistics(tag);
 }
 
 void MiddlewareCallContext::SetStatusPtr(grpc::Status* status) {

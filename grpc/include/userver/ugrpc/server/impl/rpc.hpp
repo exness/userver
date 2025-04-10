@@ -1,22 +1,19 @@
 #pragma once
 
-/// @file userver/ugrpc/server/rpc.hpp
-/// @brief Classes representing an incoming RPC
-
 #include <google/protobuf/message.h>
 
 #include <userver/utils/assert.hpp>
 
 #include <userver/ugrpc/deadline_timepoint.hpp>
 #include <userver/ugrpc/impl/internal_tag_fwd.hpp>
-#include <userver/ugrpc/server/call.hpp>
 #include <userver/ugrpc/server/exceptions.hpp>
 #include <userver/ugrpc/server/impl/async_methods.hpp>
+#include <userver/ugrpc/server/impl/call.hpp>
 #include <userver/ugrpc/server/stream.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::server {
+namespace ugrpc::server::impl {
 
 /// @brief Controls a single request -> single response RPC
 ///
@@ -38,7 +35,7 @@ public:
     ///
     /// @param status error details
     /// @throws ugrpc::server::RpcError on an RPC error
-    void FinishWithError(const grpc::Status& status) override;
+    void FinishWithError(const grpc::Status& status);
 
     /// For internal use only
     UnaryCall(impl::CallParams&& call_params, impl::RawResponseWriter<Response>& stream);
@@ -47,7 +44,7 @@ public:
     UnaryCall& operator=(UnaryCall&&) = delete;
     ~UnaryCall();
 
-    bool IsFinished() const override;
+    bool IsFinished() const;
 
 private:
     impl::RawResponseWriter<Response>& stream_;
@@ -84,7 +81,7 @@ public:
     ///
     /// @param status error details
     /// @throws ugrpc::server::RpcError on an RPC error
-    void FinishWithError(const grpc::Status& status) override;
+    void FinishWithError(const grpc::Status& status);
 
     /// For internal use only
     InputStream(impl::CallParams&& call_params, impl::RawReader<Request, Response>& stream);
@@ -93,7 +90,7 @@ public:
     InputStream& operator=(InputStream&&) = delete;
     ~InputStream() override;
 
-    bool IsFinished() const override;
+    bool IsFinished() const;
 
 private:
     enum class State { kOpen, kReadsDone, kFinished };
@@ -136,7 +133,7 @@ public:
     ///
     /// @param status error details
     /// @throws ugrpc::server::RpcError on an RPC error
-    void FinishWithError(const grpc::Status& status) override;
+    void FinishWithError(const grpc::Status& status);
 
     /// @brief Equivalent to `Write + Finish`
     ///
@@ -155,7 +152,7 @@ public:
     OutputStream& operator=(OutputStream&&) = delete;
     ~OutputStream() override;
 
-    bool IsFinished() const override;
+    bool IsFinished() const;
 
 private:
     enum class State { kNew, kOpen, kFinished };
@@ -208,7 +205,7 @@ public:
     ///
     /// @param status error details
     /// @throws ugrpc::server::RpcError on an RPC error
-    void FinishWithError(const grpc::Status& status) override;
+    void FinishWithError(const grpc::Status& status);
 
     /// @brief Equivalent to `Write + Finish`
     ///
@@ -227,7 +224,7 @@ public:
     BidirectionalStream(BidirectionalStream&&) = delete;
     ~BidirectionalStream() override;
 
-    bool IsFinished() const override;
+    bool IsFinished() const;
 
 private:
     impl::RawReaderWriter<Request, Response>& stream_;
@@ -489,6 +486,6 @@ bool BidirectionalStream<Request, Response>::IsFinished() const {
     return is_finished_;
 }
 
-}  // namespace ugrpc::server
+}  // namespace ugrpc::server::impl
 
 USERVER_NAMESPACE_END
