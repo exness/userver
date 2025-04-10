@@ -6,6 +6,7 @@
 #include <google/protobuf/message.h>
 #include <grpcpp/server_context.h>
 
+#include <userver/engine/single_waiting_task_mutex.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/ugrpc/impl/internal_tag_fwd.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
@@ -106,9 +107,12 @@ protected:
     void PostFinish(const grpc::Status& status) noexcept;
 
 private:
+    std::unique_lock<engine::SingleWaitingTaskMutex> TakeMutexIfBidirectional();
+
     impl::CallParams params_;
     impl::CallKind call_kind_;
     MiddlewareCallContext* middleware_call_context_{nullptr};
+    engine::SingleWaitingTaskMutex mutex_;
 };
 
 }  // namespace ugrpc::server

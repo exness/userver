@@ -37,6 +37,26 @@ void WriteAccessLog(
 
 }  // namespace
 
+std::unique_lock<engine::SingleWaitingTaskMutex> CallAnyBase::TakeMutexIfBidirectional() {
+    if (call_kind_ == impl::CallKind::kBidirectionalStream) {
+        // In stream -> stream RPCs, Recv and Send hooks will naturally run in parallel.
+        // However, this can cause data races when:
+        // * accessing StorageContext;
+        // * accessing Span (AddTag);
+        // * accessing ServerContext (e.g. setting metadata);
+        // * calling SetError.
+        //
+        // For now, this mutex lock mitigates most of these issues.
+        // There is still some data race potential remaining:
+        // * if a PostRecvMessage hook writes to StorageContext and user Send task reads from the same key in parallel,
+        //   or vice versa, or same with PreSendMessage hook;
+        // * if user code sets metadata in ServerContext in parallel with a PostRecvMessage or PreSendMessage middleware
+        //   hook.
+        return std::unique_lock(mutex_);
+    }
+    return {};
+}
+
 std::string_view CallAnyBase::GetServiceName() const { return params_.service_name; }
 
 std::string_view CallAnyBase::GetMethodName() const { return params_.method_name; }
@@ -56,6 +76,8 @@ ugrpc::impl::RpcStatisticsScope& CallAnyBase::GetStatistics(ugrpc::impl::Interna
 void CallAnyBase::ApplyRequestHook(google::protobuf::Message* request) {
     UINVARIANT(middleware_call_context_, "CallContext must be invoked");
     if (request) {
+        auto lock = TakeMutexIfBidirectional();
+
         for (const auto& middleware : params_.middlewares) {
             middleware->PostRecvMessage(*middleware_call_context_, *request);
             auto& status = middleware_call_context_->GetStatus();
@@ -69,6 +91,8 @@ void CallAnyBase::ApplyRequestHook(google::protobuf::Message* request) {
 void CallAnyBase::ApplyResponseHook(google::protobuf::Message* response) {
     UINVARIANT(middleware_call_context_, "CallContext must be invoked");
     if (response) {
+        auto lock = TakeMutexIfBidirectional();
+
         for (const auto& middleware : boost::adaptors::reverse(params_.middlewares)) {
             middleware->PreSendMessage(*middleware_call_context_, *response);
             auto& status = middleware_call_context_->GetStatus();
