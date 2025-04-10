@@ -1,3 +1,6 @@
+{% import "templates/requests.application.json.jinja" as application_json %}
+{% import "templates/requests.application.octet.stream.jinja" as application_octetstream %}
+{% import "templates/requests.application.xwwwformurlencoded.jinja" as application_xwwwformurlencoded %}
 #pragma once
 
 #include <string>
@@ -26,11 +29,11 @@ namespace {{ namespace }} {
       {% elif len(op.request_bodies) > 1 %}
         {%- for body in op.request_bodies -%}
           {% if body.content_type == 'application/json' %}
-            using {{ body.cpp_name() }} = {{ body.schema.cpp_user_name() }};
+            {{ application_json.define_body_cpp_name(body) }}
+          {% elif body.content_type == 'application/x-www-form-urlencoded' %}
+            {{ application_xwwwformurlencoded.define_body_cpp_name(body) }}
           {% else %}
-            struct {{ body.cpp_name() }} {
-              std::string data;
-            };
+            {{ application_octetstream.define_body_cpp_name(body) }}
           {% endif %}
         {% endfor %}
         using Body = std::variant<

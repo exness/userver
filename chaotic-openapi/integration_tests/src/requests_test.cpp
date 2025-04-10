@@ -30,6 +30,25 @@ UTEST(RequestsMultipleContentTypes, Json) {
     EXPECT_EQ(response->status_code(), 200);
 }
 
+UTEST(RequestsMultipleContentTypes, XWwwFormUrlencoded) {
+    utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
+        EXPECT_EQ(request.body, "is_smoking=true&salary=1000.500000&age=30&password=123%20456&name=abc");
+        EXPECT_EQ(request.headers.at(std::string{"Content-Type"}), "application/x-www-form-urlencoded");
+        return utest::HttpServerMock::HttpResponse{200};
+    });
+
+    auto http_client_ptr = utest::CreateHttpClient();
+    auto request = http_client_ptr->CreateRequest();
+
+    request.url(http_server.GetBaseUrl());
+    client::SerializeRequest(
+        {client::RequestBodyApplicationXWwwFormUrlencoded{"abc", "123 456", 30, 1000.5, true}}, request
+    );
+
+    auto response = request.perform();
+    EXPECT_EQ(response->status_code(), 200);
+}
+
 UTEST(RequestsMultipleContentTypes, OctetStream) {
     utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
         EXPECT_EQ(request.body, "blabla");

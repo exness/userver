@@ -15,6 +15,24 @@ paths:
                                 foo:
                                     type: string
                             additionalProperties: false
+                    application/x-www-form-urlencoded:
+                        schema:
+                            type: object
+                            required:
+                              - name
+                              - age
+                            properties:
+                                name:
+                                    type: string
+                                password:
+                                    type: string
+                                age:
+                                    type: integer
+                                salary:
+                                    type: number
+                                is_smoking:
+                                    type: boolean
+                            additionalProperties: false
                     application/octet-stream:
                         schema:
                             type: string

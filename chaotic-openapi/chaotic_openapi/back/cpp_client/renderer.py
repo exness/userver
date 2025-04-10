@@ -68,6 +68,7 @@ def make_env() -> jinja2.Environment:
     )
     env.globals['list'] = list
     env.globals['enumerate'] = enumerate
+    env.globals['str'] = str
     env.filters['cpp_comment'] = cpp_comment
 
     return env

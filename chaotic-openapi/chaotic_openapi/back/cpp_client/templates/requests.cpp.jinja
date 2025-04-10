@@ -1,8 +1,14 @@
+{% import "templates/requests.application.json.jinja" as application_json %}
+{% import "templates/requests.application.octet.stream.jinja" as application_octetstream %}
+{% import "templates/requests.application.xwwwformurlencoded.jinja" as application_xwwwformurlencoded %}
+
 #include <client/{{ name }}/requests.hpp>
 
 #include <userver/chaotic/openapi/parameters_write.hpp>
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/http/common_headers.hpp>
+#include <userver/http/url.hpp>
+#include <userver/chaotic/openapi/form.hpp>
 
 namespace {{ namespace }} {
 
@@ -43,10 +49,11 @@ void SerializeRequest(const Request& request, USERVER_NAMESPACE::clients::http::
       case {{ num }}: {
       http_request.headers(USERVER_NAMESPACE::clients::http::Headers{ {USERVER_NAMESPACE::http::headers::kContentType, "{{ body.content_type }}"} });
         {% if body.content_type == 'application/json' %}
-          // http_request.data(ToJsonString(std::get<{{ num }}>(request.body)));
-          http_request.data(ToString(USERVER_NAMESPACE::formats::json::ValueBuilder(std::get<{{ num }}>(request.body)).ExtractValue()));
+            {{ application_json.serialize("std::get<" + str(num) + ">(request.body)", "http_request") }}
+        {% elif body.content_type == 'application/x-www-form-urlencoded' %}
+            {{ application_xwwwformurlencoded.serialize(body, "std::get<" + str(num) + ">(request.body)", "http_request") }}
         {% else %}
-          http_request.data(std::get<{{ num }}>(request.body).data);
+            {{ application_octetstream.serialize("std::get<" + str(num) + ">(request.body)", "http_request") }}
         {% endif %}
         break;
       }
