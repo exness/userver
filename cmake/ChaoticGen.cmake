@@ -196,6 +196,7 @@ function(userver_target_generate_openapi_client TARGET)
     "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/component.cpp"
     "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/requests.cpp"
     "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/responses.cpp"
+    "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/exceptions.cpp"
   )
 
   _userver_initialize_codegen_flag()
