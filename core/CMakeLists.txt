@@ -334,7 +334,7 @@ _userver_directory_install(COMPONENT core FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/modules
 )
 
-file(GLOB_RECURSE TESTSUITE_INSTALL_FILES
+file(GLOB TESTSUITE_INSTALL_FILES
     "${USERVER_ROOT_DIR}/testsuite/*.txt"
     "${USERVER_ROOT_DIR}/testsuite/*.py"
 )
@@ -352,4 +352,9 @@ _userver_directory_install(COMPONENT core
 _userver_directory_install(COMPONENT core DIRECTORY
     "${USERVER_ROOT_DIR}/testsuite/pytest_plugins/"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/testsuite/pytest_plugins/
+)
+
+_userver_directory_install(COMPONENT core DIRECTORY
+    "${USERVER_ROOT_DIR}/testsuite/include_tests/"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/testsuite/include_tests/
 )
