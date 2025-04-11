@@ -2072,6 +2072,7 @@
   "grpc/include/userver/ugrpc/server/impl/rpc.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/rpc.hpp",
   "grpc/include/userver/ugrpc/server/impl/service_worker.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/service_worker.hpp",
   "grpc/include/userver/ugrpc/server/impl/service_worker_impl.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/service_worker_impl.hpp",
+  "grpc/include/userver/ugrpc/server/impl/stream_adapter.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/stream_adapter.hpp",
   "grpc/include/userver/ugrpc/server/metadata_utils.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/metadata_utils.hpp",
   "grpc/include/userver/ugrpc/server/middlewares/baggage/component.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/middlewares/baggage/component.hpp",
   "grpc/include/userver/ugrpc/server/middlewares/baggage/middleware.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/middlewares/baggage/middleware.hpp",

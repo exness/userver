@@ -11,6 +11,7 @@
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 #include <userver/ugrpc/server/impl/call_traits.hpp>
 #include <userver/ugrpc/server/impl/exceptions.hpp>
+#include <userver/ugrpc/server/impl/rpc.hpp>
 #include <userver/ugrpc/server/middlewares/base.hpp>
 #include <userver/ugrpc/server/result.hpp>
 #include <userver/utils/meta_light.hpp>
@@ -65,7 +66,7 @@ auto ExtractResponse(ResultType&& result) {
 template <typename CallTraits, typename DoHandleFunc>
 class CallProcessor final {
 public:
-    using Call = typename CallTraits::Call;
+    using Call = impl::Call<CallTraits>;
     using Response = typename CallTraits::Response;
 
     CallProcessor(

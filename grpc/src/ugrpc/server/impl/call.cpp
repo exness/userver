@@ -105,6 +105,7 @@ void CallAnyBase::ApplyResponseHook(google::protobuf::Message* response) {
 
 void CallAnyBase::PreSendStatus(const grpc::Status& status) noexcept {
     try {
+        // TODO move into a middleware
         WriteAccessLog(
             params_.access_tskv_logger,
             params_.context,
