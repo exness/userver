@@ -1,6 +1,7 @@
 {% import "templates/requests.application.json.jinja" as application_json %}
 {% import "templates/requests.application.octet.stream.jinja" as application_octetstream %}
 {% import "templates/requests.application.xwwwformurlencoded.jinja" as application_xwwwformurlencoded %}
+{% import "templates/requests.application.multipart.formdata.jinja" as application_multipartformdata %}
 #pragma once
 
 #include <string>
@@ -30,6 +31,8 @@ namespace {{ namespace }} {
         {%- for body in op.request_bodies -%}
           {% if body.content_type == 'application/json' %}
             {{ application_json.define_body_cpp_name(body) }}
+          {% elif body.content_type == 'multipart/form-data' %}
+            {{ application_multipartformdata.define_body_cpp_name(body) }}
           {% elif body.content_type == 'application/x-www-form-urlencoded' %}
             {{ application_xwwwformurlencoded.define_body_cpp_name(body) }}
           {% else %}

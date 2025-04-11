@@ -15,6 +15,15 @@ paths:
                                 foo:
                                     type: string
                             additionalProperties: false
+                    multipart/form-data:
+                        schema:
+                            type: object
+                            properties:
+                                filename:
+                                    type: string
+                                content:
+                                    type: string
+                            additionalProperties: false
                     application/x-www-form-urlencoded:
                         schema:
                             type: object
