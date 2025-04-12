@@ -13,7 +13,6 @@ class NoStreamingAdapter {
 public:
     virtual ~NoStreamingAdapter() = default;
 };
-;
 
 template <typename CallTraits>
 class ReaderAdapter : public Reader<typename CallTraits::Request> {
