@@ -82,7 +82,7 @@ void CallAnyBase::ApplyRequestHook(google::protobuf::Message* request) {
             middleware->PostRecvMessage(*middleware_call_context_, *request);
             auto& status = middleware_call_context_->GetStatus();
             if (!status.ok()) {
-                throw impl::MiddlewareRpcInterruptionError(std::move(status));
+                throw impl::MiddlewareRpcInterruptionError(std::exchange(status, grpc::Status{}));
             }
         }
     }
@@ -97,7 +97,7 @@ void CallAnyBase::ApplyResponseHook(google::protobuf::Message* response) {
             middleware->PreSendMessage(*middleware_call_context_, *response);
             auto& status = middleware_call_context_->GetStatus();
             if (!status.ok()) {
-                throw impl::MiddlewareRpcInterruptionError(std::move(status));
+                throw impl::MiddlewareRpcInterruptionError(std::exchange(status, grpc::Status{}));
             }
         }
     }
