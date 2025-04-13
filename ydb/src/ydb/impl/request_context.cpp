@@ -137,20 +137,20 @@ engine::Deadline GetDeadline(tracing::Span& span, const dynamic_config::Snapshot
 RequestContext::RequestContext(
     TableClient& table_client_,
     const Query& query,
-    OperationSettings& settings,
+    OperationSettings&& settings,
     IsStreaming is_streaming,
     tracing::Span* custom_parent_span,
     const utils::impl::SourceLocation& location
 )
     : table_client(table_client_),
-      settings(settings),
+      settings(std::move(settings)),
       initial_uncaught_exceptions(std::uncaught_exceptions()),
       stats_scope(*table_client.stats_, query),
       config_snapshot(table_client.config_source_.GetSnapshot()),
       // Note: comma operator is used to insert code between initializations.
       span(
-          (PrepareSettings(query, config_snapshot, settings, is_streaming, table_client.default_settings_),
-           MakeSpan(query, settings, custom_parent_span, location))
+          (PrepareSettings(query, config_snapshot, this->settings, is_streaming, table_client.default_settings_),
+           MakeSpan(query, this->settings, custom_parent_span, location))
       ),
       deadline(GetDeadline(span, config_snapshot)) {}
 
