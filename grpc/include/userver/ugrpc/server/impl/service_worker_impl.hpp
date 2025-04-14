@@ -191,10 +191,10 @@ private:
                 method_name,
                 statistics_scope,
                 statistics_storage,
-                *access_tskv_logger,
                 span_->Get(),
                 storage_context,
-                middlewares},
+                middlewares,
+            },
             raw_responder_
         );
 
@@ -209,7 +209,13 @@ private:
 
         auto do_handle = [this, &context, &responder] { return DoCallHandler(context, responder); };
         CallProcessor<CallTraits, decltype(do_handle)> call_processor(
-            middleware_context, responder, middlewares, statistics_scope, initial_request, std::move(do_handle)
+            middleware_context,
+            responder,
+            middlewares,
+            statistics_scope,
+            initial_request,
+            *access_tskv_logger,
+            std::move(do_handle)
         );
 
         call_processor.DoCall();

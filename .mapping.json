@@ -2157,8 +2157,6 @@
   "grpc/src/ugrpc/impl/queue_runner.cpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/queue_runner.cpp",
   "grpc/src/ugrpc/impl/rpc_metadata.cpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/rpc_metadata.cpp",
   "grpc/src/ugrpc/impl/rpc_metadata.hpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/rpc_metadata.hpp",
-  "grpc/src/ugrpc/impl/span.cpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/span.cpp",
-  "grpc/src/ugrpc/impl/span.hpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/span.hpp",
   "grpc/src/ugrpc/impl/static_service_metadata.cpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/static_service_metadata.cpp",
   "grpc/src/ugrpc/impl/statistics.cpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/statistics.cpp",
   "grpc/src/ugrpc/impl/statistics_scope.cpp":"taxi/uservices/userver/grpc/src/ugrpc/impl/statistics_scope.cpp",

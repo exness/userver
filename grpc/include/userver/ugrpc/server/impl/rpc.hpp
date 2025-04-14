@@ -14,7 +14,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
 
-/// @brief Controls a request stream -> response stream RPC
+/// @brief Controls an RPC, server-side.
 ///
 /// This class allows the following concurrent calls:
 ///
@@ -95,9 +95,6 @@ Call<CallTraits>::Call(CallParams&& call_params, RawCall& stream)
 template <typename CallTraits>
 Call<CallTraits>::~Call() {
     if (!is_finished_) {
-        // TODO in what case do we reach this line now? Do we really need access logs in that case?
-        PreSendStatus(impl::kUnknownErrorStatus);
-
         if constexpr (kCallKind == CallKind::kUnaryCall || kCallKind == CallKind::kInputStream) {
             impl::CancelWithError(stream_, GetCallName());
         } else {
@@ -155,9 +152,6 @@ void Call<CallTraits>::FinishWithError(const grpc::Status& status) {
     UINVARIANT(!is_finished_, "'FinishWithError' called on a finished stream");
     is_finished_ = true;
 
-    // TODO move into a middleware
-    PreSendStatus(status);
-
     if constexpr (kCallKind == CallKind::kUnaryCall || kCallKind == CallKind::kInputStream) {
         impl::FinishWithError(stream_, status, GetCallName());
     } else {
@@ -171,9 +165,6 @@ template <typename CallTraits>
 void Call<CallTraits>::Finish(const Response& response) {
     UINVARIANT(!is_finished_, "'Finish' called on a finished stream");
     is_finished_ = true;
-
-    // TODO move into a middleware
-    PreSendStatus(grpc::Status::OK);
 
     if constexpr (kCallKind == CallKind::kUnaryCall || kCallKind == CallKind::kInputStream) {
         impl::Finish(stream_, response, grpc::Status::OK, GetCallName());
@@ -191,9 +182,6 @@ template <typename CallTraits>
 void Call<CallTraits>::Finish() {
     UINVARIANT(!is_finished_, "'Finish' called on a finished stream");
     is_finished_ = true;
-
-    // TODO move into a middleware
-    PreSendStatus(grpc::Status::OK);
 
     impl::Finish(stream_, grpc::Status::OK, GetCallName());
 

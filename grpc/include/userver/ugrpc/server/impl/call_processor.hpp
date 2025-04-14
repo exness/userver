@@ -40,6 +40,12 @@ grpc::Status ReportCustomError(
     tracing::Span& span
 );
 
+void WriteAccessLog(
+    MiddlewareCallContext& context,
+    const grpc::Status& status,
+    logging::TextLoggerRef access_tskv_logger
+) noexcept;
+
 template <typename ResultType>
 grpc::Status ExtractErrorStatus(ResultType& result) {
     UASSERT(!result.IsSuccess());
@@ -75,6 +81,7 @@ public:
         const Middlewares& mids,
         ugrpc::impl::RpcStatisticsScope& statistics_scope,
         ::google::protobuf::Message* initial_request,
+        logging::TextLoggerRef access_tskv_logger,
         DoHandleFunc&& do_handle
     )
         : context_(context),
@@ -82,6 +89,7 @@ public:
           mids_(mids),
           statistics_scope_(statistics_scope),
           initial_request_(initial_request),
+          access_tskv_logger_(access_tskv_logger),
           do_handle_(std::move(do_handle)) {}
 
     void DoCall() {
@@ -122,7 +130,11 @@ public:
             if constexpr (meta::kIsInstantiationOf<StreamingResult, std::remove_reference_t<decltype(result)>>) {
                 if (!result.HasLastResponse()) {
                     RunOnCallFinish();
-                    call_.Finish();
+                    if (!status_.ok()) {
+                        call_.FinishWithError(status_);
+                    } else {
+                        call_.Finish();
+                    }
                     return;
                 }
             }
@@ -164,6 +176,9 @@ private:
             // We must call all OnRpcFinish despite the failures. So, don't check the status.
             RunWithCatch([this, &middleware] { middleware->OnCallFinish(context_, status_); });
         }
+
+        // TODO move to a middleware.
+        impl::WriteAccessLog(context_, status_, access_tskv_logger_);
     }
 
     void RunPreSendMessage(Response& response) {
@@ -207,13 +222,13 @@ private:
         }
     }
 
-private:
     MiddlewareCallContext& context_;
     Call& call_;
     const Middlewares& mids_;
     ugrpc::impl::RpcStatisticsScope& statistics_scope_;
     grpc::Status status_;
     ::google::protobuf::Message* initial_request_{nullptr};
+    logging::TextLoggerRef access_tskv_logger_;
     std::size_t success_pre_hooks_count_{0};
     DoHandleFunc do_handle_;
 };
