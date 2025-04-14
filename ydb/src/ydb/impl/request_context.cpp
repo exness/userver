@@ -9,6 +9,9 @@
 #include <userver/utils/impl/source_location.hpp>
 #include <userver/utils/impl/userver_experiments.hpp>
 
+#include <dynamic_config/variables/YDB_DEADLINE_PROPAGATION_VERSION.hpp>
+#include <dynamic_config/variables/YDB_QUERIES_COMMAND_CONTROL.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace ydb::impl {
@@ -91,11 +94,11 @@ void PrepareSettings(
         os.tx_mode = default_settings.tx_mode.value();
     }
 
-    const auto& cc_map = config_snapshot[impl::kQueryCommandControl];
+    const auto& cc_map = config_snapshot[::dynamic_config::YDB_QUERIES_COMMAND_CONTROL];
 
     if (!query.GetName()) return;
-    auto it = cc_map.find(query.GetName()->GetUnderlying());
-    if (it == cc_map.end()) return;
+    auto it = cc_map.extra.find(query.GetName()->GetUnderlying());
+    if (it == cc_map.extra.end()) return;
 
     auto& cc = it->second;
 
@@ -110,8 +113,10 @@ void PrepareSettings(
 }
 
 engine::Deadline GetDeadline(tracing::Span& span, const dynamic_config::Snapshot& config_snapshot) {
-    if (config_snapshot[impl::kDeadlinePropagationVersion] != impl::kDeadlinePropagationExperimentVersion) {
-        LOG_DEBUG() << "Wrong DP experiment version, config=" << config_snapshot[impl::kDeadlinePropagationVersion]
+    if (config_snapshot[::dynamic_config::YDB_DEADLINE_PROPAGATION_VERSION] !=
+        impl::kDeadlinePropagationExperimentVersion) {
+        LOG_DEBUG() << "Wrong DP experiment version, config="
+                    << config_snapshot[::dynamic_config::YDB_DEADLINE_PROPAGATION_VERSION]
                     << ", experiment=" << impl::kDeadlinePropagationExperimentVersion;
         return {};
     }

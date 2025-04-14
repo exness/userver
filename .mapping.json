@@ -4806,9 +4806,9 @@
   "universal/utest/src/utest/log_capture_fixture.cpp":"taxi/uservices/userver/universal/utest/src/utest/log_capture_fixture.cpp",
   "universal/utest/src/utest/parameter_names_test.cpp":"taxi/uservices/userver/universal/utest/src/utest/parameter_names_test.cpp",
   "ydb/CMakeLists.txt":"taxi/uservices/userver/ydb/CMakeLists.txt",
+  "ydb/dynamic_configs/YDB_DEADLINE_PROPAGATION_VERSION.yaml":"taxi/uservices/userver/ydb/dynamic_configs/YDB_DEADLINE_PROPAGATION_VERSION.yaml",
   "ydb/dynamic_configs/YDB_QUERIES_COMMAND_CONTROL.yaml":"taxi/uservices/userver/ydb/dynamic_configs/YDB_QUERIES_COMMAND_CONTROL.yaml",
   "ydb/dynamic_configs/YDB_RETRY_BUDGET.yaml":"taxi/uservices/userver/ydb/dynamic_configs/YDB_RETRY_BUDGET.yaml",
-  "ydb/dynamic_configs/ya.make.dynconfigs":"taxi/uservices/userver/ydb/dynamic_configs/ya.make.dynconfigs",
   "ydb/functional_tests/CMakeLists.txt":"taxi/uservices/userver/ydb/functional_tests/CMakeLists.txt",
   "ydb/functional_tests/basic/CMakeLists.txt":"taxi/uservices/userver/ydb/functional_tests/basic/CMakeLists.txt",
   "ydb/functional_tests/basic/conftest.py":"taxi/uservices/userver/ydb/functional_tests/basic/conftest.py",
@@ -4913,6 +4913,5 @@
   "ydb/tests/struct_io_test.cpp":"taxi/uservices/userver/ydb/tests/struct_io_test.cpp",
   "ydb/tests/test_utils.hpp":"taxi/uservices/userver/ydb/tests/test_utils.hpp",
   "ydb/tests/topic_test.cpp":"taxi/uservices/userver/ydb/tests/topic_test.cpp",
-  "ydb/tests/types_test.cpp":"taxi/uservices/userver/ydb/tests/types_test.cpp",
-  "ydb/ya.make.ext":"taxi/uservices/userver/ydb/ya.make.ext"
+  "ydb/tests/types_test.cpp":"taxi/uservices/userver/ydb/tests/types_test.cpp"
 }
