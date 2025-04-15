@@ -14,11 +14,12 @@ import dataclasses
 import json
 import logging
 import typing
+from typing import Optional
+from typing import Union
 import warnings
 
 import aiohttp
 
-from testsuite import annotations
 from testsuite import utils
 from testsuite.daemons import service_client
 from testsuite.utils import approx
@@ -30,6 +31,9 @@ from pytest_userver.plugins import caches
 # @cond
 logger = logging.getLogger(__name__)
 # @endcond
+
+JsonAny = Union[int, float, str, list, dict]
+JsonAnyOptional = Optional[JsonAny]
 
 _UNKNOWN_STATE = '__UNKNOWN__'
 
@@ -108,7 +112,7 @@ class ClientWrapper:
         self,
         path: str,
         # pylint: disable=redefined-outer-name
-        json: annotations.JsonAnyOptional = None,
+        json: JsonAnyOptional = None,
         data: typing.Any = None,
         params: typing.Optional[typing.Dict[str, str]] = None,
         bearer: typing.Optional[str] = None,
@@ -135,7 +139,7 @@ class ClientWrapper:
         self,
         path,
         # pylint: disable=redefined-outer-name
-        json: annotations.JsonAnyOptional = None,
+        json: JsonAnyOptional = None,
         data: typing.Any = None,
         params: typing.Optional[typing.Dict[str, str]] = None,
         bearer: typing.Optional[str] = None,
@@ -162,7 +166,7 @@ class ClientWrapper:
         self,
         path,
         # pylint: disable=redefined-outer-name
-        json: annotations.JsonAnyOptional = None,
+        json: JsonAnyOptional = None,
         data: typing.Any = None,
         params: typing.Optional[typing.Dict[str, str]] = None,
         bearer: typing.Optional[str] = None,
