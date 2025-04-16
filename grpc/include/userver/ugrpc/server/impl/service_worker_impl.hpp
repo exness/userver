@@ -26,14 +26,17 @@
 #include <userver/ugrpc/impl/static_service_metadata.hpp>
 #include <userver/ugrpc/impl/statistics.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
+#include <userver/ugrpc/impl/statistics_storage.hpp>
 #include <userver/ugrpc/server/call_context.hpp>
 #include <userver/ugrpc/server/impl/async_method_invocation.hpp>
 #include <userver/ugrpc/server/impl/async_service.hpp>
 #include <userver/ugrpc/server/impl/call_params.hpp>
 #include <userver/ugrpc/server/impl/call_processor.hpp>
 #include <userver/ugrpc/server/impl/call_traits.hpp>
+#include <userver/ugrpc/server/impl/completion_queue_pool.hpp>
 #include <userver/ugrpc/server/impl/error_code.hpp>
 #include <userver/ugrpc/server/impl/exceptions.hpp>
+#include <userver/ugrpc/server/impl/service_internals.hpp>
 #include <userver/ugrpc/server/impl/service_worker.hpp>
 #include <userver/ugrpc/server/middlewares/base.hpp>
 #include <userver/ugrpc/server/service_base.hpp>
@@ -58,17 +61,17 @@ void ParseGenericCallName(
 /// Per-gRPC-service data
 template <typename GrpcppService>
 struct ServiceData final {
-    ServiceData(const ServiceSettings& settings, const ugrpc::impl::StaticServiceMetadata& metadata)
-        : settings(settings), metadata(metadata) {}
+    ServiceData(const ServiceInternals& internals, const ugrpc::impl::StaticServiceMetadata& metadata)
+        : internals(internals), metadata(metadata) {}
 
     ~ServiceData() { wait_tokens.WaitForAllTokens(); }
 
-    const ServiceSettings settings;
+    const ServiceInternals internals;
     const ugrpc::impl::StaticServiceMetadata metadata;
     AsyncService<GrpcppService> async_service{GetMethodsCount(metadata)};
     utils::impl::WaitTokenStorage wait_tokens;
     ugrpc::impl::ServiceStatistics& service_statistics{
-        settings.statistics_storage.GetServiceStatistics(metadata, std::nullopt)};
+        internals.statistics_storage.GetServiceStatistics(metadata, std::nullopt)};
 };
 
 /// Per-gRPC-method data
@@ -104,7 +107,7 @@ public:
 
         context_.AsyncNotifyWhenDone(notify_when_done.GetTag());
 
-        auto& queue = method_data_.service_data.settings.completion_queues.GetQueue(method_data_.queue_id);
+        auto& queue = method_data_.service_data.internals.completion_queues.GetQueue(method_data_.queue_id);
 
         // the request for an incoming RPC must be performed synchronously
         method_data_.service_data.async_service.template Prepare<CallTraits>(
@@ -140,7 +143,7 @@ public:
 
     static void ListenAsync(const MethodData<GrpcppService, CallTraits>& data) {
         engine::CriticalAsyncNoSpan(
-            data.service_data.settings.task_processor, utils::LazyPrvalue([&] { return CallData(data); })
+            data.service_data.internals.task_processor, utils::LazyPrvalue([&] { return CallData(data); })
         ).Detach();
     }
 
@@ -172,15 +175,15 @@ private:
             ParseGenericCallName(context_.method(), call_name, service_name, method_name);
         }
 
-        const auto& middlewares = method_data_.service_data.settings.middlewares;
+        const auto& middlewares = method_data_.service_data.internals.middlewares;
 
         SetupSpan(span_, context_, call_name);
         utils::FastScopeGuard destroy_span([&]() noexcept { span_.reset(); });
 
         ugrpc::impl::RpcStatisticsScope statistics_scope{method_data_.statistics};
 
-        auto& access_tskv_logger = method_data_.service_data.settings.access_tskv_logger;
-        auto& statistics_storage = method_data_.service_data.settings.statistics_storage;
+        auto& access_tskv_logger = method_data_.service_data.internals.access_tskv_logger;
+        auto& statistics_storage = method_data_.service_data.internals.statistics_storage;
         utils::AnyStorage<StorageContext> storage_context;
 
         Call responder(
@@ -202,7 +205,7 @@ private:
         if constexpr (!std::is_same_v<InitialRequest, NoInitialRequest>) {
             initial_request = &initial_request_;
         }
-        auto snapshot = method_data_.service_data.settings.config_source.GetSnapshot();
+        auto snapshot = method_data_.service_data.internals.config_source.GetSnapshot();
         Context context{utils::impl::InternalTag{}, responder};
         MiddlewareCallContext middleware_context{utils::impl::InternalTag{}, responder, std::move(snapshot)};
         responder.SetMiddlewareCallContext(utils::impl::InternalTag{}, middleware_context);
@@ -236,7 +239,7 @@ private:
 
 template <typename GrpcppService, typename Service, typename... ServiceMethods>
 void StartServing(ServiceData<GrpcppService>& service_data, Service& service, ServiceMethods... service_methods) {
-    for (std::size_t queue_id = 0; queue_id < service_data.settings.completion_queues.GetSize(); ++queue_id) {
+    for (std::size_t queue_id = 0; queue_id < service_data.internals.completion_queues.GetSize(); ++queue_id) {
         std::size_t method_id = 0;
         (CallData<GrpcppService, CallTraits<ServiceMethods>>::ListenAsync(
              {service_data, queue_id, method_id++, service, service_methods}
@@ -250,12 +253,12 @@ class ServiceWorkerImpl final : public ServiceWorker {
 public:
     template <typename Service, typename... ServiceMethods>
     ServiceWorkerImpl(
-        ServiceSettings&& settings,
+        ServiceInternals&& internals,
         ugrpc::impl::StaticServiceMetadata&& metadata,
         Service& service,
         ServiceMethods... service_methods
     )
-        : service_data_(std::move(settings), std::move(metadata)), start_([this, &service, service_methods...] {
+        : service_data_(std::move(internals), std::move(metadata)), start_([this, &service, service_methods...] {
               impl::StartServing(service_data_, service, service_methods...);
           }) {}
 
@@ -273,13 +276,13 @@ private:
 // Called from 'MakeWorker' of code-generated service base classes
 template <typename GrpcppService, typename Service, typename... ServiceMethods>
 std::unique_ptr<ServiceWorker> MakeServiceWorker(
-    ServiceSettings&& settings,
+    ServiceInternals&& internals,
     const std::string_view (&method_full_names)[sizeof...(ServiceMethods)],
     Service& service,
     ServiceMethods... service_methods
 ) {
     return std::make_unique<ServiceWorkerImpl<GrpcppService>>(
-        std::move(settings),
+        std::move(internals),
         ugrpc::impl::MakeStaticServiceMetadata<GrpcppService>(method_full_names),
         service,
         service_methods...

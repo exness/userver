@@ -2070,6 +2070,7 @@
   "grpc/include/userver/ugrpc/server/impl/error_code.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/error_code.hpp",
   "grpc/include/userver/ugrpc/server/impl/exceptions.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/exceptions.hpp",
   "grpc/include/userver/ugrpc/server/impl/rpc.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/rpc.hpp",
+  "grpc/include/userver/ugrpc/server/impl/service_internals.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/service_internals.hpp",
   "grpc/include/userver/ugrpc/server/impl/service_worker.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/service_worker.hpp",
   "grpc/include/userver/ugrpc/server/impl/service_worker_impl.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/service_worker_impl.hpp",
   "grpc/include/userver/ugrpc/server/impl/stream_adapter.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/server/impl/stream_adapter.hpp",
