@@ -101,7 +101,6 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_FEATURE_CRYPTOPP_BLAKE2`      | Provide wrappers for blake2 algorithms of crypto++                                                                | `ON`                                        |
 | `USERVER_FEATURE_PATCH_LIBPQ`          | Apply patches to the libpq (add portals support), requires `libpq.a`                                              | `ON`                                        |
 | `USERVER_FEATURE_CRYPTOPP_BASE64_URL`  | Provide wrappers for Base64 URL decoding and encoding algorithms of crypto++                                      | `ON`                                        |
-| `USERVER_FEATURE_REDIS_HI_MALLOC`      | Provide a `hi_malloc(unsigned long)` [issue][hi_malloc] workaround                                                | `OFF`                                       |
 | `USERVER_FEATURE_REDIS_TLS`            | SSL/TLS support for Redis driver                                                                                  | `OFF`                                       |
 | `USERVER_FEATURE_STACKTRACE`           | Allow capturing stacktraces using `boost::stacktrace`                                                             | `ON` except for macOS, `*BSD` and old Boost |
 | `USERVER_FEATURE_JEMALLOC`             | Use jemalloc memory allocator                                                                                     | `ON`                                        |
@@ -113,7 +112,6 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_FEATURE_UBOOST_CORO`          | Build with vendored version of Boost.context and Boost.coroutine2, is needed for sanitizers builds                | `OFF` for arm64 macOS, `ON` otherwise       |
 | `USERVER_FEATURE_STACK_USAGE_MONITOR`  | Enable coroutine stack usage monitor if available                                                                 | `ON`                                        |
 
-[hi_malloc]: https://bugs.launchpad.net/ubuntu/+source/hiredis/+bug/1888025
 
 ### CMake options for downloading userver dependencies
 
