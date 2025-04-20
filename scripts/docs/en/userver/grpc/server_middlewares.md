@@ -252,7 +252,7 @@ Cases:
 2. If all `OnCallStart` succeed and `C::OnCallFinish` fails, `B::OnCallStart` and `A::OnCallStart` will be called and these hooks get an error status from `C::OnCallFinish`.
 3. If a handler returns an error, all `OnCallFinish` will be called.
 
-Errors from `PostRecvMessage` and `PreSendMessage` fail Call such an error from a handler ⇒ will be called `OnCallFinish` hooks.
+If there are errors in `PostRecvMessage`/`PreSendMessage` ⇒ RPC is failed ⇒ `OnCallFinish` hooks will be called.
 
 
 @anchor grpc_server_middlewares_order
