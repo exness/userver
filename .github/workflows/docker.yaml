@@ -16,7 +16,7 @@ jobs:
                 include:
                   - cmake-flags: >-
                         -DCMAKE_CXX_STANDARD=17
-                        -DCPM_SOURCE_CACHE=~/.cache/CPM
+                        -DCPM_SOURCE_CACHE=/userver/.cpm
                         -DUSERVER_USE_LD=gold
                         -DUSERVER_NO_WERROR=0
                         -DUSERVER_BUILD_SAMPLES=1
@@ -31,7 +31,7 @@ jobs:
                         -DCMAKE_C_COMPILER=clang-16
                         -DCMAKE_CXX_COMPILER=clang++-16
                         -DCMAKE_CXX_STANDARD=17
-                        -DCPM_SOURCE_CACHE=~/.cache/CPM
+                        -DCPM_SOURCE_CACHE=/userver/.cpm
                         -DUSERVER_NO_WERROR=0
                         -DUSERVER_BUILD_ALL_COMPONENTS=1
                         -DUSERVER_BUILD_SAMPLES=1
@@ -45,7 +45,7 @@ jobs:
                         -DCMAKE_C_COMPILER=gcc-11
                         -DCMAKE_CXX_COMPILER=g++-11
                         -DCMAKE_CXX_STANDARD=17
-                        -DCPM_SOURCE_CACHE=~/.cache/CPM
+                        -DCPM_SOURCE_CACHE=/userver/.cpm
                         -DUSERVER_USE_LD=gold
                         -DUSERVER_NO_WERROR=0
                         -DUSERVER_BUILD_ALL_COMPONENTS=1
@@ -60,7 +60,7 @@ jobs:
                         -DCMAKE_C_COMPILER=clang-16
                         -DCMAKE_CXX_COMPILER=clang++-16
                         -DCMAKE_CXX_STANDARD=20
-                        -DCPM_SOURCE_CACHE=~/.cache/CPM
+                        -DCPM_SOURCE_CACHE=/userver/.cpm
                         -DUSERVER_BUILD_ALL_COMPONENTS=1
                         -DUSERVER_BUILD_SAMPLES=1
                         -DUSERVER_BUILD_TESTS=1
@@ -73,7 +73,7 @@ jobs:
                         -DCMAKE_C_COMPILER=gcc-13
                         -DCMAKE_CXX_COMPILER=g++-13
                         -DCMAKE_CXX_STANDARD=20
-                        -DCPM_SOURCE_CACHE=~/.cache/CPM
+                        -DCPM_SOURCE_CACHE=/userver/.cpm
                         -DUSERVER_USE_LD=gold
                         -DUSERVER_NO_WERROR=1
                         -DUSERVER_BUILD_ALL_COMPONENTS=1
@@ -100,7 +100,7 @@ jobs:
             with:
                 path: |
                     .ccache
-                    .cache/CPM
+                    .cpm
                 key: 'docker-cache-dir ${{matrix.id}} ${{github.ref}} run-${{github.run_number}}'
                 restore-keys: |
                     docker-cache-dir ${{matrix.id}} ${{github.ref}}
@@ -145,7 +145,7 @@ jobs:
             with:
                 path: |
                     .ccache
-                    .cache/CPM
+                    .cpm
                 key: ${{ steps.restore-cache.outputs.cache-primary-key }}
 
           - name: Run ydb
