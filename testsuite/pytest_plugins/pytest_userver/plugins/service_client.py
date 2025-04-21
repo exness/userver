@@ -47,7 +47,8 @@ async def service_client(
 @pytest.fixture
 async def userver_client_cleanup(
     request,
-    _userver_logging_plugin,
+    service_logs_update_position,
+    servicelogs_register_flusher,
     _dynamic_config_defaults_storage,
     _check_config_marks,
     dynamic_config,
@@ -69,7 +70,7 @@ async def userver_client_cleanup(
 
     @compat.asynccontextmanager
     async def cleanup_manager(client: client.Client):
-        @_userver_logging_plugin.register_flusher
+        @servicelogs_register_flusher
         async def do_flush():
             try:
                 await client.log_flush()
@@ -80,7 +81,7 @@ async def userver_client_cleanup(
                 pass
 
         # Service is already started we don't want startup logs to be shown
-        _userver_logging_plugin.update_position()
+        service_logs_update_position()
 
         await _dynamic_config_defaults_storage.update(client, dynamic_config)
         _check_config_marks()
