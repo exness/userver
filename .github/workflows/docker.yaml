@@ -149,11 +149,11 @@ jobs:
                 key: ${{ steps.restore-cache.outputs.cache-primary-key }}
 
           - name: Run ydb
-            if: matrix.id == 'ubuntu_clang16_cxx20'
+            if: matrix.id == 'ubuntu_clang16_cxx20' || matrix.id == 'ubuntu_gcc13_cxx20'
             run: docker-compose -f .github/docker-compose.yml run -d --rm run-ydb
 
           - name: Watch ydb
-            if: matrix.id == 'ubuntu_clang16_cxx20'
+            if: matrix.id == 'ubuntu_clang16_cxx20' || matrix.id == 'ubuntu_gcc13_cxx20'
             run: >-
                 docker-compose -f .github/docker-compose.yml
                 run --rm ${{ matrix.image}} bash -c
