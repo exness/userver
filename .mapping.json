@@ -134,8 +134,6 @@
   "chaotic/chaotic/back/cpp/types.py":"taxi/uservices/userver/chaotic/chaotic/back/cpp/types.py",
   "chaotic/chaotic/compilers/__init__.py":"taxi/uservices/userver/chaotic/chaotic/compilers/__init__.py",
   "chaotic/chaotic/compilers/dynamic_config.py":"taxi/uservices/userver/chaotic/chaotic/compilers/dynamic_config.py",
-  "chaotic/chaotic/compilers/dynamic_config/templates/taxi_config.cpp.jinja":"taxi/uservices/userver/chaotic/chaotic/compilers/dynamic_config/templates/taxi_config.cpp.jinja",
-  "chaotic/chaotic/compilers/dynamic_config/templates/taxi_config.hpp.jinja":"taxi/uservices/userver/chaotic/chaotic/compilers/dynamic_config/templates/taxi_config.hpp.jinja",
   "chaotic/chaotic/compilers/dynamic_config/templates/variable.cpp.jinja":"taxi/uservices/userver/chaotic/chaotic/compilers/dynamic_config/templates/variable.cpp.jinja",
   "chaotic/chaotic/compilers/dynamic_config/templates/variable.hpp.jinja":"taxi/uservices/userver/chaotic/chaotic/compilers/dynamic_config/templates/variable.hpp.jinja",
   "chaotic/chaotic/cpp_format.py":"taxi/uservices/userver/chaotic/chaotic/cpp_format.py",
