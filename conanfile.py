@@ -62,8 +62,8 @@ class UserverConan(ConanFile):
 
     default_options = {
         'shared': False,
-        'fPIC': False,
-        'lto': True,
+        'fPIC': True,
+        'lto': False,
         'with_jemalloc': False,
         'with_mongodb': True,
         'with_postgresql': True,
@@ -73,7 +73,7 @@ class UserverConan(ConanFile):
         'with_clickhouse': False,
         'with_rabbitmq': False,
         'with_utest': True,
-        'use_lld': True,
+        'use_lld': False,
         'use_asan': False,
         'namespace': 'userver',
         'namespace_begin': 'namespace userver {',
@@ -124,7 +124,7 @@ class UserverConan(ConanFile):
         self.requires('spdlog/1.10.1.12', transitive_headers=True)
         self.requires('yaml-cpp/0.7.0', transitive_headers=True)
         self.requires('zlib/1.3', transitive_headers=True)
-        self.requires('abseil/20240722.0', transitive_headers=True, transitive_libs=True)
+        self.requires('abseil/20240116.2', transitive_headers=True, transitive_libs=True)
         self.requires('zstd/1.5.5')
 
         if self.options.with_jemalloc:
@@ -160,13 +160,13 @@ class UserverConan(ConanFile):
         if self.options.with_clickhouse:
             self.requires('clickhouse-cpp/2.4.0')
             self.requires(
-                'abseil/20240722.0',
+                'abseil/20240116.2',
                 transitive_headers=True,
                 transitive_libs=True,
             )
         if self.options.with_utest:
             self.requires(
-                'gtest/1.15.2', transitive_headers=True, transitive_libs=True,
+                'gtest/1.12.1', transitive_headers=True, transitive_libs=True,
             )
             self.requires(
                 'benchmark/1.6.2',
