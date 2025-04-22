@@ -433,23 +433,16 @@ class Generator:
             user_cpp_type = f'userver::utils::StrongTypedef<{typedef_tag}, std::string>'
 
         if schema.format:
-            if schema.format == types.StringFormat.UUID:
+            if schema.format == types.StringFormat.BYTE:
+                format_cpp_type = 'crypto::base64::String64'
+            elif schema.format == types.StringFormat.UUID:
                 format_cpp_type = 'boost::uuids::uuid'
             elif schema.format == types.StringFormat.DATE:
                 format_cpp_type = 'userver::utils::datetime::Date'
-            elif schema.format in [
-                types.StringFormat.DATE_TIME,
-                types.StringFormat.DATE_TIME_ISO_BASIC,
-            ]:
-                if schema.format == types.StringFormat.DATE_TIME:
-                    format_cpp_type = 'userver::utils::datetime::TimePointTz'
-                elif schema.format == types.StringFormat.DATE_TIME_ISO_BASIC:
-                    format_cpp_type = 'userver::utils::datetime::TimePointTzIsoBasic'
-                else:
-                    self._raise(
-                        schema,
-                        f'Using unknown "format: {schema.format}"',
-                    )
+            elif schema.format == types.StringFormat.DATE_TIME:
+                format_cpp_type = 'userver::utils::datetime::TimePointTz'
+            elif schema.format == types.StringFormat.DATE_TIME_ISO_BASIC:
+                format_cpp_type = 'userver::utils::datetime::TimePointTzIsoBasic'
             else:
                 self._raise(
                     schema,
