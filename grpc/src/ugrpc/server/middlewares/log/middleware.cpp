@@ -35,7 +35,11 @@ void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobu
 }
 
 void Middleware::PreSendMessage(MiddlewareCallContext& context, google::protobuf::Message& response) const {
-    logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
+    logging::LogExtra extra{
+        {"grpc_type", "response"},                            //
+        {"body", GetMessageForLogging(response, settings_)},  //
+        {"grpc_code", "OK"},                                  // to identify log with body as OK response
+    };
     if (context.IsServerStreaming()) {
         LOG_INFO() << "gRPC response stream message" << std::move(extra);
     } else {
