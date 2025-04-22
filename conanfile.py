@@ -100,7 +100,7 @@ class UserverConan(ConanFile):
         cmake_layout(self)
 
     def requirements(self):
-        self.requires('boost/1.86.0', transitive_headers=True)
+        self.requires('boost/1.85.0', transitive_headers=True)
         self.requires('c-ares/1.33.1')
         self.requires('cctz/2.4', transitive_headers=True)
         self.requires('concurrentqueue/1.0.3', transitive_headers=True)
@@ -108,7 +108,7 @@ class UserverConan(ConanFile):
         self.requires('fmt/8.1.1', transitive_headers=True)
         self.requires('libiconv/1.17')
         self.requires('libnghttp2/1.61.0')
-        self.requires('libcurl/7.86.0')
+        self.requires('libcurl/8.12.1')
         self.requires('libev/4.33')
         self.requires('openssl/3.3.2')
         self.requires('rapidjson/cci.20220822', transitive_headers=True)
@@ -121,7 +121,7 @@ class UserverConan(ConanFile):
         if self.options.with_jemalloc:
             self.requires('jemalloc/5.3.0')
         if self.options.with_grpc or self.options.with_clickhouse:
-            self.requires('abseil/20240116.2', force=True)
+            self.requires('abseil/20240116.2', transitive_headers=True, transitive_libs=True, force=True)
         if self.options.with_grpc:
             self.requires(
                 'grpc/1.65.0',
