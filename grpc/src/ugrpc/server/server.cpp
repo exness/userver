@@ -47,8 +47,12 @@ std::optional<int> ToOptionalInt(const std::string& str) {
     }
 }
 
-void ApplyChannelArgs(grpc::ServerBuilder& builder, const ServerConfig& config) {
-    for (const auto& [key, value] : config.channel_args) {
+void AddChannelArguments(
+    grpc::ServerBuilder& builder,
+    const std::unordered_map<std::string, std::string>& channel_args
+) {
+    LOG_DEBUG() << "Add server ChannelArguments: " << channel_args;
+    for (const auto& [key, value] : channel_args) {
         if (const auto int_value = ToOptionalInt(value)) {
             builder.AddChannelArgument(ugrpc::impl::ToGrpcString(key), *int_value);
         } else {
@@ -145,7 +149,7 @@ Server::Impl::Impl(
 #endif
     }
     server_builder_.emplace();
-    ApplyChannelArgs(*server_builder_, config);
+    AddChannelArguments(*server_builder_, config.channel_args);
     completion_queues_.emplace(config.completion_queue_num, *server_builder_);
 
     if (config.unix_socket_path) AddListeningUnixSocket(*config.unix_socket_path, config.tls);
