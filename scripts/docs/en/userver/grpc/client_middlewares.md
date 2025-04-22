@@ -270,10 +270,10 @@ digraph Pipeline {
     center=true;
     rankdir=LR;
 
-    Baggage [label = "grpc-client-baggage", shape=box];
-    Testsuite [label = "grpc-client-testsuite", shape=box];
+    Baggage [label = "grpc-client-baggage", shape=box, width=2.0];
+    Testsuite [label = "grpc-client-testsuite", shape=box, width=2.0];
 
-    Testsuite -> Baggage;
+    Baggage -> Testsuite;
   }
 
   subgraph cluster_Core {
@@ -282,7 +282,7 @@ digraph Pipeline {
     center=true;
     rankdir=LR;
 
-    DeadlinePropagation [label = "grpc-client-deadline-propagation", shape=box];
+    DeadlinePropagation [label = "grpc-client-deadline-propagation", shape=box, width=2.0];
   }
 
   subgraph cluster_Logging {
@@ -290,16 +290,16 @@ digraph Pipeline {
     label = "Logging";
     center=true;
 
-    Logging [label = "grpc-client-logging", shape=box];
+    Logging [label = "grpc-client-logging", shape=box, width=2.0];
   }
 
-  PreCore [label = "PreCore", shape=box];
-  Auth [label = "Auth", shape=box];
-  PostCore [label = "PostCore", shape=box];
+  PreCore [label = "PreCore", shape=box, width=2.0];
+  Auth [label = "Auth", shape=box, width=2.0];
+  PostCore [label = "PostCore", shape=box, width=2.0];
 
-  Baggage -> PostCore -> DeadlinePropagation -> Auth -> Logging -> PreCore;
+  PreCore -> Logging -> Auth -> DeadlinePropagation -> PostCore -> Baggage;
 
-  Pipeline[label = "grpc-client-middlewares-pipeline", shape=plaintext, rank="main"];
+  Pipeline[label = "grpc-client-middlewares-pipeline\n from the start to the end", shape=plaintext, rank="main"];
 }
 @enddot
 

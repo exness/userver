@@ -282,11 +282,10 @@ digraph Pipeline {
     center=true;
     rankdir=LR;
 
-    Baggage [label = "grpc-server-baggage", shape=box];
-    HeadersPropagator [label = "grpc-server-headers-propagator", shape=box];
+    Baggage [label = "grpc-server-baggage", shape=box, width=2.0];
+    HeadersPropagator [label = "grpc-server-headers-propagator", shape=box, width=2.0];
 
-
-    HeadersPropagator -> Baggage;
+    Baggage -> HeadersPropagator;
   }
 
   subgraph cluster_Core {
@@ -295,10 +294,10 @@ digraph Pipeline {
     center=true;
     rankdir=LR;
 
-    CongestionControl [label = "congestion-control", shape=box];
-    DeadlinePropagation [label = "deadline-propagation", shape=box];
+    CongestionControl [label = "congestion-control", shape=box, width=2.0];
+    DeadlinePropagation [label = "deadline-propagation", shape=box, width=2.0];
 
-    DeadlinePropagation -> CongestionControl;
+    CongestionControl -> DeadlinePropagation;
   }
 
   subgraph cluster_Logging {
@@ -306,19 +305,17 @@ digraph Pipeline {
     label = "Logging";
     center=true;
 
-    Logging [label = "grpc-server-logging", shape=box];
+    Logging [label = "grpc-server-logging", shape=box, width=2.0];
   }
 
-  PreCore [label = "PreCore", shape=box];
-  Auth [label = "Auth", shape=box];
-  PostCore [label = "PostCore", shape=box];
+  PreCore [label = "PreCore", shape=box, width=2.0];
+  Auth [label = "Auth", shape=box, width=2.0];
+  PostCore [label = "PostCore", shape=box, width=2.0];
 
+  PreCore -> Logging -> Auth -> CongestionControl;
+  DeadlinePropagation -> PostCore -> Baggage;
 
-  Baggage -> PostCore -> DeadlinePropagation;
-  Auth -> Logging -> PreCore;
-  CongestionControl -> Auth;
-
-  Pipeline[label = "grpc-server-middlewares-pipeline", shape=plaintext, rank="main"];
+  Pipeline[label = "grpc-server-middlewares-pipeline\n from the start to the end", shape=plaintext, rank="main"];
 }
 @enddot
 
