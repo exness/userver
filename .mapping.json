@@ -2113,6 +2113,7 @@
   "grpc/src/ugrpc/client/client_factory.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/client_factory.cpp",
   "grpc/src/ugrpc/client/client_factory_component.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/client_factory_component.cpp",
   "grpc/src/ugrpc/client/client_factory_settings.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/client_factory_settings.cpp",
+  "grpc/src/ugrpc/client/client_qos.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/client_qos.cpp",
   "grpc/src/ugrpc/client/client_settings.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/client_settings.cpp",
   "grpc/src/ugrpc/client/common_component.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/common_component.cpp",
   "grpc/src/ugrpc/client/component_list.cpp":"taxi/uservices/userver/grpc/src/ugrpc/client/component_list.cpp",
