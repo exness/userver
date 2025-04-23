@@ -342,7 +342,7 @@ UTEST_P(MiddlewaresHooksUnaryTest, DeadlinePropagation) {
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, const grpc::Status& status) {
             EXPECT_TRUE(status.ok());
             // We want to exceed a deadline for middleware 'grpc-server-deadline-propagation'
-            engine::SleepFor(std::chrono::milliseconds{20});
+            engine::SleepFor(std::chrono::milliseconds{200});
         });
     ON_CALL(M1(), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& context, const grpc::Status& status) {
@@ -373,7 +373,7 @@ UTEST_P(MiddlewaresHooksUnaryTest, DeadlinePropagation) {
     EXPECT_CALL(M2(), OnCallFinish).Times(1);
 
     auto context = std::make_unique<grpc::ClientContext>();
-    std::chrono::milliseconds deadline_ms{10};
+    std::chrono::milliseconds deadline_ms{100};
     auto deadline = engine::Deadline::FromDuration(deadline_ms);
     context->set_deadline(deadline);
 

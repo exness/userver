@@ -12,6 +12,7 @@
 #include <boost/range/adaptor/transformed.hpp>
 
 #include <userver/ugrpc/server/impl/call.hpp>
+#include <userver/ugrpc/server/middlewares/base.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/text.hpp>
 

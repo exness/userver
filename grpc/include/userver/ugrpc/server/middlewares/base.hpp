@@ -57,7 +57,7 @@ public:
     ///
     /// 1. @ref MiddlewareBase::OnCallStart - remaining OnCallStart hooks won't be called. Will be called OnCallFinish
     ///    hooks of middlewares that was called before `SetError`
-    /// 2. @ref MiddlewareBase::PostRecvMessage or @ref MiddlewareBase::PreSendMessage:
+    /// 2. @ref MiddlewareBase::PostRecvMessage or @ref ugrpc::server::MiddlewareBase::PreSendMessage :
     ///    * unary: handler won't be called - all. All `OnCallFinish` hooks will be called.
     ///    * stream: from Read/Write throws a special exception, that ends a handler. All `OnCallFinish` hooks will be
     ///      called.
@@ -154,7 +154,7 @@ public:
 ///
 /// And there is a possibility to override the middleware config per service:
 ///
-/// @snippet samples/grpc_middleware_service/static_config.yaml gRPC middleware sample - static config server middleware
+/// @snippet samples/grpc_middleware_service/configs/static_config.yaml gRPC greeter-service sample
 
 using MiddlewareFactoryComponentBase =
     USERVER_NAMESPACE::middlewares::MiddlewareFactoryComponentBase<MiddlewareBase, ServiceInfo>;
@@ -174,7 +174,7 @@ using MiddlewareFactoryComponentBase =
 ///
 /// ## Static config example
 ///
-/// @snippet samples/grpc_middleware_service/static_config.yaml  static config grpc-server-middlewares-pipeline
+/// @snippet samples/grpc_middleware_service/configs/static_config.yaml  static config grpc-server-middlewares-pipeline
 
 template <typename Middleware>
 using SimpleMiddlewareFactoryComponent =

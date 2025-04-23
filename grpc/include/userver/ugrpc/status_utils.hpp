@@ -1,6 +1,6 @@
 #pragma once
 
-/// @file userver/ugrp/status_utils.hpp
+/// @file userver/ugrpc/status_utils.hpp
 /// @brief Utilities for @c grpc::Status and @c google::rpc::Status types.
 
 #include <optional>
