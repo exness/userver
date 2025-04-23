@@ -3923,7 +3923,6 @@
   "testsuite/env.in":"taxi/uservices/userver/testsuite/env.in",
   "testsuite/include_tests/sql_coverage/test_sql_coverage.py":"taxi/uservices/userver/testsuite/include_tests/sql_coverage/test_sql_coverage.py",
   "testsuite/pytest_plugins/pytest_userver/__init__.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/__init__.py",
-  "testsuite/pytest_plugins/pytest_userver/asyncio_socket.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/asyncio_socket.py",
   "testsuite/pytest_plugins/pytest_userver/chaos.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/chaos.py",
   "testsuite/pytest_plugins/pytest_userver/client.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/client.py",
   "testsuite/pytest_plugins/pytest_userver/grpc/__init__.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/grpc/__init__.py",
