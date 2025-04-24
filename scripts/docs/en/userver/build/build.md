@@ -98,12 +98,13 @@ userver-create-service [--grpc] [--mongo] [--postgresql] myservice
 
 * Project directory will be `myservice`, relative to the current working directory;
 * service name will be the last segment of the path;
-* even without feature flags, the service only has some stubs for HTTP handlers.
+* without feature flags, the service only has some stubs for HTTP handlers.
 
-If instead of installing userver you are planning to build userver as a subdirectory, call the script from userver directory:
+If instead of installing userver you are planning to build userver as a subdirectory,
+call the script from userver directory:
 
 ```shell
-path/to/userver/scripts/userver-create-service myservice
+path/to/userver/scripts/userver-create-service [--grpc] [--mongo] [--postgresql] myservice
 ```
 
 If you use CPM to download userver, see @ref userver_cpm "CPM section".
@@ -277,9 +278,10 @@ You can install userver globally and then use it from anywhere with `find_packag
 Make sure to use the same build mode as for your service, otherwise subtle linkage issues will arise.
 
 @anchor userver_install_debian_package
-### Build and install Debian package
+### Building Debian package using Docker
 
-To build `libuserver-all-dev.deb` package run the following shell command:
+For Ubuntu 22.04 or Ubuntu 24.04, to build `libuserver-all-dev.deb` package using Docker,
+run the following shell command from userver directory:
 
 ```shell
 docker run --rm -it --network ip6net -v $(pwd):/home/user -w /home/user/userver \
@@ -287,23 +289,47 @@ docker run --rm -it --network ip6net -v $(pwd):/home/user -w /home/user/userver 
    BUILD_OPTIONS="-DUSERVER_FEATURE_POSTGRESQL=1" ./scripts/build_and_install.sh
 ```
 
-Pass the @ref cmake_options "cmake options" inside `BUILD_OPTIONS`.
-Make sure to at least:
+Make sure to:
 
-1. enable the desired @ref userver_libraries "userver libraries";
-2. pass the required options for @ref scripts/docs/en/userver/build/dependencies.md "build dependencies", if any.
+1. replace the Docker image if appropriate;
+2. pass the @ref cmake_options "cmake options" inside `BUILD_OPTIONS`, in particular...
+3. enable the desired @ref userver_libraries "userver libraries";
+4. pass the required options for @ref scripts/docs/en/userver/build/dependencies.md "build dependencies", if any.
 
-And install the package with the following:
+Install the package with the following:
 
 ```shell
 sudo dpkg -i ./libuserver-all-dev*.deb
 ```
 
+### Building Debian package locally
+
+This way suits all Debian-based systems.
+To build `libuserver-all-dev.deb` package locally without Docker, first install build dependencies:
+
+@see @ref scripts/docs/en/userver/build/dependencies.md
+
+Then run the following shell command from userver directory:
+
+```shell
+BUILD_OPTIONS="-DUSERVER_FEATURE_POSTGRESQL=1" ./scripts/build_and_install.sh
+```
+
+Pass the @ref cmake_options "cmake options" inside `BUILD_OPTIONS`. Make sure to at least:
+
+1. enable the desired @ref userver_libraries "userver libraries";
+2. pass the required options for @ref scripts/docs/en/userver/build/dependencies.md "build dependencies", if any.
+
+Install the package with the following:
+
+```shell
+sudo dpkg -i ./libuserver-all-dev*.deb
+```
 
 ### Install with cmake --install
 
-@warning installing userver with cmake --install is NOT recommended due to update and uninstall issues.
-Please, @ref userver_install_debian_package "build and install Debian package" instead.
+@warning Installing userver with cmake --install is NOT recommended due to update and uninstall issues.
+For Debian-based systems, please @ref userver_install_debian_package "build and install Debian package" instead.
 
 To install userver build it with `USERVER_INSTALL=ON` flags in `Debug` and `Release` modes:
 
@@ -324,6 +350,9 @@ cmake --install build_release/
 ```
 
 @see @ref cmake_options
+
+@warning You should **never** delete the build directories when installing locally this way,
+otherwise it will be difficult to update or uninstall userver.
 
 
 ### Use userver in your projects
