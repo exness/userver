@@ -24,6 +24,9 @@ std::string ToLimitedString(const google::protobuf::Message& message, std::size_
 
 }  // namespace
 
+const std::string kComponentTag{"grpc_component"};
+const std::string kTypeTag{"grpc_type"};
+
 std::string GetMessageForLogging(const google::protobuf::Message& message, MessageLoggingOptions options) {
     if (!logging::ShouldLog(options.log_level)) {
         return "hidden by log level";

@@ -28,6 +28,11 @@ public:
         LOG(level) << message << std::move(extra) << tracing::impl::LogSpanAsLastNoCurrent{span_};
     }
 
+    void Log(logging::Level level, std::string_view message) const {
+        const tracing::impl::DetachLocalSpansScope ignore_local_span;
+        LOG(level) << message << tracing::impl::LogSpanAsLastNoCurrent{span_};
+    }
+
 private:
     const tracing::Span& span_;
 };
@@ -39,20 +44,22 @@ Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 void Middleware::PreStartCall(MiddlewareCallContext& context) const {
     auto& span = context.GetSpan();
 
+    span.AddTag(ugrpc::impl::kComponentTag, "client");
     span.AddTag("meta_type", std::string{context.GetCallName()});
     span.AddTag(tracing::kSpanKind, tracing::kSpanKindClient);
 
     if (context.IsClientStreaming()) {
-        SpanLogger{context.GetSpan()}.Log(
-            logging::Level::kInfo, "gRPC request stream started", logging::LogExtra{{"grpc_type", "request"}}
-        );
+        SpanLogger{context.GetSpan()}.Log(logging::Level::kInfo, "gRPC request stream started");
     }
 }
 
 /// [MiddlewareBase Message methods example]
 void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     SpanLogger logger{context.GetSpan()};
-    logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(message, settings_)}};
+    logging::LogExtra extra{
+        {ugrpc::impl::kTypeTag, "request"},                  //
+        {"body", GetMessageForLogging(message, settings_)},  //
+    };
     if (context.IsClientStreaming()) {
         logger.Log(logging::Level::kInfo, "gRPC request stream message", std::move(extra));
     } else {
@@ -62,7 +69,10 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::pr
 
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     SpanLogger logger{context.GetSpan()};
-    logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(message, settings_)}};
+    logging::LogExtra extra{
+        {ugrpc::impl::kTypeTag, "response"},                 //
+        {"body", GetMessageForLogging(message, settings_)},  //
+    };
     if (context.IsServerStreaming()) {
         logger.Log(logging::Level::kInfo, "gRPC response stream message", std::move(extra));
     } else {
@@ -75,17 +85,16 @@ void Middleware::PostFinish(MiddlewareCallContext& context, const grpc::Status& 
     SpanLogger logger{context.GetSpan()};
     if (status.ok()) {
         if (context.IsServerStreaming()) {
-            SpanLogger{context.GetSpan()}.Log(
-                logging::Level::kInfo, "gRPC response stream finished", logging::LogExtra{{"grpc_type", "response"}}
-            );
+            SpanLogger{context.GetSpan()}.Log(logging::Level::kInfo, "gRPC response stream finished");
         }
     } else {
         auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
-        logger.Log(
-            logging::Level::kWarning,
-            "gRPC error",
-            logging::LogExtra{{tracing::kErrorMessage, std::move(error_details)}}
-        );
+        logging::LogExtra extra{
+            {ugrpc::impl::kTypeTag, "error_status"},            //
+            {tracing::kErrorMessage, std::move(error_details)}  //
+        };
+
+        logger.Log(logging::Level::kWarning, "gRPC error", std::move(extra));
     }
 }
 

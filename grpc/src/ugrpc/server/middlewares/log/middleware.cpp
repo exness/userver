@@ -27,7 +27,7 @@ Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 void Middleware::OnCallStart(MiddlewareCallContext& context) const {
     auto& span = context.GetSpan();
 
-    span.AddTag("grpc_component", "server");
+    span.AddTag(ugrpc::impl::kComponentTag, "server");
     span.AddTag("meta_type", std::string{context.GetCallName()});
     span.AddNonInheritableTag(tracing::kSpanKind, tracing::kSpanKindServer);
 
@@ -38,7 +38,7 @@ void Middleware::OnCallStart(MiddlewareCallContext& context) const {
 
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobuf::Message& request) const {
     logging::LogExtra extra{
-        {"grpc_type", "request"},                            //
+        {ugrpc::impl::kTypeTag, "request"},                  //
         {"body", GetMessageForLogging(request, settings_)},  //
     };
     if (context.IsClientStreaming()) {
@@ -51,7 +51,7 @@ void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobu
 
 void Middleware::PreSendMessage(MiddlewareCallContext& context, google::protobuf::Message& response) const {
     logging::LogExtra extra{
-        {"grpc_type", "response"},                            //
+        {ugrpc::impl::kTypeTag, "response"},                  //
         {"grpc_code", "OK"},                                  // TODO: revert
         {"body", GetMessageForLogging(response, settings_)},  //
     };
@@ -72,9 +72,9 @@ void Middleware::OnCallFinish(MiddlewareCallContext& context, const grpc::Status
         const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
         auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
         logging::LogExtra extra{
-            {"grpc_type", "error_status"},       //
-            {"type", "response"},                //
-            {"body", std::move(error_details)},  //
+            {"type", "response"},
+            {ugrpc::impl::kTypeTag, "error_status"},
+            {"body", std::move(error_details)},
         };
 
         LOG(log_level) << "gRPC error" << std::move(extra);
