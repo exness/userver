@@ -99,6 +99,28 @@ TEST_F(LoggingTest, DocsData) {
     /// [Example set custom logging usage]
 }
 
+TEST_F(LoggingTest, DocsDataInline) {
+    /// [Sample logging usage]
+    LOG_TRACE("Very verbose logs, only enabled using dynamic debug logs");
+    LOG_DEBUG("Some debug info, not logged by default in production");
+    LOG_INFO("This is informational message");
+    LOG_WARNING("Something strange happened");
+    LOG_ERROR("This is unbelievable, fix me, please!");
+    LOG_CRITICAL("The service is about to abort, bye");
+    /// [Sample logging usage]
+}
+
+TEST_F(LoggingTest, DocsDataInlineFormat) {
+    /// [Sample logging usage]
+    LOG_TRACE("Very {} logs, only enabled using dynamic debug logs", "verbose");
+    LOG_DEBUG("Some {} info, not logged by default in production", "debug");
+    LOG_INFO("This is {} message", "informational");
+    LOG_WARNING("Something {} happened", "strange");
+    LOG_ERROR("This is {}, fix me, please!", "unbelievable");
+    LOG_CRITICAL("The service is about to {}, bye", "abort");
+    /// [Sample logging usage]
+}
+
 TEST_F(LoggingTest, DatetimeDate) {
     const auto date = utils::datetime::Date(2023, 4, 8);
     EXPECT_EQ("2023-04-08", ToStringViaLogging(date));
@@ -132,6 +154,14 @@ TEST_F(LoggingTest, LogRaw) {
     auto& logger = logging::GetDefaultLogger();
     logging::impl::LogRaw(dynamic_cast<logging::impl::TextLogger&>(logger), logging::Level::kInfo, "foo");
     EXPECT_EQ(GetStreamString(), "foo\n");
+}
+
+UTEST_F(SocketLoggingTest, Format) {
+    LOG_ERROR("Hello, {}", "world");
+    EXPECT_EQ("Hello, world", NextLoggedText());
+
+    LOG_ERROR("{}, {}", "Hello", "world");
+    EXPECT_EQ("Hello, world", NextLoggedText());
 }
 
 USERVER_NAMESPACE_END

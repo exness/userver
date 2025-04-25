@@ -13,6 +13,8 @@
 #include <system_error>
 #include <type_traits>
 
+#include <fmt/core.h>
+
 #include <userver/formats/common/meta.hpp>
 #include <userver/logging/fwd.hpp>
 #include <userver/logging/level.hpp>
@@ -108,6 +110,21 @@ public:
     // Helper function that could be called on LogHelper&& to get LogHelper&.
     LogHelper& AsLvalue() noexcept { return *this; }
 
+    /// @cond
+    LogHelper& AsLvalue(std::string_view msg) noexcept {
+        *this << msg;
+        return *this;
+    }
+    /// @endcond
+
+    /// @cond
+    template <typename... Args>
+    LogHelper& AsLvalue(fmt::format_string<Args...> fmt, Args&&... args) noexcept {
+        VFormat(fmt::string_view(fmt), fmt::make_format_args(args...));
+        return *this;
+    }
+    /// @endcond
+
     bool IsLimitReached() const noexcept;
 
     template <typename T>
@@ -134,8 +151,7 @@ public:
             static_assert(
                 !sizeof(T),
                 "Please implement logging for your type: "
-                "logging::LogHelper& operator<<(logging::LogHelper& lh, "
-                "const T& value)"
+                "logging::LogHelper& operator<<(logging::LogHelper& lh, const T& value)"
             );
         }
 
@@ -167,6 +183,9 @@ public:
     LogHelper& PutTag(std::string_view key, const LogExtra::Value& value) noexcept;
     LogHelper& PutSwTag(std::string_view key, std::string_view value) noexcept;
 
+    template <typename... Args>
+    LogHelper& Format(fmt::format_string<Args...> fmt, Args&&... args) noexcept;
+
     /// @cond
     // For internal use only!
     operator impl::Noop() const noexcept { return {}; }
@@ -197,6 +216,8 @@ private:
     void PutRaw(std::string_view value_needs_no_escaping);
     void PutException(const std::exception& ex);
     void PutQuoted(std::string_view value);
+
+    void VFormat(fmt::string_view fmt, fmt::format_args args) noexcept;
 
     template <typename T>
     void PutRangeElement(const T& value);
@@ -293,11 +314,9 @@ void LogHelper::PutRange(const T& range) {
 
     static_assert(
         !std::is_same_v<meta::RangeValueType<T>, char>,
-        "You should either manually convert type to 'std::string_view' "
-        "or provide 'operator<<' specialization for your type: "
-        "'logging::LogHelper& operator<<(logging::LogHelper& lh, const "
-        "T& value)' "
-        "or make your type convertible to 'std::string_view'"
+        "You should either manually convert type to 'std::string_view' or provide 'operator<<' specialization for your "
+        "type: 'logging::LogHelper& operator<<(logging::LogHelper& lh, const T& value)' or make your type convertible "
+        "to 'std::string_view'"
     );
 
     constexpr std::string_view kSeparator = ", ";
@@ -335,6 +354,12 @@ void LogHelper::PutRange(const T& range) {
     }
 
     *this << ']';
+}
+
+template <typename... Args>
+LogHelper& LogHelper::Format(fmt::format_string<Args...> fmt, Args&&... args) noexcept {
+    VFormat(fmt::string_view(fmt), fmt::make_format_args(args...));
+    return *this;
 }
 
 }  // namespace logging
