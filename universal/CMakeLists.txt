@@ -408,6 +408,7 @@ _userver_directory_install(COMPONENT universal FILES
     "${USERVER_ROOT_DIR}/cmake/DetectVersion.cmake"
     "${USERVER_ROOT_DIR}/cmake/UserverSetupEnvironment.cmake"
     "${USERVER_ROOT_DIR}/cmake/UserverVenv.cmake"
+    "${USERVER_ROOT_DIR}/cmake/UserverCodegenTarget.cmake"
     "${USERVER_ROOT_DIR}/cmake/UserverEmbedFile.cmake"
     "${USERVER_ROOT_DIR}/cmake/UserverPreferStaticLibs.cmake"
     "${USERVER_ROOT_DIR}/cmake/embedded_config.cmake"

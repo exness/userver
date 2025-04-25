@@ -469,6 +469,7 @@
   "cmake/SetupRocksDB.cmake":"taxi/uservices/userver/cmake/SetupRocksDB.cmake",
   "cmake/SetupYdbCppSDK.cmake":"taxi/uservices/userver/cmake/SetupYdbCppSDK.cmake",
   "cmake/Stacktrace.cmake":"taxi/uservices/userver/cmake/Stacktrace.cmake",
+  "cmake/UserverCodegenTarget.cmake":"taxi/uservices/userver/cmake/UserverCodegenTarget.cmake",
   "cmake/UserverCxxCompileOptionsIfSupported.cmake":"taxi/uservices/userver/cmake/UserverCxxCompileOptionsIfSupported.cmake",
   "cmake/UserverEmbedFile.cmake":"taxi/uservices/userver/cmake/UserverEmbedFile.cmake",
   "cmake/UserverGrpcTargets.cmake":"taxi/uservices/userver/cmake/UserverGrpcTargets.cmake",

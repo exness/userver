@@ -190,6 +190,7 @@ include(AddGoogleTests)
 include(FindPackageRequired)
 include(IncludeWhatYouUse)
 include(UserverTestsuite)
+include(UserverCodegenTarget)
 include(CheckCompileFlags)
 include(CMakePackageConfigHelpers)
 
