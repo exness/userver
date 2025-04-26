@@ -5,40 +5,25 @@
 #include <grpcpp/server_context.h>
 
 #include <userver/server/handlers/exceptions.hpp>
-#include <userver/tracing/in_place_span.hpp>
 
-#include <userver/ugrpc/impl/statistics.hpp>
-#include <userver/ugrpc/impl/statistics_scope.hpp>
+#include <userver/ugrpc/server/impl/call.hpp>
+#include <userver/ugrpc/server/impl/call_kind.hpp>
 #include <userver/ugrpc/server/impl/call_traits.hpp>
 #include <userver/ugrpc/server/impl/exceptions.hpp>
 #include <userver/ugrpc/server/impl/rpc.hpp>
 #include <userver/ugrpc/server/middlewares/base.hpp>
 #include <userver/ugrpc/server/result.hpp>
-#include <userver/utils/meta_light.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
 
-grpc::Status ReportHandlerError(
-    const std::exception& ex,
-    std::string_view call_name,
-    tracing::Span& span,
-    ugrpc::impl::RpcStatisticsScope& statistics_scope
-) noexcept;
+grpc::Status ReportHandlerError(const std::exception& ex, CallAnyBase& call) noexcept;
 
-grpc::Status ReportNetworkError(
-    const RpcInterruptedError& ex,
-    std::string_view call_name,
-    tracing::Span& span,
-    ugrpc::impl::RpcStatisticsScope& statistics_scope
-) noexcept;
+grpc::Status ReportRpcInterruptedError(CallAnyBase& call) noexcept;
 
-grpc::Status ReportCustomError(
-    const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex,
-    std::string_view call_name,
-    tracing::Span& span
-);
+grpc::Status
+ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex, CallAnyBase& call) noexcept;
 
 void WriteAccessLog(
     MiddlewareCallContext& context,
@@ -46,123 +31,137 @@ void WriteAccessLog(
     logging::TextLoggerRef access_tskv_logger
 ) noexcept;
 
-template <typename ResultType>
-grpc::Status ExtractErrorStatus(ResultType& result) {
-    UASSERT(!result.IsSuccess());
-    if constexpr (meta::kIsInstantiationOf<Result, ResultType>) {
-        return result.ExtractErrorStatus();
-    } else if (meta::kIsInstantiationOf<StreamingResult, ResultType>) {
-        return result.ExtractStatus();
+void CheckFinishStatus(bool finish_op_succeeded, const grpc::Status& status, CallAnyBase& call) noexcept;
+
+template <typename Response>
+void UnpackResult(Result<Response>&& result, std::optional<Response>& response, grpc::Status& status) {
+    if (result.IsSuccess()) {
+        response.emplace(result.ExtractResponse());
     } else {
-        UINVARIANT(false, "Unknow result type");
+        status = result.ExtractErrorStatus();
     }
 }
 
-template <typename ResultType>
-auto ExtractResponse(ResultType&& result) {
-    if constexpr (meta::kIsInstantiationOf<Result, ResultType>) {
-        return std::forward<ResultType>(result).ExtractResponse();
-    } else if (meta::kIsInstantiationOf<StreamingResult, ResultType>) {
-        return std::forward<ResultType>(result).ExtractLastResponse();
+template <typename Response>
+void UnpackResult(StreamingResult<Response>&& result, std::optional<Response>& response, grpc::Status& status) {
+    if (result.IsSuccess()) {
+        if (result.HasLastResponse()) {
+            response.emplace(result.ExtractLastResponse());
+        }
     } else {
-        UINVARIANT(false, "Unknow result type");
+        status = result.ExtractStatus();
     }
 }
 
-template <typename CallTraits, typename DoHandleFunc>
+template <typename CallTraits>
 class CallProcessor final {
 public:
     using Call = impl::Call<CallTraits>;
     using Response = typename CallTraits::Response;
+    using InitialRequest = typename CallTraits::InitialRequest;
+    using Context = typename CallTraits::Context;
+    using ServiceBase = typename CallTraits::ServiceBase;
+    using ServiceMethod = typename CallTraits::ServiceMethod;
 
     CallProcessor(
-        MiddlewareCallContext& context,
         Call& call,
         const Middlewares& mids,
-        ugrpc::impl::RpcStatisticsScope& statistics_scope,
-        ::google::protobuf::Message* initial_request,
+        InitialRequest& initial_request,
+        dynamic_config::Snapshot&& config_snapshot,
         logging::TextLoggerRef access_tskv_logger,
-        DoHandleFunc&& do_handle
+        ServiceBase& service,
+        ServiceMethod service_method
     )
-        : context_(context),
+        : context_(utils::impl::InternalTag{}, call, std::move(config_snapshot)),
           call_(call),
           mids_(mids),
-          statistics_scope_(statistics_scope),
           initial_request_(initial_request),
           access_tskv_logger_(access_tskv_logger),
-          do_handle_(std::move(do_handle)) {}
+          service_(service),
+          service_method_(service_method) {}
 
     void DoCall() {
-        context_.SetStatusPtr(&status_);
         RunOnCallStart();
 
-        if (!status_.ok()) {
-            FinishOnError();
-            return;
-        }
-
-        // The snapshot won't valid in OnCallFinish.
+        // Don't keep the config snapshot for too long, especially for streaming RPCs.
         context_.ResetInitialDynamicConfig(utils::impl::InternalTag{});
-        std::optional<decltype(do_handle_())> result_opt{};
-        RunWithCatch([this, &result_opt] { result_opt.emplace(do_handle_()); });
 
-        // streaming handler can detect rpc braekage during a network interaction
-        if (call_.IsFinished()) {
-            return;
-        }
-
-        if (!status_.ok()) {
-            FinishOnError();
-            return;
-        }
-
-        UASSERT(result_opt.has_value());
-
-        auto& result = result_opt.value();
-
-        if (!result.IsSuccess()) {
-            status_ = impl::ExtractErrorStatus(result);
-            FinishOnError();
-            return;
-        }
-
-        RunWithCatch([this, &result] {
-            if constexpr (meta::kIsInstantiationOf<StreamingResult, std::remove_reference_t<decltype(result)>>) {
-                if (!result.HasLastResponse()) {
-                    RunOnCallFinish();
-                    if (!status_.ok()) {
-                        call_.FinishWithError(status_);
-                    } else {
-                        call_.Finish();
-                    }
-                    return;
-                }
-            }
-            auto response = impl::ExtractResponse(std::move(result));
-            RunPreSendMessage(response);
+        if (!Status().ok()) {
             RunOnCallFinish();
-            if (!status_.ok()) {
-                call_.FinishWithError(status_);
-            } else {
-                call_.Finish(response);
-            }
+            impl::CheckFinishStatus(call_.FinishWithError(Status()), Status(), call_);
+            return;
+        }
+
+        // Final response is the response sent to the client together with status in the final batch.
+        std::optional<Response> final_response{};
+
+        RunWithCatch([this, &final_response] {
+            auto result = CallHandler();
+            impl::UnpackResult(std::move(result), final_response, Status());
         });
+
+        // Streaming handler can detect RPC breakage during a network interaction => IsFinished.
+        // RpcFinishedEvent can signal RPC interruption while in the handler => ShouldCancel.
+        if (call_.IsFinished() || engine::current_task::ShouldCancel()) {
+            impl::ReportRpcInterruptedError(call_);
+            // Don't run OnCallFinish.
+            return;
+        }
+
+        if (!Status().ok()) {
+            RunOnCallFinish();
+            impl::CheckFinishStatus(call_.FinishWithError(Status()), Status(), call_);
+            return;
+        }
+
+        if (final_response) {
+            RunPreSendMessage(*final_response);
+        }
+        RunOnCallFinish();
+
+        if (!Status().ok()) {
+            impl::CheckFinishStatus(call_.FinishWithError(Status()), Status(), call_);
+            return;
+        }
+
+        if constexpr (IsServerStreaming(CallTraits::kCallKind)) {
+            if (!final_response) {
+                impl::CheckFinishStatus(call_.Finish(), Status(), call_);
+                return;
+            }
+        }
+        UASSERT(final_response);
+        impl::CheckFinishStatus(call_.Finish(*final_response), Status(), call_);
     }
 
 private:
+    auto CallHandler() {
+        Context context{utils::impl::InternalTag{}, call_};
+
+        if constexpr (impl::IsClientStreaming(CallTraits::kCallKind)) {
+            return (service_.*service_method_)(context, call_);
+        } else if constexpr (CallTraits::kCallKind == CallKind::kUnaryCall) {
+            return (service_.*service_method_)(context, std::move(initial_request_));
+        } else if constexpr (CallTraits::kCallKind == CallKind::kOutputStream) {
+            return (service_.*service_method_)(context, std::move(initial_request_), call_);
+        } else {
+            static_assert(!sizeof(CallTraits), "Unexpected CallCategory");
+        }
+    }
+
     void RunOnCallStart() {
         UASSERT(success_pre_hooks_count_ == 0);
         for (const auto& m : mids_) {
             RunWithCatch([this, &m] { m->OnCallStart(context_); });
-            if (!status_.ok()) {
+            if (!Status().ok()) {
                 return;
             }
             // On fail, we must call OnRpcFinish only for middlewares for which OnRpcStart has been called successfully.
             // So, we watch to count of these middlewares.
             ++success_pre_hooks_count_;
-            if (initial_request_) {
-                RunWithCatch([this, m] { m->PostRecvMessage(context_, *initial_request_); });
-                if (!status_.ok()) {
+            if constexpr (std::is_base_of_v<google::protobuf::Message, InitialRequest>) {
+                RunWithCatch([this, m] { m->PostRecvMessage(context_, initial_request_); });
+                if (!Status().ok()) {
                     return;
                 }
             }
@@ -174,11 +173,11 @@ private:
         for (auto it = rbegin; it != mids_.rend(); ++it) {
             const auto& middleware = *it;
             // We must call all OnRpcFinish despite the failures. So, don't check the status.
-            RunWithCatch([this, &middleware] { middleware->OnCallFinish(context_, status_); });
+            RunWithCatch([this, &middleware] { middleware->OnCallFinish(context_, Status()); });
         }
 
         // TODO move to a middleware.
-        impl::WriteAccessLog(context_, status_, access_tskv_logger_);
+        impl::WriteAccessLog(context_, Status(), access_tskv_logger_);
     }
 
     void RunPreSendMessage(Response& response) {
@@ -188,7 +187,7 @@ private:
             for (auto it = mids_.rbegin(); it != mids_.rend(); ++it) {
                 const auto& middleware = *it;
                 RunWithCatch([this, &response, &middleware] { middleware->PreSendMessage(context_, response); });
-                if (!status_.ok()) {
+                if (!Status().ok()) {
                     return;
                 }
             }
@@ -200,37 +199,30 @@ private:
         try {
             func();
         } catch (MiddlewareRpcInterruptionError& ex) {
-            status_ = ex.ExtractStatus();
+            Status() = ex.ExtractStatus();
         } catch (const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex) {
-            status_ = ReportCustomError(ex, context_.GetCallName(), context_.GetSpan());
-        } catch (const RpcInterruptedError& ex) {
-            status_ = ReportNetworkError(ex, context_.GetCallName(), context_.GetSpan(), statistics_scope_);
+            Status() = impl::ReportCustomError(ex, call_);
+        } catch (const RpcInterruptedError& /*ex*/) {
+            UASSERT(call_.IsFinished());
+            // RPC interruption will be reported below.
         } catch (const std::exception& ex) {
-            status_ = ReportHandlerError(ex, context_.GetCallName(), context_.GetSpan(), statistics_scope_);
+            Status() = impl::ReportHandlerError(ex, call_);
         }
     }
 
-    void FinishOnError() {
-        UASSERT(!call_.IsFinished());
-        UASSERT(!status_.ok());
-        RunOnCallFinish();
-        try {
-            call_.FinishWithError(status_);
-        } catch (const RpcInterruptedError& ex) {
-            [[maybe_unused]] const auto st =
-                ReportNetworkError(ex, context_.GetCallName(), context_.GetSpan(), statistics_scope_);
-        }
-    }
+    grpc::Status& Status() { return context_.GetStatus(utils::impl::InternalTag{}); }
 
-    MiddlewareCallContext& context_;
+    MiddlewareCallContext context_;
     Call& call_;
     const Middlewares& mids_;
-    ugrpc::impl::RpcStatisticsScope& statistics_scope_;
-    grpc::Status status_;
-    ::google::protobuf::Message* initial_request_{nullptr};
+    // Initial request is the request which is sent to the service together with RPC initiation.
+    // Unary-request RPCs have an initial request, client-streaming RPCs don't.
+    InitialRequest& initial_request_;
     logging::TextLoggerRef access_tskv_logger_;
+    ServiceBase& service_;
+    const ServiceMethod service_method_;
+
     std::size_t success_pre_hooks_count_{0};
-    DoHandleFunc do_handle_;
 };
 
 }  // namespace ugrpc::server::impl

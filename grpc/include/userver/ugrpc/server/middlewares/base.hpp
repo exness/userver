@@ -10,13 +10,13 @@
 #include <grpcpp/support/status.h>
 
 #include <userver/components/component_base.hpp>
+#include <userver/dynamic_config/snapshot.hpp>
 #include <userver/middlewares/groups.hpp>
 #include <userver/middlewares/runner.hpp>
-#include <userver/utils/function_ref.hpp>
 #include <userver/utils/impl/internal_tag_fwd.hpp>
 
+#include <userver/ugrpc/impl/internal_tag_fwd.hpp>
 #include <userver/ugrpc/server/call_context.hpp>
-#include <userver/ugrpc/server/impl/call.hpp>
 #include <userver/ugrpc/server/middlewares/fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -46,7 +46,11 @@ class MiddlewareCallContext final : public CallContextBase {
 public:
     /// @cond
     // For internal use only
-    MiddlewareCallContext(utils::impl::InternalTag, impl::CallAnyBase& call, dynamic_config::Snapshot&& config);
+    MiddlewareCallContext(
+        utils::impl::InternalTag,
+        impl::CallAnyBase& call,
+        std::optional<dynamic_config::Snapshot>&& config
+    );
     /// @endcond
 
     /// @brief Aborts the RPC, returning the specified status to the upstream client, see details below.
@@ -81,18 +85,19 @@ public:
     const dynamic_config::Snapshot& GetInitialDynamicConfig() const;
 
     /// @cond
-    // For internal use only
+    // For internal use only.
     ugrpc::impl::RpcStatisticsScope& GetStatistics(ugrpc::impl::InternalTag);
 
+    // For internal use only.
     void ResetInitialDynamicConfig(utils::impl::InternalTag) { config_.reset(); }
 
-    void SetStatusPtr(grpc::Status* status);
-    grpc::Status& GetStatus();
+    // For internal use only.
+    grpc::Status& GetStatus(utils::impl::InternalTag) { return status_; }
     /// @endcond
 
 private:
     std::optional<dynamic_config::Snapshot> config_;
-    grpc::Status* status_{nullptr};
+    grpc::Status status_;
 };
 
 /// @ingroup userver_base_classes userver_grpc_server_middlewares

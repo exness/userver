@@ -153,20 +153,6 @@ private:
     using Call = impl::Call<CallTraits>;
     using Context = typename CallTraits::Context;
 
-    auto DoCallHandler(Context& context, Call& responder) {
-        if constexpr (CallTraits::kCallKind == CallKind::kInputStream || CallTraits::kCallKind == CallKind::kBidirectionalStream) {
-            return (method_data_.service.*(method_data_.service_method))(context, responder);
-        } else if constexpr (CallTraits::kCallKind == CallKind::kUnaryCall) {
-            return (method_data_.service.*(method_data_.service_method))(context, std::move(initial_request_));
-        } else if constexpr (CallTraits::kCallKind == CallKind::kOutputStream) {
-            return (method_data_.service.*(method_data_.service_method))(
-                context, std::move(initial_request_), responder
-            );
-        } else {
-            static_assert(!sizeof(CallTraits), "Unexpected CallCategory");
-        }
-    }
-
     void HandleRpc() {
         auto call_name = method_data_.call_name;
         auto service_name = method_data_.service_data.metadata.service_full_name;
@@ -182,7 +168,6 @@ private:
 
         ugrpc::impl::RpcStatisticsScope statistics_scope{method_data_.statistics};
 
-        auto& access_tskv_logger = method_data_.service_data.internals.access_tskv_logger;
         auto& statistics_storage = method_data_.service_data.internals.statistics_storage;
         utils::AnyStorage<StorageContext> storage_context;
 
@@ -201,25 +186,17 @@ private:
             raw_responder_
         );
 
-        ::google::protobuf::Message* initial_request = nullptr;
-        if constexpr (!std::is_same_v<InitialRequest, NoInitialRequest>) {
-            initial_request = &initial_request_;
-        }
-        auto snapshot = method_data_.service_data.internals.config_source.GetSnapshot();
-        Context context{utils::impl::InternalTag{}, responder};
-        MiddlewareCallContext middleware_context{utils::impl::InternalTag{}, responder, std::move(snapshot)};
-        responder.SetMiddlewareCallContext(utils::impl::InternalTag{}, middleware_context);
+        auto config_snapshot = method_data_.service_data.internals.config_source.GetSnapshot();
 
-        auto do_handle = [this, &context, &responder] { return DoCallHandler(context, responder); };
-        CallProcessor<CallTraits, decltype(do_handle)> call_processor(
-            middleware_context,
+        CallProcessor<CallTraits> call_processor{
             responder,
             middlewares,
-            statistics_scope,
-            initial_request,
-            *access_tskv_logger,
-            std::move(do_handle)
-        );
+            initial_request_,
+            std::move(config_snapshot),
+            *method_data_.service_data.internals.access_tskv_logger,
+            method_data_.service,
+            method_data_.service_method,
+        };
 
         call_processor.DoCall();
     }

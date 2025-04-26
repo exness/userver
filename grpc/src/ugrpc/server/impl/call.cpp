@@ -36,10 +36,6 @@ std::unique_lock<engine::SingleWaitingTaskMutex> CallAnyBase::TakeMutexIfBidirec
     return {};
 }
 
-std::string_view CallAnyBase::GetServiceName() const { return params_.service_name; }
-
-std::string_view CallAnyBase::GetMethodName() const { return params_.method_name; }
-
 void CallAnyBase::SetMetricsCallName(std::string_view call_name) {
     UASSERT_MSG(!call_name.empty(), "call_name must NOT be empty");
     UASSERT_MSG(call_name[0] != '/', utils::StrCat("call_name must NOT start with /, given: ", call_name));
@@ -50,51 +46,29 @@ void CallAnyBase::SetMetricsCallName(std::string_view call_name) {
     params_.statistics.RedirectTo(params_.statistics_storage.GetGenericStatistics(call_name, std::nullopt));
 }
 
-ugrpc::impl::RpcStatisticsScope& CallAnyBase::GetStatistics(ugrpc::impl::InternalTag) { return params_.statistics; }
+void CallAnyBase::ApplyRequestHook(google::protobuf::Message& request) {
+    auto lock = TakeMutexIfBidirectional();
+    MiddlewareCallContext middleware_call_context{utils::impl::InternalTag{}, *this, std::nullopt};
 
-void CallAnyBase::ApplyRequestHook(google::protobuf::Message* request) {
-    UINVARIANT(middleware_call_context_, "CallContext must be invoked");
-    if (request) {
-        auto lock = TakeMutexIfBidirectional();
-
-        for (const auto& middleware : params_.middlewares) {
-            middleware->PostRecvMessage(*middleware_call_context_, *request);
-            auto& status = middleware_call_context_->GetStatus();
-            if (!status.ok()) {
-                throw impl::MiddlewareRpcInterruptionError(std::exchange(status, grpc::Status{}));
-            }
-        }
-    }
-}
-
-void CallAnyBase::ApplyResponseHook(google::protobuf::Message* response) {
-    UINVARIANT(middleware_call_context_, "CallContext must be invoked");
-    if (response) {
-        auto lock = TakeMutexIfBidirectional();
-
-        for (const auto& middleware : boost::adaptors::reverse(params_.middlewares)) {
-            middleware->PreSendMessage(*middleware_call_context_, *response);
-            auto& status = middleware_call_context_->GetStatus();
-            if (!status.ok()) {
-                throw impl::MiddlewareRpcInterruptionError(std::exchange(status, grpc::Status{}));
-            }
-        }
-    }
-}
-
-void CallAnyBase::PostFinish(const grpc::Status& status) noexcept {
-    try {
-        params_.statistics.OnExplicitFinish(status.error_code());
-
-        auto& span = params_.call_span;
-        span.AddTag("grpc_code", ugrpc::ToString(status.error_code()));
+    for (const auto& middleware : params_.middlewares) {
+        middleware->PostRecvMessage(middleware_call_context, request);
+        auto& status = middleware_call_context.GetStatus(utils::impl::InternalTag{});
         if (!status.ok()) {
-            span.AddTag(tracing::kErrorFlag, true);
-            span.AddTag(tracing::kErrorMessage, status.error_message());
-            span.SetLogLevel(IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning);
+            throw impl::MiddlewareRpcInterruptionError(std::move(status));
         }
-    } catch (const std::exception& ex) {
-        LOG_ERROR() << "Error in CallAnyBase::PostFinish: " << ex;
+    }
+}
+
+void CallAnyBase::ApplyResponseHook(google::protobuf::Message& response) {
+    auto lock = TakeMutexIfBidirectional();
+    MiddlewareCallContext middleware_call_context{utils::impl::InternalTag{}, *this, std::nullopt};
+
+    for (const auto& middleware : boost::adaptors::reverse(params_.middlewares)) {
+        middleware->PreSendMessage(middleware_call_context, response);
+        auto& status = middleware_call_context.GetStatus(utils::impl::InternalTag{});
+        if (!status.ok()) {
+            throw impl::MiddlewareRpcInterruptionError(std::move(status));
+        }
     }
 }
 

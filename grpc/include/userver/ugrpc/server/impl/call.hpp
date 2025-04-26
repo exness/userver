@@ -5,7 +5,6 @@
 
 #include <userver/engine/single_waiting_task_mutex.hpp>
 #include <userver/tracing/span.hpp>
-#include <userver/ugrpc/impl/internal_tag_fwd.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 #include <userver/ugrpc/server/impl/call_kind.hpp>
 #include <userver/ugrpc/server/impl/call_params.hpp>
@@ -27,10 +26,10 @@ public:
     std::string_view GetCallName() const { return params_.call_name; }
 
     /// @brief Get name of gRPC service
-    std::string_view GetServiceName() const;
+    std::string_view GetServiceName() const { return params_.service_name; }
 
     /// @brief Get name of called gRPC method
-    std::string_view GetMethodName() const;
+    std::string_view GetMethodName() const { return params_.method_name; }
 
     /// @brief Get the span of the current RPC. Span's lifetime covers the
     /// `Handle` call of the outermost @ref MiddlewareBase "middleware".
@@ -47,31 +46,28 @@ public:
 
     /// @cond
     // For internal use only
-    CallAnyBase(utils::impl::InternalTag, impl::CallParams&& params, impl::CallKind call_kind)
-        : params_(std::move(params)), call_kind_(call_kind) {}
-
-    // For internal use only
-    ugrpc::impl::RpcStatisticsScope& GetStatistics(ugrpc::impl::InternalTag);
-
-    // For internal use only
-    void SetMiddlewareCallContext(utils::impl::InternalTag, MiddlewareCallContext& md_call_context) {
-        middleware_call_context_ = &md_call_context;
-    }
+    ugrpc::impl::RpcStatisticsScope& GetStatistics() { return params_.statistics; }
     /// @endcond
 
 protected:
-    void ApplyRequestHook(google::protobuf::Message* request);
+    /// @cond
+    // For internal use only
+    CallAnyBase(utils::impl::InternalTag, impl::CallParams&& params, impl::CallKind call_kind)
+        : params_(std::move(params)), call_kind_(call_kind) {}
 
-    void ApplyResponseHook(google::protobuf::Message* response);
+    // Prevent ownership via pointer to base.
+    ~CallAnyBase() = default;
+    /// @endcond
 
-    void PostFinish(const grpc::Status& status) noexcept;
+    void ApplyRequestHook(google::protobuf::Message& request);
+
+    void ApplyResponseHook(google::protobuf::Message& response);
 
 private:
     std::unique_lock<engine::SingleWaitingTaskMutex> TakeMutexIfBidirectional();
 
     impl::CallParams params_;
     impl::CallKind call_kind_;
-    MiddlewareCallContext* middleware_call_context_{nullptr};
     engine::SingleWaitingTaskMutex mutex_;
 };
 

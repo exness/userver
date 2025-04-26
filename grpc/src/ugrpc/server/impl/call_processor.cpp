@@ -7,9 +7,8 @@
 #include <userver/tracing/opentelemetry.hpp>
 #include <userver/tracing/tags.hpp>
 
-#include <ugrpc/impl/internal_tag.hpp>
-#include <ugrpc/impl/rpc_metadata.hpp>
 #include <ugrpc/server/impl/format_log_message.hpp>
+#include <userver/ugrpc/impl/statistics_scope.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/server/impl/error_code.hpp>
 #include <userver/ugrpc/status_codes.hpp>
@@ -18,63 +17,80 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
 
-grpc::Status ReportHandlerError(
-    const std::exception& ex,
-    std::string_view call_name,
+namespace {
+
+void ReportFinishSuccess(
+    const grpc::Status& status,
     tracing::Span& span,
     ugrpc::impl::RpcStatisticsScope& statistics_scope
 ) noexcept {
-    if (engine::current_task::ShouldCancel()) {
-        LOG_WARNING() << "Handler task cancelled, error in '" << call_name << "': " << ex;
-        statistics_scope.OnCancelled();
-        span.AddTag(tracing::kErrorMessage, "Handler task cancelled");
-        span.SetLogLevel(logging::Level::kWarning);
-    } else {
-        LOG_ERROR() << "Uncaught exception in '" << call_name << "': " << ex;
+    try {
+        const auto status_code = status.error_code();
+        statistics_scope.OnExplicitFinish(status_code);
+
+        span.AddTag("grpc_code", ugrpc::ToString(status_code));
+        if (!status.ok()) {
+            span.AddTag(tracing::kErrorFlag, true);
+            span.AddTag(tracing::kErrorMessage, status.error_message());
+            // TODO if Finish with error status fails, should we leave span level as INFO??
+            //  Because that's what happens if ReportFinishSuccess is not called.
+            span.SetLogLevel(IsServerError(status_code) ? logging::Level::kError : logging::Level::kWarning);
+        }
+    } catch (const std::exception& ex) {
+        LOG_ERROR() << "Error in ReportFinishSuccess: " << ex;
+    }
+}
+
+}  // namespace
+
+grpc::Status ReportHandlerError(const std::exception& ex, CallAnyBase& call) noexcept {
+    try {
+        auto& span = call.GetSpan();
+        span.AddNonInheritableTag(tracing::kErrorFlag, true);
+        LOG_ERROR() << "Uncaught exception in '" << call.GetCallName() << "': " << ex;
         span.AddTag(tracing::kErrorMessage, ex.what());
         span.SetLogLevel(logging::Level::kError);
+        return kUnknownErrorStatus;
+    } catch (const std::exception& new_ex) {
+        LOG_ERROR() << "Error in ReportHandlerError: " << new_ex;
+        return grpc::Status{grpc::StatusCode::INTERNAL, ""};
     }
-    span.AddTag(tracing::kErrorFlag, true);
-    if (engine::current_task::ShouldCancel()) {
-        return grpc::Status{grpc::StatusCode::CANCELLED, ""};
-    }
-    return kUnknownErrorStatus;
 }
 
-grpc::Status ReportNetworkError(
-    const RpcInterruptedError& ex,
-    std::string_view call_name,
-    tracing::Span& span,
-    ugrpc::impl::RpcStatisticsScope& statistics_scope
-) noexcept {
-    if (engine::current_task::ShouldCancel()) {
-        LOG_WARNING() << "Handler task cancelled, error in '" << call_name << "': " << ex;
-        statistics_scope.OnCancelled();
-        span.AddTag(tracing::kErrorMessage, "Handler task cancelled");
+grpc::Status ReportRpcInterruptedError(CallAnyBase& call) noexcept {
+    try {
+        // RPC interruption leads to asynchronous task cancellation by RpcFinishedEvent,
+        // so the task either is already cancelled, or is going to be cancelled.
+        LOG_WARNING() << "RPC interrupted in '" << call.GetCallName()
+                      << "'. The previously logged cancellation or network exception, if any, is likely caused by it.";
+        call.GetStatistics().OnNetworkError();
+        auto& span = call.GetSpan();
+        span.AddTag(tracing::kErrorMessage, "RPC interrupted");
+        span.AddTag(tracing::kErrorFlag, true);
         span.SetLogLevel(logging::Level::kWarning);
-    } else {
-        LOG_WARNING() << "Network error in '" << call_name << "': " << ex;
-        statistics_scope.OnNetworkError();
+        return grpc::Status::CANCELLED;
+    } catch (const std::exception& ex) {
+        LOG_ERROR() << "Error in ReportRpcInterruptedError: " << ex;
+        return grpc::Status{grpc::StatusCode::INTERNAL, ""};
+    }
+}
+
+grpc::Status
+ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex, CallAnyBase& call) noexcept {
+    try {
+        grpc::Status status{CustomStatusToGrpc(ex.GetCode()), ugrpc::impl::ToGrpcString(ex.GetExternalErrorBody())};
+
+        const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
+        LOG(log_level) << "Error in " << call.GetCallName() << ": " << ex;
+        auto& span = call.GetSpan();
+        span.AddTag(tracing::kErrorFlag, true);
         span.AddTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(logging::Level::kWarning);
+        span.SetLogLevel(log_level);
+        return status;
+    } catch (const std::exception& new_ex) {
+        LOG_ERROR() << "Error in ReportCustomError: " << new_ex;
+        return grpc::Status{grpc::StatusCode::INTERNAL, ""};
     }
-    span.AddTag(tracing::kErrorFlag, true);
-    return grpc::Status{grpc::StatusCode::CANCELLED, ""};
-}
-
-grpc::Status ReportCustomError(
-    const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex,
-    std::string_view call_name,
-    tracing::Span& span
-) {
-    grpc::Status status{CustomStatusToGrpc(ex.GetCode()), ugrpc::impl::ToGrpcString(ex.GetExternalErrorBody())};
-
-    const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
-    LOG(log_level) << "Error in " << call_name << ": " << ex;
-    span.AddTag(tracing::kErrorFlag, true);
-    span.AddTag(tracing::kErrorMessage, ex.what());
-    span.SetLogLevel(log_level);
-    return status;
 }
 
 void WriteAccessLog(
@@ -98,6 +114,14 @@ void WriteAccessLog(
         }
     } catch (const std::exception& ex) {
         LOG_ERROR() << "Error in WriteAccessLog: " << ex;
+    }
+}
+
+void CheckFinishStatus(bool finish_op_succeeded, const grpc::Status& status, CallAnyBase& call) noexcept {
+    if (finish_op_succeeded) {
+        ReportFinishSuccess(status, call.GetSpan(), call.GetStatistics());
+    } else {
+        ReportRpcInterruptedError(call);
     }
 }
 

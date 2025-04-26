@@ -261,7 +261,7 @@ UTEST_P(MiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
             if (GetParam().set_error) {
                 context.SetError(grpc::Status{kUnimplementedStatus});
             } else {
-                throw ugrpc::server::RpcInterruptedError("call_name", "stage");
+                throw std::runtime_error("Something bad happened in OnCallFinish");
             }
         });
     ON_CALL(M1(), OnCallFinish)
@@ -271,8 +271,10 @@ UTEST_P(MiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
                 EXPECT_EQ(status.error_code(), kUnimplementedStatus.error_code());
                 EXPECT_EQ(status.error_message(), kUnimplementedStatus.error_message());
             } else {
-                EXPECT_EQ(status.error_code(), grpc::StatusCode::CANCELLED);
-                EXPECT_EQ(status.error_message(), "");
+                EXPECT_EQ(status.error_code(), grpc::StatusCode::UNKNOWN);
+                EXPECT_EQ(
+                    status.error_message(), "The service method has exited unexpectedly, without providing a status"
+                );
             }
             context.SetError(grpc::Status{kUnknownErrorStatus});
         });
