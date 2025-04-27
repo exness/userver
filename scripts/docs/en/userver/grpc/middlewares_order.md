@@ -16,7 +16,7 @@ That approach is not flexible and not scalable. Instead, each middleware can pro
 Each middleware sets some dependency order relative to other middlewares using @ref middlewares::MiddlewareDependencyBuilder.
 Then Pipeline collects that set of dependencies between middlewares and builds DAG (directed acyclic graph). Then Pipeline builds an **ordered middlewares list** from that DAG.
 
-You can enable/disable middleware per service or per client. For more information see @ref grpc_server_middlewares_config_override.
+You can enable/disable middleware per service or per client. For more information see @ref scripts/docs/en/userver/grpc/middlewares_toggle.md.
 
 ## Middlewares groups
 
@@ -192,36 +192,6 @@ MiddlewareComponent::MiddlewareComponent(const components::ComponentConfig& conf
       ) {}
 ```
 
-
-@anchor grpc_middlewares_disable_all
-## How to disable all middlewares
-
-There are two additional options in the static config:
-1. `disable-all-pipeline-middlewares`
-2. `disable-user-pipeline-middlewares`
-
-`disable-all-pipeline-middlewares` may be useful for "system" handlers and clients. E.g. `grpc-health`.
-
-`disable-user-pipeline-middlewares` may be useful for libraries that don't want to receive unknown `User` middlewares to their library middlewares list.
-
-@warning It is dangerous to disable all middlewares! Some middlewares greatly enhance service resilency and availability (e.g., @ref ugrpc::server::middlewares::deadline_propagation::Component, @ref ugrpc::server::middlewares::congestion_control::Component, @ref ugrpc::client::middlewares::deadline_propagation::Component).
-
-For more information about options see docs `ugrpc::server::ServiceComponentBase` and `ugrpc::client::ClientFactoryComponent`. 
-
-Example of the static YAML config.
-
-```yaml
-        grpc-client-factory:
-            channel-args: {}
-            # Disable all middlewares. But you can force enable some middlewares.
-            disable-all-pipeline-middlewares: true
-            middlewares:
-                grpc-client-logging:  # force enable
-                    enabled: true
-
-```
-
-
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/grpc/client_middlewares.md | @ref scripts/docs/en/userver/grpc/middlewares_configuration.md ⇨
+⇦ @ref scripts/docs/en/userver/grpc/client_middlewares.md | @ref scripts/docs/en/userver/grpc/middlewares_toggle.md ⇨
 @htmlonly </div> @endhtmlonly

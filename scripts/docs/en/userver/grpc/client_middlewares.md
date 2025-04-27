@@ -1,6 +1,6 @@
 # gRPC client middlewares
 
-@see @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md
+@see @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md.
 
 The gRPC client can be extended by middlewares.
 Middleware is called on each outgoing RPC request and incoming response.
@@ -22,8 +22,7 @@ If you add these middlewares to the @ref components::ComponentList, these middle
 To register core gRPC client components and a set of builtin middlewares use @ref ugrpc::client::DefaultComponentList or @ref ugrpc::client::MinimalComponentList.
 As will be shown below, custom middlewares require additional actions to work: registering in `grpc-client-middleware-pipeline` and writing a required static config entry.
 
-`ugrpc::client::MiddlewarePipelineComponent` is a global configuration of client middlewares. So, you can enable/disable middlewares with the option `enabled` in the global (`grpc-client-middlewares-pipeline`) or middleware config.
-
+`ugrpc::client::MiddlewarePipelineComponent` is a global configuration of client middlewares.
 If you don't want to disable userver middlewares, just take that config:
 
 ```yaml
@@ -59,20 +58,22 @@ components_manager:
 ```
 
 For more information about `enabled`:
-@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md
+@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 ## Two main classes
 
 There are two main interfaces for implementing a middleware:
-1. `ugrpc::client::MiddlewareBase`. Class that implements the main logic of a middleware.
-2. `ugrpc::client::MiddlewareFactoryComponentBase` (the factory for the middleware).
-    * Or for simple cases @ref ugrpc::client::SimpleMiddlewareFactoryComponent.
+1. @ref ugrpc::client::MiddlewareBase. Class that implements the main logic of a middleware.
+2. @ref ugrpc::client::MiddlewareFactoryComponentBase The factory for the middleware to declare static options.
+    * Or for simple cases without static options @ref ugrpc::client::SimpleMiddlewareFactoryComponent.
 
 ## MiddlewareBase
 
 @ref ugrpc::client::MiddlewareBase
 
 ### PreStartCall and PostFinish
+
+Methods @ref ugrpc::client::MiddlewareBase::PreStartCall and @ref ugrpc::client::MiddlewareBase::PostFinish are called once per grpc Call (RPC).
 
 `PreStartCall` is called before the first message is sent.
 `PostFinish` is called after the last message is received or after an error status is received from the downstream service.
@@ -150,12 +151,12 @@ Streaming RPCs can have multiple requests and responses, but `PreStartCall` and 
 For more information about the middlewares order:
 @see @ref scripts/docs/en/userver/grpc/middlewares_order.md.
 
-These hooks are called once per Call (RPC).
+#### Per-call (RPC) hooks implementation example
 
 @snippet samples/grpc_middleware_service/src/middlewares/client/auth.hpp Middleware declaration
 @snippet samples/grpc_middleware_service/src/middlewares/client/auth.cpp gRPC middleware sample - Middleware implementation
 
-Register the Middleware component in the component system. See `sample::grpc::auth::client::AuthComponent`.
+Register the Middleware component in the component system.
 
 @snippet samples/grpc_middleware_service/main.cpp gRPC middleware sample - components registration
 
@@ -230,6 +231,8 @@ These hooks are called on each message.
     * unary: is called 0 or 1 (0 if service doesn't return a message)
     * stream: is called 0, 1 or more
 
+#### Per-message hooks implementation example
+
 @snippet grpc/src/ugrpc/client/middlewares/log/middleware.hpp MiddlewareBase example declaration
 @snippet grpc/src/ugrpc/client/middlewares/log/middleware.cpp MiddlewareBase Message methods example
 
@@ -241,6 +244,18 @@ To fully understand what happens when middlewares hooks are failed, you should u
 @see @ref grpc_client_middlewares_order.
 
 All exceptions are rethrown to the user code from client's RPC creating methods, `Read` / `Write` (for streaming), and from methods that return the RPC status.
+
+## Using static config options in middlewares
+
+There are two ways to implement a middleware component. You can see above @ref ugrpc::client::SimpleMiddlewareFactoryComponent. This component is need
+for simple cases without static config options of a middleware.
+
+@note In that case, `kName` and `kDependency` (@ref middlewares::MiddlewareDependencyBuilder) must be in a middleware class (as shown above).
+
+If you want to use static config options for your middleware, use @ref ugrpc::client::MiddlewareFactoryComponentBase. 
+@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
+
+To override static config options of a middleware per a client see @ref grpc_middlewares_config_override.
 
 @anchor grpc_client_middlewares_order
 ## Middlewares order
@@ -302,16 +317,6 @@ digraph Pipeline {
   Pipeline[label = "grpc-client-middlewares-pipeline\n from the start to the end", shape=plaintext, rank="main"];
 }
 @enddot
-
-## MiddlewareFactoryComponentBase
-
-There are two ways to implement a middleware component. You can see above @ref ugrpc::client::SimpleMiddlewareFactoryComponent. This component is need
-for simple cases without static config options of a middleware.
-
-@warning In that case, `kName` and `kDependency` (@ref middlewares::MiddlewareDependencyBuilder) must be in a middleware class (as shown above).
-
-If you want to use static config options for your middleware, use @ref ugrpc::client::MiddlewareFactoryComponentBase. 
-@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly

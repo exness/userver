@@ -1,6 +1,6 @@
 # gRPC server middlewares
 
-@see @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md
+@see @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md.
 
 The gRPC server can be extended by middlewares.
 Middleware hooks are called at the various corresponding stages of handling of each incoming RPC.
@@ -60,19 +60,21 @@ components_manager:
 ```
 
 For more information about `enabled`:
-@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md
+@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 ## Two main classes
 
 There are two main interfaces for implementing a middleware:
 1. @ref ugrpc::server::MiddlewareBase. Class that implements the main logic of a middleware
-2. @ref ugrpc::server::MiddlewareFactoryComponentBase (the factory for the middleware)
-    * Or for simple cases @ref ugrpc::server::SimpleMiddlewareFactoryComponent
+2. @ref ugrpc::server::MiddlewareFactoryComponentBase. The factory for the middleware to declare static options.
+    * Or for simple cases without static options @ref ugrpc::server::SimpleMiddlewareFactoryComponent.
 
 ## MiddlewareBase
 
 @anchor grpc_server_hooks
 ### OnCallStart and OnCallFinish
+
+Methods @ref ugrpc::server::MiddlewareBase::OnCallStart and @ref ugrpc::server::MiddlewareBase::OnCallFinish are called once per grpc Call (RPC).
 
 `OnCallStart` is called after the client metadata is received.
 `OnCallFinish` is called before the last message is sent or before error status is sent to a client.
@@ -141,21 +143,22 @@ digraph Pipeline {
 }
 @enddot
 
-There are methods @ref ugrpc::server::MiddlewareBase::OnCallStart and @ref ugrpc::server::MiddlewareBase::OnCallFinish that are called once per grpc Call (RPC).
+#### Per-Call (RPC) hooks implementation example
 
 @snippet samples/grpc_middleware_service/src/middlewares/server/auth.hpp Middleware declaration
-
 @snippet samples/grpc_middleware_service/src/middlewares/server/auth.cpp Middleware implementation
 
-Register the component
+Register the component.
 
-@snippet samples/grpc_middleware_service/main.cpp server AuthComponent
+@snippet samples/grpc_middleware_service/main.cpp gRPC middleware sample - components registration
 
 The static YAML config.
 
 @snippet samples/grpc_middleware_service/configs/static_config.yaml grpc-server-auth static config
 
 ### PostRecvMessage and PreSendMessage
+
+You can add some behavior on each request/response. Especially, it can be important for grpc-stream. See about streams in @ref scripts/docs/en/userver/grpc/grpc.md.
 
 `PostRecvMessage` hooks are called in the direct middlewares order. `PreSendMessage` hooks are called in the reversed order.
 
@@ -211,7 +214,7 @@ digraph Pipeline {
 For more information about the middlewares order:
 @see @ref scripts/docs/en/userver/grpc/middlewares_order.md.
 
-Also, you can add some behavior on each request/response. Especially, it can be important for grpc-stream. See about streams in @ref scripts/docs/en/userver/grpc/grpc.md.
+#### Per-message hooks implementation example
 
 @snippet grpc/functional_tests/middleware_server/src/my_middleware.hpp gRPC CallRequestHook declaration example
 @snippet grpc/functional_tests/middleware_server/src/my_middleware.cpp gRPC CallRequestHook impl example
@@ -222,7 +225,7 @@ The static YAML config.
 
 Register the middleware component in the component system.
 
-@snippet grpc/functional_tests/middleware_server/src/main.cpp register MyMiddlewareComponent
+@snippet grpc/functional_tests/middleware_server/src/main.cpp Register middlewares
 
 ## Exceptions and errors in middlewares
 
@@ -239,21 +242,35 @@ All errors will be logged just like an exception or error status from the user h
 * error status is written in a separate log message by @ref ugrpc::server::middlewares::log::Component before sending it to the upstream client;
 * status summary is additionally attached to the span in `error_msg` tag.
 
-But exceptions are not the best practice in middlewares hooks ⇒ prefer `SetError`.
+@note But exceptions are not the best practice in middlewares hooks ⇒ prefer `SetError`.
 
-But @ref ugrpc::server::MiddlewareBase::OnCallFinish will be called **despite of any errors**. 
+### Errors and OnCallFinish
 
-The actual status is passed to `OnCallFinish` hooks. Each `OnCallFinish` hook gets a status from a previous `OnCallFinish` call and can change that by `SetError` (or exception). 
-An error status from a handler will be passed to a first `OnCallFinish` and that hook can change that status, next hooks will get a new status. If all `OnCallFinish` hooks don't change a status, that status will be final status for a client.
+@ref ugrpc::server::MiddlewareBase::OnCallFinish will be called **despite of any errors**. 
 
-E.g there are 3 middlewares `A`, `B`, `C`.
+The actual status is passed to `OnCallFinish` hooks. Each `OnCallFinish` hook gets the status from a previous `OnCallFinish` call and can change that by `SetError` (or exception). 
+An error status from a handler will be passed to a first `OnCallFinish` and that hook can change that status, next hooks will get the new status. If all `OnCallFinish` hooks don't change the status, that status will be the final status for a client.
+
+### The call path example with errors in the pipeline
+
+There are 3 middlewares `A`, `B`, `C`.
 Cases:
 1. `A::OnCallStart` and `B::OnCallStart` succeed, but `C::OnCallStart` fails (by `SetError` or exception) ⇒ `B::OnCallFinish` and `A::OnCallFinish` will be called (remember that `OnCallFinish` order is reversed).
 2. If all `OnCallStart` succeed and `C::OnCallFinish` fails, `B::OnCallStart` and `A::OnCallStart` will be called and these hooks get an error status from `C::OnCallFinish`.
 3. If a handler returns an error, all `OnCallFinish` will be called.
+4. If there are errors in `PostRecvMessage`/`PreSendMessage` ⇒ RPC is failed ⇒ all `OnCallFinish` hooks will be called.
 
-If there are errors in `PostRecvMessage`/`PreSendMessage` ⇒ RPC is failed ⇒ `OnCallFinish` hooks will be called.
+## Using static config options in middlewares
 
+There are two ways to implement a middleware component. You can see above @ref ugrpc::server::SimpleMiddlewareFactoryComponent. This component is needed
+for simple cases without static config options of a middleware.
+
+@note In that case, `kName` and `kDependency` (@ref middlewares::MiddlewareDependencyBuilder) must be in a middleware class (as shown above).
+
+If you want to use static config options for your middleware, use @ref ugrpc::server::MiddlewareFactoryComponentBase. 
+@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
+
+To override static config options of a middleware per a server see @ref grpc_middlewares_config_override.
 
 @anchor grpc_server_middlewares_order
 ## Middleware order
@@ -318,16 +335,6 @@ digraph Pipeline {
   Pipeline[label = "grpc-server-middlewares-pipeline\n from the start to the end", shape=plaintext, rank="main"];
 }
 @enddot
-
-## MiddlewareFactoryComponentBase
-
-There are two ways to implement a middleware component. You can see above @ref ugrpc::server::SimpleMiddlewareFactoryComponent. This component is need
-for simple cases without static config options of a middleware.
-
-@warning In that case, `kName` and `kDependency` (@ref middlewares::MiddlewareDependencyBuilder) must be in a middleware class (as shown above).
-
-If you want to use static config options for your middleware, use @ref ugrpc::server::MiddlewareFactoryComponentBase. 
-@see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
