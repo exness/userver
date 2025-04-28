@@ -113,6 +113,8 @@
   "chaotic-openapi/tests/back/test_request_body.py":"taxi/uservices/userver/chaotic-openapi/tests/back/test_request_body.py",
   "chaotic-openapi/tests/back/test_responses.py":"taxi/uservices/userver/chaotic-openapi/tests/back/test_responses.py",
   "chaotic-openapi/tests/front/__init__.py":"taxi/uservices/userver/chaotic-openapi/tests/front/__init__.py",
+  "chaotic-openapi/tests/front/conftest.py":"taxi/uservices/userver/chaotic-openapi/tests/front/conftest.py",
+  "chaotic-openapi/tests/front/test_openapi.py":"taxi/uservices/userver/chaotic-openapi/tests/front/test_openapi.py",
   "chaotic-openapi/tests/front/test_pydantic.py":"taxi/uservices/userver/chaotic-openapi/tests/front/test_pydantic.py",
   "chaotic-openapi/tests/front/test_swagger.py":"taxi/uservices/userver/chaotic-openapi/tests/front/test_swagger.py",
   "chaotic/CMakeLists.txt":"taxi/uservices/userver/chaotic/CMakeLists.txt",

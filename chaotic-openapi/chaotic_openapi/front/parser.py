@@ -2,6 +2,7 @@ import dataclasses
 import re
 import typing
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -39,6 +40,7 @@ class Parser:
             parsed = parser(**schema)
         except pydantic.ValidationError as exc:
             raise errors.convert_error(full_filepath, parser.schema_type(), exc) from None
+
         self._append_schema(parsed)
 
     @staticmethod
@@ -162,6 +164,92 @@ class Parser:
             )
         return requestBody
 
+    def _convert_openapi_flows(self, flows: openapi.OAuthFlows) -> List[model.Flow]:
+        model_flows: List[model.Flow] = []
+        if flows.implicit:
+            implicit = flows.implicit
+            refreshUrl = implicit.refreshUrl or ''
+            model_flows.append(model.ImplicitFlow(refreshUrl, implicit.scopes, implicit.authorizationUrl))
+        if flows.password:
+            pwd = flows.password
+            refreshUrl = pwd.refreshUrl or ''
+            model_flows.append(model.PasswordFlow(refreshUrl, pwd.scopes, pwd.tokenUrl))
+        if flows.clientCredentials:
+            creds: openapi.ClientCredFlow = flows.clientCredentials
+            refreshUrl = creds.refreshUrl or ''
+            model_flows.append(model.ClientCredFlow(refreshUrl, creds.scopes, creds.tokenUrl))
+        if flows.authorizationCode:
+            authCode = flows.authorizationCode
+            refreshUrl = authCode.refreshUrl or ''
+            model_flows.append(
+                model.AuthCodeFlow(refreshUrl, authCode.scopes, authCode.authorizationUrl, authCode.tokenUrl)
+            )
+
+        return model_flows
+
+    def _convert_openapi_securuty(
+        self, security_scheme: Union[openapi.SecurityScheme, openapi.Ref], flows_scopes: Optional[List[str]] = None
+    ) -> model.Security:
+        if isinstance(security_scheme, openapi.Ref):
+            return self._state.service.security[self._locate_ref(security_scheme.ref)]
+
+        description = security_scheme.description or ''
+        if security_scheme.type == openapi.SecurityType.http:
+            assert security_scheme.scheme_
+            return model.HttpSecurity(description, security_scheme.scheme_, security_scheme.bearerFormat)
+        elif security_scheme.type == openapi.SecurityType.apiKey:
+            assert security_scheme.name
+            assert security_scheme.in_
+            security_in = model.SecurityIn(security_scheme.in_.name)
+            return model.ApiKeySecurity(description, security_scheme.name, security_in)
+        elif security_scheme.type == openapi.SecurityType.oauth2:
+            assert security_scheme.flows
+            flows = self._convert_openapi_flows(security_scheme.flows)
+            if flows_scopes:
+                for flow in flows:
+                    flow.scopes = {key: flow.scopes[key] for key in flows_scopes if key in flow.scopes}
+            return model.OAuthSecurity(description, flows)
+        elif security_scheme.type == openapi.SecurityType.openIdConnect:
+            assert security_scheme.openIdConnectUrl
+            return model.OpenIdConnectSecurity(description, security_scheme.openIdConnectUrl)
+        else:
+            assert False
+
+    def _convert_swagger_security(
+        self, security_def: swagger.SecurityDef, flows_scopes: Optional[List[str]] = None
+    ) -> model.Security:
+        description = security_def.description or ''
+        if security_def.type == swagger.SecurityType.basic:
+            return model.Security(description)
+        elif security_def.type == swagger.SecurityType.apiKey:
+            assert security_def.name
+            assert security_def.in_
+            security_in = model.SecurityIn(security_def.in_.name)
+            return model.ApiKeySecurity(description, security_def.name, security_in)
+        elif security_def.type == swagger.SecurityType.oauth2:
+            flow: model.Flow
+            if security_def.flow == swagger.OAuthFlow.implicit:
+                assert security_def.authorizationUrl
+                flow = model.ImplicitFlow('', security_def.scopes, security_def.authorizationUrl)
+            elif security_def.flow == swagger.OAuthFlow.password:
+                assert security_def.tokenUrl
+                flow = model.PasswordFlow('', security_def.scopes, security_def.tokenUrl)
+            elif security_def.flow == swagger.OAuthFlow.application:
+                assert security_def.tokenUrl
+                flow = model.ClientCredFlow('', security_def.scopes, security_def.tokenUrl)
+            elif security_def.flow == swagger.OAuthFlow.accessCode:
+                assert security_def.authorizationUrl
+                assert security_def.tokenUrl
+                flow = model.AuthCodeFlow('', security_def.scopes, security_def.authorizationUrl, security_def.tokenUrl)
+            else:
+                assert False
+
+            if flows_scopes:
+                flow.scopes = {key: flow.scopes[key] for key in flows_scopes if key in flow.scopes}
+            return model.OAuthSecurity(description, [flow])
+        else:
+            assert False
+
     def _append_schema(
         self,
         parsed: Union[openapi.OpenApi, swagger.Swagger],
@@ -169,6 +257,7 @@ class Parser:
         components_schemas: Dict[str, Any] = {}
         components_schemas_path = ''
         if isinstance(parsed, openapi.OpenApi):
+            parsed = typing.cast(openapi.OpenApi, parsed)
             components_schemas = parsed.components.schemas
             components_schemas_path = '/components/schemas'
 
@@ -180,6 +269,24 @@ class Parser:
                     header,
                     infile_path,
                 )
+
+            # components/securitySchemes
+            default_security = parsed.security
+            security_schemas = parsed.components.securitySchemes
+            for name, sec_scheme in security_schemas.items():
+                infile_path = f'/components/securitySchemes/{name}'
+                security_scheme = self._convert_openapi_securuty(sec_scheme)
+                self._state.service.security[self._state.full_filepath + '#' + infile_path] = security_scheme
+
+            def _convert_op_security(security: Optional[openapi.Security]) -> List[model.Security]:
+                if not security:
+                    security = default_security
+
+                securities: List[model.Security] = []
+                for name, scopes in security.items():
+                    securities.append(self._convert_openapi_securuty(security_schemas[name], scopes))
+
+                return securities
 
             # components/requestBodies
             for name, requestBody in parsed.components.requestBodies.items():
@@ -199,14 +306,14 @@ class Parser:
                 )
 
             for path, path_item in parsed.paths.items():
-                self._append_openapi_operation(path, 'get', path_item.get)
-                self._append_openapi_operation(path, 'post', path_item.post)
-                self._append_openapi_operation(path, 'put', path_item.put)
-                self._append_openapi_operation(path, 'delete', path_item.delete)
-                self._append_openapi_operation(path, 'options', path_item.options)
-                self._append_openapi_operation(path, 'head', path_item.head)
-                self._append_openapi_operation(path, 'patch', path_item.patch)
-                self._append_openapi_operation(path, 'trace', path_item.trace)
+                self._append_openapi_operation(path, 'get', path_item.get, _convert_op_security)
+                self._append_openapi_operation(path, 'post', path_item.post, _convert_op_security)
+                self._append_openapi_operation(path, 'put', path_item.put, _convert_op_security)
+                self._append_openapi_operation(path, 'delete', path_item.delete, _convert_op_security)
+                self._append_openapi_operation(path, 'options', path_item.options, _convert_op_security)
+                self._append_openapi_operation(path, 'head', path_item.head, _convert_op_security)
+                self._append_openapi_operation(path, 'patch', path_item.patch, _convert_op_security)
+                self._append_openapi_operation(path, 'trace', path_item.trace, _convert_op_security)
 
             # components/responses
             for name, response in parsed.components.responses.items():
@@ -228,14 +335,42 @@ class Parser:
             components_schemas = parsed.definitions
             components_schemas_path = '/definitions'
 
+            # securityDefinitions
+            default_security = parsed.security
+            security_defs = parsed.securityDefinitions
+            for name, sec_def in security_defs.items():
+                infile_path = f'/securityDefinitions/{name}'
+                security_def = self._convert_swagger_security(sec_def)
+                self._state.service.security[self._state.full_filepath + '#' + infile_path] = security_def
+
+            def _convert_op_security(security: Optional[swagger.Security]) -> List[model.Security]:
+                if not security:
+                    security = default_security
+
+                securities: List[model.Security] = []
+                for name, scopes in security.items():
+                    securities.append(self._convert_swagger_security(security_defs[name], scopes))
+
+                return securities
+
             for sw_path, sw_path_item in parsed.paths.items():
-                self._append_swagger_operation(parsed.basePath + sw_path, 'get', sw_path_item.get)
-                self._append_swagger_operation(parsed.basePath + sw_path, 'post', sw_path_item.post)
-                self._append_swagger_operation(parsed.basePath + sw_path, 'put', sw_path_item.put)
-                self._append_swagger_operation(parsed.basePath + sw_path, 'delete', sw_path_item.delete)
-                self._append_swagger_operation(parsed.basePath + sw_path, 'options', sw_path_item.options)
-                self._append_swagger_operation(parsed.basePath + sw_path, 'head', sw_path_item.head)
-                self._append_swagger_operation(parsed.basePath + sw_path, 'patch', sw_path_item.patch)
+                self._append_swagger_operation(parsed.basePath + sw_path, 'get', sw_path_item.get, _convert_op_security)
+                self._append_swagger_operation(
+                    parsed.basePath + sw_path, 'post', sw_path_item.post, _convert_op_security
+                )
+                self._append_swagger_operation(parsed.basePath + sw_path, 'put', sw_path_item.put, _convert_op_security)
+                self._append_swagger_operation(
+                    parsed.basePath + sw_path, 'delete', sw_path_item.delete, _convert_op_security
+                )
+                self._append_swagger_operation(
+                    parsed.basePath + sw_path, 'options', sw_path_item.options, _convert_op_security
+                )
+                self._append_swagger_operation(
+                    parsed.basePath + sw_path, 'head', sw_path_item.head, _convert_op_security
+                )
+                self._append_swagger_operation(
+                    parsed.basePath + sw_path, 'patch', sw_path_item.patch, _convert_op_security
+                )
         else:
             assert False
 
@@ -291,6 +426,7 @@ class Parser:
         path: str,
         method: str,
         operation: Optional[openapi.Operation],
+        security_converter: Callable[[Optional[openapi.Security]], List[model.Security]],
     ) -> None:
         if not operation:
             return
@@ -319,6 +455,7 @@ class Parser:
                     int(status): self._convert_response(response, infile_path + f'/responses/{status}')
                     for status, response in operation.responses.items()
                 },
+                security=security_converter(operation.security),
             )
         )
 
@@ -327,6 +464,7 @@ class Parser:
         path: str,
         method: str,
         operation: Optional[swagger.Operation],
+        security_converter: Callable[[Optional[swagger.Security]], List[model.Security]],
     ) -> None:
         if not operation:
             return
@@ -359,6 +497,7 @@ class Parser:
                 parameters=[],  # TODO
                 requestBody=requestBody,
                 responses={},  # TODO
+                security=security_converter(operation.security),
             )
         )
 
