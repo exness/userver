@@ -28,11 +28,6 @@ public:
         LOG(level) << message << std::move(extra) << tracing::impl::LogSpanAsLastNoCurrent{span_};
     }
 
-    void Log(logging::Level level, std::string_view message) const {
-        const tracing::impl::DetachLocalSpansScope ignore_local_span;
-        LOG(level) << message << tracing::impl::LogSpanAsLastNoCurrent{span_};
-    }
-
 private:
     const tracing::Span& span_;
 };
@@ -49,7 +44,7 @@ void Middleware::PreStartCall(MiddlewareCallContext& context) const {
     span.AddTag(tracing::kSpanKind, tracing::kSpanKindClient);
 
     if (context.IsClientStreaming()) {
-        SpanLogger{context.GetSpan()}.Log(logging::Level::kInfo, "gRPC request stream started");
+        SpanLogger{context.GetSpan()}.Log(logging::Level::kInfo, "gRPC request stream started", logging::LogExtra{});
     }
 }
 
@@ -85,7 +80,9 @@ void Middleware::PostFinish(MiddlewareCallContext& context, const grpc::Status& 
     SpanLogger logger{context.GetSpan()};
     if (status.ok()) {
         if (context.IsServerStreaming()) {
-            SpanLogger{context.GetSpan()}.Log(logging::Level::kInfo, "gRPC response stream finished");
+            SpanLogger{context.GetSpan()}.Log(
+                logging::Level::kInfo, "gRPC response stream finished", logging::LogExtra{}
+            );
         }
     } else {
         auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
