@@ -46,11 +46,7 @@ class MiddlewareCallContext final : public CallContextBase {
 public:
     /// @cond
     // For internal use only
-    MiddlewareCallContext(
-        utils::impl::InternalTag,
-        impl::CallAnyBase& call,
-        std::optional<dynamic_config::Snapshot>&& config
-    );
+    MiddlewareCallContext(utils::impl::InternalTag, impl::CallState& state);
     /// @endcond
 
     /// @brief Aborts the RPC, returning the specified status to the upstream client, see details below.
@@ -89,14 +85,10 @@ public:
     ugrpc::impl::RpcStatisticsScope& GetStatistics(ugrpc::impl::InternalTag);
 
     // For internal use only.
-    void ResetInitialDynamicConfig(utils::impl::InternalTag) { config_.reset(); }
-
-    // For internal use only.
     grpc::Status& GetStatus(utils::impl::InternalTag) { return status_; }
     /// @endcond
 
 private:
-    std::optional<dynamic_config::Snapshot> config_;
     grpc::Status status_;
 };
 

@@ -16,6 +16,7 @@
 #include <userver/engine/task/task_processor_fwd.hpp>
 #include <userver/tracing/in_place_span.hpp>
 #include <userver/tracing/span.hpp>
+#include <userver/tracing/span_builder.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
 #include <userver/utils/impl/internal_tag.hpp>
@@ -30,8 +31,8 @@
 #include <userver/ugrpc/server/call_context.hpp>
 #include <userver/ugrpc/server/impl/async_method_invocation.hpp>
 #include <userver/ugrpc/server/impl/async_service.hpp>
-#include <userver/ugrpc/server/impl/call_params.hpp>
 #include <userver/ugrpc/server/impl/call_processor.hpp>
+#include <userver/ugrpc/server/impl/call_state.hpp>
 #include <userver/ugrpc/server/impl/call_traits.hpp>
 #include <userver/ugrpc/server/impl/completion_queue_pool.hpp>
 #include <userver/ugrpc/server/impl/error_code.hpp>
@@ -44,12 +45,6 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
-
-void SetupSpan(
-    std::optional<tracing::InPlaceSpan>& span_holder,
-    grpc::ServerContext& context,
-    std::string_view call_name
-);
 
 void ParseGenericCallName(
     std::string_view generic_call_name,
@@ -149,8 +144,7 @@ public:
 
 private:
     using InitialRequest = typename CallTraits::InitialRequest;
-    using RawCall = typename CallTraits::RawCall;
-    using Call = impl::Call<CallTraits>;
+    using RawResponder = typename CallTraits::RawResponder;
     using Context = typename CallTraits::Context;
 
     void HandleRpc() {
@@ -161,39 +155,21 @@ private:
             ParseGenericCallName(context_.method(), call_name, service_name, method_name);
         }
 
-        const auto& middlewares = method_data_.service_data.internals.middlewares;
-
-        SetupSpan(span_, context_, call_name);
-        utils::FastScopeGuard destroy_span([&]() noexcept { span_.reset(); });
-
-        ugrpc::impl::RpcStatisticsScope statistics_scope{method_data_.statistics};
-
-        auto& statistics_storage = method_data_.service_data.internals.statistics_storage;
-        utils::AnyStorage<StorageContext> storage_context;
-
-        Call responder(
+        CallProcessor<CallTraits> call_processor{
             CallParams{
                 context_,
                 call_name,
                 service_name,
                 method_name,
-                statistics_scope,
-                statistics_storage,
-                span_->Get(),
-                storage_context,
-                middlewares,
+                method_data_.statistics,
+                method_data_.service_data.internals.statistics_storage,
+                span_storage_,
+                method_data_.service_data.internals.middlewares,
+                method_data_.service_data.internals.config_source,
+                *method_data_.service_data.internals.access_tskv_logger,
             },
-            raw_responder_
-        );
-
-        auto config_snapshot = method_data_.service_data.internals.config_source.GetSnapshot();
-
-        CallProcessor<CallTraits> call_processor{
-            responder,
-            middlewares,
+            raw_responder_,
             initial_request_,
-            std::move(config_snapshot),
-            *method_data_.service_data.internals.access_tskv_logger,
             method_data_.service,
             method_data_.service_method,
         };
@@ -209,9 +185,9 @@ private:
 
     typename CallTraits::RawContext context_{};
     InitialRequest initial_request_{};
-    RawCall raw_responder_{&context_};
+    RawResponder raw_responder_{&context_};
     ugrpc::impl::AsyncMethodInvocation prepare_;
-    std::optional<tracing::InPlaceSpan> span_{};
+    std::optional<tracing::InPlaceSpan> span_storage_{};
 };
 
 template <typename GrpcppService, typename Service, typename... ServiceMethods>

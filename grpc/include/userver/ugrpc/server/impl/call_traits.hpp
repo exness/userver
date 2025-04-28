@@ -28,7 +28,7 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsUnaryCall final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawCall = impl::RawResponseWriter<ResponseType>;
+    using RawResponder = impl::RawResponseWriter<ResponseType>;
     using InitialRequest = Request;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));
@@ -42,7 +42,7 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsInputStream final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawCall = impl::RawReader<Request, Response>;
+    using RawResponder = impl::RawReader<Request, Response>;
     using InitialRequest = NoInitialRequest;
     using RawContextType = ::grpc::ServerContext;
     using Context = ContextType;
@@ -57,7 +57,7 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsOutputStream final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawCall = impl::RawWriter<Response>;
+    using RawResponder = impl::RawWriter<Response>;
     using InitialRequest = Request;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));
@@ -71,7 +71,7 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsBidirectionalStream final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawCall = impl::RawReaderWriter<Request, Response>;
+    using RawResponder = impl::RawReaderWriter<Request, Response>;
     using InitialRequest = NoInitialRequest;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));

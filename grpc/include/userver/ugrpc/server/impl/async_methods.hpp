@@ -34,8 +34,6 @@ using RawReaderWriter = grpc::ServerAsyncReaderWriter<Response, Request>;
 
 using ugrpc::impl::AsyncMethodInvocation;
 
-void ReportErrorWhileCancelling(std::string_view call_name) noexcept;
-
 extern const grpc::Status kUnimplementedStatus;
 extern const grpc::Status kUnknownErrorStatus;
 
