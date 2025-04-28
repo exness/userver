@@ -369,11 +369,11 @@ TEST(Simple, Uuid) {
 }
 
 TEST(SIMPLE, String64) {
-    auto str64 = crypto::base64::String64{"aGVsbG8sIHVzZXJ2ZXIh"};
+    auto str64 = crypto::base64::String64{"hello, userver!"};
     auto obj = ns::ObjectString64{str64};
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["value"].As<std::string>();
-    EXPECT_EQ(str, "hello, userver!");
+    EXPECT_EQ(str, "aGVsbG8sIHVzZXJ2ZXIh");
 
     auto new_obj = formats::json::MakeObject("value", str).As<ns::ObjectString64>();
     EXPECT_EQ(new_obj.value, str64);
