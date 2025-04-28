@@ -4,6 +4,8 @@
 #include <grpcpp/support/status.h>
 
 #include <tests/deadline_helpers.hpp>
+#include <tests/middlewares_fixture.hpp>
+#include <tests/server_middleware_base_gmock.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/server/exceptions.hpp>
 #include <userver/ugrpc/server/middlewares/base.hpp>
@@ -42,45 +44,14 @@ struct Flags final {
     bool set_error{true};
 };
 
-class MockMiddleware : public ugrpc::server::MiddlewareBase {
-public:
-    MOCK_METHOD(void, OnCallStart, (ugrpc::server::MiddlewareCallContext & context), (const, override));
-    MOCK_METHOD(
-        void,
-        OnCallFinish,
-        (ugrpc::server::MiddlewareCallContext & context, const grpc::Status& status),
-        (const, override)
-    );
-    MOCK_METHOD(
-        void,
-        PostRecvMessage,
-        (ugrpc::server::MiddlewareCallContext & context, google::protobuf::Message&),
-        (const, override)
-    );
-    MOCK_METHOD(
-        void,
-        PreSendMessage,
-        (ugrpc::server::MiddlewareCallContext & context, google::protobuf::Message&),
-        (const, override)
-    );
-};
-
 // NOLINTNEXTLINE(fuchsia-multiple-inheritance)
-class MiddlewaresHooksUnaryTest : public ugrpc::tests::ServiceFixtureBase, public testing::WithParamInterface<Flags> {
+class ServerMiddlewaresHooksUnaryTest : public tests::MiddlewaresFixture<
+                                            tests::server::ServerMiddlewareBaseMock,
+                                            MessengerMock,
+                                            sample::ugrpc::UnitTestServiceClient,
+                                            /*N=*/3>,
+                                        public testing::WithParamInterface<Flags> {
 protected:
-    MiddlewaresHooksUnaryTest()
-        : m0(std::make_shared<MockMiddleware>()),
-          m1(std::make_shared<MockMiddleware>()),
-          m2(std::make_shared<MockMiddleware>()) {
-        SetServerMiddlewares({m0, m1, m2});
-        RegisterService(service_);
-        StartServer();
-    }
-
-    auto GetClient() { return MakeClient<sample::ugrpc::UnitTestServiceClient>(); }
-
-    MessengerMock& Service() { return service_; }
-
     void SetSuccessHandler() {
         ON_CALL(Service(), SayHello).WillByDefault([](ugrpc::server::CallContext&, ::sample::ugrpc::GreetingRequest&&) {
             return sample::ugrpc::GreetingResponse{};
@@ -94,10 +65,6 @@ protected:
                             )](ugrpc::server::CallContext&, ::sample::ugrpc::GreetingRequest&&) { return handler(); });
     }
 
-    const MockMiddleware& M0() { return *m0; }
-    const MockMiddleware& M1() { return *m1; }
-    const MockMiddleware& M2() { return *m2; }
-
     void SetErrorOrThrowRuntimeError(
         ugrpc::server::MiddlewareCallContext& context,
         grpc::Status status = kUnknownErrorStatus
@@ -108,154 +75,141 @@ protected:
             throw std::runtime_error{"error"};
         }
     }
-
-private:
-    MessengerMock service_;
-    std::shared_ptr<MockMiddleware> m0;
-    std::shared_ptr<MockMiddleware> m1;
-    std::shared_ptr<MockMiddleware> m2;
 };
 
 }  // namespace
 
-UTEST_P(MiddlewaresHooksUnaryTest, Success) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, Success) {
     SetSuccessHandler();
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(1);
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M2(), PreSendMessage).Times(1);
-    EXPECT_CALL(M2(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
-    const auto client = GetClient();
-    UEXPECT_NO_THROW(client.SayHello(sample::ugrpc::GreetingRequest()));
+    UEXPECT_NO_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()));
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnStart) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnStart) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
-    ON_CALL(M1(), OnCallStart).WillByDefault([this](ugrpc::server::MiddlewareCallContext& context) {
+    ON_CALL(Middleware(1), OnCallStart).WillByDefault([this](ugrpc::server::MiddlewareCallContext& context) {
         SetErrorOrThrowRuntimeError(context);
     });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(0);
-    EXPECT_CALL(M1(), PreSendMessage).Times(0);
-    EXPECT_CALL(M1(), OnCallFinish).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(0);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(0);
 
     // The Pipeline will not reach M2, because there is an error in M1 in OnCallStart.
-    EXPECT_CALL(M2(), OnCallStart).Times(0);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(0);
-    EXPECT_CALL(M2(), PreSendMessage).Times(0);
-    EXPECT_CALL(M2(), OnCallFinish).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(0);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(0);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(0);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnPostRecvMessage) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnPostRecvMessage) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
-    ON_CALL(M1(), PostRecvMessage)
+    ON_CALL(Middleware(1), PostRecvMessage)
         .WillByDefault([this](ugrpc::server::MiddlewareCallContext& context, google::protobuf::Message&) {
             SetErrorOrThrowRuntimeError(context);
         });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(0);
     // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
     // The Pipeline will not reach M2, because there is an error in M1 on PostRecvMessage.
-    EXPECT_CALL(M2(), OnCallStart).Times(0);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(0);
-    EXPECT_CALL(M2(), PreSendMessage).Times(0);
-    EXPECT_CALL(M2(), OnCallFinish).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(0);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(0);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(0);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnPostRecvMessage) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnPostRecvMessage) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
-    ON_CALL(M2(), PostRecvMessage)
+    ON_CALL(Middleware(2), PostRecvMessage)
         .WillByDefault([this](ugrpc::server::MiddlewareCallContext& context, google::protobuf::Message&) {
             SetErrorOrThrowRuntimeError(context);
         });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(0);
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
     // The Pipeline will not reach M2, because there is an error in M1 on PostRecvMessage.
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M2(), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(0);
     // OnCallStart of M2 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M2(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnStart) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnStart) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
-    ON_CALL(M2(), OnCallStart).WillByDefault([this](ugrpc::server::MiddlewareCallContext& context) {
+    ON_CALL(Middleware(2), OnCallStart).WillByDefault([this](ugrpc::server::MiddlewareCallContext& context) {
         SetErrorOrThrowRuntimeError(context);
     });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(0);
     // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(0);
-    EXPECT_CALL(M2(), PreSendMessage).Times(0);
-    EXPECT_CALL(M2(), OnCallFinish).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(0);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(0);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, FailInSecondMiddlewarePreSend) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewarePreSend) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
-    ON_CALL(M2(), PreSendMessage)
+    ON_CALL(Middleware(2), PreSendMessage)
         .WillByDefault([this](ugrpc::server::MiddlewareCallContext& context, google::protobuf::Message&) {
             SetErrorOrThrowRuntimeError(context);
         });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(0);
     // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M2(), PreSendMessage).Times(1);
-    EXPECT_CALL(M2(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
     // The order if OnCallFinish is reversed: M2 -> M1
-    ON_CALL(M2(), OnCallFinish)
+    ON_CALL(Middleware(2), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& context, const grpc::Status& status) {
             EXPECT_TRUE(status.ok());
             if (GetParam().set_error) {
@@ -264,7 +218,7 @@ UTEST_P(MiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
                 throw std::runtime_error("Something bad happened in OnCallFinish");
             }
         });
-    ON_CALL(M1(), OnCallFinish)
+    ON_CALL(Middleware(1), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& context, const grpc::Status& status) {
             // That status must be from M2::OnCallFinish
             if (GetParam().set_error) {
@@ -279,81 +233,79 @@ UTEST_P(MiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
             context.SetError(grpc::Status{kUnknownErrorStatus});
         });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(1);
     // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M2(), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(1);
     // OnCallStart of M2 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M2(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, ThrowInHandler) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, ThrowInHandler) {
     SetHandler([] {
         throw server::handlers::Unauthorized{server::handlers::ExternalBody{"fail :("}};
         return sample::ugrpc::GreetingResponse{};
     });
-    const auto client = GetClient();
 
     // The order if OnCallFinish is reversed: M2 -> M1
-    ON_CALL(M2(), OnCallFinish)
+    ON_CALL(Middleware(2), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, const grpc::Status& status) {
             EXPECT_TRUE(!status.ok());
             EXPECT_EQ(status.error_code(), grpc::StatusCode::UNAUTHENTICATED);
             EXPECT_EQ(status.error_message(), "fail :(");
         });
-    ON_CALL(M1(), OnCallFinish)
+    ON_CALL(Middleware(1), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, const grpc::Status& status) {
             EXPECT_TRUE(!status.ok());
             EXPECT_EQ(status.error_code(), grpc::StatusCode::UNAUTHENTICATED);
             EXPECT_EQ(status.error_message(), "fail :(");
         });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(0);
     // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M2(), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(0);
     // OnCallStart of M2 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M2(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
-    UEXPECT_THROW(client.SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnauthenticatedError);
+    UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnauthenticatedError);
 }
 
-UTEST_P(MiddlewaresHooksUnaryTest, DeadlinePropagation) {
+UTEST_P(ServerMiddlewaresHooksUnaryTest, DeadlinePropagation) {
     SetSuccessHandler();
-    const auto client = GetClient();
 
-    ON_CALL(M1(), OnCallStart).WillByDefault([](ugrpc::server::MiddlewareCallContext& context) {
+    ON_CALL(Middleware(1), OnCallStart).WillByDefault([](ugrpc::server::MiddlewareCallContext& context) {
         ugrpc::server::middlewares::deadline_propagation::Middleware deadline_propagation{};
         deadline_propagation.OnCallStart(context);
     });
 
     // The order if OnCallFinish is reversed: M2 -> M1 -> M0
-    ON_CALL(M2(), OnCallFinish)
+    ON_CALL(Middleware(2), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, const grpc::Status& status) {
             EXPECT_TRUE(status.ok());
             // We want to exceed a deadline for middleware 'grpc-server-deadline-propagation'
             engine::SleepFor(std::chrono::milliseconds{200});
         });
-    ON_CALL(M1(), OnCallFinish)
+    ON_CALL(Middleware(1), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& context, const grpc::Status& status) {
             EXPECT_TRUE(status.ok());
             /// Here the status will be replaced by 'grpc-server-deadline-propagation' middleware
             ugrpc::server::middlewares::deadline_propagation::Middleware deadline_propagation{};
             deadline_propagation.OnCallFinish(context, status);
         });
-    ON_CALL(M0(), OnCallFinish)
+    ON_CALL(Middleware(0), OnCallFinish)
         .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, const grpc::Status& status) {
             // Status from 'grpc-server-deadline-propagation' middleware
             EXPECT_TRUE(!status.ok());
@@ -362,17 +314,17 @@ UTEST_P(MiddlewaresHooksUnaryTest, DeadlinePropagation) {
             EXPECT_EQ("Deadline specified by the client for this RPC was exceeded", msg);
         });
 
-    EXPECT_CALL(M1(), OnCallStart).Times(1);
-    EXPECT_CALL(M1(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M1(), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(1), PreSendMessage).Times(1);
     // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M1(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
 
-    EXPECT_CALL(M2(), OnCallStart).Times(1);
-    EXPECT_CALL(M2(), PostRecvMessage).Times(1);
-    EXPECT_CALL(M2(), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
+    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
+    EXPECT_CALL(Middleware(2), PreSendMessage).Times(1);
     // OnCallStart of M2 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(M2(), OnCallFinish).Times(1);
+    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
     auto context = std::make_unique<grpc::ClientContext>();
     std::chrono::milliseconds deadline_ms{100};
@@ -380,13 +332,13 @@ UTEST_P(MiddlewaresHooksUnaryTest, DeadlinePropagation) {
     context->set_deadline(deadline);
 
     UEXPECT_THROW(
-        client.SayHello(sample::ugrpc::GreetingRequest(), std::move(context)), ugrpc::client::DeadlineExceededError
+        Client().SayHello(sample::ugrpc::GreetingRequest(), std::move(context)), ugrpc::client::DeadlineExceededError
     );
 }
 
 INSTANTIATE_UTEST_SUITE_P(
     /*no prefix*/,
-    MiddlewaresHooksUnaryTest,
+    ServerMiddlewaresHooksUnaryTest,
     testing::Values(Flags{/*set_error=*/true}, Flags{/*set_error*/ false})
 );
 
