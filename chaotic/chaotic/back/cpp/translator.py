@@ -7,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import NoReturn
 from typing import Optional
+from typing import Set
 
 from chaotic import cpp_names
 from chaotic import error
@@ -36,6 +37,7 @@ class GeneratorState:
     refs: Dict[types.Schema, str]  # type: ignore
     ref_objects: List[cpp_types.CppRef]
     external_types: Dict[types.Schema, cpp_types.CppType]  # type: ignore
+    seen_includes: Set[str]
 
 
 NON_NAME_SYMBOL_RE = re.compile('[^_0-9a-zA-Z]')
@@ -107,6 +109,7 @@ class Generator:
             refs={},
             ref_objects=[],
             external_types={},
+            seen_includes=set(),
         )
         self._state.ref_objects = []
 
@@ -115,6 +118,8 @@ class Generator:
         schemas: types.ResolvedSchemas,
         external_schemas: Dict[str, cpp_types.CppType] = {},
     ) -> Dict[str, cpp_types.CppType]:
+        self._state.seen_includes = set()
+
         for cpp_type in external_schemas.values():
             schema = cpp_type.json_schema
             assert schema
@@ -133,6 +138,10 @@ class Generator:
 
         return self._state.types
 
+    @property
+    def seen_includes(self) -> Set[str]:
+        return self._state.seen_includes
+
     def _validate_type(self, type_: cpp_types.CppType) -> None:
         if not type_.user_cpp_type:
             return
@@ -147,6 +156,7 @@ class Generator:
         for include_dir in self._config.include_dirs:
             path = os.path.join(include_dir, user_include)
             if os.path.exists(path):
+                self._state.seen_includes.add(path)
                 return
 
         assert type_.json_schema
