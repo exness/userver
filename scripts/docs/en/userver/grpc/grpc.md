@@ -236,13 +236,13 @@ The gRPC driver provides log fields hiding in request-response logs. You need to
 
 2) Import userver/field_options.proto in your proto file.
 
-3) Use `[(userver.field).secret = true]` opposite to the filds that you want to hide. In the following example the fields `password` and `secret_code` will be hidden in the logs:
+3) Use `[debug_redact = true]` opposite to the filds that you want to hide. In the following example the fields `password` and `secret_code` will be hidden in the logs:
 
 ```proto
 message Creds {
   string login = 1;
-  string password = 2 [(userver.field).secret = true];
-  string secret_code = 3 [(userver.field).secret = true];
+  string password = 2 [debug_redact = true];
+  string secret_code = 3 [debug_redact = true];
 }
 ```
 
