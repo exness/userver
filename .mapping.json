@@ -2938,6 +2938,7 @@
   "postgresql/src/storages/postgres/tests/composite_types_pgtest.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/composite_types_pgtest.cpp",
   "postgresql/src/storages/postgres/tests/conn_stats_pgtest.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/conn_stats_pgtest.cpp",
   "postgresql/src/storages/postgres/tests/connection_pgtest.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/connection_pgtest.cpp",
+  "postgresql/src/storages/postgres/tests/connlimit_watchdog_pgtest.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/connlimit_watchdog_pgtest.cpp",
   "postgresql/src/storages/postgres/tests/date_pgtest.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/date_pgtest.cpp",
   "postgresql/src/storages/postgres/tests/dsn_test.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/dsn_test.cpp",
   "postgresql/src/storages/postgres/tests/enums_pgtest.cpp":"taxi/uservices/userver/postgresql/src/storages/postgres/tests/enums_pgtest.cpp",
