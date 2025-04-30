@@ -3,6 +3,7 @@ Service main and monitor clients.
 """
 
 # pylint: disable=redefined-outer-name
+import contextlib
 import typing
 
 import aiohttp.client_exceptions
@@ -10,7 +11,6 @@ import pytest
 import websockets
 
 from testsuite.daemons import service_client as base_service_client
-from testsuite.utils import compat
 
 from pytest_userver import client
 
@@ -68,7 +68,7 @@ async def userver_client_cleanup(
     else:
         tasks_to_suspend = ()
 
-    @compat.asynccontextmanager
+    @contextlib.asynccontextmanager
     async def cleanup_manager(client: client.Client):
         @servicelogs_register_flusher
         async def do_flush():
@@ -105,7 +105,7 @@ async def websocket_client(service_client, service_port):
     """
 
     class Client:
-        @compat.asynccontextmanager
+        @contextlib.asynccontextmanager
         async def get(self, path):
             update_server_state = getattr(
                 service_client,
