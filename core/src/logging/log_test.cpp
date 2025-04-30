@@ -156,12 +156,14 @@ TEST_F(LoggingTest, LogRaw) {
     EXPECT_EQ(GetStreamString(), "foo\n");
 }
 
-UTEST_F(SocketLoggingTest, Format) {
+TEST_F(LoggingTest, Format) {
     LOG_ERROR("Hello, {}", "world");
-    EXPECT_EQ("Hello, world", NextLoggedText());
+    EXPECT_EQ("Hello, world", LoggedText());
+    ClearLog();
 
     LOG_ERROR("{}, {}", "Hello", "world");
-    EXPECT_EQ("Hello, world", NextLoggedText());
+    EXPECT_EQ("Hello, world", LoggedText());
+    ClearLog();
 }
 
 USERVER_NAMESPACE_END
