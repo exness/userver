@@ -45,12 +45,12 @@ struct Flags final {
 };
 
 // NOLINTNEXTLINE(fuchsia-multiple-inheritance)
-class ServerMiddlewaresHooksUnaryTest : public tests::MiddlewaresFixture<
-                                            tests::server::ServerMiddlewareBaseMock,
-                                            MessengerMock,
-                                            sample::ugrpc::UnitTestServiceClient,
-                                            /*N=*/3>,
-                                        public testing::WithParamInterface<Flags> {
+class ServerMiddlewareHooksUnaryTest : public tests::MiddlewaresFixture<
+                                           tests::server::ServerMiddlewareBaseMock,
+                                           MessengerMock,
+                                           sample::ugrpc::UnitTestServiceClient,
+                                           /*N=*/3>,
+                                       public testing::WithParamInterface<Flags> {
 protected:
     void SetSuccessHandler() {
         ON_CALL(Service(), SayHello).WillByDefault([](ugrpc::server::CallContext&, ::sample::ugrpc::GreetingRequest&&) {
@@ -79,7 +79,7 @@ protected:
 
 }  // namespace
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, Success) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, Success) {
     SetSuccessHandler();
 
     EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
@@ -95,7 +95,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, Success) {
     UEXPECT_NO_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()));
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnStart) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, FailInFirstMiddlewareOnStart) {
     SetSuccessHandler();
 
     ON_CALL(Middleware(1), OnCallStart).WillByDefault([this](ugrpc::server::MiddlewareCallContext& context) {
@@ -116,7 +116,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnStart) {
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnPostRecvMessage) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, FailInFirstMiddlewareOnPostRecvMessage) {
     SetSuccessHandler();
 
     ON_CALL(Middleware(1), PostRecvMessage)
@@ -139,7 +139,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInFirstMiddlewareOnPostRecvMessage)
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnPostRecvMessage) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, FailInSecondMiddlewareOnPostRecvMessage) {
     SetSuccessHandler();
 
     ON_CALL(Middleware(2), PostRecvMessage)
@@ -162,7 +162,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnPostRecvMessage
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnStart) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, FailInSecondMiddlewareOnStart) {
     SetSuccessHandler();
 
     ON_CALL(Middleware(2), OnCallStart).WillByDefault([this](ugrpc::server::MiddlewareCallContext& context) {
@@ -183,7 +183,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewareOnStart) {
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewarePreSend) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, FailInSecondMiddlewarePreSend) {
     SetSuccessHandler();
 
     ON_CALL(Middleware(2), PreSendMessage)
@@ -205,7 +205,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, FailInSecondMiddlewarePreSend) {
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, ApplyTheLastErrorStatus) {
     SetSuccessHandler();
 
     // The order if OnCallFinish is reversed: M2 -> M1
@@ -248,7 +248,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, ApplyTheLastErrorStatus) {
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnknownError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, ThrowInHandler) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, ThrowInHandler) {
     SetHandler([] {
         throw server::handlers::Unauthorized{server::handlers::ExternalBody{"fail :("}};
         return sample::ugrpc::GreetingResponse{};
@@ -283,7 +283,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, ThrowInHandler) {
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnauthenticatedError);
 }
 
-UTEST_P(ServerMiddlewaresHooksUnaryTest, DeadlinePropagation) {
+UTEST_P(ServerMiddlewareHooksUnaryTest, DeadlinePropagation) {
     SetSuccessHandler();
 
     ON_CALL(Middleware(1), OnCallStart).WillByDefault([](ugrpc::server::MiddlewareCallContext& context) {
@@ -338,7 +338,7 @@ UTEST_P(ServerMiddlewaresHooksUnaryTest, DeadlinePropagation) {
 
 INSTANTIATE_UTEST_SUITE_P(
     /*no prefix*/,
-    ServerMiddlewaresHooksUnaryTest,
+    ServerMiddlewareHooksUnaryTest,
     testing::Values(Flags{/*set_error=*/true}, Flags{/*set_error*/ false})
 );
 

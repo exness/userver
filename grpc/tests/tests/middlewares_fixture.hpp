@@ -16,6 +16,7 @@ namespace tests {
 
 template <class MiddlewareType, class ServiceType, class ClientType, std::size_t N>
 class MiddlewaresFixture : public ugrpc::tests::ServiceFixtureBase {
+public:
     using MiddlewareMock = ::testing::NiceMock<MiddlewareType>;
 
     static_assert(std::is_base_of_v<ugrpc::server::MiddlewareBase, MiddlewareType> || std::is_base_of_v<ugrpc::client::MiddlewareBase, MiddlewareType>);
