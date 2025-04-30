@@ -30,7 +30,7 @@ const grpc::Status kUnknownErrorStatus{
 
 const grpc::Status kUnimplementedStatus{grpc::StatusCode::UNIMPLEMENTED, "This method is unimplemented"};
 
-class MessengerMock final : public sample::ugrpc::UnitTestServiceBase {
+class UnitTestServiceMock : public sample::ugrpc::UnitTestServiceBase {
 public:
     MOCK_METHOD(
         SayHelloResult,
@@ -47,7 +47,7 @@ struct Flags final {
 // NOLINTNEXTLINE(fuchsia-multiple-inheritance)
 class ServerMiddlewareHooksUnaryTest : public tests::MiddlewaresFixture<
                                            tests::server::ServerMiddlewareBaseMock,
-                                           MessengerMock,
+                                           ::testing::NiceMock<UnitTestServiceMock>,
                                            sample::ugrpc::UnitTestServiceClient,
                                            /*N=*/3>,
                                        public testing::WithParamInterface<Flags> {

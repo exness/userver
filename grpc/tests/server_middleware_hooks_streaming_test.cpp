@@ -28,7 +28,7 @@ const grpc::Status kUnknownErrorStatus{
     grpc::StatusCode::UNKNOWN,
     "The service method has exited unexpectedly, without providing a status"};
 
-class UnitTestServiceMock final : public sample::ugrpc::UnitTestServiceBase {
+class UnitTestServiceMock : public sample::ugrpc::UnitTestServiceBase {
 public:
     MOCK_METHOD(ChatResult, Chat, (ugrpc::server::CallContext& /*context*/, ChatReaderWriter& /*stream*/), (override));
 };
@@ -41,7 +41,7 @@ struct Flags final {
 
 class ServerMiddlewareHooksStreamingTest : public tests::MiddlewaresFixture<
                                                tests::server::ServerMiddlewareBaseMock,
-                                               UnitTestServiceMock,
+                                               ::testing::NiceMock<UnitTestServiceMock>,
                                                sample::ugrpc::UnitTestServiceClient,
                                                /*N=*/3> {
 protected:
