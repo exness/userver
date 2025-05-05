@@ -523,7 +523,7 @@ UTEST_F(ClientMiddlewaresHooksTest, ExceptionWhenCancelledUnary) {
     SetUnary([](CallContext&, Request&&) -> UnaryResult {
         engine::InterruptibleSleepFor(utest::kMaxTestWaitTime);
 
-        return grpc::Status::OK;
+        return Response{};
     });
 
     {
