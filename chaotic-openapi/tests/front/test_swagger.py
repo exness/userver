@@ -57,6 +57,133 @@ def test_swagger_body_schema(simple_parser):
     )
 
 
+def test_swagger_responses(simple_parser):
+    assert simple_parser(
+        {
+            'swagger': '2.0',
+            'info': {},
+            'produces': ['text/plain; charset=utf-8', 'application/json'],
+            'responses': {
+                '500': {
+                    'description': 'internal error',
+                    'schema': {'type': 'string'},
+                    'headers': {
+                        'X-Header-Name-1': {'type': 'string'},
+                    },
+                    'examples': {
+                        'text/plain; charset=utf-8': {'example1': 'any', 'example2': 'any'},
+                        'application/json': {'example1': 'any'},
+                    },
+                }
+            },
+            'paths': {
+                '/': {
+                    'get': {
+                        'produces': ['text/plain; charset=utf-8', 'application/json'],
+                        'responses': {
+                            '200': {
+                                'description': 'ok',
+                                'schema': {'type': 'string'},
+                                'headers': {
+                                    'X-Header-Name-1': {'type': 'string'},
+                                    'X-Header-Name-2': {'type': 'array', 'items': {'type': 'integer'}},
+                                },
+                                'examples': {
+                                    'text/plain; charset=utf-8': {'example1': 'any', 'example2': 'any'},
+                                    'application/json': {'example1': 'any'},
+                                },
+                            },
+                            '500': {'$ref': '#/responses/500'},
+                        },
+                    },
+                },
+            },
+        },
+    ) == model.Service(
+        name='test',
+        description='',
+        responses={
+            '<inline>#/responses/500': model.Response(
+                description='internal error',
+                headers={
+                    'X-Header-Name-1': model.Parameter(
+                        name='X-Header-Name-1',
+                        in_=model.In.header,
+                        description='',
+                        examples={},
+                        deprecated=False,
+                        required=False,
+                        allowEmptyValue=False,
+                        style=model.Style.simple,
+                        schema=types.String(),
+                    )
+                },
+                content={
+                    'text/plain; charset=utf-8': model.MediaType(
+                        schema=types.String(),
+                        examples={'example1': 'any', 'example2': 'any'},
+                    ),
+                    'application/json': model.MediaType(
+                        schema=types.String(),
+                        examples={'example1': 'any'},
+                    ),
+                },
+            )
+        },
+        operations=[
+            model.Operation(
+                description='',
+                path='/',
+                method='get',
+                operationId='Get',
+                parameters=[],
+                requestBody=[],
+                responses={
+                    200: model.Response(
+                        description='ok',
+                        headers={
+                            'X-Header-Name-1': model.Parameter(
+                                name='X-Header-Name-1',
+                                in_=model.In.header,
+                                description='',
+                                examples={},
+                                deprecated=False,
+                                required=False,
+                                allowEmptyValue=False,
+                                style=model.Style.simple,
+                                schema=types.String(),
+                            ),
+                            'X-Header-Name-2': model.Parameter(
+                                name='X-Header-Name-2',
+                                in_=model.In.header,
+                                description='',
+                                examples={},
+                                deprecated=False,
+                                required=False,
+                                allowEmptyValue=False,
+                                style=model.Style.simple,
+                                schema=types.Array(items=types.Integer()),
+                            ),
+                        },
+                        content={
+                            'text/plain; charset=utf-8': model.MediaType(
+                                schema=types.String(),
+                                examples={'example1': 'any', 'example2': 'any'},
+                            ),
+                            'application/json': model.MediaType(
+                                schema=types.String(),
+                                examples={'example1': 'any'},
+                            ),
+                        },
+                    ),
+                    500: model.Ref('<inline>#/responses/500'),
+                },
+                security=[],
+            )
+        ],
+    )
+
+
 def test_swagger_securuty(simple_parser):
     assert simple_parser(
         {

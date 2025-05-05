@@ -50,7 +50,7 @@ class Parser:
         elif 'swagger' in schema or 'definitions' in schema:
             return swagger.Swagger
 
-    def _convert_header(
+    def _convert_openapi_header(
         self,
         name: str,
         header: Union[openapi.Header, openapi.Ref],
@@ -67,6 +67,20 @@ class Parser:
 
         parameter = openapi.Parameter(**header_dict)
         return self._convert_parameter(parameter, infile_path)
+
+    def _convert_swagger_header(self, name: str, header: swagger.Header, infile_path: str) -> model.Parameter:
+        header_dict = header.model_dump(by_alias=True, exclude_none=True)
+        return model.Parameter(
+            name=name,
+            in_=model.In.header,
+            description=header.description or '',
+            examples={},
+            deprecated=False,
+            required=False,
+            allowEmptyValue=False,
+            style=model.Style.simple,
+            schema=self._parse_schema(header_dict, infile_path + '/schema'),
+        )
 
     def _convert_media_type(
         self,
@@ -107,7 +121,7 @@ class Parser:
         )
         return p
 
-    def _convert_response(
+    def _convert_openapi_response(
         self,
         response: Union[openapi.Response, openapi.Ref],
         infile_path: str,
@@ -131,10 +145,33 @@ class Parser:
         return model.Response(
             description=response.description,
             headers={
-                name: self._convert_header(name, header, infile_path + f'/headers/{name}')
+                name: self._convert_openapi_header(name, header, infile_path + f'/headers/{name}')
                 for name, header in response.headers.items()
             },
             content=content,  # TODO
+        )
+
+    def _convert_swagger_response(
+        self, response: Union[swagger.Response, swagger.Ref], produces: List[str], infile_path: str
+    ) -> Union[model.Response, model.Ref]:
+        assert infile_path.count('#') <= 1
+
+        if isinstance(response, swagger.Ref):
+            ref = ref_resolver.normalize_ref(
+                self._state.full_filepath,
+                response.ref,
+            )
+            assert ref.count('#') == 1, ref
+            return model.Ref(ref)
+
+        schema = self._parse_schema(response.schema_, infile_path + '/schema')
+        return model.Response(
+            description=response.description,
+            headers={
+                name: self._convert_swagger_header(name, header, infile_path + f'/headers/{name}')
+                for name, header in response.headers.items()
+            },
+            content={mime: model.MediaType(schema=schema, examples=response.examples[mime]) for mime in produces},
         )
 
     def _convert_request_body(
@@ -264,10 +301,12 @@ class Parser:
             # components/headers
             for name, header in parsed.components.headers.items():
                 infile_path = '/components/headers/' + name
-                self._state.service.headers[self._state.full_filepath + '#' + infile_path] = self._convert_header(
-                    name,
-                    header,
-                    infile_path,
+                self._state.service.headers[self._state.full_filepath + '#' + infile_path] = (
+                    self._convert_openapi_header(
+                        name,
+                        header,
+                        infile_path,
+                    )
                 )
 
             # components/securitySchemes
@@ -305,6 +344,13 @@ class Parser:
                     parameter, infile_path
                 )
 
+            # components/responses
+            for name, response in parsed.components.responses.items():
+                infile_path = f'/components/responses/{name}'
+                model_resp = self._convert_openapi_response(response, infile_path)
+                assert isinstance(model_resp, model.Response)
+                self._state.service.responses[self._state.full_filepath + '#' + infile_path] = model_resp
+
             for path, path_item in parsed.paths.items():
                 self._append_openapi_operation(path, 'get', path_item.get, _convert_op_security)
                 self._append_openapi_operation(path, 'post', path_item.post, _convert_op_security)
@@ -315,25 +361,20 @@ class Parser:
                 self._append_openapi_operation(path, 'patch', path_item.patch, _convert_op_security)
                 self._append_openapi_operation(path, 'trace', path_item.trace, _convert_op_security)
 
-            # components/responses
-            for name, response in parsed.components.responses.items():
-                infile_path = f'/components/responses/{name}'
-                self._state.service.responses[self._state.full_filepath + '#' + infile_path] = model.Response(
-                    description=response.description,
-                    headers={
-                        key: self._convert_header(key, value, infile_path + f'/headers/{key}')
-                        for (key, value) in response.headers.items()
-                    },
-                    content={
-                        key: self._convert_media_type(value, infile_path + f'/content/{key}')
-                        for (key, value) in response.content.items()
-                    },
-                )
-
         elif isinstance(parsed, swagger.Swagger):
             parsed = typing.cast(swagger.Swagger, parsed)
             components_schemas = parsed.definitions
             components_schemas_path = '/definitions'
+
+            # produces
+            produces = parsed.produces
+
+            # responses
+            for name, sw_response in parsed.responses.items():
+                infile_path = f'/responses/{name}'
+                model_resp = self._convert_swagger_response(sw_response, produces, infile_path)
+                assert isinstance(model_resp, model.Response)
+                self._state.service.responses[self._state.full_filepath + '#' + infile_path] = model_resp
 
             # securityDefinitions
             default_security = parsed.security
@@ -452,7 +493,7 @@ class Parser:
                 ],
                 requestBody=requestBody,
                 responses={
-                    int(status): self._convert_response(response, infile_path + f'/responses/{status}')
+                    int(status): self._convert_openapi_response(response, infile_path + f'/responses/{status}')
                     for status, response in operation.responses.items()
                 },
                 security=security_converter(operation.security),
@@ -470,6 +511,7 @@ class Parser:
             return
 
         requestBody = []
+        infile_path = f'/paths/[{path}]/{method}'
 
         body_parameter: Optional[swagger.Parameter] = None
         body_parameter_num = 0
@@ -478,8 +520,9 @@ class Parser:
                 body_parameter = parameter
                 body_parameter_num = i
         if body_parameter:
-            infile_path = f'/paths/[{path}]/{method}/parameters/{body_parameter_num}/schema'
-            schema = self._parse_schema(body_parameter.schema_, infile_path)
+            schema = self._parse_schema(
+                body_parameter.schema_, infile_path + f'/parameters/{body_parameter_num}/schema'
+            )
             requestBody.append(
                 model.RequestBody(
                     content_type='application/json',
@@ -496,7 +539,12 @@ class Parser:
                 operationId=(operation.operationId or self._gen_operation_id(path, method)),
                 parameters=[],  # TODO
                 requestBody=requestBody,
-                responses={},  # TODO
+                responses={
+                    int(status): self._convert_swagger_response(
+                        response, operation.produces, infile_path + f'/responses/{status}'
+                    )
+                    for status, response in operation.responses.items()
+                },
                 security=security_converter(operation.security),
             )
         )

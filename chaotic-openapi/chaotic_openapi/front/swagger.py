@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 import pydantic
 
@@ -11,6 +12,11 @@ from . import errors
 
 class Info(pydantic.BaseModel):
     pass
+
+
+# https://spec.openapis.org/oas/v2.0.html#reference-object
+class Ref(pydantic.BaseModel):
+    ref: str = pydantic.Field(alias='$ref')
 
 
 class In(str, enum.Enum):
@@ -67,8 +73,13 @@ class Header(pydantic.BaseModel):
 
     # TODO: validators
 
+    def model_post_init(self, context: Any, /) -> None:
+        if not self.type:
+            raise ValueError(errors.missing_field_msg('type'))
+        if self.type == 'array':
+            if not self.items:
+                raise ValueError(errors.missing_field_msg('items'))
 
-Headers = Dict[str, Header]
 
 Schema = Any
 
@@ -77,11 +88,11 @@ Schema = Any
 class Response(pydantic.BaseModel):
     description: str
     schema_: Schema = pydantic.Field(alias='schema', default=None)
-    headers: Optional[Headers] = None
-    examples: Any = None
+    headers: Dict[str, Header] = pydantic.Field(default_factory=dict)
+    examples: Dict[str, Any] = pydantic.Field(default_factory=dict)
 
 
-Responses = Dict[str, Response]
+Responses = Dict[str, Union[Response, Ref]]
 
 
 class SecurityType(str, enum.Enum):
