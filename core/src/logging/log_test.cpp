@@ -166,4 +166,95 @@ TEST_F(LoggingTest, Format) {
     ClearLog();
 }
 
+TEST_F(LoggingTest, Call) {
+    /// [Example lambda-based logging usage]
+    std::map<int, int> map{{1, 2}, {2, 3}, {3, 4}};
+    LOG_ERROR() << [&map](auto& out) {
+        for (const auto& [key, value] : map) {
+            out << key << "=" << value << ", ";
+        }
+    };
+    /// [Example lambda-based logging usage]
+    EXPECT_EQ("1=2, 2=3, 3=4, ", LoggedText());
+}
+
+TEST_F(LoggingTest, CallFormat) {
+    /// [Example lambda-based logging usage]
+    std::map<int, int> map{{1, 2}, {2, 3}, {3, 4}};
+    LOG_ERROR() << [&map](auto& out) {
+        for (const auto& [key, value] : map) {
+            out.Format("{}={}, ", key, value);
+        }
+    };
+    /// [Example lambda-based logging usage]
+    EXPECT_EQ("1=2, 2=3, 3=4, ", LoggedText());
+}
+
+TEST_F(LoggingTest, LoggingContainerElementFields) {
+    struct Item {
+        int foo;
+        std::string bar;
+    };
+    std::vector<Item> list{{1, "x"}, {2, "y"}};
+    /// [Example Logging Container Element Fields]
+    LOG_INFO() << [&list](auto& out) {
+        for (const auto& item : list) {
+            out << item.foo << " " << item.bar << ", ";
+        }
+    };
+    /// [Example Logging Container Element Fields]
+    EXPECT_EQ("1 x, 2 y, ", LoggedText());
+}
+
+TEST_F(LoggingTest, AddingCustomFormatting) {
+    struct Item {
+        int foo;
+        std::string bar;
+    };
+    std::vector<Item> list{{1, "x"}, {2, "y"}};
+    /// [Example Adding Custom Formatting]
+    LOG_INFO() << [&list](auto& out) {
+        bool first = true;
+        out << "Items: ";
+        for (const auto& item : list) {
+            if (!first) out << "; ";
+            out << item.foo << ":" << item.bar;
+            first = false;
+        }
+    };
+    /// [Example Adding Custom Formatting]
+    EXPECT_EQ("Items: 1:x; 2:y", LoggedText());
+}
+
+TEST_F(LoggingTest, LoggingNestedStructures) {
+    struct Item {
+        int foo;
+        std::string bar;
+    };
+    std::vector<Item> list{{1, "x"}, {2, "y"}};
+
+    /// [Example Logging Nested Structures]
+    LOG_INFO() << [&list](auto& out) {
+        out << "Records: [";
+        for (const auto& item : list) {
+            out << "{foo=" << item.foo << ", bar=" << item.bar << "}, ";
+        }
+        out << "]";
+    };
+    /// [Example Logging Nested Structures]
+    EXPECT_EQ("Records: [{foo=1, bar=x}, {foo=2, bar=y}, ]", LoggedText());
+
+    ClearLog();
+    /// [Example Logging Nested Structures]
+    LOG_INFO() << [&list](auto& out) {
+        out << "Records: [";
+        for (const auto& item : list) {
+            out.Format("{{foo={}, bar={}}}, ", item.foo, item.bar);
+        }
+        out << "]";
+    };
+    /// [Example Logging Nested Structures]
+    EXPECT_EQ("Records: [{foo=1, bar=x}, {foo=2, bar=y}, ]", LoggedText());
+}
+
 USERVER_NAMESPACE_END

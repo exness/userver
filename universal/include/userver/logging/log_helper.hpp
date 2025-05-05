@@ -183,6 +183,10 @@ public:
     LogHelper& PutTag(std::string_view key, const LogExtra::Value& value) noexcept;
     LogHelper& PutSwTag(std::string_view key, std::string_view value) noexcept;
 
+    /// @brief Formats a log message using the specified format string and arguments.
+    /// @param fmt The format string as per fmtlib.
+    /// @param args Arguments to be formatted into the log message.
+    /// @return A reference to the LogHelper object for chaining.
     template <typename... Args>
     LogHelper& Format(fmt::format_string<Args...> fmt, Args&&... args) noexcept;
 
@@ -272,6 +276,12 @@ LogHelper& operator<<(LogHelper& lh, const std::optional<T>& value) {
         lh << *value;
     else
         lh << "(none)";
+    return lh;
+}
+
+template <typename Fun, typename = std::enable_if_t<std::is_invocable_r_v<void, Fun, LogHelper&>>>
+LogHelper& operator<<(LogHelper& lh, Fun&& value) {
+    std::forward<Fun>(value)(lh);
     return lh;
 }
 
