@@ -405,7 +405,8 @@ UTEST_P(ServerMiddlewareHooksStreamingWithParamTest, FailInSecondMiddlewareOnPre
 }
 
 UTEST_F(ServerMiddlewareHooksStreamingTest, ThrowInHandler) {
-    SetHandler([](ChatReaderWriter& bs) {
+    engine::SingleUseEvent client_finished;
+    SetHandler([&client_finished](ChatReaderWriter& bs) {
         sample::ugrpc::StreamGreetingRequest request;
 
         EXPECT_TRUE(bs.Read(request));
@@ -416,8 +417,13 @@ UTEST_F(ServerMiddlewareHooksStreamingTest, ThrowInHandler) {
         bs.Write(response);
 
         EXPECT_TRUE(bs.Read(request));
+        EXPECT_EQ(
+            client_finished.WaitUntil(engine::Deadline::FromDuration(utest::kMaxTestWaitTime)),
+            engine::FutureStatus::kReady
+        );
 
         throw std::runtime_error{"fail :("};
+
         return grpc::Status::OK;
     });
     engine::SingleUseEvent rpc_finish;
@@ -447,6 +453,7 @@ UTEST_F(ServerMiddlewareHooksStreamingTest, ThrowInHandler) {
 
     sample::ugrpc::StreamGreetingResponse in;
     EXPECT_TRUE(bs.Read(in));
+    client_finished.Send();
 
     UEXPECT_THROW_MSG(
         [[maybe_unused]] const auto success = bs.Read(in),
