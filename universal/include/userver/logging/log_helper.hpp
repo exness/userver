@@ -111,13 +111,6 @@ public:
     LogHelper& AsLvalue() noexcept { return *this; }
 
     /// @cond
-    LogHelper& AsLvalue(std::string_view msg) noexcept {
-        *this << msg;
-        return *this;
-    }
-    /// @endcond
-
-    /// @cond
     template <typename... Args>
     LogHelper& AsLvalue(fmt::format_string<Args...> fmt, Args&&... args) noexcept {
         VFormat(fmt::string_view(fmt), fmt::make_format_args(args...));

@@ -119,6 +119,9 @@ TEST_F(LoggingTest, DocsDataInlineFormat) {
     LOG_ERROR("This is {}, fix me, please!", "unbelievable");
     LOG_CRITICAL("The service is about to {}, bye", "abort");
     /// [Sample logging usage]
+
+    // NOTE: Should not be compilable!
+    // LOG_WARNING(fmt::format("Something {} happened", "strange"));
 }
 
 TEST_F(LoggingTest, DatetimeDate) {
