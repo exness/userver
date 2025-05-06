@@ -87,6 +87,7 @@ ClusterImpl::ClusterImpl(
     const error_injection::Settings& ei_settings,
     testsuite::TestsuiteTasks& testsuite_tasks,
     dynamic_config::Source config_source,
+    USERVER_NAMESPACE::utils::statistics::MetricsStoragePtr metrics,
     int shard_number
 )
     : cluster_settings_(cluster_settings),
@@ -96,6 +97,7 @@ ClusterImpl::ClusterImpl(
       default_cmd_ctls_(default_cmd_ctls),
       testsuite_pg_ctl_(testsuite_pg_ctl),
       ei_settings_(ei_settings),
+      metrics_(std::move(metrics)),
       rr_host_idx_(0),
       connlimit_watchdog_(*this, testsuite_tasks, shard_number, [this]() { OnConnlimitChanged(); }) {
     CreateTopology(dsns);
@@ -127,7 +129,8 @@ void ClusterImpl::CreateTopology(const DsnList& dsns) {
             cluster_settings->conn_settings,
             default_cmd_ctls_,
             testsuite_pg_ctl_,
-            ei_settings_
+            ei_settings_,
+            metrics_
         );
     } else {
         LOG_INFO() << "Creating a cluster in hot standby mode";
@@ -139,7 +142,8 @@ void ClusterImpl::CreateTopology(const DsnList& dsns) {
             cluster_settings->conn_settings,
             default_cmd_ctls_,
             testsuite_pg_ctl_,
-            ei_settings_
+            ei_settings_,
+            metrics_
         );
     }
 
@@ -171,7 +175,8 @@ void ClusterImpl::CreateTopology(const DsnList& dsns) {
                 testsuite_pg_ctl_,
                 ei_settings_,
                 cluster_settings->cc_config,
-                config_source_
+                config_source_,
+                metrics_
             ));
         }
     }

@@ -135,6 +135,7 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
     auto& testsuite_tasks = testsuite::GetTestsuiteTasks(context);
 
     auto* resolver = clients::dns::GetResolverPtr(config, context);
+    auto metrics = context.FindComponent<components::StatisticsStorage>().GetMetricsStorage();
 
     int shard_number = 0;
     for (auto& dsns : cluster_desc) {
@@ -151,6 +152,7 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
             ei_settings,
             testsuite_tasks,
             config_source_,
+            metrics,
             shard_number++
         );
         database_->clusters_.push_back(cluster);

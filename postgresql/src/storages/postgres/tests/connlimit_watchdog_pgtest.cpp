@@ -11,6 +11,7 @@
 #include <storages/postgres/detail/cluster_impl.hpp>
 #include <storages/postgres/detail/connection.hpp>
 #include <storages/postgres/postgres_config.hpp>
+#include <userver/utils/statistics/metrics_storage.hpp>
 
 #include <userver/dynamic_config/test_helpers.hpp>
 
@@ -48,6 +49,7 @@ pgd::ClusterImpl CreateClusterImpl(
         {},
         testsuite_tasks,
         source,
+        std::make_shared<USERVER_NAMESPACE::utils::statistics::MetricsStorage>(),
         kShardNumber
     );
 }

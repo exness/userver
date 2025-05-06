@@ -5,6 +5,7 @@
 
 #include <string>
 #include <string_view>
+#include <userver/alerts/source.hpp>
 #include <userver/error_injection/hook.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/server/request/task_inherited_data.hpp>
@@ -176,6 +177,8 @@ constexpr USERVER_NAMESPACE::utils::StringLiteral kCommands[] = {
     "rollback",
 };
 
+alerts::Source kPreparedQueriesOverflowAlert("prepared_queries_overflow");
+
 }  // namespace
 
 std::string_view FindCommandName(std::string_view str) {
@@ -220,7 +223,8 @@ ConnectionImpl::ConnectionImpl(
     const DefaultCommandControls& default_cmd_ctls,
     const testsuite::PostgresControl& testsuite_pg_ctl,
     const error_injection::Settings& ei_settings,
-    engine::SemaphoreLock&& size_lock
+    engine::SemaphoreLock&& size_lock,
+    USERVER_NAMESPACE::utils::statistics::MetricsStoragePtr metrics
 )
     : uuid_{USERVER_NAMESPACE::utils::generators::GenerateUuid()},
       conn_wrapper_{bg_task_processor, bg_task_storage, id, std::move(size_lock)},
@@ -228,7 +232,8 @@ ConnectionImpl::ConnectionImpl(
       settings_{settings},
       default_cmd_ctls_(default_cmd_ctls),
       testsuite_pg_ctl_{testsuite_pg_ctl},
-      ei_settings_(ei_settings) {
+      ei_settings_(ei_settings),
+      metrics_(std::move(metrics)) {
     if (settings_.max_prepared_cache_size == 0) {
         throw InvalidConfig("max_prepared_cache_size is 0");
     }
@@ -764,6 +769,8 @@ const ConnectionImpl::PreparedStatementInfo& ConnectionImpl::DoPrepareStatement(
         UASSERT(statement_info);
         DiscardPreparedStatement(*statement_info, deadline);
         prepared_.Erase(statement_info->id);
+
+        kPreparedQueriesOverflowAlert.FireAlert(*metrics_);
     }
 
     scope.Reset(scopes::kPrepare);

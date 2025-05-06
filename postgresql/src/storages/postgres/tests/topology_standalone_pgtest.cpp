@@ -4,6 +4,7 @@
 #include <storages/postgres/detail/topology/standalone.hpp>
 #include <userver/error_injection/settings.hpp>
 #include <userver/storages/postgres/exceptions.hpp>
+#include <userver/utils/statistics/metrics_storage.hpp>
 
 #include <storages/postgres/tests/util_pgtest.hpp>
 
@@ -22,7 +23,8 @@ UTEST_F(Standalone, Smoke) {
         pg::ConnectionSettings{},
         GetTestCmdCtls(),
         testsuite::PostgresControl{},
-        error_injection::Settings{}
+        error_injection::Settings{},
+        std::make_shared<utils::statistics::MetricsStorage>()
     );
 
     auto hosts = sa.GetDsnIndicesByType();

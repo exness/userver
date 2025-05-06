@@ -3,6 +3,7 @@
 #include <storages/postgres/detail/connection.hpp>
 #include <storages/postgres/detail/topology/hot_standby.hpp>
 #include <userver/storages/postgres/exceptions.hpp>
+#include <userver/utils/statistics/metrics_storage.hpp>
 
 #include <storages/postgres/tests/util_pgtest.hpp>
 
@@ -22,7 +23,8 @@ UTEST_F(HotStandby, Smoke) {
         pg::ConnectionSettings{},
         GetTestCmdCtls(),
         testsuite::PostgresControl{},
-        error_injection::Settings{}
+        error_injection::Settings{},
+        std::make_shared<utils::statistics::MetricsStorage>()
     );
     auto hosts = qcc.GetDsnIndicesByType();
 
@@ -45,7 +47,8 @@ UTEST_F(HotStandby, ReplicationLag) {
         pg::ConnectionSettings{},
         GetTestCmdCtls(),
         testsuite::PostgresControl{},
-        error_injection::Settings{}
+        error_injection::Settings{},
+        std::make_shared<utils::statistics::MetricsStorage>()
     );
     auto hosts = qcc.GetDsnIndicesByType();
 
@@ -63,7 +66,8 @@ UTEST_F(HotStandby, SetReplicationLag) {
         pg::ConnectionSettings{},
         GetTestCmdCtls(),
         testsuite::PostgresControl{},
-        error_injection::Settings{}
+        error_injection::Settings{},
+        std::make_shared<utils::statistics::MetricsStorage>()
     );
     qcc.SetTopologySettings(pg::TopologySettings{std::chrono::milliseconds{60}});
     EXPECT_TRUE(qcc.GetTopologySettings().max_replication_lag == std::chrono::milliseconds(60));

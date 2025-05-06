@@ -140,7 +140,8 @@ HotStandby::HotStandby(
     const ConnectionSettings& conn_settings,
     const DefaultCommandControls& default_cmd_ctls,
     const testsuite::PostgresControl& testsuite_pg_ctl,
-    error_injection::Settings ei_settings
+    error_injection::Settings ei_settings,
+    USERVER_NAMESPACE::utils::statistics::MetricsStoragePtr metrics
 )
     : TopologyBase(
           bg_task_processor,
@@ -150,7 +151,8 @@ HotStandby::HotStandby(
           conn_settings,
           default_cmd_ctls,
           testsuite_pg_ctl,
-          std::move(ei_settings)
+          std::move(ei_settings),
+          std::move(metrics)
       ),
       host_states_{GetDsnList().begin(), GetDsnList().end()},
       dsn_stats_(GetDsnList().size()) {
