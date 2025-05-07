@@ -68,5 +68,5 @@ def _userver_config_logs_capture(userver_log_capture):
 
 
 def _tskv_parse_line(rawline: bytes):
-    line = rawline.decode('utf-8')
+    line = rawline.decode(encoding='utf-8', errors='replace')
     return tskv.parse_line(line)
