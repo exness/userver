@@ -137,7 +137,7 @@ class CompilerBase:
         # fname = f'taxi_config/definitions/{name}'
         fname = f'{name}'
 
-        schemas, types, _ = self._generate_types(
+        schemas, types, seen_includes = self._generate_types(
             filepath,
             namespace=f'taxi_config::{name_lower}',
             name_map=name_map,
@@ -146,6 +146,7 @@ class CompilerBase:
             include_dirs=include_dirs,
         )
         self._definitions[name] = (schemas, types)
+        self.seen_includes[filepath] = seen_includes
 
     def definitions_includes_hpp(self) -> List[str]:
         types = self._collect_types()
