@@ -396,7 +396,7 @@ class InterceptTask:
             # the interceptor.
             await _wait_for_data(self._socket_from)
 
-            # Wait for interceptor attched
+            # Wait for interceptor attached
             async with self._condition:
                 interceptor = await self._condition.wait_for(self.get_interceptor)
 

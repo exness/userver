@@ -159,7 +159,7 @@ then it should be added to `CMakePresets.json`:
 }
 ```
 
-If an option only configures local build (should NOT be commited to VCS and applied in CI),
+If an option only configures local build (should NOT be committed to VCS and applied in CI),
 then it should instead be added to `CMakeUserPresets.json`:
 
 * @ref service-template/CMakeUserPresets.json.example

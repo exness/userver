@@ -4735,7 +4735,7 @@
   "universal/src/utils/from_string_benchmark.cpp":"taxi/uservices/userver/universal/src/utils/from_string_benchmark.cpp",
   "universal/src/utils/from_string_test.cpp":"taxi/uservices/userver/universal/src/utils/from_string_test.cpp",
   "universal/src/utils/function_ref_test.cpp":"taxi/uservices/userver/universal/src/utils/function_ref_test.cpp",
-  "universal/src/utils/gbench_auxilary.hpp":"taxi/uservices/userver/universal/src/utils/gbench_auxilary.hpp",
+  "universal/src/utils/gbench_auxiliary.hpp":"taxi/uservices/userver/universal/src/utils/gbench_auxiliary.hpp",
   "universal/src/utils/get_if_test.cpp":"taxi/uservices/userver/universal/src/utils/get_if_test.cpp",
   "universal/src/utils/impl/byte_utils.cpp":"taxi/uservices/userver/universal/src/utils/impl/byte_utils.cpp",
   "universal/src/utils/impl/byte_utils.hpp":"taxi/uservices/userver/universal/src/utils/impl/byte_utils.hpp",

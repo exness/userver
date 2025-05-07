@@ -137,7 +137,7 @@ properties:
         defaultDescription: false
     disable-all-pipeline-middlewares:
         type: boolean
-        description: flag to disable all middlewares from pipline
+        description: flag to disable all middlewares from pipeline
         defaultDescription: false
     middlewares:
         type: object

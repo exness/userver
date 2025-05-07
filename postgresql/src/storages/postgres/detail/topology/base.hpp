@@ -24,8 +24,8 @@ class TopologyBase {
 public:
     using DsnIndex = size_t;
     struct DsnIndices final {
-        // all alive indicies
-        std::vector<DsnIndex> indicies{};
+        // all alive indices
+        std::vector<DsnIndex> indices{};
 
         // index with lowest rrt
         std::optional<DsnIndex> nearest{};

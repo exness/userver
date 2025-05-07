@@ -34,6 +34,10 @@ Changelog news also go to the
 
 ## Changelog
 
+### Release v2.9
+
+* 
+
 ### Release v2.8
 
 * `sharding_strategy` of the components::Redis now supports `RedisStandalone` configuration, that may be useful for
@@ -52,7 +56,7 @@ Changelog news also go to the
 * utils::regex now always uses a faster and safer Re2 instead of boost::regex.
 * Dynamic config `USERVER_HANDLER_STREAM_API_ENABLED` is not used any more.
 * server::handlers::HttpHandlerStatic now has a `expires` static config option.
-* kafka::ProducerComponent and kafka::ConsumerComponent now supprt 'SASL_PLAINTEXT'
+* kafka::ProducerComponent and kafka::ConsumerComponent now support 'SASL_PLAINTEXT'
   security protocol. Many thanks to [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
 * Implemented OneOf discriminator mapping to integer and generation of fmt::formatters for enums in chaotic.
 * Load `kRoundRobin` load distribution in PostgreSQL is now uniform

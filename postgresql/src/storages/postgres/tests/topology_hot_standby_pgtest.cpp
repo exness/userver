@@ -32,7 +32,7 @@ UTEST_F(HotStandby, Smoke) {
     if (dsns.size() > 1) {
         // Should detect slaves
         EXPECT_EQ(1, hosts->count(pg::ClusterHostType::kSlave));
-        EXPECT_LT(0, hosts->at(pg::ClusterHostType::kSlave).indicies.size());
+        EXPECT_LT(0, hosts->at(pg::ClusterHostType::kSlave).indices.size());
     } else {
         EXPECT_EQ(0, hosts->count(pg::ClusterHostType::kSlave));
     }

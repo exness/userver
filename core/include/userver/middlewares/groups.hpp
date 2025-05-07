@@ -23,7 +23,7 @@ struct PreCore final {
 
 /// @ingroup userver_middlewares_groups
 ///
-/// @brief The Group to work wih logging. Is located after PreCore.
+/// @brief The Group to work with logging. Is located after PreCore.
 ///
 /// @details There are:
 ///

@@ -33,7 +33,7 @@ components_manager:
         some-service:
             middlewares:
                 some-middleware:
-                    enabled: false  # loacally disable
+                    enabled: false  # locally disable
 ```
 
 2\. Globally disable (for all services) and force local enable
