@@ -63,12 +63,12 @@ void PeriodicTask::Stop() noexcept {
   const auto name_ptr = name_.Read();
   try {
     if (IsRunning()) {
-      LOG_INFO() << "Stopping PeriodicTask with name=" << *name_ptr;
+      LOG_DEBUG() << "Stopping PeriodicTask with name=" << *name_ptr;
       task_.SyncCancel();
       changed_event_.Reset();
       should_force_step_ = false;
       task_ = engine::TaskWithResult<void>();
-      LOG_INFO() << "Stopped PeriodicTask with name=" << *name_ptr;
+      LOG_DEBUG() << "Stopped PeriodicTask with name=" << *name_ptr;
     }
   } catch (std::exception& e) {
     LOG_ERROR() << "Exception while stopping PeriodicTask with name="
