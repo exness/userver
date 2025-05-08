@@ -154,7 +154,7 @@ void Connection::ListenForRequests() noexcept {
     // default_error_category() fixed only in GCC 9.1 (PR libstdc++/60555)
     auto log_level =
         ex.Code().value() == static_cast<int>(std::errc::connection_reset)
-            ? logging::Level::kInfo
+            ? logging::Level::kDebug
             : logging::Level::kError;
     LOG(log_level) << "I/O error while receiving from peer " << Getpeername()
                    << " on fd " << Fd() << ": " << ex;
