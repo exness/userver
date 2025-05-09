@@ -139,7 +139,7 @@ void Connection::ListenForRequests() noexcept {
     } catch (const engine::io::IoSystemError& ex) {
         // working with raw values because std::errc compares error_category
         // default_error_category() fixed only in GCC 9.1 (PR libstdc++/60555)
-        auto log_level = ex.Code().value() == static_cast<int>(std::errc::connection_reset) ? logging::Level::kInfo
+        auto log_level = ex.Code().value() == static_cast<int>(std::errc::connection_reset) ? logging::Level::kDebug
                                                                                             : logging::Level::kError;
         LOG(log_level) << "I/O error while receiving from peer " << Getpeername() << " on fd " << Fd() << ": " << ex;
     } catch (const std::exception& ex) {
