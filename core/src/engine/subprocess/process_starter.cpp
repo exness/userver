@@ -127,8 +127,9 @@ ProcessStarter::Exec(const std::string& executable_path, const std::vector<std::
                               return key_value.first + '=' + key_value.second;
                           });
         LOG_DEBUG() << fmt::format(
-            "do fork() + {}(), executable_path={}, args=[\'{}\'], env=[]",
+            "do fork() + {}(), executable_path={}, args=[\'{}\'], env=[{}]",
             options.use_path ? "execv" : "execvp",
+            executable_path,
             fmt::join(args, "' '"),
             fmt::join(keys, ", ")
         );
