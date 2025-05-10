@@ -8,6 +8,8 @@
 USERVER_NAMESPACE_BEGIN
 
 /// Server logging middleware
+/// @see @ref scripts/docs/en/userver/grpc/server_middlewares.md
+/// @see @ref ugrpc::server::middlewares::log::Component
 namespace ugrpc::server::middlewares::log {
 
 struct Settings;
@@ -24,7 +26,6 @@ struct Settings;
 /// ## Static options:
 /// Name | Description | Default value
 /// ---- | ----------- | -------------
-/// log-level | log level to use for `Span`, status code and the facts of sending requests receiving responses arriving | debug
 /// msg-log-level | log level to use for request and response messages themselves | debug
 /// msg-size-log-limit | max message size to log, the rest will be truncated | 512
 /// trim-secrets | trim the secrets from logs as marked by the protobuf option | true (*)
@@ -38,6 +39,8 @@ struct Settings;
 /// @snippet grpc/functional_tests/basic_chaos/static_config.yaml Sample grpc server logging middleware component config
 ///
 /// In this example, we enable logs for gRPC clients in production.
+///
+/// @see @ref scripts/docs/en/userver/grpc/server_middlewares.md
 
 // clang-format on
 
@@ -49,13 +52,11 @@ public:
 
     Component(const components::ComponentConfig& config, const components::ComponentContext& context);
 
-    ~Component() override;
-
     static yaml_config::Schema GetStaticConfigSchema();
 
     yaml_config::Schema GetMiddlewareConfigSchema() const override;
 
-    std::shared_ptr<MiddlewareBase> CreateMiddleware(
+    std::shared_ptr<const MiddlewareBase> CreateMiddleware(
         const ugrpc::server::ServiceInfo&,
         const yaml_config::YamlConfig& middleware_config
     ) const override;

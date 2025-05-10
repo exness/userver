@@ -8,6 +8,7 @@
 #include <userver/storages/postgres/exceptions.hpp>
 #include <userver/storages/postgres/io/chrono.hpp>
 #include <userver/storages/postgres/null.hpp>
+#include <userver/utils/statistics/metrics_storage.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -16,8 +17,8 @@ namespace pg = storages::postgres;
 namespace static_test {
 
 struct no_input_operator {};
-static_assert(!pg::io::traits::HasInputOperator<no_input_operator>::value, "Test input metafunction");
-static_assert(pg::io::traits::HasInputOperator<int>::value, "Test input metafunction");
+static_assert(!pg::io::traits::kHasInputOperator<no_input_operator>, "Test input metafunction");
+static_assert(pg::io::traits::kHasInputOperator<int>, "Test input metafunction");
 static_assert(!pg::io::traits::kHasParser<no_input_operator>, "Test has parser metafunction");
 static_assert(pg::io::traits::kHasParser<int>, "Test has parser metafunction");
 
@@ -393,7 +394,9 @@ UTEST_F(PostgreCustomConnection, Connect) {
             kCachePreparedStatements,
             GetTestCmdCtls(),
             {},
-            {}
+            {},
+            {},
+            std::make_shared<utils::statistics::MetricsStorage>()
         ),
         pg::InvalidDSN
     ) << "Connected with invalid DSN";
@@ -411,7 +414,9 @@ UTEST_F(PostgreCustomConnection, NoPreparedStatements) {
         kNoPreparedStatements,
         GetTestCmdCtls(),
         {},
-        {}
+        {},
+        {},
+        std::make_shared<utils::statistics::MetricsStorage>()
     ));
 }
 
@@ -427,7 +432,9 @@ UTEST_F(PostgreCustomConnection, NoUserTypes) {
             kNoUserTypes,
             GetTestCmdCtls(),
             {},
-            {}
+            {},
+            {},
+            std::make_shared<utils::statistics::MetricsStorage>()
         )
     );
     ASSERT_TRUE(conn);

@@ -30,7 +30,7 @@ def grpc_mockserver_endpoint(pytestconfig, get_free_port) -> str:
 
     Override this fixture to customize the endpoint used by gRPC mockserver.
 
-    @snippet samples/grpc_service/tests/conftest.py  Prepare configs
+    @snippet grpc/functional_tests/basic_chaos/tests-grpcclient/conftest.py grpc_mockserver_endpoint example
     @ingroup userver_testsuite_fixtures
     """
     port = pytestconfig.option.grpc_mockserver_port
@@ -47,7 +47,7 @@ async def grpc_mockserver_session(grpc_mockserver_endpoint) -> pytest_userver.gr
     Returns the gRPC mocking server.
 
     @warning This is a sharp knife, use with caution! For most use-cases, prefer
-    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new" instead.
+    @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver" instead.
 
     @ingroup userver_testsuite_fixtures
     """
@@ -59,7 +59,7 @@ async def grpc_mockserver_session(grpc_mockserver_endpoint) -> pytest_userver.gr
 
 
 @pytest.fixture
-def grpc_mockserver_new(
+def grpc_mockserver(
     grpc_mockserver_session,
     asyncexc_append,
     _grpc_mockserver_ignore_errors,
@@ -80,7 +80,7 @@ def grpc_mockserver_new(
     @snippet grpc/functional_tests/metrics/tests/test_metrics.py  grpc client test
 
     Mocks are only active within tests after their respective handler functions are created, not between tests.
-    If you need the service needs the mock during startup, add the fixture that defines your mock to
+    If the service needs the mock during startup, add the fixture that defines your mock to
     @ref pytest_userver.plugins.service.extra_client_deps "extra_client_deps".
 
     To return an error status instead of response, use `context` (see
@@ -91,8 +91,8 @@ def grpc_mockserver_new(
 
     To trigger special exceptions in the service's gRPC client, raise these mocked errors from the mock handler:
 
-    * @ref pytest_userver.grpc.NetworkError
-    * @ref pytest_userver.grpc.TimeoutError
+    * @ref pytest_userver.grpc._mocked_errors.TimeoutError "pytest_userver.grpc.TimeoutError"
+    * @ref pytest_userver.grpc._mocked_errors.NetworkError "pytest_userver.grpc.NetworkError"
 
     @ingroup userver_testsuite_fixtures
     """
@@ -128,6 +128,14 @@ def userver_config_grpc_mockserver(grpc_mockserver_endpoint):
             testsuite_middleware['enabled'] = True
 
     return patch_config
+
+
+@pytest.fixture
+def grpc_mockserver_new(grpc_mockserver) -> pytest_userver.grpc.Mockserver:
+    """
+    @deprecated Legacy alias for @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver".
+    """
+    return grpc_mockserver
 
 
 # @cond

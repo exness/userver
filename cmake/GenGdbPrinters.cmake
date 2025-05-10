@@ -1,5 +1,6 @@
 include_guard(GLOBAL)
 
+include("${CMAKE_CURRENT_LIST_DIR}/UserverCodegenTarget.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/UserverVenv.cmake")
 
 function(gen_gdb_printers TARGET STRUCTURE)
@@ -26,6 +27,7 @@ function(gen_gdb_printers TARGET STRUCTURE)
       COMMENT "Generating pretty printers at ${OUTPUT_HEADER}"
       ${CODEGEN}
   )
+  _userver_codegen_register_files("${OUTPUT_HEADER}")
 
   # Add the generated header to the target's sources
   target_sources(${TARGET} PRIVATE "${OUTPUT_HEADER}")

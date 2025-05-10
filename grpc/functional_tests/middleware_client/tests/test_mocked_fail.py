@@ -6,8 +6,8 @@ import samples.greeter_pb2_grpc as greeter_services
 
 
 # /// [Mocked network failure]
-async def test_network_fail(service_client, grpc_mockserver_new):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_network_fail(service_client, grpc_mockserver):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         raise pytest_userver.grpc.NetworkError()
 
@@ -18,8 +18,8 @@ async def test_network_fail(service_client, grpc_mockserver_new):
 
 
 # /// [Mocked timeout failure]
-async def test_timeout_fail(service_client, grpc_mockserver_new):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_timeout_fail(service_client, grpc_mockserver):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         raise pytest_userver.grpc.TimeoutError()
 

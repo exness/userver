@@ -22,6 +22,7 @@
 #include <schemas/object_single_field.hpp>
 #include <schemas/one_of.hpp>
 #include <schemas/oneofdiscriminator.hpp>
+#include <schemas/string64.hpp>
 #include <schemas/uuid.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -166,7 +167,7 @@ TEST(Simple, IntegerEnum) {
     UEXPECT_THROW_MSG(
         json2["one"].As<ns::IntegerEnum>(),
         chaotic::Error<formats::json::Value>,
-        "Error at path 'one': Invalid enum value (5) for type ns::IntegerEnum"
+        "Error at path 'one': Invalid enum value (5) for type ::ns::IntegerEnum"
     );
 
     EXPECT_EQ(std::size(ns::kIntegerEnumValues), 3);
@@ -191,7 +192,7 @@ TEST(Simple, StringEnum) {
     UEXPECT_THROW_MSG(
         json2["one"].As<ns::StringEnum>(),
         chaotic::Error<formats::json::Value>,
-        "Error at path 'one': Invalid enum value (zoo) for type ns::StringEnum"
+        "Error at path 'one': Invalid enum value (zoo) for type ::ns::StringEnum"
     );
 
     EXPECT_EQ("foo", ToString(ns::StringEnum::kFoo));
@@ -202,14 +203,14 @@ TEST(Simple, StringEnum) {
     UEXPECT_THROW_MSG(
         FromString("zoo", formats::parse::To<ns::StringEnum>{}),
         std::runtime_error,
-        "Invalid enum value (zoo) for type ns::StringEnum"
+        "Invalid enum value (zoo) for type ::ns::StringEnum"
     );
 
     EXPECT_EQ(Parse("foo", formats::parse::To<ns::StringEnum>{}), ns::StringEnum::kFoo);
     UEXPECT_THROW_MSG(
         Parse("zoo", formats::parse::To<ns::StringEnum>{}),
         std::runtime_error,
-        "Invalid enum value (zoo) for type ns::StringEnum"
+        "Invalid enum value (zoo) for type ::ns::StringEnum"
     );
 
     EXPECT_EQ(std::size(ns::kStringEnumValues), 3);
@@ -365,6 +366,17 @@ TEST(Simple, Uuid) {
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["uuid"].As<std::string>();
     EXPECT_EQ(str, uuid);
+}
+
+TEST(SIMPLE, String64) {
+    auto str64 = crypto::base64::String64{"hello, userver!"};
+    auto obj = ns::ObjectString64{str64};
+
+    auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["value"].As<std::string>();
+    EXPECT_EQ(str, "aGVsbG8sIHVzZXJ2ZXIh");
+
+    auto new_obj = formats::json::MakeObject("value", str).As<ns::ObjectString64>();
+    EXPECT_EQ(new_obj.value, str64);
 }
 
 USERVER_NAMESPACE_END

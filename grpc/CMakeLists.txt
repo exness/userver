@@ -169,6 +169,7 @@ if (USERVER_BUILD_TESTS)
       tests/global_package.proto
       tests/repeating_word_in_package_name.proto
       tests/secret_fields.proto
+      tests/logging.proto
       INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/proto
   )
 
@@ -205,6 +206,13 @@ add_subdirectory(handlers)
 add_library(${PROJECT_NAME} INTERFACE)
 target_link_libraries(${PROJECT_NAME} INTERFACE ${PROJECT_NAME}-handlers)
 target_link_libraries(${PROJECT_NAME} INTERFACE ${PROJECT_NAME}-internal)
+
+userver_target_generate_chaotic_dynamic_configs(
+    ${PROJECT_NAME}-dynamic-configs
+    dynamic_configs/*.yaml
+)
+target_link_libraries(${PROJECT_NAME}-internal PUBLIC ${PROJECT_NAME}-dynamic-configs)
+_userver_install_targets(COMPONENT grpc TARGETS ${PROJECT_NAME}-dynamic-configs)
 
 _userver_install_targets(COMPONENT grpc TARGETS ${PROJECT_NAME})
 

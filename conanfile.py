@@ -9,7 +9,9 @@ from conan.tools.cmake import CMake
 from conan.tools.cmake import cmake_layout
 from conan.tools.cmake import CMakeDeps
 from conan.tools.cmake import CMakeToolchain
+from conan.tools.files import copy
 from conan.tools.files import load
+from conan.tools.scm import Git
 
 required_conan_version = '>=2.8.0'  # pylint: disable=invalid-name
 
@@ -22,7 +24,6 @@ class UserverConan(ConanFile):
     homepage = 'https://userver.tech/'
     license = 'Apache-2.0'
     package_type = 'static-library'
-    exports_sources = '*'
 
     settings = 'os', 'arch', 'compiler', 'build_type'
     options = {
@@ -83,6 +84,14 @@ class UserverConan(ConanFile):
         're2/*:with_icu': True,
     }
 
+    def export_sources(self):
+        git = Git(self)
+        tracked_sources = git.included_files()
+        # To speed up copying, we take only the root folders
+        tracked_sources = set(f.split('/')[0] for f in tracked_sources)
+        for i in tracked_sources:
+            copy(self, f'{i}*', self.recipe_folder, self.export_sources_folder)
+
     def set_version(self):
         content = load(
             self,
@@ -105,7 +114,7 @@ class UserverConan(ConanFile):
         self.requires('cctz/2.4', transitive_headers=True)
         self.requires('concurrentqueue/1.0.3', transitive_headers=True)
         self.requires('cryptopp/8.9.0')
-        self.requires('fmt/8.1.1', transitive_headers=True)
+        self.requires('fmt/11.0.2', transitive_headers=True)
         self.requires('libiconv/1.17')
         self.requires('libnghttp2/1.61.0')
         self.requires('libcurl/8.12.1')
