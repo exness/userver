@@ -1365,7 +1365,7 @@ Detailed descriptions could be found below.
     more info.
   * Scripts for generating CMakeLists were simplified and cleared from internal
     stuff.
-  * Added missing dependencies to @ref scripts/docs/en/deps/ubuntu-20.04.md and sorted all
+  * Added missing dependencies to Ubuntu-20.04 and sorted all
     the dependencies, thanks to [Anatoly Shirokov](https://github.com/anatoly-spb)
     for the PR.
 * Statistics and metrics now do additional lifetime checks in debug builds to
