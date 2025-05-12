@@ -181,15 +181,20 @@ TEST_F(LoggingTest, Call) {
 }
 
 TEST_F(LoggingTest, CallFormat) {
-    /// [Example lambda-based logging usage]
-    std::map<int, int> map{{1, 2}, {2, 3}, {3, 4}};
-    LOG_ERROR() << [&map](auto& out) {
-        for (const auto& [key, value] : map) {
-            out.Format("{}={}, ", key, value);
-        }
-    };
-    /// [Example lambda-based logging usage]
-    EXPECT_EQ("1=2, 2=3, 3=4, ", LoggedText());
+    const int user_id = 42;
+    std::string ip_address = "127.0.0.1";
+    std::string_view expected_result = "User 42 logged in from 127.0.0.1";
+
+    /// [Example format bad logging usage]
+    LOG_INFO() << fmt::format("User {} logged in from {}", user_id, ip_address);
+    /// [Example format bad logging usage]
+    EXPECT_EQ(expected_result, LoggedText());
+    ClearLog();
+
+    /// [Example format-based logging usage]
+    LOG_INFO("User {} logged in from {}", user_id, ip_address);
+    /// [Example format-based logging usage]
+    EXPECT_EQ(expected_result, LoggedText());
 }
 
 TEST_F(LoggingTest, LoggingContainerElementFields) {

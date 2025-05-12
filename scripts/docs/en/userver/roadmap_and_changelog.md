@@ -36,7 +36,8 @@ Changelog news also go to the
 
 ### Release v2.9
 
-* Logging now supports `fmt` formatting in macro: `LOG_INFO("This is {} message", "informational");`
+* Logging now supports `fmt` formatting in macro `LOG_INFO("User {} logged in from {}", user_id, ip_address);` and
+  lambda formatting. See @ref scripts/docs/en/userver/logging.md for more info.
 * PostgreSQL driver now can disable all the statements logging via static config option `statement-log-mode` 
 * ClickHouse driver now supports doubles in the queries.
 * YDB now can be used with GCC compiler, not only Clang. YDB still requires C++20 support
