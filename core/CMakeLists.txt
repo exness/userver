@@ -80,6 +80,10 @@ add_library(${PROJECT_NAME} STATIC ${SOURCES})
 # that migrates coroutines between threads.
 target_compile_definitions(${PROJECT_NAME} PUBLIC MOODYCAMEL_NO_THREAD_LOCAL)
 
+include(GenGdbPrinters)
+gen_gdb_printers(${PROJECT_NAME} "third_party/moodycamel")
+gen_gdb_cmd(${PROJECT_NAME} "cmd/utask")
+
 if (USERVER_DISABLE_PHDR_CACHE)
   target_compile_definitions(${PROJECT_NAME} PRIVATE USERVER_DISABLE_PHDR_CACHE)
 endif()

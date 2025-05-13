@@ -46,6 +46,8 @@ constexpr std::size_t kStackUsageMonitorLimit = 1000;
 
 std::size_t GetCurrentTaskStackUsageBytes() noexcept;
 
+const void* GetCoroCbPtr(const boost::coroutines2::coroutine<impl::TaskContext*>::push_type& coro) noexcept;
+
 }  // namespace engine::coro
 
 USERVER_NAMESPACE_END

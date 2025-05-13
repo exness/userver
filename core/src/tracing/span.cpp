@@ -410,6 +410,8 @@ const std::string& Span::GetSpanId() const { return pimpl_->GetSpanId(); }
 
 const std::string& Span::GetParentId() const { return pimpl_->GetParentId(); }
 
+const std::string& Span::GetName() const { return pimpl_->GetName(); }
+
 ScopeTime::Duration Span::GetTotalDuration(const std::string& scope_name) const {
     return pimpl_->GetTimeStorage().DurationTotal(scope_name);
 }

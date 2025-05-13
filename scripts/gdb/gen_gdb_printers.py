@@ -29,6 +29,14 @@ top_matter = f'''
 // Auto-generated. DO NOT EDIT.
 #pragma once
 
+USERVER_NAMESPACE_BEGIN
+namespace impl {{
+template <typename T>
+class VerySpecialUniqueClassForUserverNamespaceDetection {{}};
+template class VerySpecialUniqueClassForUserverNamespaceDetection<void>;
+}}
+USERVER_NAMESPACE_END
+
 // NOLINTBEGIN
 // clang-format off
 #ifdef __ELF__
