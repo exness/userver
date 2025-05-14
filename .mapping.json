@@ -3075,6 +3075,7 @@
   "redis/functional_tests/basic_chaos/redis_service.cpp":"taxi/uservices/userver/redis/functional_tests/basic_chaos/redis_service.cpp",
   "redis/functional_tests/basic_chaos/static_config.yaml":"taxi/uservices/userver/redis/functional_tests/basic_chaos/static_config.yaml",
   "redis/functional_tests/basic_chaos/tests/conftest.py":"taxi/uservices/userver/redis/functional_tests/basic_chaos/tests/conftest.py",
+  "redis/functional_tests/basic_chaos/tests/test_command_control.py":"taxi/uservices/userver/redis/functional_tests/basic_chaos/tests/test_command_control.py",
   "redis/functional_tests/basic_chaos/tests/test_deadline_propagation.py":"taxi/uservices/userver/redis/functional_tests/basic_chaos/tests/test_deadline_propagation.py",
   "redis/functional_tests/basic_chaos/tests/test_redis.py":"taxi/uservices/userver/redis/functional_tests/basic_chaos/tests/test_redis.py",
   "redis/functional_tests/cluster_auto_topology/CMakeLists.txt":"taxi/uservices/userver/redis/functional_tests/cluster_auto_topology/CMakeLists.txt",
