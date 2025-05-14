@@ -32,8 +32,8 @@ top_matter = f'''
 USERVER_NAMESPACE_BEGIN
 namespace impl {{
 template <typename T>
-class VerySpecialUniqueClassForUserverNamespaceDetection {{}};
-template class VerySpecialUniqueClassForUserverNamespaceDetection<void>;
+class [[maybe_unused]] VerySpecialUniqueClassForUserverNamespaceDetection {{}};
+static VerySpecialUniqueClassForUserverNamespaceDetection<void> userver_namespace_detection_mark [[maybe_unused]] {{}};
 }}
 USERVER_NAMESPACE_END
 

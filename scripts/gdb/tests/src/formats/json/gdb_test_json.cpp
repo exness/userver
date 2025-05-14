@@ -6,7 +6,7 @@
 
 USERVER_NAMESPACE_BEGIN
 
-__attribute__((optnone)) static void test_gdb_printers() {
+__attribute__((optnone)) static void TestGdbPrinters() {
     using formats::json::MakeArray, formats::json::MakeObject;
 
     auto new_value = [](auto&& val) {
@@ -103,4 +103,4 @@ __attribute__((optnone)) static void test_gdb_printers() {
 
 USERVER_NAMESPACE_END
 
-int main() { USERVER_NAMESPACE::test_gdb_printers(); }
+int main() { USERVER_NAMESPACE::TestGdbPrinters(); }

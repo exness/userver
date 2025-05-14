@@ -2,9 +2,6 @@
 
 #include <engine/task/task_context.hpp>
 
-#include <gdb_autogen/third_party/moodycamel/printers.hpp>
-#include <pretty_printers/third_party/moodycamel/extractor.hpp>
-
 USERVER_NAMESPACE_BEGIN
 
 namespace engine {
@@ -14,9 +11,7 @@ constexpr std::size_t kSemaphoreInitialCount = 0;
 }
 
 TaskQueue::TaskQueue(const TaskProcessorConfig& config)
-    : queue_semaphore_(kSemaphoreInitialCount, config.spinning_iterations) {
-    moodycamel_extractor::instantiate(queue_);
-}
+    : queue_semaphore_(kSemaphoreInitialCount, config.spinning_iterations) {}
 
 void TaskQueue::Push(boost::intrusive_ptr<impl::TaskContext>&& context) {
     UASSERT(context);
