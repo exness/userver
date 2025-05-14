@@ -193,10 +193,14 @@ std::string Span::Impl::GetParentIdForLogging(const Span::Impl* parent) {
     // orphaned. It's still possible for chaining to break in case parent span
     // becomes non-loggable after child span is created, but that we can't control
     for (auto current = spans_ptr->iterator_to(*parent);; --current) {
-        if (current->GetParentId().empty() /* won't find better candidate */ || current->ShouldLog()) {
+        if (current->ShouldLog()) {
             return current->GetSpanId();
         }
-        if (current == spans_ptr->begin()) break;
+        if (current == spans_ptr->begin()) {
+            // Best effort: use the one we considered loggable at the start
+            // (can be empty if root is not logged)
+            return current->GetParentId();
+        }
     }
 
     return {};
