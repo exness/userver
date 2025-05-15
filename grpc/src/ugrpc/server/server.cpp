@@ -331,7 +331,9 @@ void Server::Impl::DoStart() {
         server_builder_->RegisterAsyncGenericService(&worker.GetService());
     }
 
-    server_ = server_builder_->BuildAndStart();
+    server_ = engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [this] {
+                  return server_builder_->BuildAndStart();
+              }).Get();
     UINVARIANT(server_, "See grpcpp logs for details");
     server_builder_.reset();
 

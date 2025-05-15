@@ -26,6 +26,9 @@ bool IsTaskProcessorThread() noexcept;
 /// Returns reference to the task processor executing the caller
 TaskProcessor& GetTaskProcessor();
 
+/// Returns reference to the blocking task processor
+TaskProcessor& GetBlockingTaskProcessor();
+
 /// Returns task coroutine stack size
 std::size_t GetStackSize();
 

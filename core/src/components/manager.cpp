@@ -23,6 +23,7 @@
 #include <userver/logging/component.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/os_signals/component.hpp>
+#include <userver/utils/algo.hpp>
 #include <userver/utils/async.hpp>
 #include <userver/utils/distances.hpp>
 
@@ -170,7 +171,23 @@ Manager::Manager(std::unique_ptr<ManagerConfig>&& config, const ComponentList& c
     const auto& task_processors_map = task_processors_storage_.GetMap();
     const auto default_task_processor_it = task_processors_map.find(config_->default_task_processor);
     if (default_task_processor_it == task_processors_map.end()) {
-        throw std::runtime_error("Cannot start components manager: missing default task processor");
+        throw std::runtime_error(
+            "Cannot start components manager: failed to find default task processor with name '" +
+            config_->default_task_processor + "'"
+        );
+    }
+
+    UINVARIANT(!config_->fs_task_processor.empty(), "fs_task_processor cannot be empty");
+    auto* fs_task_processor = utils::FindOrNullptr(task_processors_map, config_->fs_task_processor);
+    UINVARIANT(
+        fs_task_processor,
+        utils::StrCat(
+            "Cannot find task processor with name '", config_->fs_task_processor, "', is fs_task_processor correct?"
+        )
+    );
+
+    for (auto& [name, tp] : task_processors_map) {
+        tp->SetBlockingTaskProcessor(**fs_task_processor);
     }
 
     {

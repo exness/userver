@@ -3,6 +3,12 @@
 #include <sys/types.h>
 #include <csignal>
 
+#if __has_include(<util/system/progname.h>)
+#define ARCADIA
+#include <util/system/info.h>
+#include <util/system/progname.h>
+#endif
+
 #include <fmt/format.h>
 
 #include <concurrent/impl/latch.hpp>
@@ -77,11 +83,22 @@ void EmitMagicNanosleep() {
 void TaskProcessorThreadStartedHook() {
     utils::impl::AssertStaticRegistrationFinished();
 
-    // uses /dev/urandom
-    utils::WithDefaultRandom([](auto&) {});
+    {
+        // The block initializes static/global variables by preheating some in-memory caches.
+        // Subsequent calls should not access filesystem at all.
 
-    // uses /dev/urandom
-    utils::StrCaseHash hash;
+        // uses /dev/urandom
+        utils::WithDefaultRandom([](auto&) {});
+
+        // uses /dev/urandom
+        utils::StrCaseHash hash;
+
+#ifdef ARCADIA
+        // caches result in static variables on the first call
+        (void)GetProgramName();
+        (void)NSystemInfo::CachedNumberOfCpus();
+#endif
+    }
 
     for (const auto& func : ThreadStartedHooks()) {
         func();
@@ -278,6 +295,13 @@ std::vector<std::uint8_t> TaskProcessor::CollectCurrentLoadPct() const {
 
     return cpu_stats_storage_->CollectCurrentLoadPct();
 }
+
+TaskProcessor& TaskProcessor::GetBlockingTaskProcessor() {
+    if (fs_task_processor_) return *fs_task_processor_;
+    return *this;
+}
+
+void TaskProcessor::SetBlockingTaskProcessor(TaskProcessor& task_processor) { fs_task_processor_ = &task_processor; }
 
 void RegisterThreadStartedHook(std::function<void()> func) {
     utils::impl::AssertStaticRegistrationAllowed("Calling engine::RegisterThreadStartedHook()");

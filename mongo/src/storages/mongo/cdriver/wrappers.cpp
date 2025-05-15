@@ -9,6 +9,7 @@
 #include <mongoc/mongoc.h>
 
 #include <userver/crypto/openssl.hpp>
+#include <userver/engine/async.hpp>
 #include <userver/engine/task/task.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
@@ -21,10 +22,12 @@ USERVER_NAMESPACE_BEGIN
 namespace storages::mongo::impl::cdriver {
 
 GlobalInitializer::GlobalInitializer() {
-    crypto::Openssl::Init();
-    mongoc_log_set_handler(&LogMongocMessage, nullptr);
-    mongoc_init();
-    mongoc_handshake_data_append("userver", utils::GetUserverVcsRevision(), nullptr);
+    engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [] {
+        crypto::Openssl::Init();
+        mongoc_log_set_handler(&LogMongocMessage, nullptr);
+        mongoc_init();
+        mongoc_handshake_data_append("userver", utils::GetUserverVcsRevision(), nullptr);
+    }).Get();
 }
 
 GlobalInitializer::~GlobalInitializer() { mongoc_cleanup(); }

@@ -9,6 +9,7 @@
 #include <userver/components/component_context.hpp>
 #include <userver/components/statistics_storage.hpp>
 #include <userver/dynamic_config/storage/component.hpp>
+#include <userver/engine/async.hpp>
 #include <userver/storages/secdist/component.hpp>
 #include <userver/utils/algo.hpp>
 #include <userver/utils/retry_budget.hpp>
@@ -93,12 +94,16 @@ YdbComponent::YdbComponent(const components::ComponentConfig& config, const comp
                 credentials_provider_component.CreateCredentialsProviderFactory(credentials_config);
         }
 
-        databases_.emplace(
-            dbname,
-            DatabaseUtils::Make(
-                dbname, dbconfig, dbsettings, credentials_provider_factory, operation_settings, config_source
-            )
-        );
+        databases_.emplace(dbname, engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [&] {
+                                       return DatabaseUtils::Make(
+                                           dbname,
+                                           dbconfig,
+                                           dbsettings,
+                                           credentials_provider_factory,
+                                           operation_settings,
+                                           config_source
+                                       );
+                                   }).Get());
 
         if (dbconfig.HasMember("aliases")) {
             for (const auto& config_alias : dbconfig["aliases"]) {
