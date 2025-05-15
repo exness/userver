@@ -45,6 +45,7 @@ libnghttp2-dev
 libpq-dev
 libprotoc-dev
 libpugixml-dev
+libsqlite3-dev
 libsnappy-dev
 libsasl2-dev
 libssl-dev
