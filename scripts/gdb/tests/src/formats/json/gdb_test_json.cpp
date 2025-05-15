@@ -6,7 +6,7 @@
 
 USERVER_NAMESPACE_BEGIN
 
-__attribute__((optnone)) static void TestGdbPrinters() {
+__attribute__((noinline)) static void TestGdbPrinters() {
     using formats::json::MakeArray, formats::json::MakeObject;
 
     auto new_value = [](auto&& val) {

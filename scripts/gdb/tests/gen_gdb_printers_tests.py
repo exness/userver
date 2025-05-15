@@ -97,8 +97,6 @@ _return_code = 0
 _tests_to_run = []
 _coredump_tests = []
 try:
-    assert gdb.objfiles()
-
 """
 
 _benchmark_report = """

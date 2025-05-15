@@ -13,6 +13,33 @@ if ("${GDB_EXECUTABLE}" STREQUAL GDB_EXECUTABLE-NOTFOUND)
   return()
 endif()
 
+macro (_check_clang_and_gdb_compatibility)
+  execute_process(
+      COMMAND ${GDB_EXECUTABLE} --version
+      OUTPUT_VARIABLE GDB_VERSION_OUTPUT
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  string(REGEX MATCH "([0-9]+\\.[0-9]+)" GDB_VERSION_MATCH "${GDB_VERSION_OUTPUT}")
+  if(GDB_VERSION_MATCH)
+      set(GDB_VERSION ${CMAKE_MATCH_1})
+  else()
+      message(WARNING "Could not determine GDB version")
+      set(GDB_VERSION 0)
+  endif()
+
+  string(REGEX MATCH "^([0-9]+)" GDB_VERSION_MAJOR "${GDB_VERSION}")
+  
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
+     CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16.0.0 AND
+     GDB_VERSION_MAJOR LESS 14.0)
+      message(WARNING "GDB tests disabled: Update your gdb version (${GDB_VERSION}) for >= 14.0 "
+                      "or downgrade your clang version (${CMAKE_CXX_COMPILER_VERSION}) for < 16.0.0")
+      return()
+  endif()
+endmacro()
+
+_check_clang_and_gdb_compatibility()
+
 project(userver-gdb-tests)
 
 set(GDB_TESTS_DIR ${CMAKE_CURRENT_LIST_DIR})

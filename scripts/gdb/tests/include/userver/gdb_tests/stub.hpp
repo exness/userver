@@ -27,7 +27,7 @@ __attribute__((noinline)) void DoSomeStuff() {
 
 #define TEST_DEINIT(value) DoSomeStuff()
 
-#define TEST_COMMAND(python_code, ...) DoSomeStuff()
+#define TEST_COMMAND(...) DoSomeStuff()
 
 #define MAKE_COREDUMP_AND_SWITCH_TO() DoSomeStuff()
 
