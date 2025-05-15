@@ -196,7 +196,16 @@ void TaskContext::DoStep() {
 
     SleepState::Flags clear_flags{SleepFlags::kSleeping};
     if (!coro_) {
-        coro_ = task_processor_.GetCoroutine();
+        try {
+            coro_ = task_processor_.GetCoroutine();
+        } catch (...) {
+            // Seems we're out of memory
+            cancellation_reason_ = TaskCancellationReason::kOverload;
+            SetState(TaskBase::State::kCancelled);
+            finish_waiters_->SetSignalAndWakeupAll();
+            throw;
+        }
+
         clear_flags |= SleepFlags::kWakeupByBootstrap;
         ArmCancellationTimer();
     }

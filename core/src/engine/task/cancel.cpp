@@ -79,6 +79,8 @@ std::string_view ToString(TaskCancellationReason reason) noexcept {
             return "Task deadline reached";
         case TaskCancellationReason::kOverload:
             return "Task processor overload";
+        case TaskCancellationReason::kOOM:
+            return "Not enough memory";
         case TaskCancellationReason::kAbandoned:
             return "Task destructor is called before the payload finished execution";
         case TaskCancellationReason::kShutdown:
