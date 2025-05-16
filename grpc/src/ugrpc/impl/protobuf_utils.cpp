@@ -80,15 +80,57 @@ void TrimSecrets(google::protobuf::Message& message) {
     );
 }
 
+namespace {
+
+class LimitingOutputStream final : public google::protobuf::io::ZeroCopyOutputStream {
+public:
+    class LimitReachedException : public std::exception {};
+
+    explicit LimitingOutputStream(google::protobuf::io::ArrayOutputStream& output_stream)
+        : output_stream_{output_stream} {}
+
+    /*
+      Throw `LimitReachedException` on limit reached
+    */
+    bool Next(void** data, int* size) override {
+        if (!output_stream_.Next(data, size)) {
+            limit_reached_ = true;
+            throw LimitReachedException{};
+        }
+        return true;
+    }
+
+    void BackUp(int count) override {
+        if (!limit_reached_) {
+            output_stream_.BackUp(count);
+        }
+    }
+
+    int64_t ByteCount() const override { return output_stream_.ByteCount(); }
+
+private:
+    google::protobuf::io::ArrayOutputStream& output_stream_;
+    bool limit_reached_{false};
+};
+
+}  // namespace
+
 std::string ToLimitedString(const google::protobuf::Message& message, std::size_t limit) {
     boost::container::small_vector<char, 1024> output_buffer{limit, boost::container::default_init};
     google::protobuf::io::ArrayOutputStream output_stream{output_buffer.data(), utils::numeric_cast<int>(limit)};
+    LimitingOutputStream limiting_output_stream{output_stream};
 
     google::protobuf::TextFormat::Printer printer;
     printer.SetUseUtf8StringEscaping(true);
     printer.SetExpandAny(true);
 
-    printer.Print(message, &output_stream);
+    // throwing exception added for optimization
+    // this allows terminate message traversal once limit reached
+    try {
+        printer.Print(message, &limiting_output_stream);
+    } catch (const LimitingOutputStream::LimitReachedException& /*ex*/) {
+        /// output reach limit
+    }
 
     return std::string{output_buffer.data(), static_cast<std::size_t>(output_stream.ByteCount())};
 }
