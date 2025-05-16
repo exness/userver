@@ -1,13 +1,18 @@
 #pragma once
 
-/// @file userver/ydb/topic.hpp
-/// @brief YDB Topic client
+/// @file userver/ydb/federated_topic.hpp
+/// @brief YDB Federated Topic client
+///
+/// Federated Topic SDK serves as a wrapper over Topic SDK, coordinates
+/// reading from federated YDB installations topics, has a subset of functions
+/// of usual Topic SDK
+///
+/// @ref userver/ydb/topic.hpp
 
 #include <chrono>
 #include <memory>
-#include <string>
 
-#include <ydb-cpp-sdk/client/topic/client.h>
+#include <ydb-cpp-sdk/client/federated_topic/federated_topic.h>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -24,16 +29,16 @@ struct TopicSettings;
 ///
 /// ## Example usage:
 ///
-/// @ref samples/ydb_service/components/topic_reader.hpp
-/// @ref samples/ydb_service/components/topic_reader.cpp
+/// @ref samples/ydb_service/components/federated_topic_reader.hpp
+/// @ref samples/ydb_service/components/federated_topic_reader.cpp
 ///
-/// @example samples/ydb_service/components/topic_reader.hpp
-/// @example samples/ydb_service/components/topic_reader.cpp
-class TopicReadSession final {
+/// @example samples/ydb_service/components/federated_topic_reader.hpp
+/// @example samples/ydb_service/components/federated_topic_reader.cpp
+class FederatedTopicReadSession final {
 public:
     /// @cond
     // For internal use only.
-    explicit TopicReadSession(std::shared_ptr<NYdb::NTopic::IReadSession> read_session);
+    explicit FederatedTopicReadSession(std::shared_ptr<NYdb::NFederatedTopic::IFederatedReadSession> read_session);
     /// @endcond
 
     /// @brief Get read session events
@@ -42,7 +47,7 @@ public:
     /// @param max_events_count maximum events count in batch
     /// @param max_size_bytes total size limit for data messages in batch
     /// if not specified, read session chooses event batch size automatically
-    std::vector<NYdb::NTopic::TReadSessionEvent::TEvent> GetEvents(
+    std::vector<NYdb::NFederatedTopic::TReadSessionEvent::TEvent> GetEvents(
         std::optional<std::size_t> max_events_count = {},
         size_t max_size_bytes = std::numeric_limits<size_t>::max()
     );
@@ -57,44 +62,38 @@ public:
     /// @warning Use with care! Facilities from
     /// `<core/include/userver/drivers/subscribable_futures.hpp>` can help with
     /// non-blocking wait operations.
-    std::shared_ptr<NYdb::NTopic::IReadSession> GetNativeTopicReadSession();
+    std::shared_ptr<NYdb::NFederatedTopic::IFederatedReadSession> GetNativeTopicReadSession();
 
 private:
-    std::shared_ptr<NYdb::NTopic::IReadSession> read_session_;
+    std::shared_ptr<NYdb::NFederatedTopic::IFederatedReadSession> read_session_;
 };
 
 /// @ingroup userver_clients
 ///
-/// @brief YDB Topic Client
+/// @brief YDB Federated Topic Client
 ///
 /// @see https://ydb.tech/docs/en/concepts/topic
-class TopicClient final {
+class FederatedTopicClient final {
 public:
     /// @cond
     // For internal use only.
-    TopicClient(std::shared_ptr<impl::Driver> driver, impl::TopicSettings settings);
+    FederatedTopicClient(std::shared_ptr<impl::Driver> driver, impl::TopicSettings settings);
     /// @endcond
 
-    ~TopicClient();
-
-    /// Alter topic
-    void AlterTopic(const std::string& path, const NYdb::NTopic::TAlterTopicSettings& settings);
-
-    /// Describe topic
-    NYdb::NTopic::TDescribeTopicResult DescribeTopic(const std::string& path);
+    ~FederatedTopicClient();
 
     /// Create read session
-    TopicReadSession CreateReadSession(const NYdb::NTopic::TReadSessionSettings& settings);
+    FederatedTopicReadSession CreateReadSession(const NYdb::NFederatedTopic::TFederatedReadSessionSettings& settings);
 
     /// Get native topic client
     /// @warning Use with care! Facilities from
     /// `<core/include/userver/drivers/subscribable_futures.hpp>` can help with
     /// non-blocking wait operations.
-    NYdb::NTopic::TTopicClient& GetNativeTopicClient();
+    NYdb::NFederatedTopic::TFederatedTopicClient& GetNativeTopicClient();
 
 private:
     std::shared_ptr<impl::Driver> driver_;
-    NYdb::NTopic::TTopicClient topic_client_;
+    NYdb::NFederatedTopic::TFederatedTopicClient topic_client_;
 };
 
 }  // namespace ydb

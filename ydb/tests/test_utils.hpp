@@ -10,6 +10,7 @@
 #include <userver/utils/statistics/testing.hpp>
 
 #include <userver/ydb/coordination.hpp>
+#include <userver/ydb/federated_topic.hpp>
 #include <userver/ydb/io/supported_types.hpp>
 #include <userver/ydb/settings.hpp>
 #include <userver/ydb/table.hpp>
@@ -38,6 +39,12 @@ public:
     ydb::TopicClient& GetTopicClient() { return *topic_client_; }
 
     NYdb::NTopic::TTopicClient& GetNativeTopicClient() { return topic_client_->GetNativeTopicClient(); }
+
+    ydb::FederatedTopicClient& GetFederatedTopicClient() { return *federated_topic_client_; }
+
+    NYdb::NFederatedTopic::TFederatedTopicClient& GetNativeFederatedTopicClient() {
+        return federated_topic_client_->GetNativeTopicClient();
+    }
 
     ydb::CoordinationClient& GetCoordinationClient() { return *coordination_client_; }
 
@@ -79,6 +86,8 @@ protected:
 
         topic_client_ = std::make_shared<ydb::TopicClient>(driver_, ydb::impl::TopicSettings{});
 
+        federated_topic_client_ = std::make_shared<ydb::FederatedTopicClient>(driver_, ydb::impl::TopicSettings{});
+
         coordination_client_ = std::make_shared<ydb::CoordinationClient>(driver_);
 
         statistics_holder_ = statistics_storage_.RegisterWriter("ydb", [this](utils::statistics::Writer& writer) {
@@ -93,6 +102,7 @@ private:
     std::shared_ptr<ydb::impl::Driver> driver_;
     std::shared_ptr<ydb::TableClient> table_client_;
     std::shared_ptr<ydb::TopicClient> topic_client_;
+    std::shared_ptr<ydb::FederatedTopicClient> federated_topic_client_;
     std::shared_ptr<ydb::CoordinationClient> coordination_client_;
     utils::statistics::Storage statistics_storage_;
     utils::statistics::Entry statistics_holder_;
