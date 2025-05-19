@@ -200,7 +200,7 @@ void TaskContext::DoStep() {
             coro_ = task_processor_.GetCoroutine();
         } catch (...) {
             // Seems we're out of memory
-            cancellation_reason_ = TaskCancellationReason::kOverload;
+            cancellation_reason_ = TaskCancellationReason::kOOM;
             SetState(TaskBase::State::kCancelled);
             finish_waiters_->SetSignalAndWakeupAll();
             throw;
