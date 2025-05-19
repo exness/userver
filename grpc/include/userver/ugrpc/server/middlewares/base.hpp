@@ -171,7 +171,7 @@ using MiddlewareFactoryComponentBase =
 ///
 /// ## Static config example
 ///
-/// @snippet samples/grpc_middleware_service/configs/static_config.yaml  static config grpc-server-middlewares-pipeline
+/// @snippet samples/grpc_middleware_service/configs/static_config.yaml grpc-server-auth static config
 
 template <typename Middleware>
 using SimpleMiddlewareFactoryComponent =
