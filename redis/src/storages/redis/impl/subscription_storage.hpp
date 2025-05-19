@@ -213,6 +213,8 @@ protected:
         Psubscribe(const std::string& channel, Sentinel::UserPmessageCallback cb, CommandControl control);
         SubscriptionId GetNextSubscriptionId();
 
+        const CommandControl& GetCommandControl(const ChannelName& channel_name) const;
+
         mutable std::mutex mutex_;
         CommandCb subscribe_callback_;
         CommandCb unsubscribe_callback_;

@@ -407,6 +407,7 @@ CommandPtr SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, Pcallba
 
     const auto& channel = channel_name.channel;
     const auto* cmd_name = channel_name.sharded ? "SSUBSCRIBE" : channel_name.pattern ? "PSUBSCRIBE" : "SUBSCRIBE";
+    const auto& command_control = GetCommandControl(channel_name);
     return PrepareCommand(
         CmdArgs{cmd_name, channel},
         [channel_name,
@@ -429,7 +430,7 @@ CommandPtr SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, Pcallba
                 Sentinel::OnSubscribeReply(message_callback, subscribe_callback, unsubscribe_callback, reply);
             }
         },
-        common_command_control_
+        common_command_control_.MergeWith(command_control)
     );
 }
 
@@ -692,6 +693,19 @@ SubscriptionToken SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, 
 template <typename CallbackMap, typename PcallbackMap>
 SubscriptionId SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::GetNextSubscriptionId() {
     return next_subscription_id_++;
+}
+
+template <typename CallbackMap, typename PcallbackMap>
+const CommandControl& SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::GetCommandControl(
+    const ChannelName& channel_name
+) const {
+    if (channel_name.sharded) {
+        return sharded_callback_map_.at(channel_name.channel).control;
+    } else if (channel_name.pattern) {
+        return pattern_callback_map_.at(channel_name.channel).control;
+    } else {
+        return callback_map_.at(channel_name.channel).control;
+    }
 }
 
 /// Explicit instantiation
