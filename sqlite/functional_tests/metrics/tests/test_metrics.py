@@ -18,20 +18,17 @@ def _normalize_metrics(metrics: str) -> str:
     return '\n'.join(result)
 
 
-@pytest.mark.parametrize('sqlite_db', [{'db_path': 'tmp_kv.db'}], indirect=True)
-async def test_metrics_smoke(sqlite_db, monitor_client):
+async def test_metrics_smoke(monitor_client):
     metrics = await monitor_client.metrics(prefix='sqlite.')
     assert len(metrics) > 1
 
 
-@pytest.mark.parametrize('sqlite_db', [{'db_path': 'tmp_kv.db'}], indirect=True)
-async def test_metrics_portability(sqlite_db, service_client):
+async def test_metrics_portability(service_client):
     warnings = await service_client.metrics_portability(prefix='sqlite.')
     assert not warnings
 
 
-@pytest.mark.parametrize('sqlite_db', [{'db_path': 'tmp_kv.db'}], indirect=True)
-async def test_metrics(sqlite_db, service_client, monitor_client, load):
+async def test_metrics(service_client, monitor_client, load):
     # Forcing statement timing metrics to appear
     response = await service_client.get('/metrics/sqlite?key=test_key')
     assert response.status == 200

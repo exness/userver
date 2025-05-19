@@ -25,7 +25,7 @@ namespace components {
 /// db-path                            | path to the database file or `::memory::` for in-memory mode                      | -
 /// create_file                        | сreate the database file if it does not exist at the specified path               | true
 /// is_read_only                       | open the database in read-only mode                                               | false
-/// shared_cashe                       | enable shared in-memory cache for the database                                    | false
+/// shared_cache                       | enable shared in-memory cache for the database                                    | false
 /// read_uncommited                    | allow reading uncommitted data (requires shared_cache)                            | false
 /// journal_mode                       | mode for database journaling                                                      | wal
 /// busy_timeout                       | timeout duration (in milliseconds) to wait when the database is busy              | 5000
@@ -55,7 +55,8 @@ public:
     static yaml_config::Schema GetStaticConfigSchema();
 
 private:
-    std::string name_;
+    const storages::sqlite::settings::SQLiteSettings settings_;
+    engine::TaskProcessor& fs_task_processor_;
     const storages::sqlite::ClientPtr client_;
     utils::statistics::Entry statistics_holder_;
 };

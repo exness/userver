@@ -4,6 +4,8 @@
 
 #include <userver/components/component.hpp>
 #include <userver/components/statistics_storage.hpp>
+#include <userver/logging/log.hpp>
+#include <userver/testsuite/tasks.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 #include <userver/yaml_config/schema.hpp>
@@ -41,17 +43,16 @@ storages::sqlite::settings::SQLiteSettings::TempStore ParseTempStore(const std::
     UINVARIANT(false, "Unknown synchronous: " + value);
 }
 
-std::shared_ptr<storages::sqlite::Client>
-CreateClient(const components::ComponentConfig& config, const components::ComponentContext& context) {
+storages::sqlite::settings::SQLiteSettings GetSettings(const components::ComponentConfig& config) {
     storages::sqlite::settings::SQLiteSettings settings;
     settings.db_path = config["db-path"].As<std::string>();
     settings.create_file = config["create_file"].As<bool>(settings.create_file);
     settings.read_mode = config["is_read_only"].As<bool>(storages::sqlite::settings::kDefaultIsReadOnly)
                              ? storages::sqlite::settings::SQLiteSettings::ReadMode::kReadOnly
                              : storages::sqlite::settings::SQLiteSettings::ReadMode::kReadWrite;
-    settings.shared_cashe = config["shared_cashe"].As<bool>(settings.shared_cashe);
-    settings.shared_cashe = config["read_uncommited"].As<bool>(settings.read_uncommited);
-    settings.shared_cashe = config["foreign_keys"].As<bool>(settings.foreign_keys);
+    settings.shared_cache = config["shared_cache"].As<bool>(settings.shared_cache);
+    settings.read_uncommited = config["read_uncommited"].As<bool>(settings.read_uncommited);
+    settings.foreign_keys = config["foreign_keys"].As<bool>(settings.foreign_keys);
     settings.journal_mode =
         ParseJournalMode(config["journal_mode"].As<std::string>(storages::sqlite::settings::kDefaultJournalMode));
     settings.synchronous =
@@ -65,19 +66,42 @@ CreateClient(const components::ComponentConfig& config, const components::Compon
     settings.page_size = config["page_size"].As<int>(settings.page_size);
     settings.conn_settings = storages::sqlite::settings::ConnectionSettings::Create(config);
     settings.pool_settings = storages::sqlite::settings::PoolSettings::Create(config);
-    return std::make_shared<storages::sqlite::Client>(
-        settings, context.GetTaskProcessor(config["task_processor"].As<std::string>())
-    );
+
+    return settings;
 }
 
 }  // namespace
 
 SQLite::SQLite(const ComponentConfig& config, const ComponentContext& context)
-    : ComponentBase{config, context}, name_{config.Name()}, client_(CreateClient(config, context)) {
+    : ComponentBase{config, context},
+      settings_(GetSettings(config)),
+      fs_task_processor_(context.GetTaskProcessor(config["task_processor"].As<std::string>())),
+      client_(std::make_shared<storages::sqlite::Client>(settings_, fs_task_processor_)) {
     auto& statistics_storage = context.FindComponent<components::StatisticsStorage>();
     statistics_holder_ = statistics_storage.GetStorage().RegisterWriter(
-        "sqlite", [this](utils::statistics::Writer& writer) { client_->WriteStatistics(writer); }
+        "sqlite",
+        [this](utils::statistics::Writer& writer) { client_->WriteStatistics(writer); },
+        {{"component", config.Name()}}
     );
+
+    auto& testsuite_tasks = testsuite::GetTestsuiteTasks(context);
+    if (testsuite_tasks.IsEnabled()) {
+        // Only register task for testsuite environment
+        const auto task_name = fmt::format("sqlite/{}/clean-db", config.Name());
+        testsuite_tasks.RegisterTask(task_name, [this] {
+            engine::TaskCancellationBlocker block_cancel;
+            const auto table_names =
+                client_
+                    ->Execute(
+                        storages::sqlite::OperationType::kReadOnly,
+                        "select name from sqlite_schema where type == 'table' AND name NOT LIKE 'sqlite_%'"
+                    )
+                    .AsVector<std::string>(storages::sqlite::kFieldTag);
+            for (const auto& table : table_names) {
+                client_->Execute(storages::sqlite::OperationType::kReadWrite, fmt::format("delete from '{}'", table));
+            }
+        });
+    }
 }
 
 SQLite::~SQLite() { statistics_holder_.Unregister(); }
@@ -104,7 +128,7 @@ properties:
         type: boolean
         description: open the database in read-only mode
         defaultDescription: false
-    shared_cashe:
+    shared_cache:
         type: boolean
         description: enable shared in-memory cache for the database
         defaultDescription: false

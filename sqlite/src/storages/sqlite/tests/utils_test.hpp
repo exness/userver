@@ -94,7 +94,7 @@ class SQLiteInMemoryConnection : public SQLiteCustomConnection {
 public:
     ClientPtr CreateClient(settings::SQLiteSettings settings = {}) {
         settings.db_path = "file::memory:";
-        settings.shared_cashe = true;
+        settings.shared_cache = true;
         return SQLiteCustomConnection::CreateClient(settings);
     }
 };

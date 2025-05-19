@@ -6,33 +6,50 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite::infra::statistics {
 
-void PoolQueriesStatistics::Add(PoolQueriesStatistics& other) {
-    total += other.total;
-    executed += other.executed;
-    error += other.error;
-    timings.GetCurrentCounter().Account(other.timings.GetCurrentCounter().Count());
+namespace {
+template <class T>
+void DumpAggregatedTransactionMetric(utils::statistics::Writer& writer, const T& stats) {
+    writer["total"] = stats.total;
+    writer["commit"] = stats.commit;
+    writer["rollback"] = stats.rollback;
+    writer["timings"] = stats.timings;
 }
+}  // namespace
 
-void PoolTransactionsStatistics::Add(PoolTransactionsStatistics& other) {
+void PoolTransactionsStatisticsAggregated::Add(PoolTransactionsStatistics& other) {
     total += other.total;
     commit += other.commit;
     rollback += other.rollback;
-    timings.GetCurrentCounter().Account(other.timings.GetCurrentCounter().Count());
+    timings.Add(other.timings.GetView());
 }
 
-void DumpMetric(utils::statistics::Writer& writer, const AgregatedInstanceStatistics& stats) {
+void DumpMetric(utils::statistics::Writer& writer, const AggregatedInstanceStatistics& stats) {
     if (auto connections_writer = writer["connections"]) {
-        connections_writer.ValueWithLabels(stats.write_connections, {{"connection_pool", "write"}});
-        connections_writer.ValueWithLabels(stats.read_connections, {{"connection_pool", "read"}});
+        if (stats.write_connections) {
+            connections_writer.ValueWithLabels(*stats.write_connections, {{"connection_pool", "write"}});
+        }
+        if (stats.read_connections) {
+            connections_writer.ValueWithLabels(*stats.read_connections, {{"connection_pool", "read"}});
+        }
     }
 
     if (auto connections_writer = writer["queries"]) {
-        connections_writer.ValueWithLabels(stats.write_queries, {{"connection_pool", "write"}});
-        connections_writer.ValueWithLabels(stats.read_queries, {{"connection_pool", "read"}});
+        if (stats.write_queries) {
+            connections_writer.ValueWithLabels(*stats.write_queries, {{"connection_pool", "write"}});
+        }
+        if (stats.read_queries) {
+            connections_writer.ValueWithLabels(*stats.read_queries, {{"connection_pool", "read"}});
+        }
     }
 
     if (auto transactions_writer = writer["transactions"]) {
-        transactions_writer = stats.transaction;
+        if (stats.transaction) {
+            UASSERT(!stats.transaction_aggregated);
+            transactions_writer = *stats.transaction;
+        } else {
+            UASSERT(stats.transaction_aggregated);
+            transactions_writer = *stats.transaction_aggregated;
+        }
     }
 }
 
@@ -40,8 +57,8 @@ void DumpMetric(utils::statistics::Writer& writer, const PoolConnectionStatistic
     writer["overload"] = stats.overload;
     writer["created"] = stats.created;
     writer["closed"] = stats.closed;
-    writer["active"] = stats.created - stats.closed;
-    writer["busy"] = stats.acquired - stats.released;
+    writer["active"] = stats.created.Load().value - stats.closed.Load().value;
+    writer["busy"] = stats.acquired.Load().value - stats.released.Load().value;
 }
 
 void DumpMetric(utils::statistics::Writer& writer, const PoolQueriesStatistics& stats) {
@@ -52,10 +69,11 @@ void DumpMetric(utils::statistics::Writer& writer, const PoolQueriesStatistics& 
 }
 
 void DumpMetric(utils::statistics::Writer& writer, const PoolTransactionsStatistics& stats) {
-    writer["total"] = stats.total;
-    writer["commit"] = stats.commit;
-    writer["rollback"] = stats.rollback;
-    writer["timings"] = stats.timings;
+    DumpAggregatedTransactionMetric(writer, stats);
+}
+
+void DumpMetric(utils::statistics::Writer& writer, const PoolTransactionsStatisticsAggregated& stats) {
+    DumpAggregatedTransactionMetric(writer, stats);
 }
 
 }  // namespace storages::sqlite::infra::statistics

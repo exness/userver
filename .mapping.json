@@ -4084,6 +4084,7 @@
   "testsuite/pytest_plugins/pytest_userver/plugins/service_client.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/service_client.py",
   "testsuite/pytest_plugins/pytest_userver/plugins/service_runner.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/service_runner.py",
   "testsuite/pytest_plugins/pytest_userver/plugins/sql_coverage.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/sql_coverage.py",
+  "testsuite/pytest_plugins/pytest_userver/plugins/sqlite.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/sqlite.py",
   "testsuite/pytest_plugins/pytest_userver/plugins/testpoint.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/testpoint.py",
   "testsuite/pytest_plugins/pytest_userver/plugins/ydb/__init__.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/ydb/__init__.py",
   "testsuite/pytest_plugins/pytest_userver/plugins/ydb/client.py":"taxi/uservices/userver/testsuite/pytest_plugins/pytest_userver/plugins/ydb/client.py",

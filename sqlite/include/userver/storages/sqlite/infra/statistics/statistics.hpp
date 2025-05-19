@@ -2,40 +2,45 @@
 
 #include <cstdint>
 
-#include <userver/utils/statistics/percentile.hpp>
-#include <userver/utils/statistics/recentperiod.hpp>
-#include <userver/utils/statistics/relaxed_counter.hpp>
+#include <userver/utils/statistics/histogram.hpp>
+#include <userver/utils/statistics/histogram_aggregator.hpp>
+#include <userver/utils/statistics/rate_counter.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite::infra::statistics {
 
-using Counter = utils::statistics::RelaxedCounter<std::uint64_t>;
-using Percentile = utils::statistics::Percentile<2048, uint64_t, 16, 256>;
-using RecentPeriod = utils::statistics::RecentPeriod<Percentile, Percentile>;
+using RateCounter = utils::statistics::RateCounter;
+
+inline constexpr double kDefaultBoundsArray[] = {5, 10, 20, 35, 60, 100, 173, 300, 520};
 
 struct PoolConnectionStatistics final {
-    Counter overload{};
-    Counter closed{};
-    Counter created{};
-    Counter acquired{};
-    Counter released{};
+    RateCounter overload{};
+    RateCounter closed{};
+    RateCounter created{};
+    RateCounter acquired{};
+    RateCounter released{};
 };
 
 struct PoolQueriesStatistics final {
-    Counter total{};
-    Counter error{};
-    Counter executed{};
-    RecentPeriod timings{};
-
-    void Add(PoolQueriesStatistics& other);
+    RateCounter total{};
+    RateCounter error{};
+    RateCounter executed{};
+    utils::statistics::Histogram timings{kDefaultBoundsArray};
 };
 
 struct PoolTransactionsStatistics final {
-    Counter total{};
-    Counter commit{};
-    Counter rollback{};
-    RecentPeriod timings{};
+    RateCounter total{};
+    RateCounter commit{};
+    RateCounter rollback{};
+    utils::statistics::Histogram timings{kDefaultBoundsArray};
+};
+
+struct PoolTransactionsStatisticsAggregated final {
+    RateCounter total{};
+    RateCounter commit{};
+    RateCounter rollback{};
+    utils::statistics::HistogramAggregator timings{kDefaultBoundsArray};
 
     void Add(PoolTransactionsStatistics& other);
 };
@@ -46,15 +51,16 @@ struct PoolStatistics final {
     PoolTransactionsStatistics transactions{};
 };
 
-struct AgregatedInstanceStatistics final {
-    PoolConnectionStatistics write_connections{};
-    PoolConnectionStatistics read_connections{};
-    const PoolQueriesStatistics& write_queries;
-    const PoolQueriesStatistics& read_queries;
-    const PoolTransactionsStatistics& transaction;
+struct AggregatedInstanceStatistics final {
+    const PoolConnectionStatistics* write_connections{nullptr};
+    const PoolConnectionStatistics* read_connections{nullptr};
+    const PoolQueriesStatistics* write_queries{nullptr};
+    const PoolQueriesStatistics* read_queries{nullptr};
+    const PoolTransactionsStatistics* transaction{nullptr};
+    const PoolTransactionsStatisticsAggregated* transaction_aggregated{nullptr};
 };
 
-void DumpMetric(utils::statistics::Writer& writer, const AgregatedInstanceStatistics& stats);
+void DumpMetric(utils::statistics::Writer& writer, const AggregatedInstanceStatistics& stats);
 
 void DumpMetric(utils::statistics::Writer& writer, const PoolQueriesStatistics& stats);
 

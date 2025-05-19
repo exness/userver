@@ -41,7 +41,7 @@ UTEST_P_MT(SQLiteTransactionsConcurentTest, IsolationLevels, 3) {
     settings.db_path = GetTestDbPath("test.db");
     settings::TransactionOptions::IsolationLevel trx_isolation_lvl = GetParam();
     if (trx_isolation_lvl == settings::TransactionOptions::IsolationLevel::kReadUncommitted) {
-        settings.shared_cashe = true;
+        settings.shared_cache = true;
     }
     ClientPtr client;
     UEXPECT_NO_THROW(client = CreateClient(settings));

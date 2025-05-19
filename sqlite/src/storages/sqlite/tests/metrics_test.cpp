@@ -80,16 +80,16 @@ UTEST_F(SQLiteMetricsTest, PoolBasic) {
         (client->Execute(storages::sqlite::OperationType::kReadWrite, "SELECT * FROM test").AsVector<RowTuple>())
     );
     const auto write_connection_stats = GetStatistics("sqlite.connections", {{"connection_pool", "write"}});
-    EXPECT_EQ(write_connection_stats.SingleMetric("overload").AsInt(), 0);
-    EXPECT_EQ(write_connection_stats.SingleMetric("created").AsInt(), 1);
-    EXPECT_EQ(write_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(write_connection_stats.SingleMetric("overload").AsRate(), 0);
+    EXPECT_EQ(write_connection_stats.SingleMetric("created").AsRate(), 1);
+    EXPECT_EQ(write_connection_stats.SingleMetric("closed").AsRate(), 0);
     EXPECT_EQ(write_connection_stats.SingleMetric("active").AsInt(), 1);
     EXPECT_EQ(write_connection_stats.SingleMetric("busy").AsInt(), 0);
 
     const auto read_connection_stats = GetStatistics("sqlite.connections", {{"connection_pool", "read"}});
-    EXPECT_EQ(read_connection_stats.SingleMetric("overload").AsInt(), 0);
-    EXPECT_EQ(read_connection_stats.SingleMetric("created").AsInt(), 5);
-    EXPECT_EQ(read_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(read_connection_stats.SingleMetric("overload").AsRate(), 0);
+    EXPECT_EQ(read_connection_stats.SingleMetric("created").AsRate(), 5);
+    EXPECT_EQ(read_connection_stats.SingleMetric("closed").AsRate(), 0);
     EXPECT_EQ(read_connection_stats.SingleMetric("active").AsInt(), 5);
     EXPECT_EQ(read_connection_stats.SingleMetric("busy").AsInt(), 0);
 }
@@ -140,9 +140,9 @@ UTEST_F_MT(SQLiteMetricsTest, PoolWriteInProcess, 10) {
     EXPECT_TRUE(client->Execute(OperationType::kReadOnly, "SELECT * FROM test").AsVector<RowTuple>().empty());
 
     const auto write_connection_stats = GetStatistics("sqlite.connections", {{"connection_pool", "write"}});
-    EXPECT_EQ(write_connection_stats.SingleMetric("overload").AsInt(), 0);
-    EXPECT_EQ(write_connection_stats.SingleMetric("created").AsInt(), 1);
-    EXPECT_EQ(write_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(write_connection_stats.SingleMetric("overload").AsRate(), 0);
+    EXPECT_EQ(write_connection_stats.SingleMetric("created").AsRate(), 1);
+    EXPECT_EQ(write_connection_stats.SingleMetric("closed").AsRate(), 0);
     EXPECT_EQ(write_connection_stats.SingleMetric("active").AsInt(), 1);
     EXPECT_EQ(write_connection_stats.SingleMetric("busy").AsInt(), 1);
 
@@ -155,9 +155,9 @@ UTEST_F_MT(SQLiteMetricsTest, PoolWriteInProcess, 10) {
     engine::GetAll(tasks);
 
     const auto after_write_connection_stats = GetStatistics("sqlite.connections", {{"connection_pool", "write"}});
-    EXPECT_EQ(after_write_connection_stats.SingleMetric("overload").AsInt(), 0);
-    EXPECT_EQ(after_write_connection_stats.SingleMetric("created").AsInt(), 1);
-    EXPECT_EQ(after_write_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(after_write_connection_stats.SingleMetric("overload").AsRate(), 0);
+    EXPECT_EQ(after_write_connection_stats.SingleMetric("created").AsRate(), 1);
+    EXPECT_EQ(after_write_connection_stats.SingleMetric("closed").AsRate(), 0);
     EXPECT_EQ(after_write_connection_stats.SingleMetric("active").AsInt(), 1);
     EXPECT_EQ(after_write_connection_stats.SingleMetric("busy").AsInt(), 0);
 }
@@ -204,9 +204,9 @@ UTEST_F_MT(SQLiteMetricsTest, PoolReadsInProcess, 10) {
     lock.unlock();
 
     const auto read_connection_stats = GetStatistics("sqlite.connections", {{"connection_pool", "read"}});
-    EXPECT_EQ(read_connection_stats.SingleMetric("overload").AsInt(), 0);
-    EXPECT_EQ(read_connection_stats.SingleMetric("created").AsInt(), settings.pool_settings.max_pool_size);
-    EXPECT_EQ(read_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(read_connection_stats.SingleMetric("overload").AsRate(), 0);
+    EXPECT_EQ(read_connection_stats.SingleMetric("created").AsRate(), settings.pool_settings.max_pool_size);
+    EXPECT_EQ(read_connection_stats.SingleMetric("closed").AsRate(), 0);
     EXPECT_EQ(read_connection_stats.SingleMetric("active").AsInt(), settings.pool_settings.max_pool_size);
     EXPECT_EQ(read_connection_stats.SingleMetric("busy").AsInt(), settings.pool_settings.max_pool_size);
 
@@ -218,9 +218,9 @@ UTEST_F_MT(SQLiteMetricsTest, PoolReadsInProcess, 10) {
     engine::GetAll(tasks);
 
     const auto after_read_connection_stats = GetStatistics("sqlite.connections", {{"connection_pool", "read"}});
-    EXPECT_EQ(after_read_connection_stats.SingleMetric("overload").AsInt(), 0);
-    EXPECT_EQ(after_read_connection_stats.SingleMetric("created").AsInt(), settings.pool_settings.max_pool_size);
-    EXPECT_EQ(after_read_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(after_read_connection_stats.SingleMetric("overload").AsRate(), 0);
+    EXPECT_EQ(after_read_connection_stats.SingleMetric("created").AsRate(), settings.pool_settings.max_pool_size);
+    EXPECT_EQ(after_read_connection_stats.SingleMetric("closed").AsRate(), 0);
     EXPECT_EQ(after_read_connection_stats.SingleMetric("active").AsInt(), settings.pool_settings.max_pool_size);
     EXPECT_EQ(after_read_connection_stats.SingleMetric("busy").AsInt(), 0);
 }
@@ -239,8 +239,8 @@ UTEST_F(SQLiteMetricsPoolTest, ActiveConnections) {
 
     {
         const auto& stat = pool->GetStatistics();
-        size_t busy = stat.connections.acquired - stat.connections.released;
-        size_t active = stat.connections.created - stat.connections.closed;
+        size_t busy = stat.connections.acquired.Load().value - stat.connections.released.Load().value;
+        size_t active = stat.connections.created.Load().value - stat.connections.closed.Load().value;
         EXPECT_EQ(busy, 3);
         EXPECT_EQ(active, 3);
     }
@@ -249,8 +249,8 @@ UTEST_F(SQLiteMetricsPoolTest, ActiveConnections) {
 
     {
         const auto& stat = pool->GetStatistics();
-        size_t busy = stat.connections.acquired - stat.connections.released;
-        size_t active = stat.connections.created - stat.connections.closed;
+        size_t busy = stat.connections.acquired.Load().value - stat.connections.released.Load().value;
+        size_t active = stat.connections.created.Load().value - stat.connections.closed.Load().value;
         EXPECT_EQ(busy, 0);
         EXPECT_EQ(active, 3);
     }
@@ -267,17 +267,17 @@ UTEST_F(SQLiteMetricsTest, NoOp) {
     const auto read_queries_stats = GetStatistics("sqlite.queries", {{"connection_pool", "read"}});
     const auto transactions = GetStatistics("sqlite.transactions");
 
-    EXPECT_EQ(write_queries_stats.SingleMetric("total").AsInt(), 0);
-    EXPECT_EQ(write_queries_stats.SingleMetric("executed").AsInt(), 0);
-    EXPECT_EQ(write_queries_stats.SingleMetric("error").AsInt(), 0);
+    EXPECT_EQ(write_queries_stats.SingleMetric("total").AsRate(), 0);
+    EXPECT_EQ(write_queries_stats.SingleMetric("executed").AsRate(), 0);
+    EXPECT_EQ(write_queries_stats.SingleMetric("error").AsRate(), 0);
 
-    EXPECT_EQ(read_queries_stats.SingleMetric("total").AsInt(), 0);
-    EXPECT_EQ(read_queries_stats.SingleMetric("executed").AsInt(), 0);
-    EXPECT_EQ(read_queries_stats.SingleMetric("error").AsInt(), 0);
+    EXPECT_EQ(read_queries_stats.SingleMetric("total").AsRate(), 0);
+    EXPECT_EQ(read_queries_stats.SingleMetric("executed").AsRate(), 0);
+    EXPECT_EQ(read_queries_stats.SingleMetric("error").AsRate(), 0);
 
-    EXPECT_EQ(transactions.SingleMetric("total").AsInt(), 0);
-    EXPECT_EQ(transactions.SingleMetric("commit").AsInt(), 0);
-    EXPECT_EQ(transactions.SingleMetric("rollback").AsInt(), 0);
+    EXPECT_EQ(transactions.SingleMetric("total").AsRate(), 0);
+    EXPECT_EQ(transactions.SingleMetric("commit").AsRate(), 0);
+    EXPECT_EQ(transactions.SingleMetric("rollback").AsRate(), 0);
 }
 
 UTEST_F(SQLiteMetricsTest, QueriesBasic) {
@@ -326,20 +326,20 @@ UTEST_F(SQLiteMetricsTest, QueriesBasic) {
     const auto write_queries_stats = GetStatistics("sqlite.queries", {{"connection_pool", "write"}});
     const auto read_queries_stats = GetStatistics("sqlite.queries", {{"connection_pool", "read"}});
 
-    EXPECT_EQ(write_connection_stats.SingleMetric("closed").AsInt(), 0);
-    EXPECT_EQ(read_connection_stats.SingleMetric("closed").AsInt(), 0);
+    EXPECT_EQ(write_connection_stats.SingleMetric("closed").AsRate(), 0);
+    EXPECT_EQ(read_connection_stats.SingleMetric("closed").AsRate(), 0);
 
     // create + success insert + 2 fail insert (1 in prepare time + 1 in runtime)
     // + select on connection pool (consider all requests without separation by
     // type of operation)
-    EXPECT_EQ(write_queries_stats.SingleMetric("total").AsInt(), 5);
-    EXPECT_EQ(write_queries_stats.SingleMetric("executed").AsInt(), 3);
-    EXPECT_EQ(write_queries_stats.SingleMetric("error").AsInt(), 2);
+    EXPECT_EQ(write_queries_stats.SingleMetric("total").AsRate(), 5);
+    EXPECT_EQ(write_queries_stats.SingleMetric("executed").AsRate(), 3);
+    EXPECT_EQ(write_queries_stats.SingleMetric("error").AsRate(), 2);
 
     // success select on read connection + fail select
-    EXPECT_EQ(read_queries_stats.SingleMetric("total").AsInt(), 2);
-    EXPECT_EQ(read_queries_stats.SingleMetric("executed").AsInt(), 1);
-    EXPECT_EQ(read_queries_stats.SingleMetric("error").AsInt(), 1);
+    EXPECT_EQ(read_queries_stats.SingleMetric("total").AsRate(), 2);
+    EXPECT_EQ(read_queries_stats.SingleMetric("executed").AsRate(), 1);
+    EXPECT_EQ(read_queries_stats.SingleMetric("error").AsRate(), 1);
 }
 
 UTEST_F(SQLiteMetricsTest, TransactionsBasic) {
@@ -387,9 +387,9 @@ UTEST_F(SQLiteMetricsTest, TransactionsBasic) {
 
     const auto transactions_stats = GetStatistics("sqlite.transactions");
 
-    EXPECT_EQ(transactions_stats.SingleMetric("total").AsInt(), kTotalTransactions);
-    EXPECT_EQ(transactions_stats.SingleMetric("commit").AsInt(), kTotalCommitedTransactions);
-    EXPECT_EQ(transactions_stats.SingleMetric("rollback").AsInt(), kTotalRollbackedTransactions);
+    EXPECT_EQ(transactions_stats.SingleMetric("total").AsRate(), kTotalTransactions);
+    EXPECT_EQ(transactions_stats.SingleMetric("commit").AsRate(), kTotalCommitedTransactions);
+    EXPECT_EQ(transactions_stats.SingleMetric("rollback").AsRate(), kTotalRollbackedTransactions);
 }
 
 }  // namespace storages::sqlite::tests

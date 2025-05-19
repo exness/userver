@@ -58,18 +58,23 @@ void ReadWriteStrategy::WriteStatistics(utils::statistics::Writer& writer) const
     auto& write_stat = write_connection_pool_->GetStatistics();
     auto& read_stat = read_connection_pool_->GetStatistics();
 
-    auto write_connections_stat = write_stat.connections;
-    auto read_connections_stat = read_stat.connections;
+    auto& write_connections_stat = write_stat.connections;
+    auto& read_connections_stat = read_stat.connections;
 
     auto& write_queries_stat = write_stat.queries;
     auto& read_queries_stat = read_stat.queries;
 
-    statistics::PoolTransactionsStatistics transactions_stat;
+    statistics::PoolTransactionsStatisticsAggregated transactions_stat;
     transactions_stat.Add(write_stat.transactions);
     transactions_stat.Add(read_stat.transactions);
 
-    statistics::AgregatedInstanceStatistics instance_stat{
-        write_connections_stat, read_connections_stat, write_queries_stat, read_queries_stat, transactions_stat};
+    statistics::AggregatedInstanceStatistics instance_stat{
+        &write_connections_stat,
+        &read_connections_stat,
+        &write_queries_stat,
+        &read_queries_stat,
+        nullptr,
+        &transactions_stat};
     writer.ValueWithLabels(instance_stat, {});
 }
 

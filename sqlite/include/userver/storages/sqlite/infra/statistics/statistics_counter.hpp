@@ -1,6 +1,7 @@
 #pragma once
 
 #include <userver/storages/sqlite/infra/statistics/statistics.hpp>
+#include <userver/utils/datetime.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

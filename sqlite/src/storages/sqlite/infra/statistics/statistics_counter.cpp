@@ -16,8 +16,7 @@ void QueryStatCounter::AccountQueryExecute() noexcept {
 void QueryStatCounter::AccountQueryCompleted() noexcept {
     auto now = utils::datetime::SteadyClock::now();
     ++queries_stats_.executed;
-    queries_stats_.timings.GetCurrentCounter().Account(
-        std::chrono::duration_cast<std::chrono::milliseconds>(now - exec_begin_time).count()
+    queries_stats_.timings.Account(std::chrono::duration_cast<std::chrono::milliseconds>(now - exec_begin_time).count()
     );
 }
 
@@ -35,7 +34,7 @@ void TransactionStatCounter::AccountTransactionStart() noexcept {
 void TransactionStatCounter::AccountTransactionCommit() noexcept {
     auto now = utils::datetime::SteadyClock::now();
     ++transations_stats_.commit;
-    transations_stats_.timings.GetCurrentCounter().Account(
+    transations_stats_.timings.Account(
         std::chrono::duration_cast<std::chrono::milliseconds>(now - exec_begin_time).count()
     );
 }

@@ -1,8 +1,5 @@
 #pragma once
 
-/// @file userver/storages/sqlite/connection.hpp
-/// @copybrief @copybrief storages::sqlite::Connection
-
 #include <userver/engine/task/task_processor_fwd.hpp>
 #include <userver/utils/statistics/writer.hpp>
 

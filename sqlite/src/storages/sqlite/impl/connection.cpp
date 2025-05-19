@@ -2,6 +2,7 @@
 
 #include <userver/engine/async.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/utils/string_literal.hpp>
 
 #include <userver/storages/sqlite/infra/statistics/statistics.hpp>
 #include <userver/storages/sqlite/infra/statistics/statistics_counter.hpp>
@@ -13,16 +14,16 @@ USERVER_NAMESPACE_BEGIN
 namespace storages::sqlite::impl {
 
 namespace {
-constexpr std::string_view kStatementTransactionSerializableIsolationLevel = "PRAGMA read_uncommitted=0";
-constexpr std::string_view kStatementTransactionReadUncommitedIsolationLevel = "PRAGMA read_uncommitted=1";
-constexpr std::string_view kStatementTransactionBeginDeferred = "BEGIN DEFERRED";
-constexpr std::string_view kStatementTransactionBeginImmediate = "BEGIN IMMEDIATE";
-constexpr std::string_view kStatementTransactionBeginExclusive = "BEGIN EXCLUSIVE";
-constexpr std::string_view kStatementTransactionCommit = "COMMIT TRANSACTION";
-constexpr std::string_view kStatementTransactionRollback = "ROLLBACK TRANSACTION";
-constexpr std::string_view kStatementSavepointBegin = "SAVEPOINT ";
-constexpr std::string_view kStatementSavepointRelease = "RELEASE SAVEPOINT ";
-constexpr std::string_view kStatementSavepointRollbackTo = "ROLLBACK TO SAVEPOINT ";
+constexpr utils::StringLiteral kStatementTransactionSerializableIsolationLevel = "PRAGMA read_uncommitted=0";
+constexpr utils::StringLiteral kStatementTransactionReadUncommitedIsolationLevel = "PRAGMA read_uncommitted=1";
+constexpr utils::StringLiteral kStatementTransactionBeginDeferred = "BEGIN DEFERRED";
+constexpr utils::StringLiteral kStatementTransactionBeginImmediate = "BEGIN IMMEDIATE";
+constexpr utils::StringLiteral kStatementTransactionBeginExclusive = "BEGIN EXCLUSIVE";
+constexpr utils::StringLiteral kStatementTransactionCommit = "COMMIT TRANSACTION";
+constexpr utils::StringLiteral kStatementTransactionRollback = "ROLLBACK TRANSACTION";
+constexpr utils::StringLiteral kStatementSavepointBegin = "SAVEPOINT ";
+constexpr utils::StringLiteral kStatementSavepointRelease = "RELEASE SAVEPOINT ";
+constexpr utils::StringLiteral kStatementSavepointRollbackTo = "ROLLBACK TO SAVEPOINT ";
 
 }  // namespace
 
@@ -60,17 +61,17 @@ void Connection::ExecutionStep(StatementBasePtr prepare_statement) const {
 void Connection::Begin(const settings::TransactionOptions& options) {
     if (options.isolation_level == settings::TransactionOptions::IsolationLevel::kReadUncommitted &&
         !settings_.read_uncommited) {
-        ExecuteQuery(kStatementTransactionReadUncommitedIsolationLevel.data());
+        ExecuteQuery(kStatementTransactionReadUncommitedIsolationLevel);
     }
     switch (options.mode) {
         case settings::TransactionOptions::kDeferred:
-            ExecuteQuery(kStatementTransactionBeginDeferred.data());
+            ExecuteQuery(kStatementTransactionBeginDeferred);
             break;
         case settings::TransactionOptions::kImmediate:
-            ExecuteQuery(kStatementTransactionBeginImmediate.data());
+            ExecuteQuery(kStatementTransactionBeginImmediate);
             break;
         case settings::TransactionOptions::kExclusive:
-            ExecuteQuery(kStatementTransactionBeginExclusive.data());
+            ExecuteQuery(kStatementTransactionBeginExclusive);
             break;
         default:
             break;
@@ -79,18 +80,18 @@ void Connection::Begin(const settings::TransactionOptions& options) {
 }
 
 void Connection::Commit() {
-    ExecuteQuery(kStatementTransactionCommit.data());
+    ExecuteQuery(kStatementTransactionCommit);
     AccountTransactionCommit();
     if (!settings_.read_uncommited) {
-        ExecuteQuery(kStatementTransactionSerializableIsolationLevel.data());
+        ExecuteQuery(kStatementTransactionSerializableIsolationLevel);
     }
 }
 
 void Connection::Rollback() {
-    ExecuteQuery(kStatementTransactionRollback.data());
+    ExecuteQuery(kStatementTransactionRollback);
     AccountTransactionRollback();
     if (!settings_.read_uncommited) {
-        ExecuteQuery(kStatementTransactionSerializableIsolationLevel.data());
+        ExecuteQuery(kStatementTransactionSerializableIsolationLevel);
     }
 }
 
@@ -118,7 +119,7 @@ bool Connection::IsBroken() const { return broken_.load(); }
 
 void Connection::NotifyBroken() { broken_.store(true); }
 
-void Connection::ExecuteQuery(const std::string& query) const { db_handler_.Exec(query); }
+void Connection::ExecuteQuery(utils::NullTerminatedView query) const { db_handler_.Exec(query); }
 
 }  // namespace storages::sqlite::impl
 

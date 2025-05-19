@@ -22,19 +22,19 @@ inline constexpr std::string_view kCreateTable = R"~(
     key TEXT PRIMARY KEY,
     value TEXT
     )
-    )~";
+)~";
 
 inline constexpr std::string_view kSelectValueByKey = R"~(
     SELECT value FROM key_value_table WHERE key = ?
-    )~";
+)~";
 
 inline constexpr std::string_view kInsertKeyValue = R"~(
     INSERT OR IGNORE INTO key_value_table (key, value) VALUES (?, ?)
-    )~";
+)~";
 
 inline constexpr std::string_view kDeleteKeyValue = R"~(
     DELETE FROM key_value_table WHERE key = ?
-    )~";
+)~";
 
 }  // namespace
 
@@ -142,6 +142,8 @@ int main(int argc, char* argv[]) {
     const auto component_list = components::MinimalServerComponentList()
                                     .Append<samples_sqlite_service::sqlite::KeyValue>()
                                     .Append<components::SQLite>("key-value-database")
+                                    .Append<components::HttpClient>()
+                                    .Append<server::handlers::TestsControl>()
                                     .Append<components::TestsuiteSupport>()
                                     .Append<clients::dns::Component>();
     return utils::DaemonMain(argc, argv, component_list);

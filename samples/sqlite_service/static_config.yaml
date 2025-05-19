@@ -11,6 +11,13 @@ components_manager:
             task_processor: fs-task-processor
 
         testsuite-support:
+        http-client:
+            fs-task-processor: main-task-processor
+        tests-control:
+            load-enabled: $testsuite-enabled
+            path: /tests/{action}
+            method: POST
+            task_processor: main-task-processor
 
         server:
             listener:

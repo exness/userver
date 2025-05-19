@@ -27,3 +27,4 @@ async def test_sqlite(service_client):
     # And after it an attempt to getting data using this key gives an error
     response = await service_client.get('/basic/sqlite/key-value?key=hello')
     assert response.status == 404
+    # /// [Functional test]

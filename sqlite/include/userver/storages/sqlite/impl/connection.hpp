@@ -1,6 +1,7 @@
 #pragma once
 
 #include <userver/engine/task/task_processor_fwd.hpp>
+#include <userver/utils/null_terminated_view.hpp>
 
 #include <userver/storages/sqlite/impl/native_handler.hpp>
 #include <userver/storages/sqlite/impl/result_wrapper.hpp>
@@ -50,11 +51,12 @@ public:
     void AccountTransactionCommit() noexcept;
     void AccountTransactionRollback() noexcept;
 
+    // TODO: is used ?
     bool IsBroken() const;
     void NotifyBroken();
 
 private:
-    void ExecuteQuery(const std::string& query) const;
+    void ExecuteQuery(utils::NullTerminatedView query) const;
 
     engine::TaskProcessor& blocking_task_processor_;
     impl::NativeHandler db_handler_;

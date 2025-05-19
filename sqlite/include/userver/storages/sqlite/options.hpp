@@ -64,7 +64,7 @@ struct PoolSettings final {
 
 inline constexpr bool kDefaultCreateFile = true;
 inline constexpr bool kDefaultIsReadOnly = false;
-inline constexpr bool kDefaultSharedCashe = false;
+inline constexpr bool kDefaultSharedCache = false;
 inline constexpr bool kDefaultReadUncommited = false;
 inline constexpr bool kDefaultForeignKeys = true;
 inline constexpr std::string_view kDefaultJournalMode = "wal";
@@ -84,7 +84,7 @@ struct SQLiteSettings {
 
     ReadMode read_mode = !kDefaultIsReadOnly ? ReadMode::kReadWrite : ReadMode::kReadOnly;
     bool create_file = kDefaultCreateFile;
-    bool shared_cashe = kDefaultSharedCashe;
+    bool shared_cache = kDefaultSharedCache;
     bool read_uncommited = kDefaultReadUncommited;
     bool foreign_keys = kDefaultForeignKeys;
     JournalMode journal_mode = JournalMode::kWal;

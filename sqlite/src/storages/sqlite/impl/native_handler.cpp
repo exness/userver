@@ -6,8 +6,9 @@
 
 #include <userver/engine/async.hpp>
 
+#include <userver/logging/log.hpp>
 #include <userver/storages/sqlite/exceptions.hpp>
-#include "userver/logging/log.hpp"
+#include <userver/utils/string_literal.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -15,24 +16,24 @@ namespace storages::sqlite::impl {
 
 namespace {
 
-constexpr std::string_view kPragmaJournalModeDelete = "PRAGMA journal_mode = DELETE";
-constexpr std::string_view kPragmaJournalModeTruncate = "PRAGMA journal_mode = TRUNCATE";
-constexpr std::string_view kPragmaJournalModePersist = "PRAGMA journal_mode = PERSIST";
-constexpr std::string_view kPragmaJournalModeMemory = "PRAGMA journal_mode = MEMORY";
-constexpr std::string_view kPragmaJournalModeWal = "PRAGMA journal_mode = WAL";
-constexpr std::string_view kPragmaJournalModeOff = "PRAGMA journal_mode = OFF";
-constexpr std::string_view kPragmaSynchronousExtra = "PRAGMA synchronous = EXTRA";
-constexpr std::string_view kPragmaSynchronousFull = "PRAGMA synchronous = FULL";
-constexpr std::string_view kPragmaSynchronousNormal = "PRAGMA synchronous = NORMAL";
-constexpr std::string_view kPragmaSynchronousOff = "PRAGMA synchronous = OFF";
-constexpr std::string_view kPragmaCacheSize = "PRAGMA cache_size = ";
-constexpr std::string_view kPragmaForeignKeys = "PRAGMA foreign_keys = ";
-constexpr std::string_view kPragmaJournalSizeLimit = "PRAGMA journal_size_limit = ";
-constexpr std::string_view kPragmaMmapSize = "PRAGMA mmap_size = ";
-constexpr std::string_view kPragmaPageSize = "PRAGMA page_size = ";
-constexpr std::string_view kPragmaTempStoreFile = "PRAGMA temp_store = FILE";
-constexpr std::string_view kPragmaTempStoreMemory = "PRAGMA temp_store = MEMORY";
-constexpr std::string_view kPragmaReadUncommited = "PRAGMA read_uncommitted=1";
+constexpr utils::StringLiteral kPragmaJournalModeDelete = "PRAGMA journal_mode = DELETE";
+constexpr utils::StringLiteral kPragmaJournalModeTruncate = "PRAGMA journal_mode = TRUNCATE";
+constexpr utils::StringLiteral kPragmaJournalModePersist = "PRAGMA journal_mode = PERSIST";
+constexpr utils::StringLiteral kPragmaJournalModeMemory = "PRAGMA journal_mode = MEMORY";
+constexpr utils::StringLiteral kPragmaJournalModeWal = "PRAGMA journal_mode = WAL";
+constexpr utils::StringLiteral kPragmaJournalModeOff = "PRAGMA journal_mode = OFF";
+constexpr utils::StringLiteral kPragmaSynchronousExtra = "PRAGMA synchronous = EXTRA";
+constexpr utils::StringLiteral kPragmaSynchronousFull = "PRAGMA synchronous = FULL";
+constexpr utils::StringLiteral kPragmaSynchronousNormal = "PRAGMA synchronous = NORMAL";
+constexpr utils::StringLiteral kPragmaSynchronousOff = "PRAGMA synchronous = OFF";
+constexpr utils::StringLiteral kPragmaCacheSize = "PRAGMA cache_size = ";
+constexpr utils::StringLiteral kPragmaForeignKeys = "PRAGMA foreign_keys = ";
+constexpr utils::StringLiteral kPragmaJournalSizeLimit = "PRAGMA journal_size_limit = ";
+constexpr utils::StringLiteral kPragmaMmapSize = "PRAGMA mmap_size = ";
+constexpr utils::StringLiteral kPragmaPageSize = "PRAGMA page_size = ";
+constexpr utils::StringLiteral kPragmaTempStoreFile = "PRAGMA temp_store = FILE";
+constexpr utils::StringLiteral kPragmaTempStoreMemory = "PRAGMA temp_store = MEMORY";
+constexpr utils::StringLiteral kPragmaReadUncommited = "PRAGMA read_uncommitted=1";
 
 }  // namespace
 
@@ -41,37 +42,37 @@ void NativeHandler::SetSettings(const settings::SQLiteSettings& settings) {
     if (settings.read_mode == settings::SQLiteSettings::ReadMode::kReadWrite) {
         switch (settings.journal_mode) {
             case settings::SQLiteSettings::JournalMode::kDelete:
-                Exec(kPragmaJournalModeDelete.data());
+                Exec(kPragmaJournalModeDelete);
                 break;
             case settings::SQLiteSettings::JournalMode::kTruncate:
-                Exec(kPragmaJournalModeTruncate.data());
+                Exec(kPragmaJournalModeTruncate);
                 break;
             case settings::SQLiteSettings::JournalMode::kPersist:
-                Exec(kPragmaJournalModePersist.data());
+                Exec(kPragmaJournalModePersist);
                 break;
             case settings::SQLiteSettings::JournalMode::kMemory:
-                Exec(kPragmaJournalModeMemory.data());
+                Exec(kPragmaJournalModeMemory);
                 break;
             case settings::SQLiteSettings::JournalMode::kWal:
-                Exec(kPragmaJournalModeWal.data());
+                Exec(kPragmaJournalModeWal);
                 break;
             case settings::SQLiteSettings::JournalMode::kOff:
-                Exec(kPragmaJournalModeOff.data());
+                Exec(kPragmaJournalModeOff);
                 break;
         }
         // It's settings is local for connection, but it most actual in write case
         switch (settings.synchronous) {
             case settings::SQLiteSettings::Synchronous::kExtra:
-                Exec(kPragmaSynchronousExtra.data());
+                Exec(kPragmaSynchronousExtra);
                 break;
             case settings::SQLiteSettings::Synchronous::kFull:
-                Exec(kPragmaSynchronousFull.data());
+                Exec(kPragmaSynchronousFull);
                 break;
             case settings::SQLiteSettings::Synchronous::kNormal:
-                Exec(kPragmaSynchronousNormal.data());
+                Exec(kPragmaSynchronousNormal);
                 break;
             case settings::SQLiteSettings::Synchronous::kOff:
-                Exec(kPragmaSynchronousOff.data());
+                Exec(kPragmaSynchronousOff);
                 break;
         }
         // It' settings work only on new database file on start
@@ -81,14 +82,14 @@ void NativeHandler::SetSettings(const settings::SQLiteSettings& settings) {
     // Set local settings
     switch (settings.temp_store) {
         case settings::SQLiteSettings::TempStore::kFile:
-            Exec(kPragmaTempStoreFile.data());
+            Exec(kPragmaTempStoreFile);
             break;
         case settings::SQLiteSettings::TempStore::kMemory:
-            Exec(kPragmaTempStoreMemory.data());
+            Exec(kPragmaTempStoreMemory);
             break;
     }
     if (settings.read_uncommited) {
-        Exec(kPragmaReadUncommited.data());
+        Exec(kPragmaReadUncommited);
     }
     sqlite3_busy_timeout(db_handler_, settings.busy_timeout);
     Exec(std::string(kPragmaCacheSize) + std::to_string(settings.cache_size));
@@ -107,7 +108,7 @@ struct sqlite3* NativeHandler::OpenDatabase(const settings::SQLiteSettings& sett
     if (settings.create_file && settings.read_mode == settings::SQLiteSettings::ReadMode::kReadWrite) {
         flags |= SQLITE_OPEN_CREATE;
     }
-    if (settings.shared_cashe) {
+    if (settings.shared_cache) {
         flags |= SQLITE_OPEN_SHAREDCACHE;
     }
     return engine::AsyncNoSpan(
@@ -142,9 +143,9 @@ NativeHandler::~NativeHandler() {
 
 struct sqlite3* NativeHandler::GetHandle() const noexcept { return db_handler_; }
 
-void NativeHandler::Exec(const std::string& query) const {
-    engine::AsyncNoSpan(blocking_task_processor_, [this, &query] {
-        if (const int ret_code = sqlite3_exec(db_handler_, query.data(), nullptr, nullptr, nullptr);
+void NativeHandler::Exec(utils::NullTerminatedView query) const {
+    engine::AsyncNoSpan(blocking_task_processor_, [this, query] {
+        if (const int ret_code = sqlite3_exec(db_handler_, query.c_str(), nullptr, nullptr, nullptr);
             ret_code != SQLITE_OK) {
             throw SQLiteException(sqlite3_errstr(ret_code), ret_code);
         }

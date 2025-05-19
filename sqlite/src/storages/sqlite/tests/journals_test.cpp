@@ -37,7 +37,7 @@ UTEST_P_MT(SQLiteJournalModesTest, ReadWrite, 10) {
     settings.db_path = GetTestDbPath("test.db");
     settings.journal_mode = GetParam();
     if (settings.journal_mode == settings::SQLiteSettings::JournalMode::kMemory) {
-        settings.shared_cashe = true;
+        settings.shared_cache = true;
     }
     constexpr size_t kReadTaskCount = 10;
     constexpr size_t kWriteTaskCount = 10;
