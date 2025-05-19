@@ -44,6 +44,7 @@ class UserverConan(ConanFile):
         'with_easy': [True, False],
         'with_s3api': [True, False],
         'with_grpc_reflection': [True, False],
+        'with_grpc_protovalidate': [True, False],
         'namespace': ['ANY'],
         'namespace_begin': ['ANY'],
         'namespace_end': ['ANY'],
@@ -68,6 +69,7 @@ class UserverConan(ConanFile):
         'with_easy': True,
         'with_s3api': True,
         'with_grpc_reflection': True,
+        'with_grpc_protovalidate': False,
         'namespace': 'userver',
         'namespace_begin': 'namespace userver {',
         'namespace_end': '}',
@@ -132,15 +134,15 @@ class UserverConan(ConanFile):
         if self.options.with_jemalloc:
             self.requires('jemalloc/5.3.0')
         if self.options.with_grpc or self.options.with_clickhouse:
-            self.requires('abseil/20240116.2', force=True)
+            self.requires('abseil/20240722.1', force=True)
         if self.options.with_grpc:
             self.requires(
-                'grpc/1.65.0',
+                'grpc/1.67.1',
                 transitive_headers=True,
                 transitive_libs=True,
             )
             self.requires(
-                'protobuf/5.27.0',
+                'protobuf/5.29.3',
                 transitive_headers=True,
                 transitive_libs=True,
                 force=True,
@@ -183,7 +185,7 @@ class UserverConan(ConanFile):
             self.requires('opentelemetry-proto/1.3.0')
 
     def build_requirements(self):
-        self.tool_requires('protobuf/5.27.0')
+        self.tool_requires('protobuf/5.29.3')
 
     def validate(self):
         if self.settings.os == 'Windows':
@@ -226,6 +228,7 @@ class UserverConan(ConanFile):
         tool_ch.variables['USERVER_FEATURE_EASY'] = self.options.with_easy
         tool_ch.variables['USERVER_FEATURE_S3API'] = self.options.with_s3api
         tool_ch.variables['USERVER_FEATURE_GRPC_REFLECTION'] = self.options.with_grpc_reflection
+        tool_ch.variables['USERVER_FEATURE_GRPC_PROTOVALIDATE'] = self.options.with_grpc_protovalidate
 
         if self.options.with_grpc:
             tool_ch.variables['USERVER_GOOGLE_COMMON_PROTOS'] = (

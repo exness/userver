@@ -14,15 +14,6 @@ if(USERVER_CONAN AND "${gRPC_VERSION}" VERSION_GREATER_EQUAL "1.41")
   )
 endif()
 
-if("${gRPC_VERSION}" VERSION_GREATER_EQUAL "1.66")
-  message(
-      FATAL_ERROR
-      "userver currently does not support gRPC >= 1.66 due to a breaking "
-      "change in grpc-core that requires a fix in userver "
-      "https://github.com/grpc/grpc/pull/37321/files"
-  )
-endif()
-
 if(NOT TARGET userver-api-common-protos)
   include(SetupGoogleProtoApis)
 endif()
@@ -55,6 +46,10 @@ if (api-common-proto_USRV_SOURCES)
 endif()
 
 add_library(${PROJECT_NAME}-internal STATIC ${SOURCES})
+
+if("${gRPC_VERSION}" VERSION_LESS "1.66")
+  target_compile_definitions(${PROJECT_NAME}-internal PRIVATE USERVER_IMPL_FEATURE_OLD_GRPC_NATIVE_LOGGING)
+endif()
 
 if (NOT USERVER_GPRC_BUILD_FROM_SOURCE)
   target_compile_definitions(${PROJECT_NAME}-internal PUBLIC GRPC_ASAN_SUPPRESSED GRPC_TSAN_SUPPRESSED)
