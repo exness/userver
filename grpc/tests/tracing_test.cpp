@@ -72,7 +72,7 @@ private:
 
 class GrpcTracing : public ugrpc::tests::ServiceFixture<UnitTestServiceWithTracingChecks> {
 private:
-    [[maybe_unused]] logging::DefaultLoggerLevelScope log_level_scope_{logging::Level::kInfo};
+    logging::DefaultLoggerLevelScope log_level_scope_{logging::Level::kInfo};
 };
 
 void CheckMetadata(const grpc::ClientContext& context) {
