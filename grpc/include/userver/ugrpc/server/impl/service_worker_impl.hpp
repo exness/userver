@@ -133,12 +133,12 @@ public:
         // start a concurrent listener immediately, as advised by gRPC docs
         ListenAsync(method_data_);
 
-        HandleRpc();
+        ProcessCall();
     }
 
-    static void ListenAsync(const MethodData<GrpcppService, CallTraits>& data) {
+    static void ListenAsync(const MethodData<GrpcppService, CallTraits>& method_data) {
         engine::CriticalAsyncNoSpan(
-            data.service_data.internals.task_processor, utils::LazyPrvalue([&] { return CallData(data); })
+            method_data.service_data.internals.task_processor, utils::LazyPrvalue([&] { return CallData(method_data); })
         ).Detach();
     }
 
@@ -147,7 +147,7 @@ private:
     using RawResponder = typename CallTraits::RawResponder;
     using Context = typename CallTraits::Context;
 
-    void HandleRpc() {
+    void ProcessCall() {
         auto call_name = method_data_.call_name;
         auto service_name = method_data_.service_data.metadata.service_full_name;
         auto method_name = method_data_.method_name;
