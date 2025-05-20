@@ -104,10 +104,39 @@ def _is_error_status_set(context: grpc.aio.ServicerContext) -> bool:
     return code != grpc.StatusCode.OK and code is not None and code != 0
 
 
+class _PatchedAbort(MockedError):
+    def __init__(self, *args) -> None:
+        super().__init__()
+        self.args = args
+
+
+class _PatchedServicerContext:
+    """
+    `grpc.aio.ServicerContext.abort` immediately sends the response status,
+    before `AsyncCallQueue` has a chance to update its call log.
+    As a workaround, patch `abort` to delay the actual `abort` call until exit from `AsyncCallQueue`.
+    """
+
+    def __init__(self, context: grpc.aio.ServicerContext) -> None:
+        self._context = context
+
+    async def abort(self, code: grpc.StatusCode, details: str = '', trailing_metadata: Any = tuple()) -> None:
+        raise _PatchedAbort(code, details, trailing_metadata)
+
+    def __getattr__(self, item: str) -> Any:
+        return getattr(self._context, item)
+
+
+def _patched_servicer_context(context: grpc.aio.ServicerContext) -> grpc.aio.ServicerContext:
+    return typing.cast(grpc.aio.ServicerContext, _PatchedServicerContext(context))
+
+
 @contextlib.asynccontextmanager
 async def _handle_exceptions(context: grpc.aio.ServicerContext, state: _ServiceMockState):
     try:
         yield
+    except _PatchedAbort as exc:
+        await context.abort(*exc.args)
     except MockedError as exc:
         await context.abort(code=grpc.StatusCode.UNKNOWN, trailing_metadata=((_ERROR_CODE_KEY, exc.ERROR_CODE),))
     except Exception as exc:  # pylint: disable=broad-except
@@ -131,7 +160,7 @@ def _wrap_grpc_method(
                 await _raise_unimplemented_error(context, method_descriptor, state)
 
             async with _handle_exceptions(context, state):
-                response_iterator = method(request_or_stream, context)
+                response_iterator = method(request_or_stream, _patched_servicer_context(context))
                 if inspect.isawaitable(response_iterator):
                     response_iterator = await response_iterator
                 _check_response_is_asyncgen(response_iterator, method_descriptor)
@@ -148,7 +177,7 @@ def _wrap_grpc_method(
                 await _raise_unimplemented_error(context, method_descriptor, state)
 
             async with _handle_exceptions(context, state):
-                response = method(request_or_stream, context)
+                response = method(request_or_stream, _patched_servicer_context(context))
                 if inspect.isawaitable(response):
                     response = await response
                 return _check_is_valid_response(response, method_descriptor)
