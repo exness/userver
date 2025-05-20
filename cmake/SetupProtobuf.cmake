@@ -60,7 +60,7 @@ include(SetupAbseil)
 
 CPMAddPackage(
     NAME Protobuf
-    VERSION 5.29.4
+    VERSION 4.24.4
     GITHUB_REPOSITORY protocolbuffers/protobuf
     SYSTEM
     OPTIONS
