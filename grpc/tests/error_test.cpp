@@ -95,7 +95,8 @@ UTEST_F(GrpcClientErrorTest, OutputStream) {
     UEXPECT_THROW(call.Finish(), ugrpc::client::InternalError);
 }
 
-UTEST_F(GrpcClientErrorTest, OutputStreamErrorOnWrite) {
+// Disabled due to https://github.com/grpc/grpc/issues/14812
+UTEST_F(GrpcClientErrorTest, DISABLED_OutputStreamErrorOnWrite) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
     auto call = client.WriteMany();
     sample::ugrpc::StreamGreetingRequest out{};
