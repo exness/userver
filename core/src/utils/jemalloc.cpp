@@ -7,6 +7,7 @@
 #endif
 
 #include <userver/utils/thread_name.hpp>
+#include <userver/engine/subprocess/environment_variables.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -42,6 +43,12 @@ void MallocStatPrintCb(void* data, const char* msg) {
 }
 
 }  // namespace
+
+bool IsProfilingEnabledViaEnv() {
+    const auto env = engine::subprocess::GetCurrentEnvironmentVariables();
+    const auto* malloc_conf = env.GetValueOptional("MALLOC_CONF");
+    return (malloc_conf && malloc_conf->find("prof:true") != std::string::npos);
+}
 
 std::string Stats() {
   std::string result;

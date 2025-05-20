@@ -1,5 +1,6 @@
 # pylint: disable=no-member
 import os
+import platform
 import re
 
 from conan import ConanFile
@@ -31,7 +32,7 @@ def get_userver_version(self) -> str:
 
 class UserverConan(ConanFile):
     name = 'userver'
-    version = '2.2.7'
+    version = '2.2.8'
     description = 'The C++ Asynchronous Framework'
     topics = ('framework', 'coroutines', 'asynchronous')
     url = 'https://github.com/userver-framework/userver'
@@ -64,7 +65,7 @@ class UserverConan(ConanFile):
         'shared': False,
         'fPIC': True,
         'lto': False,
-        'with_jemalloc': False,
+        'with_jemalloc': (platform.system() != 'Darwin'),
         'with_mongodb': True,
         'with_postgresql': True,
         'with_postgresql_extra': False,
@@ -107,6 +108,11 @@ class UserverConan(ConanFile):
 
     def layout(self):
         cmake_layout(self)
+
+    def configure(self):
+        # Control dependencies of our dependencies based on current options
+        if self.options.with_jemalloc:
+            self.options["jemalloc"].enable_prof = True
 
     def requirements(self):
         self.requires('boost/1.85.0', transitive_headers=True)
