@@ -191,6 +191,12 @@ bool RpcData::AreWritesFinished() const noexcept {
     return writes_finished_;
 }
 
+bool RpcData::IsReadAvailable() const noexcept { return !IsFinished(); }
+
+bool RpcData::IsWriteAvailable() const noexcept { return !AreWritesFinished(); }
+
+bool RpcData::IsWriteAndCheckAvailable() const noexcept { return !AreWritesFinished() && !IsFinished(); }
+
 void RpcData::EmplaceAsyncMethodInvocation() {
     UINVARIANT(
         std::holds_alternative<std::monostate>(invocation_),
@@ -309,17 +315,6 @@ void ProcessFinishResult(
     if (throw_on_error) {
         CheckFinishStatus(data);
     }
-}
-
-void PrepareRead(RpcData& data) { UINVARIANT(!data.IsFinished(), "'Read' called on a finished call"); }
-
-void PrepareWrite(RpcData& data) {
-    UINVARIANT(!data.AreWritesFinished(), "'Write' called on a stream that is closed for writes");
-}
-
-void PrepareWriteAndCheck(RpcData& data) {
-    UINVARIANT(!data.AreWritesFinished(), "'WriteAndCheck' called on a stream that is closed for writes");
-    UINVARIANT(!data.IsFinished(), "'WriteAndCheck' called on a finished call");
 }
 
 }  // namespace ugrpc::client::impl

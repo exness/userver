@@ -100,6 +100,12 @@ public:
 
     void SetDeadlinePropagated() noexcept;
 
+    bool IsReadAvailable() const noexcept;
+
+    bool IsWriteAvailable() const noexcept;
+
+    bool IsWriteAndCheckAvailable() const noexcept;
+
     // please read comments for 'invocation_' private member on why
     // we use two different invocation types
     void EmplaceAsyncMethodInvocation();
@@ -225,11 +231,9 @@ void Finish(
     ProcessFinishResult(data, wait_status, post_finish, throw_on_error);
 }
 
-void PrepareRead(RpcData& data);
-
 template <typename GrpcStream, typename Response>
 [[nodiscard]] bool Read(GrpcStream& stream, Response& response, RpcData& data) {
-    PrepareRead(data);
+    UINVARIANT(data.IsReadAvailable(), "'impl::Read' called on a finished call");
     AsyncMethodInvocation read;
     stream.Read(&response, read.GetTag());
     const auto wait_status = Wait(read, data.GetContext());
@@ -241,17 +245,15 @@ template <typename GrpcStream, typename Response>
 
 template <typename GrpcStream, typename Response>
 void ReadAsync(GrpcStream& stream, Response& response, RpcData& data) {
-    PrepareRead(data);
+    UINVARIANT(data.IsReadAvailable(), "'impl::Read' called on a finished call");
     data.EmplaceAsyncMethodInvocation();
     auto& read = data.GetAsyncMethodInvocation();
     stream.Read(&response, read.GetTag());
 }
 
-void PrepareWrite(RpcData& data);
-
 template <typename GrpcStream, typename Request>
 bool Write(GrpcStream& stream, const Request& request, grpc::WriteOptions options, RpcData& data) {
-    PrepareWrite(data);
+    UINVARIANT(data.IsWriteAvailable(), "'impl::Write' called on a stream that is closed for writes");
     AsyncMethodInvocation write;
     stream.Write(request, options, write.GetTag());
     const auto result = Wait(write, data.GetContext());
@@ -264,11 +266,9 @@ bool Write(GrpcStream& stream, const Request& request, grpc::WriteOptions option
     return result == impl::AsyncMethodInvocation::WaitStatus::kOk;
 }
 
-void PrepareWriteAndCheck(RpcData& data);
-
 template <typename GrpcStream, typename Request>
 void WriteAndCheck(GrpcStream& stream, const Request& request, grpc::WriteOptions options, RpcData& data) {
-    PrepareWriteAndCheck(data);
+    UINVARIANT(data.IsWriteAndCheckAvailable(), "'impl::WriteAndCheck' called on a finished or closed stream");
     AsyncMethodInvocation write;
     stream.Write(request, options, write.GetTag());
     CheckOk(data, Wait(write, data.GetContext()), "WriteAndCheck");
@@ -276,7 +276,7 @@ void WriteAndCheck(GrpcStream& stream, const Request& request, grpc::WriteOption
 
 template <typename GrpcStream>
 bool WritesDone(GrpcStream& stream, RpcData& data) {
-    PrepareWrite(data);
+    UINVARIANT(data.IsWriteAvailable(), "'impl::WritesDone' called on a stream that is closed for writes");
     data.SetWritesFinished();
     AsyncMethodInvocation writes_done;
     stream.WritesDone(writes_done.GetTag());

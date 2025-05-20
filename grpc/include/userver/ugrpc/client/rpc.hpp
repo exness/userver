@@ -189,9 +189,6 @@ private:
 /// reused for new RPCs), and the server receives `RpcInterruptedError`
 /// immediately. gRPC provides no way to early-close a server-streaming RPC
 /// gracefully.
-///
-/// If any method throws, further methods must not be called on the same stream,
-/// except for `GetContext`.
 template <typename Response>
 class [[nodiscard]] InputStream final : public CallAnyBase {
 public:
@@ -200,7 +197,8 @@ public:
     /// On end-of-input, `Finish` is called automatically.
     ///
     /// @param response where to put response on success
-    /// @returns `true` on success, `false` on end-of-input or task cancellation
+    /// @returns `true` on success, `false` on end-of-input, task cancellation,
+    //           or if the stream is already closed for reads
     /// @throws ugrpc::client::RpcError on an RPC error
     [[nodiscard]] bool Read(Response& response);
 
@@ -227,9 +225,6 @@ private:
 /// The RPC is cancelled on destruction unless `Finish` has been called. In that
 /// case the connection is not closed (it will be reused for new RPCs), and the
 /// server receives `RpcInterruptedError` immediately.
-///
-/// If any method throws, further methods must not be called on the same stream,
-/// except for `GetContext`.
 template <typename Request, typename Response>
 class [[nodiscard]] OutputStream final : public CallAnyBase {
 public:
@@ -240,7 +235,8 @@ public:
     ///
     /// @param request the next message to write
     /// @return true if the data is going to the wire; false if the write
-    ///         operation failed (including due to task cancellation),
+    ///         operation failed (including due to task cancellation,
+    //          or if the stream is already closed for writes),
     ///         in which case no more writes will be accepted,
     ///         and the error details can be fetched from Finish
     [[nodiscard]] bool Write(const Request& request);
@@ -256,6 +252,7 @@ public:
     /// @param request the next message to write
     /// @throws ugrpc::client::RpcError on an RPC error
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
+    /// @throws ugrpc::client::RpcError if the stream is already closed for writes
     void WriteAndCheck(const Request& request);
 
     /// @brief Complete the RPC successfully
@@ -332,7 +329,8 @@ public:
     /// On end-of-input, `Finish` is called automatically.
     ///
     /// @param response where to put response on success
-    /// @returns `true` on success, `false` on end-of-input or task cancellation
+    /// @returns `true` on success, `false` on end-of-input, task cancellation,
+    ///              or if the stream is already closed for reads
     /// @throws ugrpc::client::RpcError on an RPC error
     [[nodiscard]] bool Read(Response& response);
 
@@ -341,6 +339,7 @@ public:
     /// @param response where to put response on success
     /// @return StreamReadFuture future
     /// @throws ugrpc::client::RpcError on an RPC error
+    /// @throws ugrpc::client::RpcError if the stream is already closed for reads
     StreamReadFuture<BidirectionalStream> ReadAsync(Response& response);
 
     /// @brief Write the next outgoing message
@@ -350,7 +349,8 @@ public:
     ///
     /// @param request the next message to write
     /// @return true if the data is going to the wire; false if the write
-    ///         operation failed (including due to task cancellation),
+    ///         operation failed (including due to task cancellation,
+    //          or if the stream is already closed for writes),
     ///         in which case no more writes will be accepted,
     ///         but Read may still have some data and status code available
     [[nodiscard]] bool Write(const Request& request);
@@ -366,6 +366,7 @@ public:
     /// @param request the next message to write
     /// @throws ugrpc::client::RpcError on an RPC error
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
+    /// @throws ugrpc::client::RpcError if the stream is already closed for writes
     void WriteAndCheck(const Request& request);
 
     /// @brief Announce end-of-output to the server
@@ -373,8 +374,8 @@ public:
     /// Should be called to notify the server and receive the final response(s).
     ///
     /// @return true if the data is going to the wire; false if the operation
-    ///         failed, but Read may still have some data and status code
-    ///         available
+    ///         failed (including if the stream is already closed for writes),
+    ///         but Read may still have some data and status code available
     [[nodiscard]] bool WritesDone();
 
     /// @cond
@@ -528,6 +529,12 @@ InputStream<Response>::InputStream(impl::CallParams&& params, PrepareAsyncCall p
 
 template <typename Response>
 bool InputStream<Response>::Read(Response& response) {
+    if (!GetData().IsReadAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        return false;
+    }
+
     if (impl::Read(*stream_, response, GetData())) {
         impl::MiddlewarePipeline::PostRecvMessage(GetData(), response);
         return true;
@@ -557,6 +564,12 @@ OutputStream<Request, Response>::OutputStream(impl::CallParams&& params, Prepare
 
 template <typename Request, typename Response>
 bool OutputStream<Request, Response>::Write(const Request& request) {
+    if (!GetData().IsWriteAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        return false;
+    }
+
     impl::MiddlewarePipeline::PreSendMessage(GetData(), request);
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
@@ -567,6 +580,12 @@ bool OutputStream<Request, Response>::Write(const Request& request) {
 
 template <typename Request, typename Response>
 void OutputStream<Request, Response>::WriteAndCheck(const Request& request) {
+    if (!GetData().IsWriteAndCheckAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        throw RpcError(GetData().GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
+    }
+
     impl::MiddlewarePipeline::PreSendMessage(GetData(), request);
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
@@ -584,7 +603,7 @@ template <typename Request, typename Response>
 Response OutputStream<Request, Response>::Finish() {
     // gRPC does not implicitly call `WritesDone` in `Finish`,
     // contrary to the documentation
-    if (!GetData().AreWritesFinished()) {
+    if (GetData().IsWriteAvailable()) {
         impl::WritesDone(*stream_, GetData());
     }
 
@@ -622,6 +641,12 @@ template <typename Request, typename Response>
 StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Request, Response>::ReadAsync(
     Response& response
 ) {
+    if (!GetData().IsReadAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        throw RpcError(GetData().GetCallName(), "'ReadAsync' called on a finished call");
+    }
+
     impl::ReadAsync(*stream_, response, GetData());
     auto post_recv_message = [&response](impl::RpcData& data) {
         impl::MiddlewarePipeline::PostRecvMessage(data, response);
@@ -635,12 +660,22 @@ StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Req
 
 template <typename Request, typename Response>
 bool BidirectionalStream<Request, Response>::Read(Response& response) {
+    if (!GetData().IsReadAvailable()) {
+        return false;
+    }
+
     auto future = ReadAsync(response);
     return future.Get();
 }
 
 template <typename Request, typename Response>
 bool BidirectionalStream<Request, Response>::Write(const Request& request) {
+    if (!GetData().IsWriteAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        return false;
+    }
+
     impl::MiddlewarePipeline::PreSendMessage(GetData(), request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
@@ -650,6 +685,12 @@ bool BidirectionalStream<Request, Response>::Write(const Request& request) {
 
 template <typename Request, typename Response>
 void BidirectionalStream<Request, Response>::WriteAndCheck(const Request& request) {
+    if (!GetData().IsWriteAndCheckAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        throw RpcError(GetData().GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
+    }
+
     impl::MiddlewarePipeline::PreSendMessage(GetData(), request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
@@ -659,6 +700,12 @@ void BidirectionalStream<Request, Response>::WriteAndCheck(const Request& reques
 
 template <typename Request, typename Response>
 bool BidirectionalStream<Request, Response>::WritesDone() {
+    if (!GetData().IsWriteAvailable()) {
+        // If the stream is already finished, we must exit immediately.
+        // If not, even the middlewares may access something that is already dead.
+        return false;
+    }
+
     return impl::WritesDone(*stream_, GetData());
 }
 
