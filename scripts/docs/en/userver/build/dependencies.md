@@ -218,6 +218,7 @@ brew link --force zlib # keg-only + need for static linkage (required by Univers
 brew link --force icu4c # keg-only + need for static boost linkage (required by Universal)
 brew link --force curl # keg-only (required by Core)
 brew link --force cyrus-sasl # keg-only (required by Mongo and Kafka)
+brew link --force sqlite # keg-only
 ```
 
 Recommended CMake options:
@@ -284,3 +285,4 @@ sudo apt install --allow-downgrades -y libpq5 libpq-dev
 @htmlonly <div class="bottom-nav"> @endhtmlonly
 ⇦ @ref scripts/docs/en/userver/build/build.md | @ref scripts/docs/en/userver/build/options.md ⇨
 @htmlonly </div> @endhtmlonly
+

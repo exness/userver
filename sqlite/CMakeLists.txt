@@ -1,6 +1,18 @@
 project(userver-sqlite CXX)
 
-find_package(SQLite3 REQUIRED)
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  # Sqlite3 version from MacOS Mono framework is incompatible with userver driver
+  set(USERVER_IMPL_CMAKE_FIND_FRAMEWORK_OLD ${CMAKE_FIND_FRAMEWORK})
+  set(CMAKE_FIND_FRAMEWORK NEVER)
+
+  find_package(SQLite3 REQUIRED)
+
+  set(CMAKE_FIND_FRAMEWORK ${USERVER_IMPL_CMAKE_FIND_FRAMEWORK_OLD})
+  unset(USERVER_IMPL_CMAKE_FIND_FRAMEWORK_OLD)
+else()
+  find_package(SQLite3 REQUIRED)
+endif()
+
 
 # Perhaps with this option it will be work faster, but should guarantee that the connection is used at the same time only one thread
 # https://www.sqlite.org/threadsafe.html
