@@ -206,6 +206,8 @@ private:
             func();
         } catch (MiddlewareRpcInterruptionError& ex) {
             Status() = ex.ExtractStatus();
+        } catch (ErrorWithStatus& ex) {
+            Status() = ex.ExtractStatus();
         } catch (const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex) {
             Status() = impl::ReportCustomError(ex, state_);
         } catch (const RpcInterruptedError& /*ex*/) {
