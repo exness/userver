@@ -37,18 +37,21 @@ void SetupSpan(
 
     span.DetachFromCoroStack();
 
-    context.AddMetadata(ugrpc::impl::kXYaTraceId, ugrpc::impl::ToGrpcString(span.GetTraceId()));
-    context.AddMetadata(ugrpc::impl::kXYaSpanId, ugrpc::impl::ToGrpcString(span.GetSpanId()));
-    context.AddMetadata(ugrpc::impl::kXYaRequestId, ugrpc::impl::ToGrpcString(span.GetLink()));
+    if (const auto span_id = span.GetSpanIdForChildLogs()) {
+        context.AddMetadata(ugrpc::impl::kXYaTraceId, ugrpc::impl::ToGrpcString(span.GetTraceId()));
+        context.AddMetadata(ugrpc::impl::kXYaSpanId, grpc::string{*span_id});
+        context.AddMetadata(ugrpc::impl::kXYaRequestId, ugrpc::impl::ToGrpcString(span.GetLink()));
 
-    auto traceparent =
-        tracing::opentelemetry::BuildTraceParentHeader(span.GetTraceId(), span.GetSpanId(), kDefaultOtelTraceFlags);
+        auto traceparent =
+            tracing::opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, kDefaultOtelTraceFlags);
 
-    if (!traceparent.has_value()) {
-        LOG_LIMITED_DEBUG() << fmt::format("Cannot build opentelemetry traceparent header ({})", traceparent.error());
-        return;
+        if (!traceparent.has_value()) {
+            LOG_LIMITED_DEBUG(
+            ) << fmt::format("Cannot build opentelemetry traceparent header ({})", traceparent.error());
+            return;
+        }
+        context.AddMetadata(ugrpc::impl::kTraceParent, ugrpc::impl::ToGrpcString(traceparent.value()));
     }
-    context.AddMetadata(ugrpc::impl::kTraceParent, ugrpc::impl::ToGrpcString(traceparent.value()));
 }
 
 void SetErrorForSpan(tracing::Span& span, const std::string& error_message) {

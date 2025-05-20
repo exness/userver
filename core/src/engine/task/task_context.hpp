@@ -180,7 +180,9 @@ public:
     CountedCoroutinePtr& GetCoroutinePtr() noexcept;
 
 private:
+    class YieldReasonGuard;
     class LocalStorageGuard;
+    class ProfilerExecutionGuard;
 
     static constexpr uint64_t kMagic = 0x6b73615453755459ULL;  // "YTuSTask"
 
@@ -195,8 +197,8 @@ private:
     void Schedule();
     static bool ShouldSchedule(SleepState::Flags flags, WakeupSource source);
 
-    void ProfilerStartExecution();
-    void ProfilerStopExecution();
+    void ProfilerStartExecution() noexcept;
+    void ProfilerStopExecution() noexcept;
 
     void TraceStateTransition(Task::State state);
 

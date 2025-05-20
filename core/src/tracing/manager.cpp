@@ -40,11 +40,6 @@ engine::TaskInheritedVariable<OTelTracingHeadersInheritedData> kOTelTracingHeade
 /// @see TracingHeadersInheritedData for details on the contents.
 engine::TaskInheritedVariable<std::string> kB3TracingSampledInheritedData;
 
-/// Avoids supplying span id that will be missing from the trace.
-const std::string& GetSpanIdForTrace(const tracing::Span& span) {
-    return span.ShouldLogDefault() ? span.GetSpanId() : span.GetParentId();
-}
-
 bool B3TryFillSpanBuilderFromRequest(const server::http::HttpRequest& request, tracing::SpanBuilder& span_builder) {
     namespace b3 = http::headers::b3;
     const auto& trace_id = request.GetHeader(b3::kTraceId);
@@ -67,15 +62,18 @@ bool B3TryFillSpanBuilderFromRequest(const server::http::HttpRequest& request, t
 template <class T>
 void B3FillWithTracingContext(const tracing::Span& span, T& target) {
     namespace b3 = http::headers::b3;
-    target.SetHeader(b3::kTraceId, span.GetTraceId());
-    target.SetHeader(b3::kSpanId, GetSpanIdForTrace(span));
-    target.SetHeader(b3::kParentSpanId, span.GetParentId());
 
-    const auto* sampled = kB3TracingSampledInheritedData.GetOptional();
-    if (sampled && !sampled->empty()) {
-        target.SetHeader(b3::kSampled, *sampled);
-    } else {
-        target.SetHeader(b3::kSampled, "1");
+    if (const auto span_id = span.GetSpanIdForChildLogs()) {
+        target.SetHeader(b3::kTraceId, span.GetTraceId());
+        target.SetHeader(b3::kSpanId, std::string{*span_id});
+        target.SetHeader(b3::kParentSpanId, span.GetParentId());
+
+        const auto* sampled = kB3TracingSampledInheritedData.GetOptional();
+        if (sampled && !sampled->empty()) {
+            target.SetHeader(b3::kSampled, *sampled);
+        } else {
+            target.SetHeader(b3::kSampled, "1");
+        }
     }
 }
 
@@ -123,8 +121,11 @@ void OpenTelemetryFillWithTracingContext(const tracing::Span& span, T& target, c
     if (data) {
         traceflags = data->traceflags;
     }
-    auto traceparent_result =
-        opentelemetry::BuildTraceParentHeader(span.GetTraceId(), GetSpanIdForTrace(span), traceflags);
+    const auto span_id = span.GetSpanIdForChildLogs();
+    if (!span_id) {
+        return;
+    }
+    auto traceparent_result = opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, traceflags);
 
     if (!traceparent_result.has_value()) {
         LOG_LIMITED(log_level
@@ -160,9 +161,11 @@ bool YandexTaxiTryFillSpanBuilderFromRequest(
 
 template <class T>
 void YandexTaxiFillWithTracingContext(const tracing::Span& span, T& target) {
-    target.SetHeader(http::headers::kXYaRequestId, span.GetLink());
-    target.SetHeader(http::headers::kXYaTraceId, span.GetTraceId());
-    target.SetHeader(http::headers::kXYaSpanId, GetSpanIdForTrace(span));
+    if (const auto span_id = span.GetSpanIdForChildLogs()) {
+        target.SetHeader(http::headers::kXYaRequestId, span.GetLink());
+        target.SetHeader(http::headers::kXYaTraceId, span.GetTraceId());
+        target.SetHeader(http::headers::kXYaSpanId, std::string{*span_id});
+    }
 }
 
 bool YandexTryFillSpanBuilderFromRequest(const server::http::HttpRequest& request, tracing::SpanBuilder& span_builder) {

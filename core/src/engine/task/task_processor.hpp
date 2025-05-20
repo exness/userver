@@ -64,9 +64,9 @@ public:
 
     void SetSettings(const TaskProcessorSettings& settings, const TaskProcessorProfilerSettings& profiler_settings);
 
-    std::chrono::microseconds GetProfilerThreshold() const;
+    std::chrono::microseconds GetProfilerThreshold() const noexcept;
 
-    bool ShouldProfilerForceStacktrace() const;
+    bool ShouldProfilerForceStacktrace() const noexcept;
 
     std::size_t GetTaskTraceMaxCswForNewTask() const;
 

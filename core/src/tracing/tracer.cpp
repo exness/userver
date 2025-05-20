@@ -12,22 +12,10 @@ namespace tracing {
 
 namespace {
 
-constexpr std::string_view kTraceIdName = "trace_id";
-constexpr std::string_view kSpanIdName = "span_id";
-constexpr std::string_view kParentIdName = "parent_id";
-
 class NoopTracer final : public Tracer {
 public:
     NoopTracer(std::string_view service_name, logging::LoggerPtr logger) : Tracer(service_name, std::move(logger)) {}
-
-    void LogSpanContextTo(const Span::Impl&, logging::impl::TagWriter) const override;
 };
-
-void NoopTracer::LogSpanContextTo(const Span::Impl& span, logging::impl::TagWriter writer) const {
-    writer.PutTag(kTraceIdName, span.GetTraceId());
-    writer.PutTag(kSpanIdName, span.GetSpanId());
-    writer.PutTag(kParentIdName, span.GetParentId());
-}
 
 auto& GlobalNoLogSpans() {
     static rcu::Variable<NoLogSpans> spans{};

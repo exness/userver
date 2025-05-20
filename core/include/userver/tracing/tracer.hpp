@@ -33,9 +33,6 @@ public:
 
     Span CreateSpan(std::string name, const Span& parent, ReferenceType reference_type);
 
-    // Log tag-private information like trace id, span id, etc.
-    virtual void LogSpanContextTo(const Span::Impl& span, logging::impl::TagWriter writer) const = 0;
-
     logging::LoggerPtr GetOptionalLogger() const { return optional_logger_; }
 
 protected:

@@ -369,6 +369,28 @@ UTEST_F(Span, LocalLogLevelLowerThanGlobal) {
     EXPECT_THAT(GetStreamString(), Not(HasSubstr("message")));
 }
 
+UTEST_F(Span, SpanLogLevelLowerThanGlobal) {
+    {
+        EXPECT_EQ(logging::GetDefaultLoggerLevel(), logging::Level::kInfo);
+        tracing::Span parent_span("parent_span");
+
+        tracing::Span span("not_logged_span");
+        // The span itself will be hidden.
+        span.SetLogLevel(logging::Level::kDebug);
+
+        LOG_INFO() << "message";
+        logging::LogFlush();
+
+        EXPECT_THAT(GetStreamString(), HasSubstr("message"));
+        // Make sure there are no logs written with "non-existent" spans.
+        EXPECT_THAT(GetStreamString(), Not(HasSubstr("span_id=" + span.GetSpanId())));
+        EXPECT_THAT(GetStreamString(), HasSubstr("span_id=" + parent_span.GetSpanId()));
+    }
+
+    EXPECT_THAT(GetStreamString(), Not(HasSubstr("not_logged_span")));
+    EXPECT_THAT(GetStreamString(), HasSubstr("parent_span"));
+}
+
 UTEST_F(Span, ConstructFromTracer) {
     auto tracer = tracing::MakeTracer("test_service", {});
 
@@ -690,6 +712,144 @@ UTEST_F(Span, SetLogLevelDoesntBreakGenealogyAsync) {
         tracing::Span child{"child"};
         EXPECT_EQ(child.GetParentId(), root_span.GetSpanId());
     }).Get();
+}
+
+UTEST_F(Span, SetLogLevelDoesntBreakGenealogyAsyncMultiSkip) {
+    tracing::Span root_span{"root_span"};
+    utils::Async("no_log", [&] {
+        tracing::Span::CurrentSpan().SetLogLevel(logging::Level::kTrace);
+        utils::Async("no_log_2", [&] {
+            tracing::Span::CurrentSpan().SetLogLevel(logging::Level::kTrace);
+            tracing::Span child{"child"};
+            EXPECT_EQ(child.GetParentId(), root_span.GetSpanId());
+        }).Get();
+    }).Get();
+}
+
+UTEST_F(Span, SetLogLevelDoesNotDetachLogs) {
+    tracing::Span root_span{"root_span"};
+    {
+        tracing::Span span_no_log{"no_log"};
+        span_no_log.SetLogLevel(logging::Level::kTrace);
+
+        LOG_INFO() << "test";
+        logging::LogFlush();
+
+        EXPECT_THAT(
+            GetStreamString(),
+            testing::AllOf(
+                HasSubstr("span_id=" + root_span.GetSpanId()),
+                HasSubstr("link=" + root_span.GetLink()),
+                HasSubstr("trace_id=" + root_span.GetTraceId()),
+                Not(HasSubstr(span_no_log.GetSpanId()))
+            )
+        );
+    }
+}
+
+UTEST_F(Span, SetLogLevelDoesNotDetachLogsMultiSkip) {
+    tracing::Span root_span{"root_span"};
+    {
+        tracing::Span span_no_log1{"no_log_1"};
+        span_no_log1.SetLogLevel(logging::Level::kTrace);
+        {
+            tracing::Span span_no_log2{"no_log_2"};
+            span_no_log2.SetLogLevel(logging::Level::kTrace);
+
+            LOG_INFO() << "test";
+            logging::LogFlush();
+
+            EXPECT_THAT(
+                GetStreamString(),
+                testing::AllOf(
+                    HasSubstr("span_id=" + root_span.GetSpanId()),
+                    HasSubstr("link=" + root_span.GetLink()),
+                    HasSubstr("trace_id=" + root_span.GetTraceId()),
+                    Not(HasSubstr(span_no_log1.GetSpanId())),
+                    Not(HasSubstr(span_no_log2.GetSpanId()))
+                )
+            );
+        }
+    }
+}
+
+UTEST_F(Span, SetLogLevelInheritsHiddenSpanTags) {
+    // userver spans can be used to attach tags to a group of logs regardless of tracing.
+    // Even if the span is hidden from tracing, we should still propagate its tags.
+    tracing::Span root_span{"root_span"};
+    {
+        tracing::Span span_no_log{"no_log"};
+        span_no_log.SetLogLevel(logging::Level::kTrace);
+        span_no_log.AddTag("custom_tag_key", "custom_tag_value");
+
+        LOG_INFO() << "test";
+        logging::LogFlush();
+
+        EXPECT_THAT(GetStreamString(), HasSubstr("custom_tag_key"));
+    }
+}
+
+UTEST_F(Span, OnlyUpstreamSpanIsEnabled) {
+    // Let's imagine that we've got a request with tracing, but all of our own spans are not loggable -
+    // for example, because of a restrictive global log level or because of NO_LOG_SPANS config.
+    // Then we've got a log that has high enough log level to be written. What span do we bind it to?
+    //
+    // Possible options:
+    // 1. Bind the log to a local non-loggable ("non-existent") span. This has no practical benefits over (2) and
+    //    will only confuse the tracing system.
+    // 2. Don't bind the log to any span. This makes it almost impossible to find the log when investigating issues
+    //    with a request, especially if it's not an error log.
+    // 3. Bind our log to the external span.
+    //
+    // userver uses option 3. So, logs of the current service are directly bound to the span of an upstream service.
+    // Weird, but workable.
+    //
+    // Now, there is an extra quirk. For this log userver currently specifies:
+    // * span_id = upstream span_id (OK)
+    // * trace_id = local trace_id = upstream trace_id (OK)
+    // * link = local link != upstream link (?!)
+    //
+    // So essentially we bind the log to a non-existent span with upstream span_id but local link.
+    // This works as long as the tracing system does not rely on links to bind spans together.
+    // This even somewhat makes sense if someone wishes to find neighbouring logs from our service.
+
+    tracing::Span upstream_span{"upstream_span"};
+
+    auto handler_span_no_log = tracing::Span::MakeSpan(
+        "handler_span", upstream_span.GetTraceId(), upstream_span.GetSpanId(), "1234567890-link"
+    );
+    handler_span_no_log.SetLogLevel(logging::Level::kTrace);
+
+    tracing::Span span_no_log1{"span_no_log1"};
+    span_no_log1.SetLogLevel(logging::Level::kTrace);
+
+    tracing::Span span_no_log2{"span_no_log2"};
+    span_no_log2.SetLogLevel(logging::Level::kTrace);
+
+    EXPECT_EQ(span_no_log2.GetSpanIdForChildLogs(), upstream_span.GetSpanId());
+    EXPECT_NE(handler_span_no_log.GetLink(), upstream_span.GetLink());
+    EXPECT_EQ(span_no_log2.GetLink(), handler_span_no_log.GetLink());
+    EXPECT_EQ(span_no_log2.GetTraceId(), upstream_span.GetTraceId());
+
+    LOG_INFO() << "test";
+    logging::LogFlush();
+
+    EXPECT_THAT(
+        GetStreamString(),
+        testing::AllOf(
+            HasSubstr("span_id=" + upstream_span.GetSpanId()),
+            Not(HasSubstr(handler_span_no_log.GetSpanId())),
+            Not(HasSubstr(span_no_log1.GetSpanId())),
+            Not(HasSubstr(span_no_log2.GetSpanId()))
+        )
+    );
+
+    EXPECT_THAT(
+        GetStreamString(),
+        testing::AllOf(HasSubstr("link=" + span_no_log2.GetLink()), Not(HasSubstr(upstream_span.GetLink())))
+    );
+
+    EXPECT_THAT(GetStreamString(), HasSubstr("trace_id=" + span_no_log2.GetTraceId()));
 }
 
 UTEST_F(Span, MakeSpanWithParentIdTraceIdLink) {

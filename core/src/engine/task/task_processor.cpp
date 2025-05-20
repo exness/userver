@@ -261,9 +261,11 @@ void TaskProcessor::SetSettings(
     profiler_force_stacktrace_.store(profiler_settings.profiler_force_stacktrace.value_or(false));
 }
 
-std::chrono::microseconds TaskProcessor::GetProfilerThreshold() const { return task_profiler_threshold_.load(); }
+std::chrono::microseconds TaskProcessor::GetProfilerThreshold() const noexcept {
+    return task_profiler_threshold_.load();
+}
 
-bool TaskProcessor::ShouldProfilerForceStacktrace() const { return profiler_force_stacktrace_.load(); }
+bool TaskProcessor::ShouldProfilerForceStacktrace() const noexcept { return profiler_force_stacktrace_.load(); }
 
 std::size_t TaskProcessor::GetTaskTraceMaxCswForNewTask() const {
     thread_local std::size_t count = 0;

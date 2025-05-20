@@ -1,5 +1,6 @@
 #include <userver/utest/utest.hpp>
 
+#include <userver/logging/log.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/utils/algo.hpp>
 
@@ -69,7 +70,10 @@ private:
     }
 };
 
-using GrpcTracing = ugrpc::tests::ServiceFixture<UnitTestServiceWithTracingChecks>;
+class GrpcTracing : public ugrpc::tests::ServiceFixture<UnitTestServiceWithTracingChecks> {
+private:
+    [[maybe_unused]] logging::DefaultLoggerLevelScope log_level_scope_{logging::Level::kInfo};
+};
 
 void CheckMetadata(const grpc::ClientContext& context) {
     const auto& metadata = context.GetServerInitialMetadata();

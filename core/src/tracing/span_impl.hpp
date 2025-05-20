@@ -56,7 +56,7 @@ public:
     void PutIntoLogger(logging::impl::TagWriter writer) &&;
 
     // Add the context of this Span a non-Span-specific log record
-    void LogTo(logging::impl::TagWriter writer);
+    void LogTo(logging::impl::TagWriter writer) const;
 
     const std::string& GetTraceId() const& noexcept { return trace_id_; }
     const std::string& GetSpanId() const& noexcept { return span_id_; }
@@ -77,12 +77,14 @@ public:
     void DetachFromCoroStack();
     void AttachToCoroStack();
 
+    std::optional<std::string_view> GetSpanIdForChildLogs() const;
+
 private:
     void LogOpenTracing() const;
     void DoLogOpenTracing(logging::impl::TagWriter writer) const;
     static void AddOpentracingTags(formats::json::StringBuilder& output, const logging::LogExtra& input);
 
-    static std::string GetParentIdForLogging(const Span::Impl* parent);
+    static std::string_view GetParentIdForLogging(const Span::Impl* parent);
     bool ShouldLog() const;
 
     const std::string name_;
