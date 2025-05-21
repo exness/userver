@@ -68,7 +68,7 @@ MiddlewarePipelineComponent::MiddlewarePipelineComponent(
     : USERVER_NAMESPACE::middlewares::impl::AnyMiddlewarePipelineComponent(
           config,
           context,
-          {/*middlewares=*/{
+          {/*built-in middlewares=*/{
               {"grpc-server-logging", {}},
               {"grpc-server-baggage", {}},
               {"grpc-server-congestion-control", {}},

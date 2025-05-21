@@ -4,6 +4,7 @@
 #include <userver/ugrpc/client/middlewares/baggage/component.hpp>
 #include <userver/ugrpc/client/middlewares/base.hpp>
 #include <userver/ugrpc/client/middlewares/deadline_propagation/component.hpp>
+#include <userver/ugrpc/client/middlewares/headers_propagator/component.hpp>
 #include <userver/ugrpc/client/middlewares/log/component.hpp>
 #include <userver/ugrpc/client/middlewares/testsuite/component.hpp>
 
@@ -23,6 +24,7 @@ components::ComponentList MinimalComponentList() {
 components::ComponentList DefaultComponentList() {
     return components::ComponentList()
         .AppendComponentList(MinimalComponentList())
+        .Append<middlewares::headers_propagator::Component>()
         .Append<middlewares::baggage::Component>();
 }
 

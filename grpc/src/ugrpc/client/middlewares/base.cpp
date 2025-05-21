@@ -45,10 +45,12 @@ MiddlewarePipelineComponent::MiddlewarePipelineComponent(
     : USERVER_NAMESPACE::middlewares::impl::AnyMiddlewarePipelineComponent(
           config,
           context,
+          /*built-in middlewares=*/
           {{
               {"grpc-client-logging", {}},
               {"grpc-client-baggage", {}},
               {"grpc-client-deadline-propagation", {}},
+              {"grpc-client-headers-propagator", {}},
           }}
       ) {}
 
