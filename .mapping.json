@@ -3162,6 +3162,7 @@
   "redis/src/storages/redis/command_control.cpp":"taxi/uservices/userver/redis/src/storages/redis/command_control.cpp",
   "redis/src/storages/redis/command_control_test.cpp":"taxi/uservices/userver/redis/src/storages/redis/command_control_test.cpp",
   "redis/src/storages/redis/component.cpp":"taxi/uservices/userver/redis/src/storages/redis/component.cpp",
+  "redis/src/storages/redis/component_start_diagnostics_test.cpp":"taxi/uservices/userver/redis/src/storages/redis/component_start_diagnostics_test.cpp",
   "redis/src/storages/redis/exception.cpp":"taxi/uservices/userver/redis/src/storages/redis/exception.cpp",
   "redis/src/storages/redis/expire_reply.cpp":"taxi/uservices/userver/redis/src/storages/redis/expire_reply.cpp",
   "redis/src/storages/redis/hedged_request_redistest.cpp":"taxi/uservices/userver/redis/src/storages/redis/hedged_request_redistest.cpp",
