@@ -52,8 +52,6 @@ public:
 
     size_t ShardByKey(const std::string& key) const override;
 
-    const std::string& GetAnyKeyForShard(size_t shard_idx) const override;
-
     std::shared_ptr<Client> GetClientForShard(size_t shard_idx) override;
 
     // redis commands:

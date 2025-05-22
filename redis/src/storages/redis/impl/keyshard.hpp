@@ -13,7 +13,6 @@ class KeyShard {
 public:
     virtual ~KeyShard() = default;
     virtual size_t ShardByKey(const std::string& key) const = 0;
-    virtual bool IsGenerateKeysForShardsEnabled() const = 0;
 };
 
 class KeyShardFactory {

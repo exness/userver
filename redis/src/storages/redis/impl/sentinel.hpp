@@ -115,7 +115,7 @@ public:
 
     size_t ShardByKey(const std::string& key) const;
     size_t ShardsCount() const;
-    bool IsInClusterMode() const;
+    bool IsInClusterMode() const noexcept { return is_in_cluster_mode_; }
     void CheckShardIdx(size_t shard_idx) const;
     static void CheckShardIdx(size_t shard_idx, size_t shard_count);
 
@@ -224,6 +224,7 @@ private:
     utils::SwappingSmart<CommandControl> config_default_command_control_;
     std::atomic_int publish_shard_{0};
     testsuite::RedisControl testsuite_redis_control_;
+    const bool is_in_cluster_mode_;
 };
 
 }  // namespace storages::redis::impl

@@ -92,9 +92,7 @@ SentinelImpl::SentinelImpl(
     UpdatePassword(password);
 
     Init();
-    InitKeyShard();
-    LOG_DEBUG() << "Created SentinelImpl, shard_group_name=" << shard_group_name_
-                << ", cluster_mode=" << IsInClusterMode();
+    LOG_DEBUG() << "Created SentinelImpl, shard_group_name=" << shard_group_name_ << ", cluster_mode=false";
 }
 
 SentinelImpl::~SentinelImpl() { Stop(); }
@@ -149,7 +147,7 @@ void SentinelImpl::Init() {
     Shard::Options shard_options;
     shard_options.shard_name = "(sentinel)";
     shard_options.shard_group_name = shard_group_name_;
-    shard_options.cluster_mode = IsInClusterMode();
+    shard_options.cluster_mode = false;
     shard_options.ready_change_callback = [this](bool ready) {
         if (ready) ev_thread_.Send(watch_create_);
     };
@@ -178,7 +176,7 @@ void SentinelImpl::InitShards(
         Shard::Options shard_options;
         shard_options.shard_name = shard;
         shard_options.shard_group_name = shard_group_name_;
-        shard_options.cluster_mode = IsInClusterMode();
+        shard_options.cluster_mode = false;
         shard_options.ready_change_callback = [i, shard](bool ready) {
             LOG_INFO() << "redis: ready_callback:"
                        << "  shard = " << i << "  shard_name = " << shard << "  ready = " << (ready ? "true" : "false");
@@ -350,12 +348,6 @@ size_t SentinelImpl::ShardByKey(const std::string& key) const {
     return shard;
 }
 
-const std::string& SentinelImpl::GetAnyKeyForShard(size_t shard_idx) const {
-    auto keys_for_shards = keys_for_shards_.Get();
-    if (!keys_for_shards) throw std::runtime_error("keys were not generated with GenerateKeysForShards()");
-    return keys_for_shards->GetAnyKeyForShard(shard_idx);
-}
-
 void SentinelImpl::Start() {
     watch_state_.data = this;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
@@ -376,20 +368,6 @@ void SentinelImpl::Start() {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     ev_timer_init(&check_timer_, OnCheckTimer, 0.0, 0.0);
     ev_thread_.Start(check_timer_);
-}
-
-void SentinelImpl::InitKeyShard() {
-    try {
-        if (key_shard_->IsGenerateKeysForShardsEnabled()) GenerateKeysForShards();
-    } catch (const std::exception& ex) {
-        LOG_ERROR() << "GenerateKeysForShards() failed: " << ex << ", shard_group_name=" << shard_group_name_;
-    }
-}
-
-void SentinelImpl::GenerateKeysForShards(size_t max_len) {
-    keys_for_shards_.Set(std::make_shared<KeysForShards>(
-        ShardsCount(), [this](const std::string& key) { return ShardByKey(key); }, max_len
-    ));
 }
 
 void SentinelImpl::AsyncCommandFailed(const SentinelCommand& scommand) {
@@ -478,8 +456,6 @@ void SentinelImpl::Stop() {
 std::vector<std::shared_ptr<const Shard>> SentinelImpl::GetMasterShards() const {
     return {master_shards_.begin(), master_shards_.end()};
 }
-
-bool SentinelImpl::IsInClusterMode() const { return false; }
 
 void SentinelImpl::SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) {
     if (commands_buffering_settings_ && *commands_buffering_settings_ == commands_buffering_settings) return;

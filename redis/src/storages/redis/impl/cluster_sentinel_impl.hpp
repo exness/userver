@@ -47,15 +47,12 @@ public:
 
     size_t ShardsCount() const override;
 
-    const std::string& GetAnyKeyForShard(size_t shard_idx) const override;
     SentinelStatistics GetStatistics(const MetricsSettings& settings) const override;
 
     void Start() override;
     void Stop() override;
 
     std::vector<std::shared_ptr<const Shard>> GetMasterShards() const override;
-
-    bool IsInClusterMode() const override;
 
     void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) override;
     void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings

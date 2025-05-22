@@ -51,10 +51,6 @@ bool ClientImpl::IsInClusterMode() const { return redis_client_->IsInClusterMode
 
 size_t ClientImpl::ShardByKey(const std::string& key) const { return redis_client_->ShardByKey(key); }
 
-const std::string& ClientImpl::GetAnyKeyForShard(size_t shard_idx) const {
-    return redis_client_->GetAnyKeyForShard(shard_idx);
-}
-
 std::shared_ptr<Client> ClientImpl::GetClientForShard(size_t shard_idx) {
     return std::make_shared<ClientImpl>(redis_client_, shard_idx);
 }

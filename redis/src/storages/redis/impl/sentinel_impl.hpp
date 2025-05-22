@@ -70,14 +70,12 @@ public:
     virtual void AsyncCommandToSentinel(CommandPtr command) = 0;
     virtual size_t ShardByKey(const std::string& key) const = 0;
     virtual size_t ShardsCount() const = 0;
-    virtual const std::string& GetAnyKeyForShard(size_t shard_idx) const = 0;
     virtual SentinelStatistics GetStatistics(const MetricsSettings& settings) const = 0;
 
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
     virtual std::vector<std::shared_ptr<const Shard>> GetMasterShards() const = 0;
-    virtual bool IsInClusterMode() const = 0;
 
     virtual void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) = 0;
     virtual void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings
@@ -127,14 +125,12 @@ public:
     void AsyncCommandToSentinel(CommandPtr command) override;
     size_t ShardByKey(const std::string& key) const override;
     size_t ShardsCount() const override { return master_shards_.size(); }
-    const std::string& GetAnyKeyForShard(size_t shard_idx) const override;
     SentinelStatistics GetStatistics(const MetricsSettings& settings) const override;
 
     void Start() override;
     void Stop() override;
 
     std::vector<std::shared_ptr<const Shard>> GetMasterShards() const override;
-    bool IsInClusterMode() const final;  // used from constructor
 
     void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) override;
     void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings
@@ -179,9 +175,6 @@ private:
         engine::impl::ConditionVariableAny<std::mutex> cv_;
     };
 
-    void InitKeyShard();
-
-    void GenerateKeysForShards(size_t max_len = 4);
     void AsyncCommandFailed(const SentinelCommand& scommand);
 
     static void OnCheckTimer(struct ev_loop*, ev_timer* w, int revents) noexcept;
@@ -231,7 +224,6 @@ private:
     std::mutex command_mutex_;
     const std::unique_ptr<KeyShard> key_shard_;
     SentinelStatisticsInternal statistics_internal_;
-    utils::SwappingSmart<KeysForShards> keys_for_shards_;
     std::optional<CommandsBufferingSettings> commands_buffering_settings_;
     dynamic_config::Source dynamic_config_source_;
     std::atomic<int> publish_shard_{0};

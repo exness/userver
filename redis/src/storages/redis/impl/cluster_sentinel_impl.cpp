@@ -1020,10 +1020,6 @@ size_t ClusterSentinelImpl::ShardByKey(const std::string& key) const {
     return ptr->GetShardIndexBySlot(slot);
 }
 
-const std::string& ClusterSentinelImpl::GetAnyKeyForShard(size_t /*shard_idx*/) const {
-    throw std::runtime_error("GetAnyKeyForShard() is not supported in redis cluster mode");
-}
-
 void ClusterSentinelImpl::Start() {
     topology_holder_->Start();
     process_waiting_commands_timer_->Start();
@@ -1048,8 +1044,6 @@ std::vector<std::shared_ptr<const Shard>> ClusterSentinelImpl::GetMasterShards()
     /// just return all Shards
     // return {master_shards_.begin(), master_shards_.end()};
 }
-
-bool ClusterSentinelImpl::IsInClusterMode() const { return true; }
 
 void ClusterSentinelImpl::SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) {
     if (topology_holder_) {
