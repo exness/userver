@@ -17,6 +17,7 @@
 
 #include <userver/ugrpc/client/call.hpp>
 #include <userver/ugrpc/client/impl/async_methods.hpp>
+#include <userver/ugrpc/client/impl/middleware_utils.hpp>
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
 #include <userver/ugrpc/deadline_timepoint.hpp>
 
@@ -26,63 +27,88 @@ namespace ugrpc::client {
 
 namespace impl {
 
-struct MiddlewarePipeline {
-    static void PreStartCall(impl::RpcData& data);
+// Contains the implementation of UnaryFinishFuture that is not dependent on template parameters.
+class UnaryFinishFutureImpl {
+public:
+    UnaryFinishFutureImpl(
+        RpcData& data,
+        std::function<void(RpcData& data, const grpc::Status& status)> post_finish
+    ) noexcept;
 
-    static void PreSendMessage(impl::RpcData& data, const google::protobuf::Message& message);
-    static void PostRecvMessage(impl::RpcData& data, const google::protobuf::Message& message);
+    UnaryFinishFutureImpl(UnaryFinishFutureImpl&&) noexcept;
+    UnaryFinishFutureImpl& operator=(UnaryFinishFutureImpl&&) noexcept;
+    UnaryFinishFutureImpl(const UnaryFinishFutureImpl&) = delete;
+    UnaryFinishFutureImpl& operator=(const UnaryFinishFutureImpl&) = delete;
+    ~UnaryFinishFutureImpl();
 
-    static void PostFinish(impl::RpcData& data, const grpc::Status& status);
+    [[nodiscard]] bool IsReady() const noexcept;
+
+    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept;
+
+    void Get();
+
+    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
+
+private:
+    RpcData* data_{};
+    std::function<void(RpcData& data, const grpc::Status& status)> post_finish_;
+    mutable std::exception_ptr exception_;
 };
 
-/// @brief UnaryFuture for waiting a single response RPC
-class [[nodiscard]] UnaryFuture {
+/// @brief UnaryFuture for awaiting a single response RPC
+template <typename Response>
+class [[nodiscard]] UnaryFinishFuture {
 public:
     /// @cond
-    UnaryFuture(
+    UnaryFinishFuture(
         impl::RpcData& data,
-        std::function<void(impl::RpcData& data, const grpc::Status& status)> post_finish
-    ) noexcept;
+        std::function<void(impl::RpcData& data, const grpc::Status& status)> post_finish,
+        std::unique_ptr<Response>&& response
+    ) noexcept
+        : response_(std::move(response)), impl_(data, std::move(post_finish)) {}
     /// @endcond
 
-    UnaryFuture(UnaryFuture&&) noexcept;
-    UnaryFuture& operator=(UnaryFuture&&) noexcept;
-    UnaryFuture(const UnaryFuture&) = delete;
-    UnaryFuture& operator=(const UnaryFuture&) = delete;
-
-    ~UnaryFuture();
+    UnaryFinishFuture(UnaryFinishFuture&&) noexcept = default;
+    UnaryFinishFuture& operator=(UnaryFinishFuture&&) noexcept = default;
+    UnaryFinishFuture(const UnaryFinishFuture&) = delete;
+    UnaryFinishFuture& operator=(const UnaryFinishFuture&) = delete;
 
     /// @brief Checks if the asynchronous call has completed
     ///        Note, that once user gets result, IsReady should not be called
     /// @return true if result ready
-    [[nodiscard]] bool IsReady() const noexcept;
+    [[nodiscard]] bool IsReady() const noexcept { return impl_.IsReady(); }
 
     /// @brief Await response until the deadline is reached or until the task is cancelled.
     ///
     /// Upon completion result is available in `response` when initiating the
     /// asynchronous operation, e.g. FinishAsync.
-    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept;
+    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept {
+        return impl_.WaitUntil(deadline);
+    }
 
     /// @brief Await response
     ///
     /// Upon completion result is available in `response` when initiating the
     /// asynchronous operation, e.g. FinishAsync.
     ///
-    /// `Get` should not be called multiple times for the same UnaryFuture.
+    /// Invalidates the future: no further methods can be called on it.
     ///
     /// @throws ugrpc::client::RpcError on an RPC error
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
-    void Get();
+    Response Get() {
+        UASSERT(response_);
+        impl_.Get();
+        return std::move(*response_);
+    }
 
     /// @cond
     // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
+    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return impl_.TryGetContextAccessor(); }
     /// @endcond
 
 private:
-    impl::RpcData* data_{};
-    std::function<void(impl::RpcData& data, const grpc::Status& status)> post_finish_;
-    mutable std::exception_ptr exception_;
+    std::unique_ptr<Response> response_;
+    impl::UnaryFinishFutureImpl impl_;
 };
 
 }  // namespace impl
@@ -134,35 +160,26 @@ namespace impl {
 
 /// @brief Controls a single request -> single response RPC
 ///
-/// This class is not thread-safe except for `GetContext`.
+/// This class is not thread-safe, it cannot be used from multiple tasks at the same time.
 ///
-/// The RPC is cancelled on destruction unless `Finish` or `FinishAsync`. In
+/// The RPC is cancelled on destruction unless the RPC is already finished. In
 /// that case the connection is not closed (it will be reused for new RPCs), and
 /// the server receives `RpcInterruptedError` immediately.
 template <typename Response>
 class [[nodiscard]] UnaryCall final : public CallAnyBase {
 public:
-    using ResponseType = Response;
-
-    /// @brief Await and read the response
-    ///
-    /// `Finish` should not be called multiple times for the same RPC.
-    ///
-    /// The connection is not closed, it will be reused for new RPCs.
-    ///
-    /// @returns the response on success
-    /// @throws ugrpc::client::RpcError on an RPC error
-    /// @throws ugrpc::client::RpcCancelledError on task cancellation
-    Response Finish();
-
     /// @brief Asynchronously finish the call
     ///
     /// `FinishAsync` should not be called multiple times for the same RPC.
     ///
-    /// `Finish` and `FinishAsync` should not be called together for the same RPC.
-    ///
-    /// @returns the future for the single response
-    UnaryFuture FinishAsync(Response& response);
+    /// Creates the future inside this `UnaryCall`. It can be retrieved using @ref GetFinishFuture.
+    void FinishAsync();
+
+    /// @brief Returns the future created earlier using @ref FinishAsync.
+    UnaryFinishFuture<Response>& GetFinishFuture();
+
+    /// @overload
+    const UnaryFinishFuture<Response>& GetFinishFuture() const;
 
     /// @cond
     // For internal use only
@@ -175,7 +192,8 @@ public:
     ~UnaryCall() = default;
 
 private:
-    impl::RawResponseReader<Response> reader_;
+    impl::RawResponseReader<Response> reader_{};
+    std::optional<UnaryFinishFuture<Response>> finish_future_{};
 };
 
 }  // namespace impl
@@ -480,25 +498,21 @@ UnaryCall<Response>::UnaryCall(impl::CallParams&& params, PrepareAsyncCall prepa
     reader_->StartCall();
 
     GetData().SetWritesFinished();
+
+    FinishAsync();
 }
 
 template <typename Response>
-Response UnaryCall<Response>::Finish() {
-    Response response;
-    UnaryFuture future = FinishAsync(response);
-    future.Get();
-    return response;
-}
-
-template <typename Response>
-UnaryFuture UnaryCall<Response>::FinishAsync(Response& response) {
+void UnaryCall<Response>::FinishAsync() {
     UASSERT(reader_);
+    auto response = std::make_unique<Response>();
+
     PrepareFinish(GetData());
     GetData().EmplaceFinishAsyncMethodInvocation();
     auto& finish = GetData().GetFinishAsyncMethodInvocation();
     auto& status = GetData().GetStatus();
-    reader_->Finish(&response, &status, finish.GetTag());
-    auto post_finish = [&response](impl::RpcData& data, const grpc::Status& status) {
+    reader_->Finish(response.get(), &status, finish.GetTag());
+    auto post_finish = [&response = *response](impl::RpcData& data, const grpc::Status& status) {
         if (status.ok()) {  // response is not filled on bad status
             if constexpr (std::is_base_of_v<google::protobuf::Message, Response>) {
                 impl::MiddlewarePipeline::PostRecvMessage(data, response);
@@ -508,7 +522,19 @@ UnaryFuture UnaryCall<Response>::FinishAsync(Response& response) {
         }
         impl::MiddlewarePipeline::PostFinish(data, status);
     };
-    return UnaryFuture{GetData(), post_finish};
+    finish_future_.emplace(GetData(), post_finish, std::move(response));
+}
+
+template <typename Response>
+UnaryFinishFuture<Response>& UnaryCall<Response>::GetFinishFuture() {
+    UASSERT(finish_future_);
+    return *finish_future_;
+}
+
+template <typename Response>
+const UnaryFinishFuture<Response>& UnaryCall<Response>::GetFinishFuture() const {
+    UASSERT(finish_future_);
+    return *finish_future_;
 }
 
 }  // namespace impl
