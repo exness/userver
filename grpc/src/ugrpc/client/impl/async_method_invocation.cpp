@@ -23,6 +23,9 @@ void FinishAsyncMethodInvocation::Notify(bool ok) noexcept {
             data_.GetStatsScope().Flush();
         } catch (const std::exception& ex) {
             LOG_LIMITED_ERROR() << "Error in FinishAsyncMethodInvocation::Notify: " << ex;
+        } catch (...) {
+            // We have to catch any exception to notify a task in any case.
+            LOG_LIMITED_ERROR() << "Error in FinishAsyncMethodInvocation::Notify: <non std::exception-based>";
         }
     }
     AsyncMethodInvocation::Notify(ok);
