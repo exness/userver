@@ -4134,6 +4134,8 @@
   "testsuite/tests/sql_coverage_full/CMakeLists.txt":"taxi/uservices/userver/testsuite/tests/sql_coverage_full/CMakeLists.txt",
   "testsuite/tests/sql_coverage_full/conftest.py":"taxi/uservices/userver/testsuite/tests/sql_coverage_full/conftest.py",
   "testsuite/tests/sql_coverage_full/test_covearge_full.py":"taxi/uservices/userver/testsuite/tests/sql_coverage_full/test_covearge_full.py",
+  "testsuite/tests/tskv/CMakeLists.txt":"taxi/uservices/userver/testsuite/tests/tskv/CMakeLists.txt",
+  "testsuite/tests/tskv/test_tskv.py":"taxi/uservices/userver/testsuite/tests/tskv/test_tskv.py",
   "third_party/Readme.md":"taxi/uservices/userver/third_party/Readme.md",
   "third_party/compiler-rt/CMakeLists.txt":"taxi/uservices/userver/third_party/compiler-rt/CMakeLists.txt",
   "third_party/compiler-rt/LICENSE.TXT":"taxi/uservices/userver/third_party/compiler-rt/LICENSE.TXT",
