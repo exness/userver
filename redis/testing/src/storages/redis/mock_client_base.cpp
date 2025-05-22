@@ -29,10 +29,6 @@ bool MockClientBase::IsInClusterMode() const { return false; }
 
 size_t MockClientBase::ShardByKey(const std::string& /*key*/) const { return 0; }
 
-std::shared_ptr<Client> MockClientBase::GetClientForShard(size_t shard_idx) {
-    return std::make_shared<MockClientBase>(mock_transaction_impl_creator_, shard_idx);
-}
-
 // redis commands:
 
 RequestAppend

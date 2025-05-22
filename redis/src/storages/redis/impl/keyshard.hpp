@@ -24,11 +24,6 @@ public:
     bool IsClusterStrategy() const;
 };
 
-enum class PubShard {
-    kZeroShard,
-    kRoundRobin,
-};
-
 }  // namespace storages::redis::impl
 
 USERVER_NAMESPACE_END
