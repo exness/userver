@@ -70,7 +70,6 @@ Sentinel::Sentinel(
     KeyShardFactory key_shard_factory,
     CommandControl command_control,
     const testsuite::RedisControl& testsuite_redis_control,
-    ConnectionMode mode,
     std::size_t database_index
 )
     : shard_group_name_(shard_group_name),
@@ -103,8 +102,7 @@ Sentinel::Sentinel(
                 connection_security,
                 std::move(ready_callback),
                 key_shard_factory(shards.size()),
-                dynamic_config_source,
-                mode
+                dynamic_config_source
             );
         } else {
             impl_ = std::make_unique<SentinelImpl>(
@@ -221,21 +219,12 @@ std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
             std::move(key_shard_factory),
             command_control,
             testsuite_redis_control,
-            ConnectionMode::kCommands,
             settings.database_index
         );
         client->Start();
     }
 
     return client;
-}
-
-void Sentinel::Restart() {
-    sentinel_thread_control_->RunInEvLoopBlocking([&]() {
-        impl_->Stop();
-        impl_->Init();
-        impl_->Start();
-    });
 }
 
 std::unordered_map<ServerId, size_t, ServerIdHasher>

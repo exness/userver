@@ -73,7 +73,6 @@ public:
         KeyShardFactory key_shard_factory,
         CommandControl command_control,
         const testsuite::RedisControl& testsuite_redis_control,
-        ConnectionMode mode,
         std::size_t database_index
     );
     virtual ~Sentinel();
@@ -117,8 +116,6 @@ public:
         const CommandControl& command_control = {},
         const testsuite::RedisControl& testsuite_redis_control = {}
     );
-
-    void Restart();
 
     std::unordered_map<ServerId, size_t, ServerIdHasher>
     GetAvailableServersWeighted(size_t shard_idx, bool with_master, const CommandControl& cc = {}) const;

@@ -28,8 +28,7 @@ public:
         ConnectionSecurity connection_security,
         ReadyChangeCallback ready_callback,
         std::unique_ptr<KeyShard>&& key_shard,
-        dynamic_config::Source dynamic_config_source,
-        ConnectionMode mode = ConnectionMode::kCommands
+        dynamic_config::Source dynamic_config_source
     );
     ~ClusterSentinelImpl() override;
 
@@ -52,7 +51,6 @@ public:
     const std::string& GetAnyKeyForShard(size_t shard_idx) const override;
     SentinelStatistics GetStatistics(const MetricsSettings& settings) const override;
 
-    void Init() override;
     void Start() override;
     void Stop() override;
 
@@ -73,6 +71,8 @@ public:
     void UpdatePassword(const Password& password) override;
 
 private:
+    void Init();  // used from constructor
+
     void AsyncCommandFailed(const SentinelCommand& scommand);
     void EnqueueCommand(const SentinelCommand& command);
 

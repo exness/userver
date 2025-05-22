@@ -85,7 +85,7 @@ SentinelImpl::SentinelImpl(
       database_index_(database_index) {
     // https://github.com/boostorg/signals2/issues/59
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
-    UASSERT_MSG(key_shard_.Get(), "key_shard should be provided");
+    UASSERT_MSG(key_shard_, "key_shard should be provided");
     for (size_t i = 0; i < init_shards_->size(); ++i) {
         shards_[(*init_shards_)[i]] = i;
         connected_statuses_.push_back(std::make_unique<ConnectedStatus>());
@@ -347,9 +347,7 @@ void SentinelImpl::AsyncCommandToSentinel(CommandPtr command) {
 
 size_t SentinelImpl::ShardByKey(const std::string& key) const {
     UASSERT(!master_shards_.empty());
-    auto key_shard = key_shard_.Get();
-    UASSERT_MSG(key_shard, "Filed to get shard");
-    size_t shard = key_shard->ShardByKey(key);
+    size_t shard = key_shard_->ShardByKey(key);
     LOG_TRACE() << "key=" << key << " shard=" << shard;
     return shard;
 }
@@ -383,10 +381,8 @@ void SentinelImpl::Start() {
 }
 
 void SentinelImpl::InitKeyShard() {
-    auto key_shard = key_shard_.Get();
-    UASSERT(key_shard);
     try {
-        if (key_shard->IsGenerateKeysForShardsEnabled()) GenerateKeysForShards();
+        if (key_shard_->IsGenerateKeysForShardsEnabled()) GenerateKeysForShards();
     } catch (const std::exception& ex) {
         LOG_ERROR() << "GenerateKeysForShards() failed: " << ex << ", shard_group_name=" << shard_group_name_;
     }

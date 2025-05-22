@@ -63,7 +63,6 @@ SubscribeSentinel::SubscribeSentinel(
           std::move(key_shard_factory),
           command_control,
           testsuite_redis_control,
-          ConnectionMode::kSubscriber,
           kSubscriptionDatabaseIndex
 
       ),
@@ -77,7 +76,7 @@ SubscribeSentinel::SubscribeSentinel(
         if (stopper->stopped) return;
         RebalanceSubscriptions(shard_idx);
     });
-    signal_not_in_cluster_mode.connect([this, stopper, thread_pools, shards_size = shards.size()]() {
+    signal_not_in_cluster_mode.connect([this, stopper, thread_pools]() {
         std::lock_guard<std::mutex> lock(stopper->mutex);
         if (stopper->stopped) return;
         storage_->SwitchToNonClusterMode();

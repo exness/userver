@@ -73,7 +73,6 @@ public:
     virtual const std::string& GetAnyKeyForShard(size_t shard_idx) const = 0;
     virtual SentinelStatistics GetStatistics(const MetricsSettings& settings) const = 0;
 
-    virtual void Init() = 0;
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
@@ -132,7 +131,6 @@ public:
     const std::string& GetAnyKeyForShard(size_t shard_idx) const override;
     SentinelStatistics GetStatistics(const MetricsSettings& settings) const override;
 
-    void Init() final;  // used from constructor
     void Start() override;
     void Stop() override;
 
@@ -150,6 +148,8 @@ public:
     void UpdatePassword(const Password& password) override;
 
 private:
+    void Init();  // used from constructor
+
     class ShardInfo {
     public:
         using HostPortToShardMap = std::map<std::pair<std::string, size_t>, size_t>;
@@ -235,7 +235,7 @@ private:
     double check_interval_;
     std::vector<SentinelCommand> commands_;
     std::mutex command_mutex_;
-    utils::SwappingSmart<KeyShard> key_shard_;
+    const std::unique_ptr<KeyShard> key_shard_;
     SentinelStatisticsInternal statistics_internal_;
     utils::SwappingSmart<KeysForShards> keys_for_shards_;
     std::optional<CommandsBufferingSettings> commands_buffering_settings_;

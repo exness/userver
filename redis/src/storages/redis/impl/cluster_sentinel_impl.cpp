@@ -798,8 +798,7 @@ ClusterSentinelImpl::ClusterSentinelImpl(
     ConnectionSecurity /*connection_security*/,
     ReadyChangeCallback ready_callback,
     std::unique_ptr<KeyShard>&& key_shard,
-    dynamic_config::Source dynamic_config_source,
-    ConnectionMode /*mode*/
+    dynamic_config::Source dynamic_config_source
 )
     : sentinel_obj_(sentinel),
       ev_thread_(sentinel_thread_control),
