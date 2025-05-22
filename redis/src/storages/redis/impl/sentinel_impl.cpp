@@ -66,7 +66,6 @@ SentinelImpl::SentinelImpl(
     const std::string& client_name,
     const Password& password,
     ConnectionSecurity connection_security,
-    ReadyChangeCallback ready_callback,
     std::unique_ptr<KeyShard>&& key_shard,
     dynamic_config::Source dynamic_config_source,
     std::size_t database_index
@@ -76,7 +75,6 @@ SentinelImpl::SentinelImpl(
       shard_group_name_(std::move(shard_group_name)),
       init_shards_(std::make_shared<const std::vector<std::string>>(shards)),
       conns_(conns),
-      ready_callback_(std::move(ready_callback)),
       redis_thread_pool_(redis_thread_pool),
       connection_security_(connection_security),
       check_interval_(ToEvDuration(kSentinelGetHostsCheckInterval)),
@@ -146,7 +144,7 @@ void SentinelImpl::WaitConnectedOnce(RedisWaitConnected wait_connected) {
 void SentinelImpl::ForceUpdateHosts() { ev_thread_.Send(watch_create_); }
 
 void SentinelImpl::Init() {
-    InitShards(*init_shards_, master_shards_, ready_callback_);
+    InitShards(*init_shards_, master_shards_);
 
     Shard::Options shard_options;
     shard_options.shard_name = "(sentinel)";
@@ -172,8 +170,7 @@ void SentinelImpl::Init() {
 
 void SentinelImpl::InitShards(
     const std::vector<std::string>& shards,
-    std::vector<std::shared_ptr<Shard>>& shard_objects,
-    const ReadyChangeCallback& ready_callback
+    std::vector<std::shared_ptr<Shard>>& shard_objects
 ) {
     size_t i = 0;
     shard_objects.clear();
@@ -182,8 +179,9 @@ void SentinelImpl::InitShards(
         shard_options.shard_name = shard;
         shard_options.shard_group_name = shard_group_name_;
         shard_options.cluster_mode = IsInClusterMode();
-        shard_options.ready_change_callback = [i, shard, ready_callback](bool ready) {
-            if (ready_callback) ready_callback(i, shard, ready);
+        shard_options.ready_change_callback = [i, shard](bool ready) {
+            LOG_INFO() << "redis: ready_callback:"
+                       << "  shard = " << i << "  shard_name = " << shard << "  ready = " << (ready ? "true" : "false");
         };
         auto object = std::make_shared<Shard>(std::move(shard_options));
         // https://github.com/boostorg/signals2/issues/59

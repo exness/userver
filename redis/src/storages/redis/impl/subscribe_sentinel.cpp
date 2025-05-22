@@ -35,6 +35,9 @@ std::shared_ptr<SubscriptionStorageBase> CreateSubscriptionStorage(
 
 }  // namespace
 
+// https://github.com/boostorg/signals2/issues/59
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDelete)
+
 SubscribeSentinel::SubscribeSentinel(
     const std::shared_ptr<ThreadPools>& thread_pools,
     const std::vector<std::string>& shards,
@@ -44,7 +47,6 @@ SubscribeSentinel::SubscribeSentinel(
     const std::string& client_name,
     const Password& password,
     ConnectionSecurity connection_security,
-    ReadyChangeCallback ready_callback,
     KeyShardFactory key_shard_factory,
     bool is_cluster_mode,
     CommandControl command_control,
@@ -58,7 +60,6 @@ SubscribeSentinel::SubscribeSentinel(
           client_name,
           password,
           connection_security,
-          ready_callback,
           dynamic_config_source,
           std::move(key_shard_factory),
           command_control,
@@ -108,37 +109,6 @@ std::shared_ptr<SubscribeSentinel> SubscribeSentinel::Create(
     const CommandControl& command_control,
     const testsuite::RedisControl& testsuite_redis_control
 ) {
-    auto ready_callback = [](size_t shard, const std::string& shard_name, bool ready) {
-        LOG_INFO() << "redis: ready_callback:"
-                   << "  shard = " << shard << "  shard_name = " << shard_name
-                   << "  ready = " << (ready ? "true" : "false");
-    };
-    // https://github.com/boostorg/signals2/issues/59
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
-    return Create(
-        thread_pools,
-        settings,
-        std::move(shard_group_name),
-        dynamic_config_source,
-        client_name,
-        std::move(ready_callback),
-        std::move(sharding_strategy),
-        command_control,
-        testsuite_redis_control
-    );
-}
-
-std::shared_ptr<SubscribeSentinel> SubscribeSentinel::Create(
-    const std::shared_ptr<ThreadPools>& thread_pools,
-    const secdist::RedisSettings& settings,
-    std::string shard_group_name,
-    dynamic_config::Source dynamic_config_source,
-    const std::string& client_name,
-    ReadyChangeCallback ready_callback,
-    std::string sharding_strategy,
-    const CommandControl& command_control,
-    const testsuite::RedisControl& testsuite_redis_control
-) {
     const auto& password = settings.password;
 
     const std::vector<std::string>& shards = settings.shards;
@@ -175,7 +145,6 @@ std::shared_ptr<SubscribeSentinel> SubscribeSentinel::Create(
         client_name,
         password,
         settings.secure_connection,
-        std::move(ready_callback),
         std::move(keysShardFactory),
         is_cluster_mode,
         command_control,
@@ -247,6 +216,8 @@ void SubscribeSentinel::InitStorage() {
         AsyncCommand(cmd, channel, false);
     });
 }
+
+// NOLINTEND(clang-analyzer-cplusplus.NewDelete)
 
 }  // namespace storages::redis::impl
 

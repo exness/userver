@@ -58,8 +58,6 @@ public:
         kOverflowDiscarded,
     };
 
-    using ReadyChangeCallback = std::function<void(size_t shard, const std::string& shard_name, bool ready)>;
-
     Sentinel(
         const std::shared_ptr<ThreadPools>& thread_pools,
         const std::vector<std::string>& shards,
@@ -68,7 +66,6 @@ public:
         const std::string& client_name,
         const Password& password,
         ConnectionSecurity connection_security,
-        ReadyChangeCallback ready_callback,
         dynamic_config::Source dynamic_config_source,
         KeyShardFactory key_shard_factory,
         CommandControl command_control,
@@ -101,17 +98,6 @@ public:
         std::string shard_group_name,
         dynamic_config::Source dynamic_config_source,
         const std::string& client_name,
-        KeyShardFactory key_shard_factory,
-        const CommandControl& command_control = {},
-        const testsuite::RedisControl& testsuite_redis_control = {}
-    );
-    static std::shared_ptr<Sentinel> CreateSentinel(
-        const std::shared_ptr<ThreadPools>& thread_pools,
-        const USERVER_NAMESPACE::secdist::RedisSettings& settings,
-        std::string shard_group_name,
-        dynamic_config::Source dynamic_config_source,
-        const std::string& client_name,
-        ReadyChangeCallback ready_callback,
         KeyShardFactory key_shard_factory,
         const CommandControl& command_control = {},
         const testsuite::RedisControl& testsuite_redis_control = {}

@@ -106,7 +106,6 @@ public:
         const std::string& client_name,
         const Password& password,
         ConnectionSecurity connection_security,
-        ReadyChangeCallback ready_callback,
         std::unique_ptr<KeyShard>&& key_shard,
         dynamic_config::Source dynamic_config_source,
         std::size_t database_index
@@ -198,11 +197,7 @@ private:
     void UpdateInstancesImpl();
     bool SetConnectionInfo(ConnInfoMap info_by_shards, std::vector<std::shared_ptr<Shard>>& shards);
     void EnqueueCommand(const SentinelCommand& command);
-    void InitShards(
-        const std::vector<std::string>& shards,
-        std::vector<std::shared_ptr<Shard>>& shard_objects,
-        const ReadyChangeCallback& ready_callback
-    );
+    void InitShards(const std::vector<std::string>& shards, std::vector<std::shared_ptr<Shard>>& shard_objects);
 
     void ProcessWaitingCommands();
 
@@ -215,7 +210,6 @@ private:
     std::shared_ptr<const std::vector<std::string>> init_shards_;
     std::vector<std::unique_ptr<ConnectedStatus>> connected_statuses_;
     std::vector<ConnectionInfo> conns_;
-    ReadyChangeCallback ready_callback_;
 
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
     ev_async watch_state_{};

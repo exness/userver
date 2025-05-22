@@ -796,7 +796,6 @@ ClusterSentinelImpl::ClusterSentinelImpl(
     const std::string& client_name,
     const Password& password,
     ConnectionSecurity /*connection_security*/,
-    ReadyChangeCallback ready_callback,
     std::unique_ptr<KeyShard>&& key_shard,
     dynamic_config::Source dynamic_config_source
 )
@@ -809,7 +808,6 @@ ClusterSentinelImpl::ClusterSentinelImpl(
       )),
       shard_group_name_(std::move(shard_group_name)),
       conns_(conns),
-      ready_callback_(std::move(ready_callback)),
       redis_thread_pool_(redis_thread_pool),
       client_name_(client_name),
       dynamic_config_source_(std::move(dynamic_config_source)) {

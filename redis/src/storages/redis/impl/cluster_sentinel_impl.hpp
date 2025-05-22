@@ -26,7 +26,6 @@ public:
         const std::string& client_name,
         const Password& password,
         ConnectionSecurity connection_security,
-        ReadyChangeCallback ready_callback,
         std::unique_ptr<KeyShard>&& key_shard,
         dynamic_config::Source dynamic_config_source
     );
@@ -87,7 +86,6 @@ private:
 
     std::string shard_group_name_;
     std::vector<ConnectionInfo> conns_;
-    ReadyChangeCallback ready_callback_;
 
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
 

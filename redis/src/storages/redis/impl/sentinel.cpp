@@ -65,7 +65,6 @@ Sentinel::Sentinel(
     const std::string& client_name,
     const Password& password,
     ConnectionSecurity connection_security,
-    ReadyChangeCallback ready_callback,
     dynamic_config::Source dynamic_config_source,
     KeyShardFactory key_shard_factory,
     CommandControl command_control,
@@ -100,7 +99,6 @@ Sentinel::Sentinel(
                 client_name,
                 password,
                 connection_security,
-                std::move(ready_callback),
                 key_shard_factory(shards.size()),
                 dynamic_config_source
             );
@@ -115,7 +113,6 @@ Sentinel::Sentinel(
                 client_name,
                 password,
                 connection_security,
-                std::move(ready_callback),
                 key_shard_factory(shards.size()),
                 dynamic_config_source,
                 database_index
@@ -147,35 +144,6 @@ std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
     std::string shard_group_name,
     dynamic_config::Source dynamic_config_source,
     const std::string& client_name,
-    KeyShardFactory key_shard_factory,
-    const CommandControl& command_control,
-    const testsuite::RedisControl& testsuite_redis_control
-) {
-    auto ready_callback = [](size_t shard, const std::string& shard_name, bool ready) {
-        LOG_INFO() << "redis: ready_callback:"
-                   << "  shard = " << shard << "  shard_name = " << shard_name
-                   << "  ready = " << (ready ? "true" : "false");
-    };
-    return CreateSentinel(
-        thread_pools,
-        settings,
-        std::move(shard_group_name),
-        dynamic_config_source,
-        client_name,
-        std::move(ready_callback),
-        std::move(key_shard_factory),
-        command_control,
-        testsuite_redis_control
-    );
-}
-
-std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
-    const std::shared_ptr<ThreadPools>& thread_pools,
-    const secdist::RedisSettings& settings,
-    std::string shard_group_name,
-    dynamic_config::Source dynamic_config_source,
-    const std::string& client_name,
-    Sentinel::ReadyChangeCallback ready_callback,
     KeyShardFactory key_shard_factory,
     const CommandControl& command_control,
     const testsuite::RedisControl& testsuite_redis_control
@@ -214,7 +182,6 @@ std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
             client_name,
             password,
             settings.secure_connection,
-            std::move(ready_callback),
             dynamic_config_source,
             std::move(key_shard_factory),
             command_control,
