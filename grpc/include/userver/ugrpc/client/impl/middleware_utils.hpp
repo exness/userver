@@ -1,19 +1,22 @@
 #pragma once
 
-#include <userver/ugrpc/client/impl/async_methods.hpp>
+#include <google/protobuf/message.h>
+#include <grpcpp/support/status.h>
+
+#include <userver/ugrpc/client/impl/call_state.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
 
 struct MiddlewarePipeline {
-    static void PreStartCall(RpcData& data);
+    static void PreStartCall(CallState& state);
 
-    static void PreSendMessage(RpcData& data, const google::protobuf::Message& message);
+    static void PreSendMessage(CallState& state, const google::protobuf::Message& message);
 
-    static void PostRecvMessage(RpcData& data, const google::protobuf::Message& message);
+    static void PostRecvMessage(CallState& state, const google::protobuf::Message& message);
 
-    static void PostFinish(RpcData& data, const grpc::Status& status);
+    static void PostFinish(CallState& state, const grpc::Status& status);
 };
 
 }  // namespace ugrpc::client::impl

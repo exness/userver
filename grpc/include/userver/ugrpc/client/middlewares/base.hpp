@@ -28,7 +28,7 @@ namespace ugrpc::client::middlewares {}
 namespace ugrpc::client {
 
 namespace impl {
-class RpcData;
+class CallState;
 }  // namespace impl
 
 /// @ingroup userver_grpc_client_middlewares
@@ -52,7 +52,7 @@ struct ClientInfo final {
 class MiddlewareCallContext final {
 public:
     /// @cond
-    explicit MiddlewareCallContext(impl::RpcData& data);
+    explicit MiddlewareCallContext(impl::CallState& state);
     /// @endcond
 
     /// @returns the `ClientContext` used for this RPC
@@ -75,11 +75,11 @@ public:
 
     /// @cond
     // For internal use only
-    impl::RpcData& GetData(ugrpc::impl::InternalTag);
+    impl::CallState& GetState(ugrpc::impl::InternalTag);
     /// @endcond
 
 private:
-    impl::RpcData& data_;
+    impl::CallState& state_;
 };
 
 /// @ingroup userver_base_classes userver_grpc_client_middlewares

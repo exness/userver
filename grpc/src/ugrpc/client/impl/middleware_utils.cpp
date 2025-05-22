@@ -6,30 +6,30 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
 
-void MiddlewarePipeline::PreStartCall(RpcData& data) {
-    MiddlewareCallContext context{data};
-    for (const auto& mw : data.GetMiddlewares()) {
+void MiddlewarePipeline::PreStartCall(CallState& state) {
+    MiddlewareCallContext context{state};
+    for (const auto& mw : state.GetMiddlewares()) {
         mw->PreStartCall(context);
     }
 }
 
-void MiddlewarePipeline::PreSendMessage(RpcData& data, const google::protobuf::Message& message) {
-    MiddlewareCallContext context{data};
-    for (const auto& mw : data.GetMiddlewares()) {
+void MiddlewarePipeline::PreSendMessage(CallState& state, const google::protobuf::Message& message) {
+    MiddlewareCallContext context{state};
+    for (const auto& mw : state.GetMiddlewares()) {
         mw->PreSendMessage(context, message);
     }
 }
 
-void MiddlewarePipeline::PostRecvMessage(RpcData& data, const google::protobuf::Message& message) {
-    MiddlewareCallContext context{data};
-    for (const auto& mw : data.GetMiddlewares()) {
+void MiddlewarePipeline::PostRecvMessage(CallState& state, const google::protobuf::Message& message) {
+    MiddlewareCallContext context{state};
+    for (const auto& mw : state.GetMiddlewares()) {
         mw->PostRecvMessage(context, message);
     }
 }
 
-void MiddlewarePipeline::PostFinish(RpcData& data, const grpc::Status& status) {
-    MiddlewareCallContext context{data};
-    for (const auto& mw : data.GetMiddlewares()) {
+void MiddlewarePipeline::PostFinish(CallState& state, const grpc::Status& status) {
+    MiddlewareCallContext context{state};
+    for (const auto& mw : state.GetMiddlewares()) {
         mw->PostFinish(context, status);
     }
 }
