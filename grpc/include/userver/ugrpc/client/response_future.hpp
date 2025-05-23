@@ -18,6 +18,8 @@ namespace ugrpc::client {
 /// the server receives `RpcInterruptedError` immediately.
 template <typename Response>
 class [[nodiscard]] ResponseFuture final {
+    // Implementation note: further RPC controls (lazy Finish, ReadInitialMetadata), if needed in the future,
+    // should be added to UnaryCall, not to ResponseFuture. In that case UnaryCall should be exposed in GetCall.
 public:
     ResponseFuture(ResponseFuture&&) noexcept = default;
     ResponseFuture& operator=(ResponseFuture&&) noexcept = default;
@@ -45,8 +47,11 @@ public:
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
     Response Get() { return call_.GetFinishFuture().Get(); }
 
-    /// @brief Get original gRPC Call
+    /// @brief Get the original gRPC Call, useful e.g. for accessing metadata.
     CallAnyBase& GetCall() { return call_; }
+
+    /// @overload
+    const CallAnyBase& GetCall() const { return call_; }
 
     /// @cond
     // For internal use only

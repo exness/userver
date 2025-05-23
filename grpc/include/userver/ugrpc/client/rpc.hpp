@@ -162,6 +162,11 @@ namespace impl {
 /// the server receives `RpcInterruptedError` immediately.
 template <typename Response>
 class [[nodiscard]] UnaryCall final : public CallAnyBase {
+    // Implementation note. For consistency with other RPC objects, UnaryCall should have been exposed to the user
+    // directly. However, in 90-99% use cases it's more intuitive to treat the RPC as a future (see ResponseFuture).
+    // If we decide to expose more controls, like lazy Finish or ReadInitialMetadata, then they should be added
+    // to UnaryCall, and UnaryCall should be exposed via ResponseFuture::GetCall.
+
 public:
     /// @brief Asynchronously finish the call
     ///
