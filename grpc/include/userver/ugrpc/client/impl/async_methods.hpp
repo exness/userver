@@ -4,12 +4,12 @@
 #include <optional>
 #include <string_view>
 
+#include <google/protobuf/message.h>
 #include <grpcpp/support/async_stream.h>
 #include <grpcpp/support/async_unary_call.h>
 #include <grpcpp/support/status.h>
 
 #include <userver/utils/assert.hpp>
-#include <userver/utils/function_ref.hpp>
 
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/client/impl/async_method_invocation.hpp>
@@ -37,6 +37,15 @@ template <typename Request, typename Response>
 using RawReaderWriter = std::unique_ptr<grpc::ClientAsyncReaderWriter<Request, Response>>;
 /// @}
 
+template <typename Message>
+google::protobuf::Message* ToBaseMessage(Message& message) {
+    if constexpr (std::is_base_of_v<google::protobuf::Message, Message>) {
+        return &message;
+    } else {
+        return nullptr;
+    }
+}
+
 void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::string_view stage);
 
 template <typename GrpcStream>
@@ -48,27 +57,19 @@ void StartCall(GrpcStream& stream, CallState& state) {
 
 void PrepareFinish(CallState& state);
 
-void ProcessFinish(
-    CallState& state,
-    utils::function_ref<void(CallState& state, const grpc::Status& status)> post_finish
-);
+void ProcessFinish(CallState& state, google::protobuf::Message* final_response);
 
 void CheckFinishStatus(CallState& state);
 
 void ProcessFinishResult(
     CallState& state,
     AsyncMethodInvocation::WaitStatus wait_status,
-    utils::function_ref<void(CallState& state, const grpc::Status& status)> post_finish,
+    google::protobuf::Message* final_response,
     bool throw_on_error
 );
 
 template <typename GrpcStream>
-void Finish(
-    GrpcStream& stream,
-    CallState& state,
-    utils::function_ref<void(CallState& state, const grpc::Status& status)> post_finish,
-    bool throw_on_error
-) {
+void Finish(GrpcStream& stream, CallState& state, google::protobuf::Message* final_response, bool throw_on_error) {
     PrepareFinish(state);
 
     FinishAsyncMethodInvocation finish(state);
@@ -76,15 +77,7 @@ void Finish(
     stream.Finish(&status, finish.GetTag());
 
     const auto wait_status = Wait(finish, state.GetContext());
-    if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state.GetStatsScope().OnCancelled();
-        if (throw_on_error) {
-            throw RpcCancelledError(state.GetCallName(), "Finish");
-        }
-        return;
-    }
-
-    ProcessFinishResult(state, wait_status, post_finish, throw_on_error);
+    ProcessFinishResult(state, wait_status, final_response, throw_on_error);
 }
 
 template <typename GrpcStream, typename Response>

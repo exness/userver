@@ -7,6 +7,7 @@
 
 #include <ugrpc/client/impl/tracing.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
+#include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -23,7 +24,8 @@ void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::st
     } else if (status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state.SetFinished();
         state.GetStatsScope().OnCancelled();
-        SetErrorAndResetSpan(state, fmt::format("Network error at '{}' (task cancelled)", stage));
+        // Cannot do stats_scope.Flush(), as it can be called in Notify concurrently.
+        SetErrorAndResetSpan(state, fmt::format("Task cancellation at '{}'", stage));
         throw RpcCancelledError(state.GetCallName(), stage);
     }
 }
@@ -33,16 +35,16 @@ void PrepareFinish(CallState& state) {
     state.SetFinished();
 }
 
-void ProcessFinish(
-    CallState& state,
-    utils::function_ref<void(CallState& state, const grpc::Status& status)> post_finish
-) {
+void ProcessFinish(CallState& state, google::protobuf::Message* final_response) {
     const auto& status = state.GetStatus();
 
     state.GetStatsScope().OnExplicitFinish(status.error_code());
     state.GetStatsScope().Flush();
 
-    post_finish(state, status);
+    if (final_response && status.ok()) {
+        MiddlewarePipeline::PostRecvMessage(state, *final_response);
+    }
+    MiddlewarePipeline::PostFinish(state, status);
 
     SetStatusAndResetSpan(state, status);
 }
@@ -57,18 +59,28 @@ void CheckFinishStatus(CallState& state) {
 void ProcessFinishResult(
     CallState& state,
     AsyncMethodInvocation::WaitStatus wait_status,
-    utils::function_ref<void(CallState& state, const grpc::Status& status)> post_finish,
+    google::protobuf::Message* final_response,
     bool throw_on_error
 ) {
-    const auto ok = wait_status == impl::AsyncMethodInvocation::WaitStatus::kOk;
+    if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
+        state.GetStatsScope().OnCancelled();
+        // Cannot do stats_scope.Flush(), as it can be called in Notify concurrently.
+        state.GetContext().TryCancel();
+        SetErrorAndResetSpan(state, "Task cancellation at 'Finish'");
+        // Finish AsyncMethodInvocation will be awaited in its destructor.
+        if (throw_on_error) {
+            throw RpcCancelledError(state.GetCallName(), "Finish");
+        }
+        return;
+    }
+
     UASSERT_MSG(
-        ok,
+        wait_status == impl::AsyncMethodInvocation::WaitStatus::kOk,
         "ok=false in async Finish method invocation is prohibited "
         "by gRPC docs, see grpc::CompletionQueue::Next"
     );
 
-    ProcessFinish(state, post_finish);
-
+    ProcessFinish(state, final_response);
     if (throw_on_error) {
         CheckFinishStatus(state);
     }

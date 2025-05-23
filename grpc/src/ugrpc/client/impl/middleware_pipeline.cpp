@@ -1,5 +1,6 @@
-#include <userver/ugrpc/client/impl/middleware_utils.hpp>
+#include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 
+#include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/client/middlewares/base.hpp>
 
 USERVER_NAMESPACE_BEGIN

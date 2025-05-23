@@ -9,26 +9,25 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
 
-UnaryFinishFutureImpl::UnaryFinishFutureImpl(
-    impl::CallState& state,
-    std::function<void(impl::CallState& state, const grpc::Status& status)> post_finish
-) noexcept
-    : state_(&state), post_finish_(std::move(post_finish)) {
+UnaryFinishFutureImpl::UnaryFinishFutureImpl(impl::CallState& state, google::protobuf::Message* final_response) noexcept
+    : state_(&state), final_response_(final_response) {
     // We expect that FinishAsyncMethodInvocation was already emplaced
     // For unary future it is done in UnaryCall::FinishAsync
     UASSERT(state_->HoldsFinishAsyncMethodInvocationDebug());
 }
 
 UnaryFinishFutureImpl::UnaryFinishFutureImpl(UnaryFinishFutureImpl&& other) noexcept
+    // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
     : state_{std::exchange(other.state_, nullptr)},
-      post_finish_{std::move(other.post_finish_)},
+      final_response_(other.final_response_),
       exception_(std::move(other.exception_)) {}
 
 UnaryFinishFutureImpl& UnaryFinishFutureImpl::operator=(UnaryFinishFutureImpl&& other) noexcept {
     if (this == &other) return *this;
     [[maybe_unused]] auto for_destruction = std::move(*this);
+    // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
     state_ = std::exchange(other.state_, nullptr);
-    post_finish_ = std::move(other.post_finish_);
+    final_response_ = other.final_response_;
     exception_ = std::move(other.exception_);
     return *this;
 }
@@ -69,7 +68,7 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline)
                     impl::AsyncMethodInvocation::WaitStatus::kOk == wait_status,
                     "Client-side Finish: ok should always be true"
                 );
-                ProcessFinish(*state_, post_finish_);
+                ProcessFinish(*state_, final_response_);
             } catch (...) {
                 exception_ = std::current_exception();
             }

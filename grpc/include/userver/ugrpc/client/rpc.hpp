@@ -4,7 +4,6 @@
 /// @brief Classes representing an outgoing RPC
 
 #include <exception>
-#include <functional>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -18,7 +17,7 @@
 #include <userver/ugrpc/client/call.hpp>
 #include <userver/ugrpc/client/impl/async_methods.hpp>
 #include <userver/ugrpc/client/impl/call_state.hpp>
-#include <userver/ugrpc/client/impl/middleware_utils.hpp>
+#include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
 #include <userver/ugrpc/deadline_timepoint.hpp>
 
@@ -31,10 +30,7 @@ namespace impl {
 // Contains the implementation of UnaryFinishFuture that is not dependent on template parameters.
 class UnaryFinishFutureImpl {
 public:
-    UnaryFinishFutureImpl(
-        CallState& state,
-        std::function<void(CallState& state, const grpc::Status& status)> post_finish
-    ) noexcept;
+    UnaryFinishFutureImpl(CallState& state, google::protobuf::Message* final_response) noexcept;
 
     UnaryFinishFutureImpl(UnaryFinishFutureImpl&&) noexcept;
     UnaryFinishFutureImpl& operator=(UnaryFinishFutureImpl&&) noexcept;
@@ -52,7 +48,7 @@ public:
 
 private:
     CallState* state_{};
-    std::function<void(CallState& state, const grpc::Status& status)> post_finish_;
+    google::protobuf::Message* final_response_;
     mutable std::exception_ptr exception_;
 };
 
@@ -63,10 +59,10 @@ public:
     /// @cond
     UnaryFinishFuture(
         impl::CallState& state,
-        std::function<void(impl::CallState& state, const grpc::Status& status)> post_finish,
+        google::protobuf::Message* final_response,
         std::unique_ptr<Response>&& response
     ) noexcept
-        : response_(std::move(response)), impl_(state, std::move(post_finish)) {}
+        : response_(std::move(response)), impl_(state, final_response) {}
     /// @endcond
 
     UnaryFinishFuture(UnaryFinishFuture&&) noexcept = default;
@@ -122,8 +118,7 @@ public:
     explicit StreamReadFuture(
         impl::CallState& state,
         typename RPC::RawStream& stream,
-        std::function<void(impl::CallState& state)> post_recv_message,
-        std::function<void(impl::CallState& state, const grpc::Status& status)> post_finish
+        google::protobuf::Message* response_message
     ) noexcept;
     /// @endcond
 
@@ -153,8 +148,7 @@ public:
 private:
     impl::CallState* state_{};
     typename RPC::RawStream* stream_{};
-    std::function<void(impl::CallState& state)> post_recv_message_;
-    std::function<void(impl::CallState& state, const grpc::Status& status)> post_finish_;
+    google::protobuf::Message* response_message_;
 };
 
 namespace impl {
@@ -417,29 +411,25 @@ template <typename RPC>
 StreamReadFuture<RPC>::StreamReadFuture(
     impl::CallState& state,
     typename RPC::RawStream& stream,
-    std::function<void(impl::CallState& state)> post_recv_message,
-    std::function<void(impl::CallState& state, const grpc::Status& status)> post_finish
+    google::protobuf::Message* response_message
 ) noexcept
-    : state_(&state),
-      stream_(&stream),
-      post_recv_message_(std::move(post_recv_message)),
-      post_finish_(std::move(post_finish)) {}
+    : state_(&state), stream_(&stream), response_message_(response_message) {}
 
 template <typename RPC>
 StreamReadFuture<RPC>::StreamReadFuture(StreamReadFuture&& other) noexcept
+    // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
     : state_{std::exchange(other.state_, nullptr)},
-      stream_{other.stream_},
-      post_recv_message_{std::move(other.post_recv_message_)},
-      post_finish_{std::move(other.post_finish_)} {}
+      stream_(other.stream_),
+      response_message_{other.response_message_} {}
 
 template <typename RPC>
 StreamReadFuture<RPC>& StreamReadFuture<RPC>::operator=(StreamReadFuture<RPC>&& other) noexcept {
     if (this == &other) return *this;
     [[maybe_unused]] auto for_destruction = std::move(*this);
+    // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
     state_ = std::exchange(other.state_, nullptr);
     stream_ = other.stream_;
-    post_recv_message_ = std::move(other.post_recv_message_);
-    post_finish_ = std::move(other.post_finish_);
+    response_message_ = other.response_message_;
     return *this;
 }
 
@@ -452,9 +442,11 @@ StreamReadFuture<RPC>::~StreamReadFuture() {
             if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
                 state_->GetStatsScope().OnCancelled();
             }
-            impl::Finish(*stream_, *state_, post_finish_, false);
+            impl::Finish(*stream_, *state_, /*final_response=*/nullptr, /*throw_on_error=*/false);
         } else {
-            post_recv_message_(*state_);
+            if (response_message_) {
+                impl::MiddlewarePipeline::PostRecvMessage(*state_, *response_message_);
+            }
         }
     }
 }
@@ -471,9 +463,11 @@ bool StreamReadFuture<RPC>::Get() {
     } else if (result == impl::AsyncMethodInvocation::WaitStatus::kError) {
         // Finish can only be called once all the data is read, otherwise the
         // underlying gRPC driver hangs.
-        impl::Finish(*stream_, *data, post_finish_, true);
+        impl::Finish(*stream_, *data, /*final_response=*/nullptr, /*throw_on_error=*/true);
     } else {
-        post_recv_message_(*data);
+        if (response_message_) {
+            impl::MiddlewarePipeline::PostRecvMessage(*data, *response_message_);
+        }
     }
     return result == impl::AsyncMethodInvocation::WaitStatus::kOk;
 }
@@ -513,17 +507,9 @@ void UnaryCall<Response>::FinishAsync() {
     auto& finish = GetState().GetFinishAsyncMethodInvocation();
     auto& status = GetState().GetStatus();
     reader_->Finish(response.get(), &status, finish.GetTag());
-    auto post_finish = [&response = *response](impl::CallState& state, const grpc::Status& status) {
-        if (status.ok()) {  // response is not filled on bad status
-            if constexpr (std::is_base_of_v<google::protobuf::Message, Response>) {
-                impl::MiddlewarePipeline::PostRecvMessage(state, response);
-            } else {
-                (void)response;  // unused by now
-            }
-        }
-        impl::MiddlewarePipeline::PostFinish(state, status);
-    };
-    finish_future_.emplace(GetState(), post_finish, std::move(response));
+
+    auto* const response_base = impl::ToBaseMessage(*response);
+    finish_future_.emplace(GetState(), response_base, std::move(response));
 }
 
 template <typename Response>
@@ -568,10 +554,7 @@ bool InputStream<Response>::Read(Response& response) {
     } else {
         // Finish can only be called once all the data is read, otherwise the
         // underlying gRPC driver hangs.
-        auto post_finish = [](impl::CallState& state, const grpc::Status& status) {
-            impl::MiddlewarePipeline::PostFinish(state, status);
-        };
-        impl::Finish(*stream_, GetState(), post_finish, true);
+        impl::Finish(*stream_, GetState(), /*final_response=*/nullptr, /*throw_on_error=*/true);
         return false;
     }
 }
@@ -620,10 +603,8 @@ void OutputStream<Request, Response>::WriteAndCheck(const Request& request) {
     // may never actually be delivered
     grpc::WriteOptions write_options{};
     if (!impl::Write(*stream_, request, write_options, GetState())) {
-        auto post_finish = [](impl::CallState& state, const grpc::Status& status) {
-            impl::MiddlewarePipeline::PostFinish(state, status);
-        };
-        impl::Finish(*stream_, GetState(), post_finish, true);
+        // We don't need final_response here, because the RPC is broken anyway.
+        impl::Finish(*stream_, GetState(), /*final_response=*/nullptr, /*throw_on_error=*/true);
     }
 }
 
@@ -635,18 +616,8 @@ Response OutputStream<Request, Response>::Finish() {
         impl::WritesDone(*stream_, GetState());
     }
 
-    auto post_finish = [this](impl::CallState& state, const grpc::Status& status) {
-        if (status.ok()) {  // response is not filled on bad status
-            if constexpr (std::is_base_of_v<google::protobuf::Message, Response>) {
-                UASSERT(final_response_);
-                impl::MiddlewarePipeline::PostRecvMessage(state, *final_response_);
-            } else {
-                // unused by now
-            }
-        }
-        impl::MiddlewarePipeline::PostFinish(state, status);
-    };
-    impl::Finish(*stream_, GetState(), post_finish, true);
+    UASSERT(final_response_);
+    impl::Finish(*stream_, GetState(), impl::ToBaseMessage(*final_response_), /*throw_on_error=*/true);
 
     return std::move(*final_response_);
 }
@@ -676,14 +647,8 @@ StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Req
     }
 
     impl::ReadAsync(*stream_, response, GetState());
-    auto post_recv_message = [&response](impl::CallState& state) {
-        impl::MiddlewarePipeline::PostRecvMessage(state, response);
-    };
-    auto post_finish = [](impl::CallState& state, const grpc::Status& status) {
-        impl::MiddlewarePipeline::PostFinish(state, status);
-    };
     return StreamReadFuture<BidirectionalStream<Request, Response>>{
-        GetState(), *stream_, post_recv_message, post_finish};
+        GetState(), *stream_, impl::ToBaseMessage(response)};
 }
 
 template <typename Request, typename Response>
