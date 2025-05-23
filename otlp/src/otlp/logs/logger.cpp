@@ -35,7 +35,7 @@ template <class Item, class Value>
 void AddAttribute(Item& item, std::string_view key, const Value& value) {
     auto* attribute = item.add_attributes();
 
-#if GOOGLE_PROTOBUF_VERSION >= 3022000
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
     attribute->set_key(key);
 #else
     attribute->set_key(std::string{key});
