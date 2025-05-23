@@ -159,11 +159,6 @@ void SentinelImpl::Init() {
         LOG_TRACE() << "Signaled server " << id.GetDescription() << " state=" << StateToString(state);
         if (state != Redis::State::kInit) ev_thread_.Send(watch_state_);
     });
-#ifndef NDEBUG
-    // https://github.com/boostorg/signals2/issues/59
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
-    sentinels_->SignalNotInClusterMode().connect([]() { UASSERT_MSG(false, "Not in cluster mode"); });
-#endif
 }
 
 void SentinelImpl::InitShards(

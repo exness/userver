@@ -30,6 +30,9 @@
 
 USERVER_NAMESPACE_BEGIN
 
+// https://github.com/boostorg/signals2/issues/59
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDelete)
+
 namespace storages::redis::impl {
 
 namespace {
@@ -196,8 +199,6 @@ public:
           create_nodes_watch_(
               ev_thread_,
               [this] {
-                  // https://github.com/boostorg/signals2/issues/59
-                  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
                   CreateNodes();
                   create_nodes_watch_.Start();
               }
@@ -258,8 +259,6 @@ public:
 
         sentinels_ = std::make_shared<Shard>(std::move(shard_options));
 
-        // https://github.com/boostorg/signals2/issues/59
-        // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
         sentinels_->SignalInstanceStateChange().connect([this](ServerId id, Redis::State state) {
             LOG_TRACE() << "Signaled server " << id.GetDescription() << " state=" << StateToString(state);
             if (state != Redis::State::kInit) sentinels_process_state_update_watch_.Send();
@@ -823,9 +822,6 @@ ClusterSentinelImpl::ClusterSentinelImpl(
             ev_thread_, redis_thread_pool, password, kClusterDatabaseIndex, conns.front()
         );
     }
-
-    Init();
-    LOG_DEBUG() << "Created ClusterSentinelImpl, shard_group_name=" << shard_group_name_;
 }
 
 ClusterSentinelImpl::~ClusterSentinelImpl() { Stop(); }
@@ -1021,6 +1017,9 @@ size_t ClusterSentinelImpl::ShardByKey(const std::string& key) const {
 }
 
 void ClusterSentinelImpl::Start() {
+    Init();
+    LOG_DEBUG() << "Created ClusterSentinelImpl, shard_group_name=" << shard_group_name_;
+
     topology_holder_->Start();
     process_waiting_commands_timer_->Start();
 }
@@ -1100,5 +1099,7 @@ PublishSettings ClusterSentinelImpl::GetPublishSettings() {
 }
 
 }  // namespace storages::redis::impl
+
+// NOLINTEND(clang-analyzer-cplusplus.NewDelete)
 
 USERVER_NAMESPACE_END

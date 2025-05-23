@@ -77,11 +77,6 @@ SubscribeSentinel::SubscribeSentinel(
         if (stopper->stopped) return;
         RebalanceSubscriptions(shard_idx);
     });
-    signal_not_in_cluster_mode.connect([this, stopper, thread_pools]() {
-        std::lock_guard<std::mutex> lock(stopper->mutex);
-        if (stopper->stopped) return;
-        storage_->SwitchToNonClusterMode();
-    });
 
     signal_topology_changed.connect([this, stopper](size_t shards_count) {
         const std::lock_guard<std::mutex> lock(stopper->mutex);

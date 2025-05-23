@@ -132,8 +132,6 @@ public:
     // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     boost::signals2::signal<void(size_t shard)> signal_instances_changed;
     // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
-    boost::signals2::signal<void()> signal_not_in_cluster_mode;
-    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     boost::signals2::signal<void(size_t shards_count)> signal_topology_changed;
 
     Request MakeRequest(
