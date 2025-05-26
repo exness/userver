@@ -76,6 +76,7 @@ SentinelImpl::SentinelImpl(
       init_shards_(std::make_shared<const std::vector<std::string>>(shards)),
       conns_(conns),
       redis_thread_pool_(redis_thread_pool),
+      client_name_(client_name),
       connection_security_(connection_security),
       check_interval_(ToEvDuration(kSentinelGetHostsCheckInterval)),
       key_shard_(std::move(key_shard)),
@@ -88,7 +89,6 @@ SentinelImpl::SentinelImpl(
         shards_[(*init_shards_)[i]] = i;
         connected_statuses_.push_back(std::make_unique<ConnectedStatus>());
     }
-    client_name_ = client_name;
     UpdatePassword(password);
 
     Init();
@@ -96,13 +96,6 @@ SentinelImpl::SentinelImpl(
 }
 
 SentinelImpl::~SentinelImpl() { Stop(); }
-
-void SentinelImpl::SetSentinelConnectionInfo(const std::vector<ConnectionInfo>& sentinel_conns) {
-    std::vector<ConnectionInfoInt> cii;
-    cii.reserve(sentinel_conns.size());
-    for (const auto& conn : sentinel_conns) cii.emplace_back(ConnectionInfoInt{conn});
-    sentinels_->SetConnectionInfo(cii);
-}
 
 std::unordered_map<ServerId, size_t, ServerIdHasher>
 SentinelImpl::GetAvailableServersWeighted(size_t shard_idx, bool with_master, const CommandControl& cc) const {
@@ -331,11 +324,6 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
     }
 }
 
-void SentinelImpl::AsyncCommandToSentinel(CommandPtr command) {
-    UASSERT(sentinels_);
-    sentinels_->AsyncCommand(std::move(command));
-}
-
 size_t SentinelImpl::ShardByKey(const std::string& key) const {
     UASSERT(!master_shards_.empty());
     size_t shard = key_shard_->ShardByKey(key);
@@ -446,10 +434,6 @@ void SentinelImpl::Stop() {
         clean_shards(master_shards_);
         sentinels_->Clean();
     });
-}
-
-std::vector<std::shared_ptr<const Shard>> SentinelImpl::GetMasterShards() const {
-    return {master_shards_.begin(), master_shards_.end()};
 }
 
 void SentinelImpl::SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) {

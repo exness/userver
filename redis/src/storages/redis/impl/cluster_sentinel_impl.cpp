@@ -385,16 +385,15 @@ public:
     }
 
 private:
-    void ProcessStateUpdate() { sentinels_->ProcessStateUpdate(); }
     std::shared_ptr<RedisConnectionHolder> CreateRedisInstance(const HostPort& host_port);
 
     engine::ev::ThreadControl ev_thread_;
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
 
-    std::string shard_group_name_;
+    const std::string shard_group_name_;
     concurrent::Variable<Password, std::mutex> password_;
     std::shared_ptr<const std::vector<std::string>> shards_names_;
-    std::vector<ConnectionInfo> conns_;
+    const std::vector<ConnectionInfo> conns_;
     std::shared_ptr<Shard> sentinels_;
 
     std::atomic_size_t current_topology_version_{0};
@@ -751,7 +750,7 @@ void ClusterTopologyHolder::UpdateClusterTopology() {
             /// Run in ev_thread because topology_.Assign can free some old
             /// topologies with their related redis connections, and these
             /// connections must be freed on "sentinel" thread.
-            ev_thread_.RunInEvLoopAsync([this, topology{std::move(topology)}] {
+            ev_thread_.RunInEvLoopAsync([this, topology{std::move(topology)}]() mutable {
                 try {
                     const auto new_shards_count = topology.GetShardsCount();
                     topology_.Assign(std::move(topology));
@@ -1006,10 +1005,6 @@ void ClusterSentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t p
     }
 }
 
-void ClusterSentinelImpl::AsyncCommandToSentinel(CommandPtr /*command*/) {
-    throw std::runtime_error(std::string(__func__) + " Unimplemented yet");
-}
-
 size_t ClusterSentinelImpl::ShardByKey(const std::string& key) const {
     const auto slot = HashSlot(key);
     const auto ptr = topology_holder_->GetTopology();
@@ -1036,12 +1031,6 @@ void ClusterSentinelImpl::Stop() {
         process_waiting_commands_timer_->Stop();
         ProcessWaitingCommandsOnStop();
     });
-}
-
-std::vector<std::shared_ptr<const Shard>> ClusterSentinelImpl::GetMasterShards() const {
-    throw std::runtime_error("Unimplemented yet");
-    /// just return all Shards
-    // return {master_shards_.begin(), master_shards_.end()};
 }
 
 void ClusterSentinelImpl::SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) {

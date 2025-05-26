@@ -41,7 +41,6 @@ public:
     void ForceUpdateHosts() override;
 
     void AsyncCommand(const SentinelCommand& scommand, size_t prev_instance_idx /*= -1*/) override;
-    void AsyncCommandToSentinel(CommandPtr command) override;
 
     size_t ShardByKey(const std::string& key) const override;
 
@@ -51,8 +50,6 @@ public:
 
     void Start() override;
     void Stop() override;
-
-    std::vector<std::shared_ptr<const Shard>> GetMasterShards() const override;
 
     void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) override;
     void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings
@@ -81,12 +78,12 @@ private:
 
     std::shared_ptr<TopologyHolderBase> topology_holder_;
 
-    std::string shard_group_name_;
-    std::vector<ConnectionInfo> conns_;
+    const std::string shard_group_name_;
+    const std::vector<ConnectionInfo> conns_;
 
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
 
-    std::string client_name_;
+    const std::string client_name_;
 
     std::vector<SentinelCommand> commands_;
     std::mutex command_mutex_;

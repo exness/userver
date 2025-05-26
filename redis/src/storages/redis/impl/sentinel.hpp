@@ -108,7 +108,6 @@ public:
 
     void AsyncCommand(CommandPtr command, bool master = true, size_t shard = 0);
     void AsyncCommand(CommandPtr command, const std::string& key, bool master = true);
-    void AsyncCommandToSentinel(CommandPtr command);
 
     // return a new temporary key with the same shard index
     static std::string CreateTmpKey(const std::string& key, std::string prefix = "tmp:");
@@ -154,13 +153,6 @@ public:
         return {*this, std::forward<CmdArgs>(args), shard, master, command_control, replies_to_skip};
     }
 
-    std::vector<Request> MakeRequests(
-        CmdArgs&& args,
-        bool master = true,
-        const CommandControl& command_control = {},
-        size_t replies_to_skip = 0
-    );
-
     CommandControl GetCommandControl(const CommandControl& cc) const;
     PublishSettings GetPublishSettings() const;
 
@@ -183,8 +175,6 @@ public:
     using UnsubscribeCallback = std::function<void(ServerId, const std::string& channel, size_t count)>;
 
 protected:
-    std::vector<std::shared_ptr<const Shard>> GetMasterShards() const;
-
     // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     std::unique_ptr<SentinelImplBase> impl_;
 
@@ -211,8 +201,6 @@ public:
     );
 
 private:
-    void CheckRenameParams(const std::string& key, const std::string& newkey) const;
-
     friend class Transaction;
 
     const std::string shard_group_name_;

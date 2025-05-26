@@ -67,15 +67,12 @@ public:
     virtual void ForceUpdateHosts() = 0;
 
     virtual void AsyncCommand(const SentinelCommand& scommand, size_t prev_instance_idx) = 0;
-    virtual void AsyncCommandToSentinel(CommandPtr command) = 0;
     virtual size_t ShardByKey(const std::string& key) const = 0;
     virtual size_t ShardsCount() const = 0;
     virtual SentinelStatistics GetStatistics(const MetricsSettings& settings) const = 0;
 
     virtual void Start() = 0;
     virtual void Stop() = 0;
-
-    virtual std::vector<std::shared_ptr<const Shard>> GetMasterShards() const = 0;
 
     virtual void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) = 0;
     virtual void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings
@@ -110,8 +107,6 @@ public:
     );
     ~SentinelImpl() override;
 
-    void SetSentinelConnectionInfo(const std::vector<ConnectionInfo>& sentinel_conns);
-
     std::unordered_map<ServerId, size_t, ServerIdHasher>
     GetAvailableServersWeighted(size_t shard_idx, bool with_master, const CommandControl& cc) const override;
 
@@ -122,15 +117,12 @@ public:
     void ForceUpdateHosts() override;
 
     void AsyncCommand(const SentinelCommand& scommand, size_t prev_instance_idx) override;
-    void AsyncCommandToSentinel(CommandPtr command) override;
     size_t ShardByKey(const std::string& key) const override;
     size_t ShardsCount() const override { return master_shards_.size(); }
     SentinelStatistics GetStatistics(const MetricsSettings& settings) const override;
 
     void Start() override;
     void Stop() override;
-
-    std::vector<std::shared_ptr<const Shard>> GetMasterShards() const override;
 
     void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) override;
     void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings
@@ -200,11 +192,11 @@ private:
     engine::ev::ThreadControl ev_thread_;
 
     const std::string shard_group_name_;
-    std::shared_ptr<const std::vector<std::string>> init_shards_;
+    const std::shared_ptr<const std::vector<std::string>> init_shards_;
     std::vector<std::unique_ptr<ConnectedStatus>> connected_statuses_;
-    std::vector<ConnectionInfo> conns_;
+    const std::vector<ConnectionInfo> conns_;
 
-    std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
+    const std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
     ev_async watch_state_{};
     ev_async watch_update_{};
     ev_async watch_create_{};
@@ -216,10 +208,10 @@ private:
     std::shared_ptr<Shard> sentinels_;
     std::map<std::string, size_t> shards_;
     ShardInfo shard_info_;
-    std::string client_name_;
+    const std::string client_name_;
     concurrent::Variable<Password, std::mutex> password_{std::string()};
     ConnectionSecurity connection_security_;
-    double check_interval_;
+    const double check_interval_;
     std::vector<SentinelCommand> commands_;
     std::mutex command_mutex_;
     const std::unique_ptr<KeyShard> key_shard_;

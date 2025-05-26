@@ -252,16 +252,6 @@ void Sentinel::AsyncCommand(CommandPtr command, const std::string& key, bool mas
     }
 }
 
-void Sentinel::AsyncCommandToSentinel(CommandPtr command) {
-    if (!impl_) return;
-    ThrowIfCancelled();
-    try {
-        impl_->AsyncCommandToSentinel(std::move(command));
-    } catch (const std::exception& ex) {
-        LOG_WARNING() << "exception in " << __func__ << " '" << ex.what() << "'";
-    }
-}
-
 std::string Sentinel::CreateTmpKey(const std::string& key, std::string prefix) {
     size_t key_start = 0;
     size_t key_len = 0;
@@ -306,17 +296,6 @@ void Sentinel::SetReplicationMonitoringSettings(const ReplicationMonitoringSetti
 
 void Sentinel::SetRetryBudgetSettings(const utils::RetryBudgetSettings& settings) {
     impl_->SetRetryBudgetSettings(settings);
-}
-
-std::vector<Request>
-Sentinel::MakeRequests(CmdArgs&& args, bool master, const CommandControl& command_control, size_t replies_to_skip) {
-    std::vector<Request> rslt;
-
-    for (size_t shard = 0; shard < impl_->ShardsCount(); ++shard) {
-        rslt.push_back(MakeRequest(args.Clone(), shard, master, command_control, replies_to_skip));
-    }
-
-    return rslt;
 }
 
 void Sentinel::OnSsubscribeReply(
@@ -386,13 +365,6 @@ void Sentinel::SetConnectionInfo(std::vector<ConnectionInfo> info_array) {
     for (const auto& ci : info_array) cii.emplace_back(ci);
 
     impl_->SetConnectionInfo(cii);
-}
-
-std::vector<std::shared_ptr<const Shard>> Sentinel::GetMasterShards() const { return impl_->GetMasterShards(); }
-
-void Sentinel::CheckRenameParams(const std::string& key, const std::string& newkey) const {
-    if (ShardByKey(key) != ShardByKey(newkey))
-        throw InvalidArgumentException("key and newkey must have the same shard key");
 }
 
 }  // namespace storages::redis::impl
