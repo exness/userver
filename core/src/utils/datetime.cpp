@@ -8,6 +8,9 @@
 
 #include <cctz/time_zone.h>
 
+#include <userver/engine/task/current_task.hpp>
+#include <userver/rcu/rcu_map.hpp>
+
 #include <userver/utils/assert.hpp>
 #include <userver/utils/from_string.hpp>
 #include <userver/utils/mock_now.hpp>
@@ -19,7 +22,7 @@ namespace utils::datetime {
 
 namespace {
 
-std::optional<cctz::time_zone> GetOptionalTimezone(const std::string& tzname) {
+std::optional<cctz::time_zone> DoGetOptionalTimezone(const std::string& tzname) {
 #if defined(BSD) && !defined(__APPLE__)
     if (tzname == "GMT") return GetOptionalTimezone("UTC");
 #endif
@@ -28,6 +31,23 @@ std::optional<cctz::time_zone> GetOptionalTimezone(const std::string& tzname) {
         return std::nullopt;
     }
     return tz;
+}
+
+std::optional<cctz::time_zone> GetOptionalTimezone(const std::string& tzname) {
+    if (engine::current_task::IsTaskProcessorThread()) {
+        static rcu::RcuMap<std::string, std::optional<cctz::time_zone>> map;
+        auto it = map.Get(tzname);
+        if (it) return *it;
+
+        // DoGetOptionalTimezone() may access filesystem, run it in blocking task processor
+        auto [value, _] =
+            map.Emplace(tzname, engine::AsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [&tzname] {
+                                    return DoGetOptionalTimezone(tzname);
+                                }).Get());
+        return *value;
+    } else {
+        return DoGetOptionalTimezone(tzname);
+    }
 }
 
 cctz::time_zone GetTimezone(const std::string& tzname) {
