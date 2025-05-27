@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/storages/sqlite/result_set.hpp
+/// @copybrief storages::sqlite::ResultSet
+
 #include <memory>
 #include <optional>
 #include <vector>
@@ -14,6 +17,10 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite {
 
+/// @brief A proxy for statement execution result.
+///
+/// This type can't be constructed in user code and is always retrieved from
+/// storages::sqlite::Client, storages::sqlite::Transaction or storages::sqlite::Savepoint methods.
 class ResultSet {
 public:
     explicit ResultSet(impl::ResultWrapperPtr pimpl);
@@ -28,7 +35,7 @@ public:
   /// @brief Parse statement result set as std::vector<T>.
   /// T is expected to be an aggregate of supported types.
   ///
-  /// UINVARIANTs on columns count mismatch or types mismatch.
+  /// Throw exceptions on columns count mismatch or types mismatch.
   ///
     // clang-format on
     template <typename T>
@@ -39,7 +46,7 @@ public:
   /// Result set is expected to have a single column, `T` is expected to be one
   /// of supported types.
   ///
-  /// UINVARIANTs on columns count not being equal to 1 or type mismatch.
+  /// Throw exceptions on columns count not being equal to 1 or type mismatch.
   ///
     // clang-format on
     template <typename T>
@@ -50,7 +57,7 @@ public:
   /// Result set is expected to have a single row, `T` is expected to be an
   /// aggregate of supported types.
   ///
-  /// UINVARIANTs on columns count mismatch or types mismatch.
+  /// Throw exceptions on columns count mismatch or types mismatch.
   /// throws if result set is empty or contains more than one row.
   ///
     // clang-format on
@@ -62,7 +69,7 @@ public:
   /// Result set is expected to have a single row and a single column,
   /// `T` is expected to be one of supported types.
   ///
-  /// UINVARIANTs on columns count not being equal to 1 or type mismatch.
+  /// Throw exceptions on columns count not being equal to 1 or type mismatch.
   /// throws if result set is empty of contains more than one row.
   ///
     // clang-format on
@@ -74,7 +81,7 @@ public:
   /// Result set is expected to have not more than one row,
   /// `T` is expected to be an aggregate of supported types.
   ///
-  /// UINVARIANTs on columns count mismatch or types mismatch.
+  /// Throw exceptions on columns count mismatch or types mismatch.
   /// throws if result set contains more than one row.
   ///
     // clang-format on
@@ -86,7 +93,7 @@ public:
   /// Result set is expected to have not more than one row,
   /// `T` is expected to be one of supported types.
   ///
-  /// UINVARIANTs on columns count not being equal to 1 or type mismatch.
+  /// Throw exceptions on columns count not being equal to 1 or type mismatch.
   /// throws if result set contains more than one row.
   ///
     // clang-format on
