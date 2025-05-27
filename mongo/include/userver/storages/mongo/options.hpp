@@ -16,6 +16,8 @@
 #include <userver/formats/bson/bson_builder.hpp>
 #include <userver/formats/bson/document.hpp>
 #include <userver/formats/bson/value.hpp>
+#include <userver/formats/bson/value_builder.hpp>
+#include <userver/formats/common/type.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -251,6 +253,19 @@ class ArrayFilters {
 public:
     /// Specifies list of filters
     explicit ArrayFilters(std::initializer_list<formats::bson::Document>);
+
+    /// Specifies list of filters by container iterators
+    template <
+        typename Iterator,
+        typename = std::enable_if_t<
+            std::is_convertible_v<typename std::iterator_traits<Iterator>::value_type, formats::bson::Document>>>
+    ArrayFilters(Iterator first, Iterator last) {
+        formats::bson::ValueBuilder builder{formats::common::Type::kArray};
+        for (auto it = first; it != last; ++it) {
+            builder.PushBack(*it);
+        }
+        value_ = builder.ExtractValue();
+    }
 
     /// @cond
     /// Retrieves an arrayFilters value
