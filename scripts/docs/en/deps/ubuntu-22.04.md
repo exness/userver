@@ -55,6 +55,7 @@ libyaml-cpp-dev
 libzstd-dev
 netbase
 ninja-build
+odbc-postgresql
 postgresql-server-dev-14
 protobuf-compiler-grpc
 python3-dev

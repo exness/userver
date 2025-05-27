@@ -58,6 +58,7 @@ libyaml-cpp0.8
 libzstd-dev
 netbase
 ninja-build
+odbc-postgresql
 postgresql-server-dev-16
 protobuf-compiler-grpc
 python3-dev

@@ -1,15 +1,37 @@
-#include <sql.h>
-#include <sqlext.h>
+#include <storages/odbc/detail/connection.hpp>
+
 #include <stdexcept>
 #include <vector>
 
-#include <storages/odbc/detail/connection.hpp>
+#include <fmt/format.h>
+#include <sql.h>
+#include <sqlext.h>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::odbc {
 
 namespace {
+
+std::string ErrorString(SQLHANDLE handle, SQLSMALLINT type) {
+    std::string result;
+
+    for (SQLINTEGER i = 1;; ++i) {
+        SQLINTEGER native;
+        SQLCHAR state[7];
+        SQLCHAR text[SQL_MAX_MESSAGE_LENGTH];
+        SQLSMALLINT len;
+
+        const auto ret = SQLGetDiagRec(type, handle, i, state, &native, text, sizeof(text), &len);
+        if (!SQL_SUCCEEDED(ret)) {
+            break;
+        }
+
+        result += fmt::format("{} (code {})", text, native);
+    }
+
+    return result;
+}
 
 void DestroyEnvironmentHandle(SQLHENV handle) {
     if (handle != SQL_NULL_HENV) {
@@ -65,7 +87,7 @@ Connection::Connection(const std::string& dsn)
     dsnBuffer.push_back('\0');
     ret = SQLDriverConnect(handle_.get(), nullptr, dsnBuffer.data(), SQL_NTS, nullptr, 0, nullptr, SQL_DRIVER_COMPLETE);
     if (!SQL_SUCCEEDED(ret)) {
-        throw std::runtime_error("Failed to connect to database");
+        throw std::runtime_error("Failed to connect to database: " + ErrorString(handle_.get(), SQL_HANDLE_DBC));
     }
 
     SQLUINTEGER scrollOption = 0;
