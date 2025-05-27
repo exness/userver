@@ -27,7 +27,7 @@ std::string ErrorString(SQLHANDLE handle, SQLSMALLINT type) {
             break;
         }
 
-        result += fmt::format("{} (code {})", text, native);
+        result += fmt::format("{} (code {})", reinterpret_cast<char*>(&text[0]), native);
     }
 
     return result;
