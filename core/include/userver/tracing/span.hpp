@@ -34,15 +34,6 @@ class Span final {
 public:
     class Impl;
 
-    explicit Span(
-        TracerPtr tracer,
-        std::string name,
-        const Span* parent,
-        ReferenceType reference_type,
-        logging::Level log_level = logging::Level::kInfo,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
-    );
-
     /// Use default tracer and implicit coro local storage for parent
     /// identification, takes TraceID from the parent.
     ///
@@ -52,21 +43,22 @@ public:
         std::string name,
         ReferenceType reference_type = ReferenceType::kChild,
         logging::Level log_level = logging::Level::kInfo,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
     );
 
-    /// @cond
-    // For internal use only
-    explicit Span(Span::Impl& impl);
-    /// @endcond
+    explicit Span(
+        std::string name,
+        const Span* parent,
+        ReferenceType reference_type = ReferenceType::kChild,
+        logging::Level log_level = logging::Level::kInfo,
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
+    );
 
     Span(Span&& other) noexcept;
-
-    ~Span();
-
-    Span& operator=(const Span&) = delete;
-
+    Span(const Span& other) = delete;
     Span& operator=(Span&&) = delete;
+    Span& operator=(const Span&) = delete;
+    ~Span();
 
     /// @brief Returns the Span of the current task.
     ///
@@ -214,10 +206,8 @@ public:
     ///
     /// Propagates within a single service, but not from client to server. A new
     /// link is generated for the "root" request handling task
+    // TODO restrict SetLink to SpanBuilder.
     void SetLink(std::string link);
-
-    /// Set parent_link - an ID . Can be called only once.
-    void SetParentLink(std::string parent_link);
 
     /// Get link - a request ID within the service.
     ///
@@ -287,6 +277,7 @@ private:
 
     friend class SpanBuilder;
     friend class TagScope;
+    friend class InPlaceSpan;
 
     explicit Span(std::unique_ptr<Impl, OptionalDeleter>&& pimpl);
 

@@ -24,25 +24,14 @@ USERVER_NAMESPACE_BEGIN
 
 namespace tracing {
 
-inline const std::string kLinkTag = "link";
-inline const std::string kParentLinkTag = "parent_link";
-
 class Span::Impl : public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
 public:
-    explicit Impl(
-        std::string name,
-        ReferenceType reference_type = ReferenceType::kChild,
-        logging::Level log_level = logging::Level::kInfo,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
-    );
-
     Impl(
-        TracerPtr tracer,
         std::string name,
-        const Span::Impl* parent,
+        const Impl* parent,
         ReferenceType reference_type,
         logging::Level log_level,
-        utils::impl::SourceLocation source_location
+        const utils::impl::SourceLocation& source_location
     );
 
     Impl(Impl&&) noexcept = default;
@@ -58,14 +47,18 @@ public:
     // Add the context of this Span a non-Span-specific log record
     void LogTo(logging::impl::TagWriter writer) const;
 
-    std::string_view GetTraceId() const& noexcept { return trace_id_; }
-    std::string_view GetSpanId() const& noexcept { return span_id_; }
-    std::string_view GetParentId() const& noexcept { return parent_id_; }
-    std::string_view GetName() const& noexcept { return name_; }
+    std::string_view GetTraceId() const noexcept { return trace_id_; }
+    std::string_view GetSpanId() const noexcept { return span_id_; }
+    std::string_view GetParentId() const noexcept { return parent_id_; }
+    std::string_view GetLink() const noexcept { return link_; }
+    std::string_view GetParentLink() const noexcept { return parent_link_; }
+    std::string_view GetName() const noexcept { return name_; }
 
     void SetTraceId(std::string&& id) noexcept { trace_id_ = std::move(id); }
     void SetSpanId(std::string&& id) noexcept { span_id_ = std::move(id); }
     void SetParentId(std::string&& id) noexcept { parent_id_ = std::move(id); }
+    void SetLink(std::string&& id) noexcept { link_ = std::move(id); }
+    void SetParentLink(std::string&& id) noexcept { parent_link_ = std::move(id); }
 
     ReferenceType GetReferenceType() const noexcept { return reference_type_; }
 
@@ -76,7 +69,7 @@ public:
 
 private:
     void LogOpenTracing() const;
-    void DoLogOpenTracing(logging::impl::TagWriter writer) const;
+    void DoLogOpenTracing(const Tracer& tracer, logging::impl::TagWriter writer) const;
     static void AddOpentracingTags(formats::json::StringBuilder& output, const logging::LogExtra& input);
 
     static std::string_view GetParentIdForLogging(const Span::Impl* parent);
@@ -87,7 +80,6 @@ private:
     logging::Level log_level_;
     std::optional<logging::Level> local_log_level_;
 
-    std::shared_ptr<Tracer> tracer_;
     logging::LogExtra log_extra_inheritable_;
 
     Span* span_{nullptr};
@@ -101,6 +93,8 @@ private:
     std::string trace_id_;
     std::string span_id_;
     std::string parent_id_;
+    std::string link_;
+    std::string parent_link_;
     const ReferenceType reference_type_;
     utils::impl::SourceLocation source_location_;
 

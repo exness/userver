@@ -19,19 +19,20 @@ using testing::Not;
 
 USERVER_NAMESPACE_BEGIN
 
-class Span : public LoggingTest {};
+class Span : public LoggingTest {
+private:
+    tracing::TracerCleanupScope tracer_scope_;
+};
 
 class OpentracingSpan : public Span {
 protected:
     OpentracingSpan() : opentracing_logger_(MakeNamedStreamLogger("openstracing", logging::Format::kTskv)) {
-        tracing::Tracer::SetTracer(tracing::MakeTracer("service-test-name", opentracing_logger_.logger));
+        tracing::Tracer::SetTracer(tracing::Tracer("service-test-name", opentracing_logger_.logger));
 
         // Discard logs
         logging::LogFlush(*opentracing_logger_.logger);
         opentracing_logger_.stream.str({});
     }
-
-    ~OpentracingSpan() override { tracing::Tracer::SetTracer(tracing::MakeTracer({}, {})); }
 
     // NOLINTNEXTLINE(readability-make-member-function-const)
     void FlushOpentracing() { logging::LogFlush(*opentracing_logger_.logger); }
@@ -90,13 +91,13 @@ UTEST_F(Span, LogFormat) {
                                                   R"(trace_id=[0-9a-f]+\t)"
                                                   R"(span_id=[0-9a-f]+\t)"
                                                   R"(parent_id=[0-9a-f]+\t)"
+                                                  R"(link=[0-9a-f]+\t)"
                                                   R"(stopwatch_name=span_name\t)"
                                                   R"(total_time=\d+(\.\d+)?\t)"
                                                   R"(span_ref_type=child\t)"
                                                   R"(stopwatch_units=ms\t)"
                                                   R"(start_timestamp=\d+(\.\d+)?\t)"
                                                   R"(my_timer_time=\d+(\.\d+)?\t)"
-                                                  R"(link=[0-9a-f]+\t)"
                                                   R"(my_tag_key=my_tag_value\t)"
                                                   R"(span_kind=internal\t)"
                                                   R"(text=\n)";
@@ -207,9 +208,9 @@ UTEST_F(OpentracingSpan, Tags) {
 }
 
 UTEST_F(OpentracingSpan, FromTracerWithServiceName) {
-    auto tracer = tracing::MakeTracer("test_service", tracing::Tracer::GetTracer()->GetOptionalLogger());
+    tracing::Tracer::SetTracer({"test_service", tracing::Tracer::CopyCurrentTracer().GetOptionalLogger()});
     // clang-format off
-    { tracing::Span span(tracer, "span_name", nullptr, tracing::ReferenceType::kChild); }
+    { tracing::Span span("span_name", nullptr, tracing::ReferenceType::kChild); }
     // clang-format on
 
     FlushOpentracing();
@@ -391,19 +392,6 @@ UTEST_F(Span, SpanLogLevelLowerThanGlobal) {
     EXPECT_THAT(GetStreamString(), HasSubstr("parent_span"));
 }
 
-UTEST_F(Span, ConstructFromTracer) {
-    auto tracer = tracing::MakeTracer("test_service", {});
-
-    tracing::Span span(tracer, "name", nullptr, tracing::ReferenceType::kChild);
-    span.SetLink("some_link");
-
-    LOG_INFO() << "tracerlog";
-    logging::LogFlush();
-    EXPECT_THAT(GetStreamString(), HasSubstr("tracerlog"));
-
-    EXPECT_EQ(tracing::Span::CurrentSpanUnchecked(), &span);
-}
-
 UTEST_F(Span, NoLogNames) {
     constexpr const char* kLogFirstSpan = "first_span_to_log";
     constexpr const char* kLogSecondSpan = "second_span_to_log";
@@ -417,7 +405,7 @@ UTEST_F(Span, NoLogNames) {
         kIgnoreFirstSpan,
         kIgnoreSecondSpan,
     };
-    tracing::Tracer::SetNoLogSpans(std::move(no_logs));
+    tracing::SetNoLogSpans(std::move(no_logs));
 
     {
         tracing::Span span0(kLogFirstSpan);
@@ -434,8 +422,6 @@ UTEST_F(Span, NoLogNames) {
     EXPECT_THAT(GetStreamString(), HasSubstr(kLogSecondSpan));
     EXPECT_THAT(GetStreamString(), Not(HasSubstr(kIgnoreSecondSpan + std::string("\t"))));
     EXPECT_THAT(GetStreamString(), HasSubstr(kLogThirdSpan + std::string("\t")));
-
-    tracing::Tracer::SetNoLogSpans(tracing::NoLogSpans());
 }
 
 UTEST_F(Span, NoLogPrefixes) {
@@ -468,7 +454,7 @@ UTEST_F(Span, NoLogPrefixes) {
         "ignor8",
         "ignor9",
     };
-    tracing::Tracer::SetNoLogSpans(std::move(no_logs));
+    tracing::SetNoLogSpans(std::move(no_logs));
 
     // clang-format off
     { tracing::Span a{kIgnorePrefix0 + "foo"}; }
@@ -497,8 +483,6 @@ UTEST_F(Span, NoLogPrefixes) {
     EXPECT_THAT(output, Not(HasSubstr(kIgnorePrefix1)));
     EXPECT_THAT(output, Not(HasSubstr(kIgnorePrefix2)));
     EXPECT_THAT(output, Not(HasSubstr(kIgnoreSpan)));
-
-    tracing::Tracer::SetNoLogSpans(tracing::NoLogSpans());
 }
 
 UTEST_F(Span, NoLogMixed) {
@@ -507,7 +491,7 @@ UTEST_F(Span, NoLogMixed) {
         "prefixes": ["skip", "ignore", "skip", "do_not_keep", "skip", "skip"]
     })");
     auto no_logs = Parse(json, formats::parse::To<tracing::NoLogSpans>{});
-    tracing::Tracer::SetNoLogSpans(std::move(no_logs));
+    tracing::SetNoLogSpans(std::move(no_logs));
 
     constexpr const char* kLogSpan0 = "first_span_to_log";
     constexpr const char* kLogSpan1 = "i_am_a_span_to_ignore(not!)";
@@ -550,8 +534,6 @@ UTEST_F(Span, NoLogMixed) {
     EXPECT_THAT(output, Not(HasSubstr(kIgnorePrefix1)));
     EXPECT_THAT(output, Not(HasSubstr(kIgnorePrefix2)));
     EXPECT_THAT(output, Not(HasSubstr(kIgnoreSpan + std::string("\t"))));
-
-    tracing::Tracer::SetNoLogSpans(tracing::NoLogSpans());
 }
 
 UTEST_F(Span, NoLogWithSetLogLevel) {
@@ -563,7 +545,7 @@ UTEST_F(Span, NoLogWithSetLogLevel) {
         kIgnoreFirstSpan,
         kIgnoreSecondSpan,
     };
-    tracing::Tracer::SetNoLogSpans(std::move(no_logs));
+    tracing::SetNoLogSpans(std::move(no_logs));
 
     {
         tracing::Span span1(kIgnoreFirstSpan);
@@ -583,18 +565,14 @@ UTEST_F(Span, NoLogWithSetLogLevel) {
     logging::LogFlush();
 
     EXPECT_THAT(GetStreamString(), Not(HasSubstr(kIgnoreSecondSpan)));
-
-    tracing::Tracer::SetNoLogSpans(tracing::NoLogSpans());
 }
 
 UTEST_F(Span, ForeignSpan) {
-    auto tracer = tracing::MakeTracer("test_service", {});
-
-    tracing::Span local_span(tracer, "local", nullptr, tracing::ReferenceType::kChild);
+    tracing::Span local_span("local", nullptr, tracing::ReferenceType::kChild);
     local_span.SetLink("local_link");
 
     {
-        tracing::Span foreign_span(tracer, "foreign", nullptr, tracing::ReferenceType::kChild);
+        tracing::Span foreign_span("foreign", nullptr, tracing::ReferenceType::kChild);
         foreign_span.SetLink("foreign_link");
 
         auto st = foreign_span.CreateScopeTime("from_foreign_span");

@@ -3,6 +3,7 @@
 /// @file userver/tracing/span_builder.hpp
 /// @brief @copybrief tracing::SpanBuilder
 
+#include <cstddef>
 #include <string>
 
 #include <userver/tracing/span.hpp>
@@ -23,11 +24,14 @@ public:
     void SetTraceId(std::string trace_id);
     std::string_view GetTraceId() const noexcept;
     void SetSpanId(std::string span_id);
+    void SetLink(std::string link);
     void SetParentSpanId(std::string parent_span_id);
     void SetParentLink(std::string parent_link);
     void AddTagFrozen(std::string key, logging::LogExtra::Value value);
     void AddNonInheritableTag(std::string key, logging::LogExtra::Value value);
+
     Span Build() &&;
+    Span BuildDetachedFromCoroStack() &&;
 
 private:
     std::unique_ptr<Span::Impl, Span::OptionalDeleter> pimpl_;

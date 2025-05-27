@@ -49,26 +49,13 @@ components_manager:
           format: ltsv
 )";
 
-struct TracingGuard final {
-    TracingGuard() : tracer(tracing::Tracer::GetTracer()) {}
-
-    ~TracingGuard() {
-        if (tracing::Tracer::GetTracer() != tracer) {
-            tracing::Tracer::SetTracer(tracer);
-        }
-    }
-
-    const logging::LoggerPtr opentracing_logger;
-    const tracing::TracerPtr tracer;
-};
-
 std::string MergeYaml(std::string_view source, std::string_view patch);
 
 }  // namespace tests
 
 class ComponentList : public ::testing::Test {
     tests::impl::DefaultLoggerGuardTest default_logger_guard_;
-    tests::TracingGuard tracing_guard_;
+    tracing::TracerCleanupScope tracer_scope_;
 };
 
 USERVER_NAMESPACE_END

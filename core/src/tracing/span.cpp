@@ -30,6 +30,8 @@ using RealMilliseconds = std::chrono::duration<double, std::milli>;
 constexpr std::string_view kTraceIdTag = "trace_id";
 constexpr std::string_view kSpanIdTag = "span_id";
 constexpr std::string_view kParentIdTag = "parent_id";
+constexpr std::string_view kLinkTag = "link";
+constexpr std::string_view kParentLinkTag = "parent_link";
 
 constexpr std::string_view kStopWatchTag = "stopwatch_name";
 constexpr std::string_view kTotalTimeTag = "total_time";
@@ -83,36 +85,21 @@ std::string MakeTagFromEvents(const std::vector<SpanEvent>& events) {
 
 Span::Impl::Impl(
     std::string name,
+    const Impl* parent,
     ReferenceType reference_type,
     logging::Level log_level,
-    utils::impl::SourceLocation source_location
-)
-    : Impl(
-          tracing::Tracer::GetTracer(),
-          std::move(name),
-          GetParentSpanImpl(),
-          reference_type,
-          log_level,
-          source_location
-      ) {}
-
-Span::Impl::Impl(
-    TracerPtr tracer,
-    std::string name,
-    const Span::Impl* parent,
-    ReferenceType reference_type,
-    logging::Level log_level,
-    utils::impl::SourceLocation source_location
+    const utils::impl::SourceLocation& source_location
 )
     : name_(std::move(name)),
-      is_no_log_span_(tracing::Tracer::IsNoLogSpan(name_)),
+      is_no_log_span_(IsNoLogSpan(name_)),
       log_level_(is_no_log_span_ ? logging::Level::kNone : log_level),
-      tracer_(std::move(tracer)),
       start_system_time_(std::chrono::system_clock::now()),
       start_steady_time_(std::chrono::steady_clock::now()),
       trace_id_(parent ? parent->GetTraceId() : utils::generators::GenerateUuid()),
       span_id_(GenerateSpanId()),
       parent_id_(GetParentIdForLogging(parent)),
+      link_(parent ? parent->GetLink() : utils::generators::GenerateUuid()),
+      parent_link_(parent ? parent->GetParentLink() : std::string{}),
       reference_type_(reference_type),
       source_location_(source_location) {
     if (parent) {
@@ -143,6 +130,8 @@ void Span::Impl::PutIntoLogger(logging::impl::TagWriter writer) && {
     writer.PutTag(kTraceIdTag, GetTraceId());
     writer.PutTag(kSpanIdTag, GetSpanId());
     writer.PutTag(kParentIdTag, GetParentId());
+    writer.PutTag(kLinkTag, GetLink());
+    if (!GetParentLink().empty()) writer.PutTag(kParentLinkTag, GetParentLink());
 
     writer.PutTag(kStopWatchTag, name_);
     writer.PutTag(kTotalTimeTag, total_time_ms);
@@ -177,6 +166,7 @@ void Span::Impl::LogTo(logging::impl::TagWriter writer) const {
     if (const auto span_id = GetSpanIdForChildLogs()) {
         writer.PutTag(kTraceIdTag, GetTraceId());
         writer.PutTag(kSpanIdTag, *span_id);
+        writer.PutTag(kLinkTag, GetLink());
     }
 }
 
@@ -223,16 +213,14 @@ Span::OptionalDeleter Span::OptionalDeleter::DoNotDelete() noexcept { return Opt
 Span::OptionalDeleter Span::OptionalDeleter::ShouldDelete() noexcept { return OptionalDeleter(true); }
 
 Span::Span(
-    TracerPtr tracer,
     std::string name,
     const Span* parent,
     ReferenceType reference_type,
     logging::Level log_level,
-    utils::impl::SourceLocation source_location
+    const utils::impl::SourceLocation& source_location
 )
     : pimpl_(
           AllocateImpl(
-              std::move(tracer),
               std::move(name),
               parent ? parent->pimpl_.get() : nullptr,
               reference_type,
@@ -249,27 +237,13 @@ Span::Span(
     std::string name,
     ReferenceType reference_type,
     logging::Level log_level,
-    utils::impl::SourceLocation source_location
+    const utils::impl::SourceLocation& source_location
 )
     : pimpl_(
-          AllocateImpl(
-              tracing::Tracer::GetTracer(),
-              std::move(name),
-              GetParentSpanImpl(),
-              reference_type,
-              log_level,
-              source_location
-          ),
+          AllocateImpl(std::move(name), GetParentSpanImpl(), reference_type, log_level, source_location),
           Span::OptionalDeleter{OptionalDeleter::ShouldDelete()}
       ) {
     AttachToCoroStack();
-    if (pimpl_->GetParentId().empty()) {
-        SetLink(utils::generators::GenerateUuid());
-    }
-    pimpl_->span_ = this;
-}
-
-Span::Span(Span::Impl& impl) : pimpl_(&impl, Span::OptionalDeleter{OptionalDeleter::DoNotDelete()}) {
     pimpl_->span_ = this;
 }
 
@@ -315,28 +289,20 @@ Span Span::MakeSpan(
     std::string_view parent_span_id,
     std::string_view link
 ) {
-    Span span(Tracer::GetTracer(), std::move(name), nullptr, ReferenceType::kChild);
-    span.SetLink(std::string{link});
+    Span span(std::move(name), nullptr);
+    span.pimpl_->SetLink(std::string{link});
     if (!trace_id.empty()) span.pimpl_->SetTraceId(std::string{trace_id});
     span.pimpl_->SetParentId(std::string{parent_span_id});
     return span;
 }
 
 Span Span::MakeRootSpan(std::string name, logging::Level log_level) {
-    Span span(Tracer::GetTracer(), std::move(name), nullptr, ReferenceType::kChild, log_level);
-    span.SetLink(utils::generators::GenerateUuid());
-    return span;
+    return Span(std::move(name), nullptr, ReferenceType::kChild, log_level);
 }
 
-Span Span::CreateChild(std::string name) const {
-    auto span = pimpl_->tracer_->CreateSpan(std::move(name), *this, ReferenceType::kChild);
-    return span;
-}
+Span Span::CreateChild(std::string name) const { return Span(std::move(name), this, ReferenceType::kChild); }
 
-Span Span::CreateFollower(std::string name) const {
-    auto span = pimpl_->tracer_->CreateSpan(std::move(name), *this, ReferenceType::kReference);
-    return span;
-}
+Span Span::CreateFollower(std::string name) const { return Span(std::move(name), this, ReferenceType::kReference); }
 
 tracing::ScopeTime Span::CreateScopeTime() { return ScopeTime(pimpl_->GetTimeStorage()); }
 
@@ -392,13 +358,7 @@ void Span::AddEvent(std::string_view event_name) { pimpl_->events_.emplace_back(
 
 void Span::AddEvent(SpanEvent&& event) { pimpl_->events_.emplace_back(std::move(event)); }
 
-void Span::SetLink(std::string link) { AddTagFrozen(kLinkTag, std::move(link)); }
-
-void Span::SetParentLink(std::string parent_link) { AddTagFrozen(kParentLinkTag, std::move(parent_link)); }
-
-std::string_view Span::GetLink() const { return GetTag(kLinkTag); }
-
-std::string_view Span::GetParentLink() const { return GetTag(kParentLinkTag); }
+void Span::SetLink(std::string link) { pimpl_->SetLink(std::move(link)); }
 
 bool Span::ShouldLogDefault() const noexcept { return pimpl_->ShouldLog(); }
 
@@ -415,6 +375,10 @@ std::string_view Span::GetTraceId() const { return pimpl_->GetTraceId(); }
 std::string_view Span::GetSpanId() const { return pimpl_->GetSpanId(); }
 
 std::string_view Span::GetParentId() const { return pimpl_->GetParentId(); }
+
+std::string_view Span::GetLink() const { return pimpl_->GetLink(); }
+
+std::string_view Span::GetParentLink() const { return pimpl_->GetParentLink(); }
 
 std::optional<std::string_view> Span::GetSpanIdForChildLogs() const { return pimpl_->GetSpanIdForChildLogs(); }
 

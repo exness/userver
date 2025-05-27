@@ -3,7 +3,6 @@
 #include <tracing/span_impl.hpp>
 #include <userver/tracing/tracer.hpp>
 #include <userver/utils/impl/source_location.hpp>
-#include <userver/utils/uuid4.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -11,23 +10,13 @@ namespace tracing {
 
 SpanBuilder::SpanBuilder(std::string name, const utils::impl::SourceLocation& location)
     : pimpl_(
-          AllocateImpl(
-              tracing::Tracer::GetTracer(),
-              std::move(name),
-              GetParentSpanImpl(),
-              ReferenceType::kChild,
-              logging::Level::kInfo,
-              location
-          ),
+          AllocateImpl(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, logging::Level::kInfo, location),
           Span::OptionalDeleter{Span::OptionalDeleter::ShouldDelete()}
-      ) {
-    pimpl_->AttachToCoroStack();
-    if (pimpl_->GetParentId().empty()) {
-        AddTagFrozen(kLinkTag, utils::generators::GenerateUuid());
-    }
-}
+      ) {}
 
 void SpanBuilder::SetSpanId(std::string parent_span_id) { pimpl_->SetSpanId(std::move(parent_span_id)); }
+
+void SpanBuilder::SetLink(std::string link) { pimpl_->SetLink(std::move(link)); }
 
 void SpanBuilder::SetParentSpanId(std::string parent_span_id) { pimpl_->SetParentId(std::move(parent_span_id)); }
 
@@ -44,9 +33,14 @@ void SpanBuilder::AddNonInheritableTag(std::string key, logging::LogExtra::Value
     pimpl_->log_extra_local_->Extend(std::move(key), std::move(value));
 }
 
-void SpanBuilder::SetParentLink(std::string parent_link) { AddTagFrozen(kParentLinkTag, std::move(parent_link)); }
+void SpanBuilder::SetParentLink(std::string parent_link) { pimpl_->SetParentLink(std::move(parent_link)); }
 
-Span SpanBuilder::Build() && { return Span(std::move(pimpl_)); }
+Span SpanBuilder::Build() && {
+    pimpl_->AttachToCoroStack();
+    return Span(std::move(pimpl_));
+}
+
+Span SpanBuilder::BuildDetachedFromCoroStack() && { return Span(std::move(pimpl_)); }
 
 }  // namespace tracing
 
