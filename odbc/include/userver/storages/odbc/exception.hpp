@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdexcept>
+#include <string>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -22,7 +23,7 @@ private:
 
 class ResultSetError : public Error {
 public:
-    ResultSetError(std::string msg);
+    explicit ResultSetError(std::string msg);
 
     const char* what() const noexcept override;
 
