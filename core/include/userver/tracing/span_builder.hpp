@@ -21,7 +21,7 @@ public:
     );
 
     void SetTraceId(std::string trace_id);
-    const std::string& GetTraceId() const noexcept;
+    std::string_view GetTraceId() const noexcept;
     void SetSpanId(std::string span_id);
     void SetParentSpanId(std::string parent_span_id);
     void SetParentLink(std::string parent_link);

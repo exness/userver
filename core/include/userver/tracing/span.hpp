@@ -102,7 +102,7 @@ public:
     /// @param parent_span_id Id of the parent Span, could be empty.
     /// @param link The new link
     static Span
-    MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id, std::string link);
+    MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id, std::string_view link);
 
     /// Factory function for rare cases of creating a root Span that starts
     /// the trace_id chain, ignoring `CurrentSpan`, if any. Useful
@@ -223,28 +223,28 @@ public:
     ///
     /// Propagates within a single service, but not from client to server. A new
     /// link is generated for the "root" request handling task
-    std::string GetLink() const;
+    std::string_view GetLink() const;
 
-    std::string GetParentLink() const;
+    std::string_view GetParentLink() const;
 
     /// An ID of the request that does not change from service to service.
     ///
     /// Propagates both to sub-spans within a single service, and from client
     /// to server
-    const std::string& GetTraceId() const;
+    std::string_view GetTraceId() const;
 
     /// Identifies a specific span. It does not propagate.
-    const std::string& GetSpanId() const;
+    std::string_view GetSpanId() const;
 
     /// Span ID of the nearest loggable parent span, or empty string if none exists.
-    const std::string& GetParentId() const;
+    std::string_view GetParentId() const;
 
     /// Span ID of the nearest loggable span within the span chain, including the current span.
     /// If the current span and all parent spans will not be logged, returns `std::nullopt`.
     std::optional<std::string_view> GetSpanIdForChildLogs() const;
 
     /// Get name the Span was created with
-    const std::string& GetName() const;
+    std::string_view GetName() const;
 
     /// @returns true if this span would be logged with the current local and
     /// global log levels to the default logger.
@@ -290,7 +290,7 @@ private:
 
     explicit Span(std::unique_ptr<Impl, OptionalDeleter>&& pimpl);
 
-    std::string GetTag(std::string_view tag) const;
+    std::string_view GetTag(std::string_view tag) const;
 
     std::unique_ptr<Impl, OptionalDeleter> pimpl_;
 };

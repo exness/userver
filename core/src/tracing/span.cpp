@@ -309,9 +309,14 @@ Span Span::MakeSpan(std::string name, std::string_view trace_id, std::string_vie
     return span;
 }
 
-Span Span::MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id, std::string link) {
+Span Span::MakeSpan(
+    std::string name,
+    std::string_view trace_id,
+    std::string_view parent_span_id,
+    std::string_view link
+) {
     Span span(Tracer::GetTracer(), std::move(name), nullptr, ReferenceType::kChild);
-    span.SetLink(std::move(link));
+    span.SetLink(std::string{link});
     if (!trace_id.empty()) span.pimpl_->SetTraceId(std::string{trace_id});
     span.pimpl_->SetParentId(std::string{parent_span_id});
     return span;
@@ -370,7 +375,7 @@ impl::TimeStorage& Span::GetTimeStorage(utils::impl::InternalTag) { return pimpl
 
 void Span::LogTo(utils::impl::InternalTag, logging::impl::TagWriter writer) const { pimpl_->LogTo(writer); }
 
-std::string Span::GetTag(std::string_view tag) const {
+std::string_view Span::GetTag(std::string_view tag) const {
     const auto& value = pimpl_->log_extra_inheritable_.GetValue(tag);
     const auto* s = std::get_if<std::string>(&value);
     if (s)
@@ -391,9 +396,9 @@ void Span::SetLink(std::string link) { AddTagFrozen(kLinkTag, std::move(link)); 
 
 void Span::SetParentLink(std::string parent_link) { AddTagFrozen(kParentLinkTag, std::move(parent_link)); }
 
-std::string Span::GetLink() const { return GetTag(kLinkTag); }
+std::string_view Span::GetLink() const { return GetTag(kLinkTag); }
 
-std::string Span::GetParentLink() const { return GetTag(kParentLinkTag); }
+std::string_view Span::GetParentLink() const { return GetTag(kParentLinkTag); }
 
 bool Span::ShouldLogDefault() const noexcept { return pimpl_->ShouldLog(); }
 
@@ -405,15 +410,15 @@ void Span::AttachToCoroStack() { pimpl_->AttachToCoroStack(); }
 
 std::chrono::system_clock::time_point Span::GetStartSystemTime() const { return pimpl_->start_system_time_; }
 
-const std::string& Span::GetTraceId() const { return pimpl_->GetTraceId(); }
+std::string_view Span::GetTraceId() const { return pimpl_->GetTraceId(); }
 
-const std::string& Span::GetSpanId() const { return pimpl_->GetSpanId(); }
+std::string_view Span::GetSpanId() const { return pimpl_->GetSpanId(); }
 
-const std::string& Span::GetParentId() const { return pimpl_->GetParentId(); }
+std::string_view Span::GetParentId() const { return pimpl_->GetParentId(); }
 
 std::optional<std::string_view> Span::GetSpanIdForChildLogs() const { return pimpl_->GetSpanIdForChildLogs(); }
 
-const std::string& Span::GetName() const { return pimpl_->GetName(); }
+std::string_view Span::GetName() const { return pimpl_->GetName(); }
 
 ScopeTime::Duration Span::GetTotalDuration(const std::string& scope_name) const {
     return pimpl_->GetTimeStorage().DurationTotal(scope_name);

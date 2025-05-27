@@ -85,11 +85,9 @@ void SetupSpan(
         span_holder.emplace(std::move(span_name), utils::impl::SourceLocation::Current());
     }
 
-    auto& span = span_holder->Get();
-
     const auto* const parent_link = utils::FindOrNullptr(client_metadata, ugrpc::impl::kXYaRequestId);
     if (parent_link) {
-        span.SetParentLink(ugrpc::impl::ToString(*parent_link));
+        span_holder->SetParentLink(utils::impl::InternalTag{}, ugrpc::impl::ToString(*parent_link));
     }
 }
 

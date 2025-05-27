@@ -64,9 +64,9 @@ void B3FillWithTracingContext(const tracing::Span& span, T& target) {
     namespace b3 = http::headers::b3;
 
     if (const auto span_id = span.GetSpanIdForChildLogs()) {
-        target.SetHeader(b3::kTraceId, span.GetTraceId());
+        target.SetHeader(b3::kTraceId, std::string{span.GetTraceId()});
         target.SetHeader(b3::kSpanId, std::string{*span_id});
-        target.SetHeader(b3::kParentSpanId, span.GetParentId());
+        target.SetHeader(b3::kParentSpanId, std::string{span.GetParentId()});
 
         const auto* sampled = kB3TracingSampledInheritedData.GetOptional();
         if (sampled && !sampled->empty()) {
@@ -162,8 +162,8 @@ bool YandexTaxiTryFillSpanBuilderFromRequest(
 template <class T>
 void YandexTaxiFillWithTracingContext(const tracing::Span& span, T& target) {
     if (const auto span_id = span.GetSpanIdForChildLogs()) {
-        target.SetHeader(http::headers::kXYaRequestId, span.GetLink());
-        target.SetHeader(http::headers::kXYaTraceId, span.GetTraceId());
+        target.SetHeader(http::headers::kXYaRequestId, std::string{span.GetLink()});
+        target.SetHeader(http::headers::kXYaTraceId, std::string{span.GetTraceId()});
         target.SetHeader(http::headers::kXYaSpanId, std::string{*span_id});
     }
 }
@@ -180,7 +180,7 @@ bool YandexTryFillSpanBuilderFromRequest(const server::http::HttpRequest& reques
 
 template <class T>
 void YandexFillWithTracingContext(const tracing::Span& span, T& target) {
-    target.SetHeader(http::headers::kXRequestId, span.GetTraceId());
+    target.SetHeader(http::headers::kXRequestId, std::string{span.GetTraceId()});
 }
 
 }  // namespace

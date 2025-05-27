@@ -7,6 +7,7 @@
 
 #include <userver/tracing/span.hpp>
 #include <userver/utils/fast_pimpl.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -34,6 +35,11 @@ public:
     ~InPlaceSpan();
 
     tracing::Span& Get() noexcept;
+
+    /// @cond
+    // For internal use only.
+    void SetParentLink(utils::impl::InternalTag, std::string&& parent_link);
+    /// @endcond
 
 private:
     struct Impl;

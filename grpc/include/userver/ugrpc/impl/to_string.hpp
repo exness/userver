@@ -43,6 +43,8 @@ inline grpc::string ToGrpcString(std::string&& str) {
     }
 }
 
+inline grpc::string ToGrpcString(std::string_view str) { return grpc::string{str}; }
+
 inline grpc::string_ref ToGrpcStringRef(std::string_view str) { return grpc::string_ref{str.data(), str.size()}; }
 
 inline grpc::string_ref ToGrpcStringRef(const std::string& str) { return grpc::string_ref{str.data(), str.size()}; }

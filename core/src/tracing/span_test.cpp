@@ -383,8 +383,8 @@ UTEST_F(Span, SpanLogLevelLowerThanGlobal) {
 
         EXPECT_THAT(GetStreamString(), HasSubstr("message"));
         // Make sure there are no logs written with "non-existent" spans.
-        EXPECT_THAT(GetStreamString(), Not(HasSubstr("span_id=" + span.GetSpanId())));
-        EXPECT_THAT(GetStreamString(), HasSubstr("span_id=" + parent_span.GetSpanId()));
+        EXPECT_THAT(GetStreamString(), Not(HasSubstr("span_id=" + std::string{span.GetSpanId()})));
+        EXPECT_THAT(GetStreamString(), HasSubstr("span_id=" + std::string{parent_span.GetSpanId()}));
     }
 
     EXPECT_THAT(GetStreamString(), Not(HasSubstr("not_logged_span")));
@@ -738,9 +738,9 @@ UTEST_F(Span, SetLogLevelDoesNotDetachLogs) {
         EXPECT_THAT(
             GetStreamString(),
             testing::AllOf(
-                HasSubstr("span_id=" + root_span.GetSpanId()),
-                HasSubstr("link=" + root_span.GetLink()),
-                HasSubstr("trace_id=" + root_span.GetTraceId()),
+                HasSubstr("span_id=" + std::string{root_span.GetSpanId()}),
+                HasSubstr("link=" + std::string{root_span.GetLink()}),
+                HasSubstr("trace_id=" + std::string{root_span.GetTraceId()}),
                 Not(HasSubstr(span_no_log.GetSpanId()))
             )
         );
@@ -762,9 +762,9 @@ UTEST_F(Span, SetLogLevelDoesNotDetachLogsMultiSkip) {
             EXPECT_THAT(
                 GetStreamString(),
                 testing::AllOf(
-                    HasSubstr("span_id=" + root_span.GetSpanId()),
-                    HasSubstr("link=" + root_span.GetLink()),
-                    HasSubstr("trace_id=" + root_span.GetTraceId()),
+                    HasSubstr("span_id=" + std::string{root_span.GetSpanId()}),
+                    HasSubstr("link=" + std::string{root_span.GetLink()}),
+                    HasSubstr("trace_id=" + std::string{root_span.GetTraceId()}),
                     Not(HasSubstr(span_no_log1.GetSpanId())),
                     Not(HasSubstr(span_no_log2.GetSpanId()))
                 )
@@ -837,7 +837,7 @@ UTEST_F(Span, OnlyUpstreamSpanIsEnabled) {
     EXPECT_THAT(
         GetStreamString(),
         testing::AllOf(
-            HasSubstr("span_id=" + upstream_span.GetSpanId()),
+            HasSubstr("span_id=" + std::string{upstream_span.GetSpanId()}),
             Not(HasSubstr(handler_span_no_log.GetSpanId())),
             Not(HasSubstr(span_no_log1.GetSpanId())),
             Not(HasSubstr(span_no_log2.GetSpanId()))
@@ -846,10 +846,12 @@ UTEST_F(Span, OnlyUpstreamSpanIsEnabled) {
 
     EXPECT_THAT(
         GetStreamString(),
-        testing::AllOf(HasSubstr("link=" + span_no_log2.GetLink()), Not(HasSubstr(upstream_span.GetLink())))
+        testing::AllOf(
+            HasSubstr("link=" + std::string{span_no_log2.GetLink()}), Not(HasSubstr(upstream_span.GetLink()))
+        )
     );
 
-    EXPECT_THAT(GetStreamString(), HasSubstr("trace_id=" + span_no_log2.GetTraceId()));
+    EXPECT_THAT(GetStreamString(), HasSubstr("trace_id=" + std::string{span_no_log2.GetTraceId()}));
 }
 
 UTEST_F(Span, MakeSpanWithParentIdTraceIdLink) {

@@ -58,15 +58,10 @@ public:
     // Add the context of this Span a non-Span-specific log record
     void LogTo(logging::impl::TagWriter writer) const;
 
-    const std::string& GetTraceId() const& noexcept { return trace_id_; }
-    const std::string& GetSpanId() const& noexcept { return span_id_; }
-    const std::string& GetParentId() const& noexcept { return parent_id_; }
-    const std::string& GetName() const& noexcept { return name_; }
-
-    std::string GetTraceId() && noexcept { return std::move(trace_id_); }
-    std::string GetSpanId() && noexcept { return std::move(span_id_); }
-    std::string GetParentId() && noexcept { return std::move(parent_id_); }
-    std::string GetName() && noexcept { return name_; }
+    std::string_view GetTraceId() const& noexcept { return trace_id_; }
+    std::string_view GetSpanId() const& noexcept { return span_id_; }
+    std::string_view GetParentId() const& noexcept { return parent_id_; }
+    std::string_view GetName() const& noexcept { return name_; }
 
     void SetTraceId(std::string&& id) noexcept { trace_id_ = std::move(id); }
     void SetSpanId(std::string&& id) noexcept { span_id_ = std::move(id); }

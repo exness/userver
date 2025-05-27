@@ -50,6 +50,10 @@ InPlaceSpan::~InPlaceSpan() = default;
 
 tracing::Span& InPlaceSpan::Get() noexcept { return impl_->span; }
 
+void InPlaceSpan::SetParentLink(utils::impl::InternalTag, std::string&& parent_link) {
+    impl_->span.SetParentLink(std::move(parent_link));
+}
+
 }  // namespace tracing
 
 USERVER_NAMESPACE_END

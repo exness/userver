@@ -65,7 +65,7 @@ __attribute__((noinline)) static void TestSingleCoroutine() {
 __attribute__((noinline)) static void TestSleepingCoroutine(bool no_span = false) {
     engine::RunStandalone([&] {
         void* volatile root_coro = engine::current_task::impl::GetRawCurrentTaskContext();
-        auto root_coro_name = tracing::Span::CurrentSpan().GetName();
+        std::string root_coro_name{tracing::Span::CurrentSpan().GetName()};
         auto root_stacktrace = boost::stacktrace::stacktrace();
         auto payload = [&] {
             void* volatile new_coro = engine::current_task::impl::GetRawCurrentTaskContext();

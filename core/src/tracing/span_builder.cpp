@@ -33,7 +33,7 @@ void SpanBuilder::SetParentSpanId(std::string parent_span_id) { pimpl_->SetParen
 
 void SpanBuilder::SetTraceId(std::string trace_id) { pimpl_->SetTraceId(std::move(trace_id)); }
 
-const std::string& SpanBuilder::GetTraceId() const noexcept { return pimpl_->GetTraceId(); }
+std::string_view SpanBuilder::GetTraceId() const noexcept { return pimpl_->GetTraceId(); }
 
 void SpanBuilder::AddTagFrozen(std::string key, logging::LogExtra::Value value) {
     pimpl_->log_extra_inheritable_.Extend(std::move(key), std::move(value), logging::LogExtra::ExtendType::kFrozen);
