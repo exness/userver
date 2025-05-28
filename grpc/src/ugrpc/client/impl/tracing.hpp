@@ -7,12 +7,11 @@
 #include <grpcpp/support/status.h>
 
 #include <userver/tracing/in_place_span.hpp>
+#include <userver/tracing/span.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
-
-class CallState;
 
 void SetupSpan(
     std::optional<tracing::InPlaceSpan>& span_holder,
@@ -20,9 +19,9 @@ void SetupSpan(
     std::string_view call_name
 );
 
-void SetErrorAndResetSpan(CallState& state, std::string_view error_message);
+void SetStatusForSpan(tracing::Span& span, const grpc::Status& status);
 
-void SetStatusAndResetSpan(CallState& state, const grpc::Status& status);
+void SetErrorForSpan(tracing::Span& span, std::string_view error_message);
 
 }  // namespace ugrpc::client::impl
 

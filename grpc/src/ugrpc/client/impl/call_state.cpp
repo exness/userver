@@ -33,9 +33,11 @@ CallState::~CallState() noexcept {
     invocation_.emplace<std::monostate>();
 
     if (context_ && !IsFinished()) {
-        UASSERT(span_);
-        SetErrorAndResetSpan(*this, "Abandoned");
         context_->TryCancel();
+
+        UASSERT(span_);
+        SetErrorForSpan(GetSpan(), "Abandoned");
+        ResetSpan();
     }
 }
 

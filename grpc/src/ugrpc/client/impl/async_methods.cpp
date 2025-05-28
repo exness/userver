@@ -14,6 +14,20 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
 
+namespace {
+
+void SetStatusAndResetSpan(CallState& state, const grpc::Status& status) {
+    SetStatusForSpan(state.GetSpan(), status);
+    state.ResetSpan();
+}
+
+void SetErrorAndResetSpan(CallState& state, std::string_view error_message) {
+    SetErrorForSpan(state.GetSpan(), error_message);
+    state.ResetSpan();
+}
+
+}  // namespace
+
 void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::string_view stage) {
     if (status == impl::AsyncMethodInvocation::WaitStatus::kError) {
         state.SetFinished();

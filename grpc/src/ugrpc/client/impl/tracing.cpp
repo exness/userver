@@ -8,7 +8,6 @@
 #include <userver/utils/impl/source_location.hpp>
 
 #include <ugrpc/impl/rpc_metadata.hpp>
-#include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/status_codes.hpp>
 
@@ -19,12 +18,6 @@ namespace ugrpc::client::impl {
 namespace {
 
 constexpr std::string_view kDefaultOtelTraceFlags = "01";
-
-void SetErrorForSpan(tracing::Span& span, std::string_view error_message) {
-    span.SetLogLevel(logging::Level::kWarning);
-    span.AddTag(tracing::kErrorFlag, true);
-    span.AddTag(tracing::kErrorMessage, std::string{error_message});
-}
 
 }  // namespace
 
@@ -56,17 +49,17 @@ void SetupSpan(
     }
 }
 
-void SetErrorAndResetSpan(CallState& state, std::string_view error_message) {
-    SetErrorForSpan(state.GetSpan(), error_message);
-    state.ResetSpan();
+void SetErrorForSpan(tracing::Span& span, std::string_view error_message) {
+    span.SetLogLevel(logging::Level::kWarning);
+    span.AddTag(tracing::kErrorFlag, true);
+    span.AddTag(tracing::kErrorMessage, std::string{error_message});
 }
 
-void SetStatusAndResetSpan(CallState& state, const grpc::Status& status) {
-    state.GetSpan().AddTag("grpc_code", ugrpc::ToString(status.error_code()));
+void SetStatusForSpan(tracing::Span& span, const grpc::Status& status) {
+    span.AddTag("grpc_code", ugrpc::ToString(status.error_code()));
     if (!status.ok()) {
-        SetErrorForSpan(state.GetSpan(), status.error_message());
+        SetErrorForSpan(span, status.error_message());
     }
-    state.ResetSpan();
 }
 
 }  // namespace ugrpc::client::impl
