@@ -135,16 +135,18 @@ void HandlerAdapter::LogRequest(const http::HttpRequest& request, request::Reque
 
         const auto& header_whitelist = config_snapshot[::dynamic_config::USERVER_LOG_REQUEST_HEADERS_WHITELIST];
 
-        LOG_INFO() << "start handling"
-                   << LogRequestExtra(
-                          need_log_request_headers,
-                          request,
-                          misc::CutTrailingSlash(request.GetRequestPath(), handler_.GetConfig().url_trailing_slash),
-                          handler_.GetRequestBodyForLoggingChecked(request, context, request.RequestBody()),
-                          request.RequestBody().length(),
-                          header_whitelist,
-                          handler_.GetConfig().request_headers_size_log_limit
-                      );
+        std::string_view meta_type =
+            misc::CutTrailingSlash(request.GetRequestPath(), handler_.GetConfig().url_trailing_slash);
+
+        LOG_INFO("start handling {} {}", request.GetMethodStr(), meta_type) << LogRequestExtra(
+            need_log_request_headers,
+            request,
+            meta_type,
+            handler_.GetRequestBodyForLoggingChecked(request, context, request.RequestBody()),
+            request.RequestBody().length(),
+            header_whitelist,
+            handler_.GetConfig().request_headers_size_log_limit
+        );
     }
 }
 
