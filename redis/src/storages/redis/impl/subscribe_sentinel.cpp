@@ -35,9 +35,6 @@ std::shared_ptr<SubscriptionStorageBase> CreateSubscriptionStorage(
 
 }  // namespace
 
-// https://github.com/boostorg/signals2/issues/59
-// NOLINTBEGIN(clang-analyzer-cplusplus.NewDelete)
-
 SubscribeSentinel::SubscribeSentinel(
     const std::shared_ptr<ThreadPools>& thread_pools,
     const std::vector<std::string>& shards,
@@ -68,30 +65,13 @@ SubscribeSentinel::SubscribeSentinel(
 
       ),
       thread_pools_(thread_pools),
-      storage_(CreateSubscriptionStorage(thread_pools, shards, is_cluster_mode)),
-      stopper_(std::make_shared<Stopper>()) {
+      storage_(CreateSubscriptionStorage(thread_pools, shards, is_cluster_mode)) {
     InitStorage();
-    auto stopper = stopper_;
-    signal_instances_changed.connect([this, stopper](size_t shard_idx) {
-        std::lock_guard<std::mutex> lock(stopper->mutex);
-        if (stopper->stopped) return;
-        RebalanceSubscriptions(shard_idx);
-    });
-
-    signal_topology_changed.connect([this, stopper](size_t shards_count) {
-        const std::lock_guard<std::mutex> lock(stopper->mutex);
-        if (stopper->stopped) return;
-
-        storage_->SetShardsCount(shards_count);
-    });
 }
 
 SubscribeSentinel::~SubscribeSentinel() {
-    {
-        std::lock_guard<std::mutex> lock(stopper_->mutex);
-        stopper_->stopped = true;
-    }
     storage_->Stop();
+    Stop();
 }
 
 std::shared_ptr<SubscribeSentinel> SubscribeSentinel::Create(
@@ -211,8 +191,6 @@ void SubscribeSentinel::InitStorage() {
         AsyncCommand(cmd, channel, false);
     });
 }
-
-// NOLINTEND(clang-analyzer-cplusplus.NewDelete)
 
 }  // namespace storages::redis::impl
 

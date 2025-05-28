@@ -72,17 +72,14 @@ public:
     using Sentinel::WaitConnectedDebug;
     using Sentinel::WaitConnectedOnce;
 
-private:
-    struct Stopper {
-        std::mutex mutex;
-        bool stopped{false};
-    };
+    void NotifyInstancesChanged(size_t shard) override { RebalanceSubscriptions(shard); }
+    void NotifyTopologyChanged(size_t shards_count) override { storage_->SetShardsCount(shards_count); }
 
+private:
     void InitStorage();
 
     std::shared_ptr<ThreadPools> thread_pools_;
     std::shared_ptr<SubscriptionStorageBase> storage_;
-    std::shared_ptr<Stopper> stopper_;
 };
 
 }  // namespace storages::redis::impl

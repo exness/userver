@@ -24,7 +24,7 @@ public:
         ConnectionInfo conn
     );
 
-    ~StandaloneTopologyHolder() = default;
+    ~StandaloneTopologyHolder();
 
     void Init() override;
 

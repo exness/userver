@@ -881,12 +881,12 @@ void ClusterSentinelImpl::Init() {
                 return;
             }
 
-            sentinel_obj_.signal_instances_changed(*shard_opt);
+            sentinel_obj_.NotifyInstancesChanged(*shard_opt);
         }
     );
 
     topology_holder_->GetSignalTopologyChanged().connect([this](size_t shards_count) {
-        sentinel_obj_.signal_topology_changed(shards_count);
+        sentinel_obj_.NotifyTopologyChanged(shards_count);
     });
 
     topology_holder_->Init();

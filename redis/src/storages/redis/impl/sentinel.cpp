@@ -122,10 +122,7 @@ Sentinel::Sentinel(
     });
 }
 
-Sentinel::~Sentinel() {
-    impl_.reset();
-    UASSERT(!impl_);
-}
+Sentinel::~Sentinel() { Stop(); }
 
 void Sentinel::Start() {
     sentinel_thread_control_->RunInEvLoopBlocking([this] { impl_->Start(); });
@@ -193,6 +190,11 @@ std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
     }
 
     return client;
+}
+
+void Sentinel::Stop() noexcept {
+    impl_.reset();
+    UASSERT(!impl_);
 }
 
 std::unordered_map<ServerId, size_t, ServerIdHasher>

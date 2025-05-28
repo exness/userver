@@ -28,6 +28,8 @@ StandaloneTopologyHolder::StandaloneTopologyHolder(
     LOG_DEBUG() << "Created StandaloneTopologyHolder with " << conn.host << ":" << conn.port;
 }
 
+StandaloneTopologyHolder::~StandaloneTopologyHolder() { Stop(); }
+
 void StandaloneTopologyHolder::Init() {}
 
 void StandaloneTopologyHolder::Start() {

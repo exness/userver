@@ -103,9 +103,6 @@ public:
         const testsuite::RedisControl& testsuite_redis_control = {}
     );
 
-    std::unordered_map<ServerId, size_t, ServerIdHasher>
-    GetAvailableServersWeighted(size_t shard_idx, bool with_master, const CommandControl& cc = {}) const;
-
     void AsyncCommand(CommandPtr command, bool master = true, size_t shard = 0);
     void AsyncCommand(CommandPtr command, const std::string& key, bool master = true);
 
@@ -127,11 +124,6 @@ public:
     void SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings);
     void SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& replication_monitoring_settings);
     void SetRetryBudgetSettings(const utils::RetryBudgetSettings& settings);
-
-    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
-    boost::signals2::signal<void(size_t shard)> signal_instances_changed;
-    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
-    boost::signals2::signal<void(size_t shards_count)> signal_topology_changed;
 
     Request MakeRequest(
         CmdArgs&& args,
@@ -174,9 +166,14 @@ public:
     using SubscribeCallback = std::function<void(ServerId, const std::string& channel, size_t count)>;
     using UnsubscribeCallback = std::function<void(ServerId, const std::string& channel, size_t count)>;
 
+    virtual void NotifyInstancesChanged(size_t /*shard*/) {}
+    virtual void NotifyTopologyChanged(size_t /*shards_count*/) {}
+
 protected:
-    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
-    std::unique_ptr<SentinelImplBase> impl_;
+    void Stop() noexcept;
+
+    std::unordered_map<ServerId, size_t, ServerIdHasher>
+    GetAvailableServersWeighted(size_t shard_idx, bool with_master, const CommandControl& cc = {}) const;
 
 public:
     static void OnSsubscribeReply(
@@ -203,12 +200,12 @@ public:
 private:
     friend class Transaction;
 
+    std::unique_ptr<SentinelImplBase> impl_;
     const std::string shard_group_name_;
     std::shared_ptr<ThreadPools> thread_pools_;
     std::unique_ptr<engine::ev::ThreadControl> sentinel_thread_control_;
     CommandControl secdist_default_command_control_;
     utils::SwappingSmart<CommandControl> config_default_command_control_;
-    std::atomic_int publish_shard_{0};
     testsuite::RedisControl testsuite_redis_control_;
     const bool is_in_cluster_mode_;
 };

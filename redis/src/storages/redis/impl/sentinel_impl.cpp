@@ -375,7 +375,7 @@ void SentinelImpl::ProcessCreationOfShards(std::vector<std::shared_ptr<Shard>>& 
     for (size_t shard_idx = 0; shard_idx < shards.size(); shard_idx++) {
         auto& info = *shards[shard_idx];
         if (info.ProcessCreation(redis_thread_pool_)) {
-            sentinel_obj_.signal_instances_changed(shard_idx);
+            sentinel_obj_.NotifyInstancesChanged(shard_idx);
         }
     }
 }
@@ -595,7 +595,7 @@ void SentinelImpl::CheckConnections() {
     for (size_t shard_idx = 0; shard_idx < master_shards_.size(); shard_idx++) {
         const auto& info = master_shards_[shard_idx];
         if (info->ProcessStateUpdate()) {
-            sentinel_obj_.signal_instances_changed(shard_idx);
+            sentinel_obj_.NotifyInstancesChanged(shard_idx);
         }
     }
 

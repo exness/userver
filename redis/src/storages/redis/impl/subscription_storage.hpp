@@ -192,8 +192,9 @@ protected:
             size_t shard_idx
         );
         void OnSmessage(ServerId server_id, const std::string& channel, const std::string& message, size_t shard_idx);
-        size_t GetChannelsCountApprox() const;
-        PubsubShardStatistics GetShardStatistics(size_t shard_idx) const;
+        size_t GetChannelsCountApprox(const std::lock_guard<std::mutex>& /*held_lock*/) const;
+        PubsubShardStatistics GetShardStatistics(size_t shard_idx, const std::lock_guard<std::mutex>& /*held_lock*/)
+            const;
         RawPubsubClusterStatistics GetStatistics() const;
 
         template <typename Map>
@@ -203,27 +204,48 @@ protected:
         void RebalanceMoveSubscriptions(RebalanceState& state);
 
         void SetCommandControl(const CommandControl& control);
-        void DoRebalance(size_t shard_idx, ServerWeights weights);
+        void DoRebalance(size_t shard_idx, ServerWeights weights, const std::lock_guard<std::mutex>& /*held_lock*/);
         SubscriptionToken
         Subscribe(const std::string& channel, Sentinel::UserMessageCallback cb, CommandControl control);
         SubscriptionToken
         Ssubscribe(const std::string& channel, Sentinel::UserMessageCallback cb, CommandControl control);
         SubscriptionToken
         Psubscribe(const std::string& channel, Sentinel::UserPmessageCallback cb, CommandControl control);
-        SubscriptionId GetNextSubscriptionId();
+
+        SubscriptionId GetNextSubscriptionId(const std::lock_guard<std::mutex>& /*held_lock*/);
 
         const CommandControl& GetCommandControl(const ChannelName& channel_name) const;
 
+        std::size_t GetShardsCount(const std::lock_guard<std::mutex>& /*held_lock*/) const noexcept {
+            return shards_count_;
+        }
+        void SetShardsCount(std::size_t shards_count) {
+            const std::lock_guard lock{mutex_};
+            shards_count_ = shards_count;
+        }
+
+        void ClearCallbackMaps() {
+            const std::lock_guard lock{mutex_};
+            callback_map_.clear();
+            pattern_callback_map_.clear();
+            sharded_callback_map_.clear();
+        }
+
+        // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
         mutable std::mutex mutex_;
         CommandCb subscribe_callback_;
         CommandCb unsubscribe_callback_;
         ShardedCommandCb sharded_subscribe_callback_;
         ShardedCommandCb sharded_unsubscribe_callback_;
+
         CallbackMap callback_map_;
         PcallbackMap pattern_callback_map_;
         CallbackMap sharded_callback_map_;
+        // NOLINTEND(misc-non-private-member-variables-in-classes)
+
+    private:
         CommandControl common_command_control_;
-        size_t shards_count_{0};
+        std::size_t shards_count_{0};
         SubscriptionStorageBase& implemented_;
         SubscriptionId next_subscription_id_{1};
     };
