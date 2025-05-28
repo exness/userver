@@ -46,12 +46,12 @@ public:
 
     /// @cond
     // For internal use only.
-    void SetParentLink(utils::impl::InternalTag, std::string&& parent_link);
+    void SetParentLink(utils::impl::InternalTag, std::string_view parent_link);
     /// @endcond
 
 private:
     struct Impl;
-    utils::FastPimpl<Impl, 4288, 8> impl_;
+    utils::FastPimpl<Impl, 4392, 8> impl_;
 };
 
 }  // namespace tracing

@@ -8,6 +8,7 @@
 #include <engine/task/task_context.hpp>
 #include <logging/log_helper_impl.hpp>
 #include <userver/engine/task/local_variable.hpp>
+#include <userver/formats/json/string_builder.hpp>
 #include <userver/logging/impl/logger_base.hpp>
 #include <userver/logging/impl/tag_writer.hpp>
 #include <userver/tracing/span.hpp>
@@ -93,15 +94,15 @@ Span::Impl::Impl(
     : name_(std::move(name)),
       is_no_log_span_(IsNoLogSpan(name_)),
       log_level_(is_no_log_span_ ? logging::Level::kNone : log_level),
-      start_system_time_(std::chrono::system_clock::now()),
-      start_steady_time_(std::chrono::steady_clock::now()),
+      reference_type_(reference_type),
+      source_location_(source_location),
       trace_id_(parent ? parent->GetTraceId() : utils::generators::GenerateUuid()),
       span_id_(GenerateSpanId()),
       parent_id_(GetParentIdForLogging(parent)),
       link_(parent ? parent->GetLink() : utils::generators::GenerateUuid()),
       parent_link_(parent ? parent->GetParentLink() : std::string{}),
-      reference_type_(reference_type),
-      source_location_(source_location) {
+      start_system_time_(std::chrono::system_clock::now()),
+      start_steady_time_(std::chrono::steady_clock::now()) {
     if (parent) {
         log_extra_inheritable_ = parent->log_extra_inheritable_;
         local_log_level_ = parent->local_log_level_;
@@ -278,8 +279,8 @@ Span* Span::CurrentSpanUnchecked() {
 
 Span Span::MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id) {
     Span span(std::move(name));
-    if (!trace_id.empty()) span.pimpl_->SetTraceId(std::string{trace_id});
-    span.pimpl_->SetParentId(std::string{parent_span_id});
+    if (!trace_id.empty()) span.pimpl_->SetTraceId(trace_id);
+    span.pimpl_->SetParentId(parent_span_id);
     return span;
 }
 
@@ -290,9 +291,9 @@ Span Span::MakeSpan(
     std::string_view link
 ) {
     Span span(std::move(name), nullptr);
-    span.pimpl_->SetLink(std::string{link});
-    if (!trace_id.empty()) span.pimpl_->SetTraceId(std::string{trace_id});
-    span.pimpl_->SetParentId(std::string{parent_span_id});
+    span.pimpl_->SetLink(link);
+    if (!trace_id.empty()) span.pimpl_->SetTraceId(trace_id);
+    span.pimpl_->SetParentId(parent_span_id);
     return span;
 }
 
@@ -358,7 +359,7 @@ void Span::AddEvent(std::string_view event_name) { pimpl_->events_.emplace_back(
 
 void Span::AddEvent(SpanEvent&& event) { pimpl_->events_.emplace_back(std::move(event)); }
 
-void Span::SetLink(std::string link) { pimpl_->SetLink(std::move(link)); }
+void Span::SetLink(std::string_view link) { pimpl_->SetLink(link); }
 
 bool Span::ShouldLogDefault() const noexcept { return pimpl_->ShouldLog(); }
 

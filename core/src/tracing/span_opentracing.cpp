@@ -92,9 +92,9 @@ void Span::Impl::DoLogOpenTracing(const Tracer& tracer, logging::impl::TagWriter
         std::chrono::duration_cast<std::chrono::microseconds>(start_system_time_.time_since_epoch()).count();
 
     writer.PutTag(jaeger::kServiceName, tracer.GetServiceName());
-    writer.PutTag(jaeger::kTraceId, trace_id_);
-    writer.PutTag(jaeger::kParentId, parent_id_);
-    writer.PutTag(jaeger::kSpanId, span_id_);
+    writer.PutTag(jaeger::kTraceId, std::string{GetTraceId()});
+    writer.PutTag(jaeger::kParentId, std::string{GetParentId()});
+    writer.PutTag(jaeger::kSpanId, std::string{GetSpanId()});
     writer.PutTag(jaeger::kStartTime, start_time);
     writer.PutTag(jaeger::kStartTimeMillis, start_time / 1000);
     writer.PutTag(jaeger::kDuration, duration_microseconds);

@@ -27,6 +27,8 @@ inline std::string ToString(grpc::string&& str) {
     }
 }
 
+inline std::string_view ToStringView(grpc::string_ref str) { return {str.data(), str.size()}; }
+
 inline decltype(auto) ToGrpcString(const std::string& str) {
     if constexpr (std::is_same_v<grpc::string, std::string>) {
         return str;

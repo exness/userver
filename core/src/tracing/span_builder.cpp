@@ -14,15 +14,17 @@ SpanBuilder::SpanBuilder(std::string name, const utils::impl::SourceLocation& lo
           Span::OptionalDeleter{Span::OptionalDeleter::ShouldDelete()}
       ) {}
 
-void SpanBuilder::SetSpanId(std::string parent_span_id) { pimpl_->SetSpanId(std::move(parent_span_id)); }
+void SpanBuilder::SetSpanId(std::string_view parent_span_id) { pimpl_->SetSpanId(parent_span_id); }
 
-void SpanBuilder::SetLink(std::string link) { pimpl_->SetLink(std::move(link)); }
+void SpanBuilder::SetLink(std::string_view link) { pimpl_->SetLink(link); }
 
-void SpanBuilder::SetParentSpanId(std::string parent_span_id) { pimpl_->SetParentId(std::move(parent_span_id)); }
+void SpanBuilder::SetParentSpanId(std::string_view parent_span_id) { pimpl_->SetParentId(parent_span_id); }
 
-void SpanBuilder::SetTraceId(std::string trace_id) { pimpl_->SetTraceId(std::move(trace_id)); }
+void SpanBuilder::SetTraceId(std::string_view trace_id) { pimpl_->SetTraceId(trace_id); }
 
 std::string_view SpanBuilder::GetTraceId() const noexcept { return pimpl_->GetTraceId(); }
+
+void SpanBuilder::SetParentLink(std::string_view parent_link) { pimpl_->SetParentLink(parent_link); }
 
 void SpanBuilder::AddTagFrozen(std::string key, logging::LogExtra::Value value) {
     pimpl_->log_extra_inheritable_.Extend(std::move(key), std::move(value), logging::LogExtra::ExtendType::kFrozen);
@@ -32,8 +34,6 @@ void SpanBuilder::AddNonInheritableTag(std::string key, logging::LogExtra::Value
     if (!pimpl_->log_extra_local_) pimpl_->log_extra_local_.emplace();
     pimpl_->log_extra_local_->Extend(std::move(key), std::move(value));
 }
-
-void SpanBuilder::SetParentLink(std::string parent_link) { pimpl_->SetParentLink(std::move(parent_link)); }
 
 Span SpanBuilder::Build() && {
     pimpl_->AttachToCoroStack();

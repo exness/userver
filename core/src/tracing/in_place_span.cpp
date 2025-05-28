@@ -42,8 +42,8 @@ InPlaceSpan::~InPlaceSpan() = default;
 
 tracing::Span& InPlaceSpan::Get() noexcept { return impl_->span; }
 
-void InPlaceSpan::SetParentLink(utils::impl::InternalTag, std::string&& parent_link) {
-    impl_->span_impl.SetParentLink(std::move(parent_link));
+void InPlaceSpan::SetParentLink(utils::impl::InternalTag, std::string_view parent_link) {
+    impl_->span_impl.SetParentLink(parent_link);
 }
 
 }  // namespace tracing

@@ -41,7 +41,7 @@ private:
 
     struct Impl;
 
-    static constexpr std::size_t kImplSize = 4328;
+    static constexpr std::size_t kImplSize = 4432;
     static constexpr std::size_t kImplAlign = 8;
     utils::FastPimpl<Impl, kImplSize, kImplAlign> pimpl_;
 };

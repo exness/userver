@@ -207,7 +207,7 @@ public:
     /// Propagates within a single service, but not from client to server. A new
     /// link is generated for the "root" request handling task
     // TODO restrict SetLink to SpanBuilder.
-    void SetLink(std::string link);
+    void SetLink(std::string_view link);
 
     /// Get link - a request ID within the service.
     ///

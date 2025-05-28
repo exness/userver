@@ -87,7 +87,7 @@ void SetupSpan(
 
     const auto* const parent_link = utils::FindOrNullptr(client_metadata, ugrpc::impl::kXYaRequestId);
     if (parent_link) {
-        span_holder->SetParentLink(utils::impl::InternalTag{}, ugrpc::impl::ToString(*parent_link));
+        span_holder->SetParentLink(utils::impl::InternalTag{}, ugrpc::impl::ToStringView(*parent_link));
     }
 }
 
