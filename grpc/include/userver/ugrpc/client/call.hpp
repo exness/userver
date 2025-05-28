@@ -51,7 +51,7 @@ protected:
     /// @endcond
 
 private:
-    std::unique_ptr<impl::CallState> data_;
+    std::unique_ptr<impl::CallState> state_;
 };
 
 }  // namespace ugrpc::client

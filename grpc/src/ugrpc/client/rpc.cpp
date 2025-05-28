@@ -112,7 +112,7 @@ engine::impl::ContextAccessor* UnaryFinishFutureImpl::TryGetContextAccessor() no
         return nullptr;
     }
 
-    // if data exists, then FinishAsyncMethodInvocation also exists
+    // if state exists, then FinishAsyncMethodInvocation also exists
     auto& finish = state_->GetFinishAsyncMethodInvocation();
     return finish.TryGetContextAccessor();
 }

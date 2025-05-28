@@ -460,18 +460,18 @@ template <typename RPC>
 bool StreamReadFuture<RPC>::Get() {
     UINVARIANT(state_, "'Get' must be called only once");
     impl::CallState::AsyncMethodInvocationGuard guard(*state_);
-    auto* const data = std::exchange(state_, nullptr);
-    const auto result = impl::Wait(data->GetAsyncMethodInvocation(), data->GetContext());
+    auto* const state = std::exchange(state_, nullptr);
+    const auto result = impl::Wait(state->GetAsyncMethodInvocation(), state->GetContext());
     if (result == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        data->GetStatsScope().OnCancelled();
-        data->GetStatsScope().Flush();
+        state->GetStatsScope().OnCancelled();
+        state->GetStatsScope().Flush();
     } else if (result == impl::AsyncMethodInvocation::WaitStatus::kError) {
         // Finish can only be called once all the data is read, otherwise the
         // underlying gRPC driver hangs.
-        impl::Finish(*stream_, *data, /*final_response=*/nullptr, /*throw_on_error=*/true);
+        impl::Finish(*stream_, *state, /*final_response=*/nullptr, /*throw_on_error=*/true);
     } else {
         if (response_message_) {
-            impl::MiddlewarePipeline::PostRecvMessage(*data, *response_message_);
+            impl::MiddlewarePipeline::PostRecvMessage(*state, *response_message_);
         }
     }
     return result == impl::AsyncMethodInvocation::WaitStatus::kOk;
