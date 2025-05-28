@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+    title: Test Middleware API
+    version: 1.0.0
+    description: API for testing middleware functionality
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+    /test:
+        get:
+            operationId: test
+            summary: Test endpoint
+            responses:
+                200:
+                    description: Successful operation
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestResponse'
+
+components:
+    schemas:
+        TestResponse:
+            type: object
+            properties:
+                status:
+                    type: string
+                    example: "ok"
+            required:
+              - status
+            additionalProperties: false
+
+    x-userver-middlewares:
+        timeout-retry:
+            schema:
+                type: object
+                description: Timeout and retry middleware configuration
+                additionalProperties: false
+                properties:
+                    timeout_ms:
+                        type: integer
+                        description: Request timeout in milliseconds
+                        default: 100
+                        minimum: 1
+                    retries:
+                        type: integer
+                        description: Number of retry attempts
+                        default: 1
+                        minimum: 0
+
+        follow-redirects:
+            schema:
+                type: object
+                description: Follow redirects middleware configuration
+                additionalProperties: false
+                properties:
+                    enabled:
+                        type: boolean
+                        description: Whether to follow HTTP redirects
+                        default: true
+
+        proxy:
+            schema:
+                type: object
+                description: Proxy middleware configuration
+                additionalProperties: false
+                properties:
+                    url:
+                        type: string
+                        description: Proxy server URL
+
+        ssl:
+            schema:
+                type: object
+                description: SSL middleware configuration
+                additionalProperties: false
+                properties:
+                    certificate:
+                        type: string
+                        description: SSL certificate content
+
+        logging:
+            schema:
+                type: object
+                description: Logging middleware configuration
+                additionalProperties: false
+                properties:
+                    request_level:
+                        type: string
+                        description: Log level for requests
+                        enum: [trace, debug, info, warning, error, critical, none]
+                        default: debug
+                    response_level:
+                        type: string
+                        description: Log level for responses
+                        enum: [trace, debug, info, warning, error, critical, none]
+                        default: debug
+                    body_limit:
+                        type: integer
+                        description: Maximum body size to log in bytes
+                        minimum: 0
+                        default: 1024
