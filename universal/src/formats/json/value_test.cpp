@@ -236,4 +236,41 @@ TEST(FormatsJson, ExceptionMessages) {
     }
 }
 
+TEST(FormatsJson, IsUint) {
+    const auto json = formats::json::FromString(R"({
+      "uint": 42,
+      "negative": -1,
+      "string": "42",
+      "bool": true,
+      "uint64": 5294967295,
+      "null": null
+    })");
+
+    EXPECT_TRUE(json["uint"].IsUInt());
+
+    EXPECT_FALSE(json["negative"].IsUInt());
+    EXPECT_FALSE(json["string"].IsUInt());
+    EXPECT_FALSE(json["bool"].IsUInt());
+    EXPECT_FALSE(json["uint64"].IsUInt());
+    EXPECT_FALSE(json["null"].IsUInt());
+
+    const auto json_double = formats::json::FromString(R"({
+      "valid": 123.0,
+      "invalid": 123.45
+    })");
+    EXPECT_TRUE(json_double["valid"].IsUInt());
+    EXPECT_FALSE(json_double["invalid"].IsUInt());
+
+    const auto json_bounds = formats::json::FromString(R"({
+      "max": 4294967295,
+      "overflow": 4294967296,
+      "min": 0,
+      "below_min": -1
+    })");
+    EXPECT_TRUE(json_bounds["max"].IsUInt());
+    EXPECT_FALSE(json_bounds["overflow"].IsUInt());
+    EXPECT_TRUE(json_bounds["min"].IsUInt());
+    EXPECT_FALSE(json_bounds["below_min"].IsUInt());
+}
+
 USERVER_NAMESPACE_END

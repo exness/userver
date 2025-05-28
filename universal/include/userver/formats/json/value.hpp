@@ -149,6 +149,9 @@ public:
     /// @brief Returns true if *this holds an int64_t.
     bool IsInt64() const noexcept;
 
+    /// @brief Returns true if *this holds an uint.
+    bool IsUInt() const noexcept;
+
     /// @brief Returns true if *this holds an uint64_t.
     bool IsUInt64() const noexcept;
 
