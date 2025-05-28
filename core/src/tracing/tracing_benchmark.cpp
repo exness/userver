@@ -9,10 +9,18 @@ USERVER_NAMESPACE_BEGIN
 
 namespace {
 
+class NoopLogger : public logging::impl::TextLogger {
+public:
+    NoopLogger() noexcept : TextLogger(logging::Format::kRaw) { SetLevel(logging::Level::kInfo); }
+    void Log(logging::Level, logging::impl::formatters::LoggerItemRef) override {}
+    void Flush() override {}
+};
+
 void tracing_noop_ctr(benchmark::State& state) {
     engine::RunStandalone([&] {
         for ([[maybe_unused]] auto _ : state) {
             tracing::Span tmp = tracing::Span::MakeRootSpan("name");
+            tmp.SetLogLevel(logging::Level::kNone);
             benchmark::DoNotOptimize(tmp.GetSpanId());
         }
     });
@@ -20,13 +28,9 @@ void tracing_noop_ctr(benchmark::State& state) {
 BENCHMARK(tracing_noop_ctr);
 
 void tracing_happy_log(benchmark::State& state) {
-    logging::DefaultLoggerGuard guard{logging::MakeNullLogger()};
+    logging::DefaultLoggerGuard guard{std::make_shared<NoopLogger>()};
 
     engine::RunStandalone([&] {
-        // TODO Null logger ignores log level and keeps kNone, this benchmark
-        //  measures nothing. Should use TpLogger instead.
-        const logging::DefaultLoggerLevelScope level_scope{logging::Level::kInfo};
-
         for ([[maybe_unused]] auto _ : state) {
             auto tmp = tracing::Span::MakeRootSpan("name");
             benchmark::DoNotOptimize(tmp.GetSpanId());
