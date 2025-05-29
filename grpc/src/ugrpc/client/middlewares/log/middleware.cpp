@@ -59,8 +59,9 @@ void Middleware::PreStartCall(MiddlewareCallContext& context) const {
 void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     const SpanLogger logger{context.GetSpan(), settings_.local_log_level};
     logging::LogExtra extra{
-        {ugrpc::impl::kTypeTag, "request"},                  //
-        {"body", GetMessageForLogging(message, settings_)},  //
+        {ugrpc::impl::kTypeTag, "request"},
+        {"body", GetMessageForLogging(message, settings_)},
+        {"grpc_message_marshalled_len", message.ByteSizeLong()},
     };
     if (context.IsClientStreaming()) {
         logger.Log(logging::Level::kInfo, "gRPC request stream message", std::move(extra));

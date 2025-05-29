@@ -39,8 +39,9 @@ void Middleware::OnCallStart(MiddlewareCallContext& context) const {
 
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobuf::Message& request) const {
     logging::LogExtra extra{
-        {ugrpc::impl::kTypeTag, "request"},                  //
-        {"body", GetMessageForLogging(request, settings_)},  //
+        {ugrpc::impl::kTypeTag, "request"},
+        {"body", GetMessageForLogging(request, settings_)},
+        {"grpc_message_marshalled_len", request.ByteSizeLong()},
     };
     if (context.IsClientStreaming()) {
         LOG_INFO() << "gRPC request stream message" << std::move(extra);
