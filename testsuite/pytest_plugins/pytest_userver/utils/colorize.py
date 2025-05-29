@@ -152,19 +152,25 @@ class Colorizer:
             self.textcolor(logid, flow_color),
         ]
         if text:
-            http_url_info = row.pop('http_url', None)
-            if http_url_info:
-                http_url_info = http_url_info.removeprefix(
-                    HTTP_LOCALHOST_PREFIX,
-                )
-                http_url_info = http_url_info.removesuffix('?')
-                http_url_info = http_url_info[http_url_info.find('/') + 1 :]
+            if 'http_url' in row:
+                text = text.removesuffix('?')
+                localhost_pos = text.find(HTTP_LOCALHOST_PREFIX)
+                if localhost_pos != -1:
+                    start_url_pos = text.find('/', localhost_pos + len(HTTP_LOCALHOST_PREFIX))
+                    text = text[:localhost_pos] + text[start_url_pos:]
 
                 meta_code = row.pop('meta_code', None)
                 if meta_code:
-                    http_url_info += f' meta_code={meta_code}'
+                    text = f'{text} {self.textcolor(f"meta_code={meta_code}", Colors.GREEN)}'
 
-                text = f'{self.textcolor(http_url_info, Colors.GREEN)} {text}'
+                if 'body' in row:
+                    extra_fields.append(
+                        'body='
+                        + self.textcolor(
+                            try_reformat_json(row.pop('body')),
+                            Colors.YELLOW,
+                        ),
+                    )
 
             fields.append(text)
         elif self.verbose:
