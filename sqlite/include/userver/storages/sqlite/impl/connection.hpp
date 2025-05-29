@@ -30,7 +30,7 @@ public:
 
     ~Connection();
 
-    settings::ConnectionSettings const& GetSettings() const noexcept;
+    const settings::ConnectionSettings& GetSettings() const noexcept;
 
     StatementPtr PrepareStatement(const Query& query);
 

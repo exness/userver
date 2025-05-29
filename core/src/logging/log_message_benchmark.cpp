@@ -96,7 +96,7 @@ struct StreamedStruct {
 };
 
 std::ostream& operator<<(std::ostream& os, const StreamedStruct& value) {
-    std::ostream::sentry s(os);
+    const std::ostream::sentry s(os);
     if (s) {
         os << value.intVal << " " << value.stringVal;
     }

@@ -15,7 +15,7 @@ class HotStandby : public PostgreSQLBase {};
 
 UTEST_F(HotStandby, Smoke) {
     const auto& dsns = GetDsnListFromEnv();
-    pg::detail::topology::HotStandby qcc(
+    const pg::detail::topology::HotStandby qcc(
         GetTaskProcessor(),
         dsns,
         nullptr,
@@ -39,7 +39,7 @@ UTEST_F(HotStandby, Smoke) {
 }
 
 UTEST_F(HotStandby, ReplicationLag) {
-    pg::detail::topology::HotStandby qcc(
+    const pg::detail::topology::HotStandby qcc(
         GetTaskProcessor(),
         GetDsnListFromEnv(),
         nullptr,

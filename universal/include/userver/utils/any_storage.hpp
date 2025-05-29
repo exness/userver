@@ -27,7 +27,7 @@ inline std::size_t count{0};
 template <typename StorageTag>
 Offset RegisterData(std::size_t size, std::size_t alignment) noexcept {
     data_offset<StorageTag> += (alignment - (data_offset<StorageTag> % alignment)) % alignment;
-    Offset result = data_offset<StorageTag>;
+    const Offset result = data_offset<StorageTag>;
     data_offset<StorageTag> += size;
 
     count<StorageTag> ++;

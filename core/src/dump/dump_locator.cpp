@@ -105,7 +105,7 @@ void DumpLocator::Cleanup() {
                 continue;
             }
 
-            std::string filename = file.path().filename().string();
+            const std::string filename = file.path().filename().string();
 
             if (utils::regex_match(filename, tmp_filename_regex_)) {
                 LOG_DEBUG() << "Removing a leftover tmp file \"" << file.path().string() << "\"";

@@ -69,7 +69,7 @@ public:
     bool ArePreparedStatementsEnabled() const;
     bool IsBroken() const;
     bool IsExpired() const;
-    ConnectionSettings const& GetSettings() const;
+    const ConnectionSettings& GetSettings() const;
 
     CommandControl GetDefaultCommandControl() const;
     void UpdateDefaultCommandControl();

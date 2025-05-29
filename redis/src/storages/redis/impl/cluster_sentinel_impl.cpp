@@ -905,7 +905,7 @@ void ClusterSentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t p
     const bool master = scommand.master;
     const auto start = scommand.start;
     const auto counter = command->counter;
-    CommandPtr const command_check_errors(PrepareCommand(
+    const CommandPtr command_check_errors(PrepareCommand(
         std::move(command->args),
         [this, shard, master, start, counter, command](const CommandPtr& ccommand, ReplyPtr reply) {
             if (counter != command->counter) return;

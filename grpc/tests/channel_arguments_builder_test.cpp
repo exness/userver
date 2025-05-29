@@ -98,13 +98,13 @@ UTEST(ServiceConfigBuilderTest, BuildEmpty) {
     const auto metadata = sample::ugrpc::UnitTestServiceClient::GetMetadata();
 
     {
-        ugrpc::client::impl::ServiceConfigBuilder service_config_builder{metadata, std::nullopt};
+        const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{metadata, std::nullopt};
         const auto service_config = service_config_builder.Build(ugrpc::client::ClientQos{});
         ASSERT_TRUE(service_config.IsNull());
     }
 
     {
-        ugrpc::client::impl::ServiceConfigBuilder service_config_builder{metadata, "{}"};
+        const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{metadata, "{}"};
         const auto service_config = service_config_builder.Build(ugrpc::client::ClientQos{});
         ASSERT_TRUE(service_config.IsObject() && service_config.IsEmpty());
     }
@@ -120,10 +120,10 @@ UTEST(ServiceConfigBuilderTest, BuildEmptyRetryPolicy) {
         formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos_default{/*attempts*/ 1, /**/ std::nullopt};
+    const ugrpc::client::Qos qos_default{/*attempts*/ 1, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.SetDefault(qos_default);
 
@@ -157,10 +157,10 @@ UTEST(ServiceConfigBuilderTest, StaticAndQosSameMethod) {
         formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos0{/*attempts*/ 3, /**/ std::nullopt};
+    const ugrpc::client::Qos qos0{/*attempts*/ 3, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.Set(GetMethodFullName(metadata, 0), qos0);
 
@@ -194,10 +194,10 @@ UTEST(ServiceConfigBuilderTest, StaticAndQosDifferentMethods) {
         formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos1{/*attempts*/ 3, /**/ std::nullopt};
+    const ugrpc::client::Qos qos1{/*attempts*/ 3, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.Set(GetMethodFullName(metadata, 1), qos1);
 
@@ -239,10 +239,10 @@ UTEST(ServiceConfigBuilderTest, StaticAndDefaultQos) {
         formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos_default{/*attempts*/ 3, /**/ std::nullopt};
+    const ugrpc::client::Qos qos_default{/*attempts*/ 3, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.SetDefault(qos_default);
 
@@ -283,10 +283,10 @@ UTEST(ServiceConfigBuilderTest, DefaultStaticAndQos) {
         formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos0{/*attempts*/ 3, /**/ std::nullopt};
+    const ugrpc::client::Qos qos0{/*attempts*/ 3, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.Set(GetMethodFullName(metadata, 0), qos0);
 
@@ -330,10 +330,10 @@ UTEST(ServiceConfigBuilderTest, ComplexName) {
         formats::json::MakeObject("methodConfig", formats::json::MakeArray(method_config_json));
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos0{/*attempts*/ 3, /**/ std::nullopt};
+    const ugrpc::client::Qos qos0{/*attempts*/ 3, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.Set(GetMethodFullName(metadata, 0), qos0);
 
@@ -397,13 +397,13 @@ UTEST(ServiceConfigBuilderTest, Complex) {
     );
     LOG_DEBUG() << "static_service_config: " << static_service_config;
 
-    ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
+    const ugrpc::client::impl::ServiceConfigBuilder service_config_builder{
         metadata, formats::json::ToString(static_service_config)};
 
-    ugrpc::client::Qos qos0{/*attempts*/ 2, /**/ std::nullopt};
-    ugrpc::client::Qos qos1{/*attempts*/ 3, /**/ std::nullopt};
-    ugrpc::client::Qos qos3{/*attempts*/ std::nullopt, /**/ std::nullopt};
-    ugrpc::client::Qos qos_default{/*attempts*/ 4, /**/ std::nullopt};
+    const ugrpc::client::Qos qos0{/*attempts*/ 2, /**/ std::nullopt};
+    const ugrpc::client::Qos qos1{/*attempts*/ 3, /**/ std::nullopt};
+    const ugrpc::client::Qos qos3{/*attempts*/ std::nullopt, /**/ std::nullopt};
+    const ugrpc::client::Qos qos_default{/*attempts*/ 4, /**/ std::nullopt};
     ugrpc::client::ClientQos client_qos;
     client_qos.methods.Set(GetMethodFullName(metadata, 0), qos0);
     client_qos.methods.Set(GetMethodFullName(metadata, 1), qos1);

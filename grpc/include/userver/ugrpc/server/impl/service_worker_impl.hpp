@@ -122,7 +122,7 @@ public:
             return;
         }
 
-        utils::FastScopeGuard await_notify_when_done([&]() noexcept {
+        const utils::FastScopeGuard await_notify_when_done([&]() noexcept {
             // Even if we finished before receiving notification that call is done, we
             // should wait on this async operation. CompletionQueue has a pointer to
             // stack-allocated object, that object is going to be freed upon exit. To

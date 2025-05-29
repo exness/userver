@@ -32,7 +32,7 @@ namespace storages::redis::impl {
 namespace {
 
 bool CheckQuorum(size_t requests_sent, size_t responses_parsed) {
-    size_t quorum = requests_sent / 2 + 1;
+    const size_t quorum = requests_sent / 2 + 1;
     return responses_parsed >= quorum;
 }
 
@@ -121,7 +121,7 @@ void SentinelImpl::WaitConnectedOnce(RedisWaitConnected wait_connected) {
     for (size_t i = 0; i < connected_statuses_.size(); ++i) {
         auto& shard = *connected_statuses_[i];
         if (!shard.WaitReady(deadline, wait_connected.mode)) {
-            std::string msg =
+            const std::string msg =
                 "Failed to connect to redis, shard_group_name=" + shard_group_name_ + ", shard=" + (*init_shards_)[i] +
                 " in " + std::to_string(wait_connected.timeout.count()) + " ms, mode=" + ToString(wait_connected.mode);
             if (wait_connected.throw_on_fail)
@@ -250,27 +250,27 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
         return;
     }
 
-    CommandPtr command = scommand.command;
+    const CommandPtr command = scommand.command;
     UINVARIANT(!command->asking, "ASK command requested in non cluster SentinelImpl");
     const std::size_t shard = (scommand.shard == kUnknownShard ? 0 : scommand.shard);
     const bool master = scommand.master;
 
     const auto start = scommand.start;
     const auto counter = command->counter;
-    CommandPtr command_check_errors(PrepareCommand(
+    const CommandPtr command_check_errors(PrepareCommand(
         std::move(command->args),
         [this, shard, master, start, counter, command](const CommandPtr& ccommand, ReplyPtr reply) {
             if (counter != command->counter) return;
             UASSERT(reply);
 
-            std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+            const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 
             UASSERT_MSG(!reply->data.IsErrorAsk(), "ASK command error in non cluster SentinelImpl");
             UASSERT_MSG(!reply->data.IsErrorMoved(), "MOVED error in non cluster SentinelImpl");
-            bool retry_to_master =
+            const bool retry_to_master =
                 !master && reply->data.IsNil() && command->control.force_retries_to_master_on_nil_reply;
-            bool retry = retry_to_master || reply->status != ReplyStatus::kOk || reply->IsUnusableInstanceError() ||
-                         reply->IsReadonlyError();
+            const bool retry = retry_to_master || reply->status != ReplyStatus::kOk ||
+                               reply->IsUnusableInstanceError() || reply->IsReadonlyError();
 
             if (retry) {
                 const CommandControlImpl cc{command->control};
@@ -301,7 +301,7 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
                 }
             }
 
-            std::chrono::duration<double> time = now - start;
+            const std::chrono::duration<double> time = now - start;
             reply->time = time.count();
             command->args = std::move(ccommand->args);
             InvokeCommand(command, std::move(reply));
@@ -326,7 +326,7 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
 
 size_t SentinelImpl::ShardByKey(const std::string& key) const {
     UASSERT(!master_shards_.empty());
-    size_t shard = key_shard_->ShardByKey(key);
+    const size_t shard = key_shard_->ShardByKey(key);
     LOG_TRACE() << "key=" << key << " shard=" << shard;
     return shard;
 }
@@ -414,7 +414,7 @@ void SentinelImpl::Stop() {
             for (auto& shard : shards) shard->Clean();
         };
         {
-            std::lock_guard<std::mutex> lock(command_mutex_);
+            const std::lock_guard<std::mutex> lock(command_mutex_);
             while (!commands_.empty()) {
                 auto command = commands_.back().command;
                 for (const auto& args : command->args) {
@@ -509,7 +509,7 @@ void SentinelImpl::ReadSentinels() {
                                           << requests_sent << " responses_parsed=" << responses_parsed;
                             return;
                         }
-                        std::lock_guard<std::mutex> lock(watcher->mutex);
+                        const std::lock_guard<std::mutex> lock(watcher->mutex);
                         for (auto shard_conn : info) {
                             shard_conn.SetName(shard);
                             shard_conn.SetReadOnly(true);
@@ -523,7 +523,7 @@ void SentinelImpl::ReadSentinels() {
                             shard_info_.UpdateHostPortToShard(std::move(watcher->host_port_to_shard));
 
                             {
-                                std::lock_guard<std::mutex> lock_this(sentinels_mutex_);
+                                const std::lock_guard<std::mutex> lock_this(sentinels_mutex_);
                                 master_shards_info_.swap(watcher->masters);
                                 slaves_shards_info_.swap(watcher->slaves);
                             }
@@ -553,9 +553,9 @@ bool SentinelImpl::SetConnectionInfo(ConnInfoMap info_by_shards, std::vector<std
     for (const auto& info_iterator : info_by_shards) {
         auto j = shards_.find(info_iterator.first);
         if (j != shards_.end()) {
-            size_t shard = j->second;
+            const size_t shard = j->second;
             auto shard_ptr = shards[shard];
-            bool changed = shard_ptr->SetConnectionInfo(info_iterator.second);
+            const bool changed = shard_ptr->SetConnectionInfo(info_iterator.second);
 
             if (changed) {
                 std::vector<std::string> conn_strs;
@@ -574,7 +574,7 @@ bool SentinelImpl::SetConnectionInfo(ConnInfoMap info_by_shards, std::vector<std
 void SentinelImpl::UpdateInstancesImpl() {
     bool changed = false;
     {
-        std::lock_guard<std::mutex> lock(sentinels_mutex_);
+        const std::lock_guard<std::mutex> lock(sentinels_mutex_);
         ConnInfoMap info_map;
         for (const auto& info : master_shards_info_) info_map[info.Name()].emplace_back(info);
         for (const auto& info : slaves_shards_info_) info_map[info.Name()].emplace_back(info);
@@ -606,7 +606,7 @@ void SentinelImpl::ProcessWaitingCommands() {
     std::vector<SentinelCommand> waiting_commands;
 
     {
-        std::lock_guard<std::mutex> lock(command_mutex_);
+        const std::lock_guard<std::mutex> lock(command_mutex_);
         waiting_commands.swap(commands_);
     }
     if (!waiting_commands.empty()) {
@@ -614,7 +614,7 @@ void SentinelImpl::ProcessWaitingCommands() {
                    << " waiting_commands.size()=" << waiting_commands.size();
     }
 
-    std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     for (const SentinelCommand& scommand : waiting_commands) {
         const auto& command = scommand.command;
         const CommandControlImpl cc{command->control};
@@ -639,7 +639,7 @@ Password SentinelImpl::GetPassword() {
 
 SentinelStatistics SentinelImpl::GetStatistics(const MetricsSettings& settings) const {
     SentinelStatistics stats(settings, statistics_internal_);
-    std::lock_guard<std::mutex> lock(sentinels_mutex_);
+    const std::lock_guard<std::mutex> lock(sentinels_mutex_);
     for (const auto& shard : master_shards_) {
         if (!shard) continue;
         auto masters_it = stats.masters.emplace(shard->ShardName(), ShardStatistics(settings));
@@ -659,12 +659,12 @@ SentinelStatistics SentinelImpl::GetStatistics(const MetricsSettings& settings) 
 }
 
 void SentinelImpl::EnqueueCommand(const SentinelCommand& command) {
-    std::lock_guard<std::mutex> lock(command_mutex_);
+    const std::lock_guard<std::mutex> lock(command_mutex_);
     commands_.push_back(command);
 }
 
 size_t SentinelImpl::ShardInfo::GetShard(const std::string& host, int port) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     const auto it = host_port_to_shard_.find(std::make_pair(host, port));
     if (it == host_port_to_shard_.end()) return kUnknownShard;
@@ -672,7 +672,7 @@ size_t SentinelImpl::ShardInfo::GetShard(const std::string& host, int port) cons
 }
 
 void SentinelImpl::ShardInfo::UpdateHostPortToShard(HostPortToShardMap&& host_port_to_shard_new) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     if (host_port_to_shard_new != host_port_to_shard_) {
         host_port_to_shard_.swap(host_port_to_shard_new);
     }

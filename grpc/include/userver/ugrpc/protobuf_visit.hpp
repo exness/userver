@@ -179,7 +179,7 @@ public:
         // Compile if not yet compiled
         Compile(message.GetDescriptor());
 
-        std::shared_lock read_lock = LockRead();
+        const std::shared_lock read_lock = LockRead();
         DoVisit(message, callback);
     }
 
@@ -192,7 +192,7 @@ public:
         Compile(message.GetDescriptor());
 
         constexpr int kMaxRecursionLimit = 100;
-        std::shared_lock read_lock = LockRead();
+        const std::shared_lock read_lock = LockRead();
         VisitRecursiveImpl(message, callback, kMaxRecursionLimit);
     }
 

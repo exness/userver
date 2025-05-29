@@ -41,8 +41,8 @@ std::optional<std::size_t> ReadRemainingAndFinish(InputStream<Response>& stream)
 ///         either reads or writes, or the server returning an error status)
 template <typename Request, typename Response>
 std::optional<std::size_t> ReadRemainingAndFinish(BidirectionalStream<Request, Response>& stream) noexcept {
-    bool writes_done_success = stream.WritesDone();
-    std::optional<std::size_t> messages_remaining =
+    const bool writes_done_success = stream.WritesDone();
+    const std::optional<std::size_t> messages_remaining =
         impl::ReadRemainingAndFinish<BidirectionalStream<Request, Response>, Response>(stream);
     return writes_done_success ? messages_remaining : std::nullopt;
 }
@@ -62,7 +62,7 @@ std::optional<std::size_t> ReadRemainingAndFinish(BidirectionalStream<Request, R
 template <typename Request, typename Response>
 [[nodiscard]] bool PingPongFinish(BidirectionalStream<Request, Response>& stream) noexcept {
     try {
-        bool writes_done_success = stream.WritesDone();
+        const bool writes_done_success = stream.WritesDone();
 
         Response response;
         if (!stream.Read(response)) {

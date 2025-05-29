@@ -43,7 +43,7 @@ Connection::Connection(
 
 Connection::~Connection() = default;
 
-settings::ConnectionSettings const& Connection::GetSettings() const noexcept { return settings_.conn_settings; }
+const settings::ConnectionSettings& Connection::GetSettings() const noexcept { return settings_.conn_settings; }
 
 StatementPtr Connection::PrepareStatement(const Query& query) {
     if (settings_.conn_settings.prepared_statements == settings::ConnectionSettings::kNoPreparedStatements) {

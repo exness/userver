@@ -391,7 +391,7 @@ TEST(MiddlewarePipeline, DurabilityOrder) {
     const middlewares::impl::MiddlewarePipeline pipeline2{std::move(dependencies2)};
     const auto list2 = pipeline2.GetPerServiceMiddlewares(kEmptyConfig);
 
-    std::vector<std::string> expected2{
+    const std::vector<std::string> expected2{
         std::string{Log::kName},
         std::string{Congestion::kName},
         std::string{Deadline::kName},

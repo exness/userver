@@ -28,11 +28,11 @@ void tracing_noop_ctr(benchmark::State& state) {
 BENCHMARK(tracing_noop_ctr);
 
 void tracing_happy_log(benchmark::State& state) {
-    logging::DefaultLoggerGuard guard{std::make_shared<NoopLogger>()};
+    const logging::DefaultLoggerGuard guard{std::make_shared<NoopLogger>()};
 
     engine::RunStandalone([&] {
         for ([[maybe_unused]] auto _ : state) {
-            auto tmp = tracing::Span::MakeRootSpan("name");
+            const auto tmp = tracing::Span::MakeRootSpan("name");
             benchmark::DoNotOptimize(tmp.GetSpanId());
         }
     });
@@ -51,7 +51,7 @@ void tracing_opentracing_ctr(benchmark::State& state) {
     auto logger = logging::MakeNullLogger();
     engine::RunStandalone([&] {
         for ([[maybe_unused]] auto _ : state) {
-            tracing::Span tmp = GetSpanWithOpentracingHttpTags();
+            const tracing::Span tmp = GetSpanWithOpentracingHttpTags();
             benchmark::DoNotOptimize(tmp.GetSpanId());
         }
     });

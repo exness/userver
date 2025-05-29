@@ -15,7 +15,7 @@ using namespace std::chrono_literals;
 USERVER_NAMESPACE_BEGIN
 
 TEST(SingleConsumerEvent, Ctr) {
-    engine::SingleConsumerEvent event;
+    const engine::SingleConsumerEvent event;
     EXPECT_TRUE(event.IsAutoReset());
     EXPECT_FALSE(event.IsReady());
 }

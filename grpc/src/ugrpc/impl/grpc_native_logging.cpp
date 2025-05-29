@@ -116,7 +116,7 @@ void SetupNativeLogging() {
 
 void UpdateNativeLogLevel(logging::Level min_log_level_override) {
 #if defined(USERVER_IMPL_FEATURE_OLD_GRPC_NATIVE_LOGGING) || defined(ARCADIA_ROOT)
-    std::lock_guard lock(native_log_level_mutex);
+    const std::lock_guard lock(native_log_level_mutex);
 
     if (utils::UnderlyingValue(min_log_level_override) < utils::UnderlyingValue(native_log_level)) {
         ::gpr_set_log_verbosity(ToGprLogSeverity(min_log_level_override));

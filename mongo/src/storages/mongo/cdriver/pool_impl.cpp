@@ -296,7 +296,7 @@ void CreateGlobalInitializer() {
     // Initialize static variable, and wait not on std::mutex, but on engine::Mutex.
     // Otherwise, CPU will burn.
     static engine::Mutex mutex;
-    std::unique_lock lock(mutex);
+    const std::unique_lock lock(mutex);
 
     static std::optional<GlobalInitializer> kInitMongoc;
     engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [] {
@@ -341,7 +341,7 @@ CDriverPoolImpl::CDriverPoolImpl(
 
     std::size_t i = 0;
     try {
-        tracing::Span span("mongo_prepopulate");
+        const tracing::Span span("mongo_prepopulate");
         LOG_INFO() << "Creating " << config.pool_settings.initial_size << " mongo connections";
         for (; i < config.pool_settings.initial_size; ++i) {
             engine::SemaphoreLock lock(in_use_semaphore_);
@@ -370,7 +370,7 @@ CDriverPoolImpl::CDriverPoolImpl(
 CDriverPoolImpl::~CDriverPoolImpl() {
     Stop();  // Must be the first line in the destructor
 
-    tracing::Span span("mongo_destroy");
+    const tracing::Span span("mongo_destroy");
     maintenance_task_.Stop();
 }
 

@@ -91,7 +91,7 @@ void TaskProcessorThreadStartedHook() {
         utils::WithDefaultRandom([](auto&) {});
 
         // uses /dev/urandom
-        utils::StrCaseHash hash;
+        const utils::StrCaseHash hash;
 
 #ifdef ARCADIA
         // caches result in static variables on the first call
@@ -346,7 +346,7 @@ void TaskProcessor::ProcessTasks() noexcept {
 
         bool has_failed = false;
         try {
-            impl::TaskCounter::RunningToken token{GetTaskCounter()};
+            const impl::TaskCounter::RunningToken token{GetTaskCounter()};
             context->DoStep();
         } catch (const std::exception& ex) {
             LOG_ERROR() << "uncaught exception from DoStep: " << ex;

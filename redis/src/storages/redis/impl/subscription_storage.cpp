@@ -219,7 +219,7 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
 ) {
     UASSERT(fsm);
     CommandPtr cmd;
-    std::weak_ptr<shard_subscriber::Fsm> weak_fsm = fsm;
+    const std::weak_ptr<shard_subscriber::Fsm> weak_fsm = fsm;
     const size_t shard = fsm->GetShard();
     auto self = implemented_.shared_from_this();
 
@@ -322,7 +322,7 @@ bool SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
     SubscriptionId subscription_id,
     bool sharded
 ) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    const std::unique_lock<std::mutex> lock(mutex_);
     for (auto& it1 : callback_map) {
         const auto& key = it1.first;
         auto& m = it1.second;

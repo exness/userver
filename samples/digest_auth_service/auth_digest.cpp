@@ -61,7 +61,7 @@ private:
 
 /// [auth checker definition 1]
 std::optional<UserData> AuthChecker::FetchUserData(const std::string& username) const {
-    storages::postgres::ResultSet res =
+    const storages::postgres::ResultSet res =
         pg_cluster_->Execute(storages::postgres::ClusterHostType::kSlave, uservice_dynconf::sql::kSelectUser, username);
 
     if (res.IsEmpty()) return std::nullopt;

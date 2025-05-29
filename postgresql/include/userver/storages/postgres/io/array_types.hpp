@@ -351,7 +351,7 @@ private:
         if (*dim != element.size()) {
             throw InvalidDimensions{*dim, element.size()};
         }
-        for (bool sub : element) {
+        for (const bool sub : element) {
             io::WriteRawBinary(types, buffer, sub);
         }
     }

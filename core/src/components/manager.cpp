@@ -249,7 +249,7 @@ engine::TaskProcessor& Manager::GetTaskProcessor(std::string_view name) const {
 }
 
 void Manager::OnSignal(int signum) {
-    std::shared_lock<std::shared_timed_mutex> lock(context_mutex_);
+    const std::shared_lock<std::shared_timed_mutex> lock(context_mutex_);
     if (components_cleared_) return;
     if (signal_processor_) {
         signal_processor_->Get().Notify(signum, utils::impl::InternalTag{});
@@ -265,7 +265,7 @@ void Manager::CreateComponentContext(const ComponentList& component_list) {
     for (const auto& adder : component_list) {
         auto [it, inserted] = loading_component_names.insert(adder->GetComponentName());
         if (!inserted) {
-            std::string message = "duplicate component name in component_list: " + *it;
+            const std::string message = "duplicate component name in component_list: " + *it;
             LOG_ERROR() << message;
             throw std::runtime_error(message);
         }
@@ -426,7 +426,7 @@ void Manager::AddComponentImpl(
 
 void Manager::ClearComponents() noexcept {
     {
-        std::unique_lock<std::shared_timed_mutex> lock(context_mutex_);
+        const std::unique_lock<std::shared_timed_mutex> lock(context_mutex_);
         components_cleared_ = true;
     }
     try {

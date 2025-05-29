@@ -128,19 +128,19 @@ TEST_F(LoggingTest, DatetimeDate) {
 }
 
 TEST_F(LoggingTest, StdTuple) {
-    std::tuple<int> one{1234};
+    const std::tuple<int> one{1234};
     EXPECT_EQ("(1234)", ToStringViaLogging(one));
 
-    std::tuple<int, float, char, std::string> many{42, 3.14, 'c', "str"};
+    const std::tuple<int, float, char, std::string> many{42, 3.14, 'c', "str"};
     EXPECT_EQ("(42, 3.14, c, str)", ToStringViaLogging(many));
 
-    std::tuple<std::vector<int>> container{{1, 2, 3, 4}};
+    const std::tuple<std::vector<int>> container{{1, 2, 3, 4}};
     EXPECT_EQ("([1, 2, 3, 4])", ToStringViaLogging(container));
 
-    std::tuple<std::optional<int>, std::optional<int>> optionals{std::nullopt, 0};
+    const std::tuple<std::optional<int>, std::optional<int>> optionals{std::nullopt, 0};
     EXPECT_EQ("((none), 0)", ToStringViaLogging(optionals));
 
-    std::tuple<> empty{};
+    const std::tuple<> empty{};
     EXPECT_EQ("()", ToStringViaLogging(empty));
 }
 
@@ -178,8 +178,8 @@ TEST_F(LoggingTest, Call) {
 
 TEST_F(LoggingTest, DISABLED_CallFormat) {
     const int user_id = 42;
-    std::string ip_address = "127.0.0.1";
-    std::string_view expected_result = "User 42 logged in from 127.0.0.1";
+    const std::string ip_address = "127.0.0.1";
+    const std::string_view expected_result = "User 42 logged in from 127.0.0.1";
 
     /// [Example format bad logging usage]
     LOG_INFO() << fmt::format("User {} logged in from {}", user_id, ip_address);

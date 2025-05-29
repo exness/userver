@@ -142,7 +142,7 @@ void HeaderMapEraseBenchmark(benchmark::State& state) {
         return;
     }
 
-    std::vector<http::headers::PredefinedHeader> predefined_headers{headers.begin(), headers.end()};
+    const std::vector<http::headers::PredefinedHeader> predefined_headers{headers.begin(), headers.end()};
     for ([[maybe_unused]] auto _ : state) {
         auto map = initial_map;
         for (const auto& h : predefined_headers) {

@@ -168,7 +168,7 @@ std::string ToPrometheusName(std::string_view data) {
 }
 
 std::string ToPrometheusLabel(std::string_view name) {
-    std::string converted = impl::ToPrometheusName(name);
+    const std::string converted = impl::ToPrometheusName(name);
     auto pos = converted.find_first_not_of('_');
     if (pos == std::string::npos) {
         return {};

@@ -57,7 +57,7 @@ void Middleware::PreStartCall(MiddlewareCallContext& context) const {
 
 /// [MiddlewareBase Message methods example]
 void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
-    SpanLogger logger{context.GetSpan(), settings_.local_log_level};
+    const SpanLogger logger{context.GetSpan(), settings_.local_log_level};
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "request"},                  //
         {"body", GetMessageForLogging(message, settings_)},  //
@@ -70,7 +70,7 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::pr
 }
 
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
-    SpanLogger logger{context.GetSpan(), settings_.local_log_level};
+    const SpanLogger logger{context.GetSpan(), settings_.local_log_level};
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "response"},                 //
         {"body", GetMessageForLogging(message, settings_)},  //
@@ -84,7 +84,7 @@ void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::p
 /// [MiddlewareBase Message methods example]
 
 void Middleware::PostFinish(MiddlewareCallContext& context, const grpc::Status& status) const {
-    SpanLogger logger{context.GetSpan(), settings_.local_log_level};
+    const SpanLogger logger{context.GetSpan(), settings_.local_log_level};
     if (status.ok()) {
         if (context.IsServerStreaming()) {
             SpanLogger{context.GetSpan(), settings_.local_log_level}.Log(

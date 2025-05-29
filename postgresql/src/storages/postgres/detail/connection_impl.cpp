@@ -342,7 +342,7 @@ bool ConnectionImpl::IsBroken() const { return conn_wrapper_.IsBroken(); }
 
 bool ConnectionImpl::IsExpired() const { return expires_at_.has_value() && SteadyNow() > *expires_at_; }
 
-ConnectionSettings const& ConnectionImpl::GetSettings() const { return settings_; }
+const ConnectionSettings& ConnectionImpl::GetSettings() const { return settings_; }
 
 CommandControl ConnectionImpl::GetDefaultCommandControl() const { return default_cmd_ctls_.GetDefaultCmdCtl(); }
 
@@ -410,7 +410,7 @@ void ConnectionImpl::Begin(
 }
 
 void ConnectionImpl::Commit() {
-    ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
+    const ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
 
     if (!IsInTransaction()) {
         throw NotInTransaction();
@@ -423,13 +423,13 @@ void ConnectionImpl::Commit() {
         throw RuntimeError{"Attempted to commit already failed transaction"};
     }
 
-    CountCommit count_commit(stats_);
-    ResetTransactionCommandControl transaction_guard{*this};
+    const CountCommit count_commit(stats_);
+    const ResetTransactionCommandControl transaction_guard{*this};
     ExecuteCommandNoPrepare("COMMIT", MakeCurrentDeadline());
 }
 
 void ConnectionImpl::Rollback() {
-    ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
+    const ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
 
     if (!IsInTransaction()) {
         throw NotInTransaction();
@@ -438,8 +438,8 @@ void ConnectionImpl::Rollback() {
         throw RuntimeError{"Attempted to rollback a broken connection"};
     }
 
-    CountRollback count_rollback(stats_);
-    ResetTransactionCommandControl transaction_guard{*this};
+    const CountRollback count_rollback(stats_);
+    const ResetTransactionCommandControl transaction_guard{*this};
 
     if (GetConnectionState() != ConnectionState::kTranActive ||
         (IsPipelineActive() && !conn_wrapper_.IsSyncingPipeline())) {
@@ -466,14 +466,14 @@ Connection::StatementId ConnectionImpl::PortalBind(
     const QueryParameters& params,
     OptionalCommandControl statement_cmd_ctl
 ) {
-    ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
+    const ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
     if (settings_.prepared_statements == ConnectionSettings::kNoPreparedStatements) {
         LOG_LIMITED_WARNING() << "Portals without prepared statements are currently unsupported";
         throw LogicError{"Prepared statements shouldn't be turned off while using portals"};
     }  // TODO Prepare unnamed query instead
 
     CheckBusy();
-    TimeoutDuration network_timeout = NetworkTimeout(statement_cmd_ctl);
+    const TimeoutDuration network_timeout = NetworkTimeout(statement_cmd_ctl);
     auto deadline = testsuite_pg_ctl_.MakeExecuteDeadline(network_timeout);
     SetStatementTimeout(std::move(statement_cmd_ctl));
     tracing::Span span{FindQueryShortInfo(scopes::kBind, statement)};
@@ -500,8 +500,8 @@ ResultSet ConnectionImpl::PortalExecute(
     std::uint32_t n_rows,
     OptionalCommandControl statement_cmd_ctl
 ) {
-    ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
-    TimeoutDuration network_timeout = NetworkTimeout(statement_cmd_ctl);
+    const ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
+    const TimeoutDuration network_timeout = NetworkTimeout(statement_cmd_ctl);
 
     auto deadline = testsuite_pg_ctl_.MakeExecuteDeadline(network_timeout);
     SetStatementTimeout(std::move(statement_cmd_ctl));
@@ -583,7 +583,7 @@ void ConnectionImpl::CancelAndCleanup(TimeoutDuration timeout) {
 }
 
 bool ConnectionImpl::Cleanup(TimeoutDuration timeout) {
-    ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
+    const ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
     const auto deadline = testsuite_pg_ctl_.MakeExecuteDeadline(timeout);
     conn_wrapper_.DiscardInput(deadline);
     auto state = GetConnectionState();
@@ -749,7 +749,7 @@ const ConnectionImpl::PreparedStatementInfo& ConnectionImpl::DoPrepareStatement(
     tracing::ScopeTime& scope
 ) {
     auto query_hash = QueryHash(statement, params);
-    Connection::StatementId query_id{query_hash};
+    const Connection::StatementId query_id{query_hash};
 
     error_injection::Hook ei_hook(ei_settings_, deadline);
     ei_hook.PreHook<ConnectionTimeoutError, CommandError>();
@@ -777,7 +777,7 @@ const ConnectionImpl::PreparedStatementInfo& ConnectionImpl::DoPrepareStatement(
     LOG_TRACE() << "Query " << statement << " is not yet prepared";
 
     const std::string statement_name = "q" + std::to_string(query_hash) + "_" + uuid_;
-    bool should_prepare = !statement_info;
+    const bool should_prepare = !statement_info;
     if (should_prepare) {
         conn_wrapper_.SendPrepare(statement_name, statement, params, scope);
 
@@ -870,7 +870,7 @@ ResultSet ConnectionImpl::ExecuteCommand(const Query& query, const QueryParamete
     auto scope = span.CreateScopeTime();
     CountExecute count_execute(stats_);
 
-    auto const& prepared_info = DoPrepareStatement(statement, params, deadline, span, scope);
+    const auto& prepared_info = DoPrepareStatement(statement, params, deadline, span, scope);
 
     const ResultSet* description_ptr_to_read = nullptr;
     PGresult* description_ptr_to_send = nullptr;
@@ -988,7 +988,7 @@ void ConnectionImpl::SetParameter(
     Connection::ParameterScope scope,
     engine::Deadline deadline
 ) {
-    bool is_transaction_scope = (scope == Connection::ParameterScope::kTransaction);
+    const bool is_transaction_scope = (scope == Connection::ParameterScope::kTransaction);
     LOG_DEBUG() << "Set '" << name << "' = '" << value << "' at " << (is_transaction_scope ? "transaction" : "session")
                 << " scope";
     StaticQueryParameters<3> params;
@@ -1006,7 +1006,7 @@ void ConnectionImpl::LoadUserTypes(engine::Deadline deadline) {
         std::optional<TypedResultSet<DBTypeDescription, RowTag>> types{};
         UserTypes::CompositeFieldDefs attribs{};
         {
-            tracing::ScopeTime scope_time{"pg_load_user_types"};
+            const tracing::ScopeTime scope_time{"pg_load_user_types"};
 #if LIBPQ_HAS_PIPELINING
             conn_wrapper_.EnterPipelineMode();
             SendCommandNoPrepare("BEGIN", deadline);
@@ -1069,7 +1069,7 @@ ResultSet ConnectionImpl::WaitResult(
 ) {
     const PGresult* description = description_ptr ? description_ptr->pimpl_->handle_.get() : nullptr;
 
-    ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
+    const ScopeGuard guard([this]() { in_transaction_ = IsInTransaction(); });
 
     try {
         auto res = conn_wrapper_.WaitResult(deadline, scope, description);
@@ -1095,7 +1095,7 @@ ResultSet ConnectionImpl::WaitResult(
         throw;
     } catch (const QueryCancelled& e) {
         ++stats_.execute_timeout;
-        bool cancelled_by_dp = deadline_propagation_is_active_;
+        const bool cancelled_by_dp = deadline_propagation_is_active_;
         if (cancelled_by_dp) {
             server::request::MarkTaskInheritedDeadlineExpired();
         }
@@ -1124,7 +1124,7 @@ void ConnectionImpl::Cancel() { conn_wrapper_.Cancel().Wait(); }
 void ConnectionImpl::ReportStatement(const std::string& name) {
     // Only report statement usage once.
     {
-        std::unique_lock<engine::Mutex> lock{statements_mutex_};
+        const std::unique_lock<engine::Mutex> lock{statements_mutex_};
         if (statements_reported_.count(name)) return;
     }
 

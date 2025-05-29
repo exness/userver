@@ -15,7 +15,7 @@ namespace {
 namespace client = ::clients::multiple_content_types::test1_post;
 
 UTEST(RequestsMultipleContentTypes, Json) {
-    utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
+    const utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
         EXPECT_EQ(request.body, R"({"foo":"a"})");
         EXPECT_EQ(request.headers.at(std::string{"Content-Type"}), "application/json");
         return utest::HttpServerMock::HttpResponse{200};
@@ -32,7 +32,7 @@ UTEST(RequestsMultipleContentTypes, Json) {
 }
 
 UTEST(RequestsMultipleContentTypes, XWwwFormUrlencoded) {
-    utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
+    const utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
         EXPECT_EQ(request.body, "is_smoking=true&salary=1000.500000&age=30&password=123%20456&name=abc");
         EXPECT_EQ(request.headers.at(std::string{"Content-Type"}), "application/x-www-form-urlencoded");
         return utest::HttpServerMock::HttpResponse{200};
@@ -51,8 +51,8 @@ UTEST(RequestsMultipleContentTypes, XWwwFormUrlencoded) {
 }
 
 UTEST(RequestsMultipleContentTypes, MultipartFormData) {
-    utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
-        http::ContentType content_type(request.headers.at(std::string{"Content-Type"}));
+    const utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
+        const http::ContentType content_type(request.headers.at(std::string{"Content-Type"}));
         EXPECT_EQ(content_type.MediaType(), "multipart/form-data");
         const auto& boundary = content_type.Boundary();
         EXPECT_EQ(
@@ -81,7 +81,7 @@ UTEST(RequestsMultipleContentTypes, MultipartFormData) {
 }
 
 UTEST(RequestsMultipleContentTypes, OctetStream) {
-    utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
+    const utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {
         EXPECT_EQ(request.body, "blabla");
         EXPECT_EQ(request.headers.at(std::string{"Content-Type"}), "application/octet-stream");
         return utest::HttpServerMock::HttpResponse{200};

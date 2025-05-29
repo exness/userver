@@ -8,7 +8,7 @@ USERVER_NAMESPACE_BEGIN
 namespace {
 
 void http_request_constructor_url_decode(benchmark::State& state) {
-    std::string tmp = "1";
+    const std::string tmp = "1";
     std::string input;
 
     for (int64_t i = 0; i < state.range(0); i++) input += tmp;

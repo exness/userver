@@ -40,7 +40,7 @@ TEST(Simple, Integer) {
 }
 
 TEST(Simple, DefaultFieldValue) {
-    ns::SimpleObject obj;
+    const ns::SimpleObject obj;
     EXPECT_EQ(obj.int_, 1);
 }
 
@@ -172,7 +172,7 @@ TEST(Simple, IntegerEnum) {
 
     EXPECT_EQ(std::size(ns::kIntegerEnumValues), 3);
 
-    ns::IntegerEnum values[] = {ns::IntegerEnum::k1, ns::IntegerEnum::k2, ns::IntegerEnum::k3};
+    const ns::IntegerEnum values[] = {ns::IntegerEnum::k1, ns::IntegerEnum::k2, ns::IntegerEnum::k3};
     std::size_t index = 0;
     for (const auto& value : ns::kIntegerEnumValues) {
         EXPECT_EQ(value, values[index]);
@@ -215,7 +215,7 @@ TEST(Simple, StringEnum) {
 
     EXPECT_EQ(std::size(ns::kStringEnumValues), 3);
 
-    ns::StringEnum values[] = {ns::StringEnum::kFoo, ns::StringEnum::kBar, ns::StringEnum::kSomeThing};
+    const ns::StringEnum values[] = {ns::StringEnum::kFoo, ns::StringEnum::kBar, ns::StringEnum::kSomeThing};
     std::size_t index = 0;
     for (const auto& value : ns::kStringEnumValues) {
         EXPECT_EQ(value, values[index]);
@@ -292,11 +292,11 @@ TEST(Simple, Indirect) {
 }
 
 TEST(Simple, HyphenField) {
-    ns::ObjectWithHyphenField obj;
+    const ns::ObjectWithHyphenField obj;
     EXPECT_EQ(obj.foo_field, std::nullopt);
 }
 
-TEST(Simple, SubSubObjectSmoke) { [[maybe_unused]] ns::Objectx::Objectx_::Objectx__ x; }
+TEST(Simple, SubSubObjectSmoke) { [[maybe_unused]] const ns::Objectx::Objectx_::Objectx__ x; }
 
 TEST(Simple, ExtraType) {
     static_assert(std::is_same_v<
@@ -305,7 +305,7 @@ TEST(Simple, ExtraType) {
 }
 
 TEST(Simple, CppName) {
-    ns::ObjectName obj;
+    const ns::ObjectName obj;
     EXPECT_EQ(obj.bar, std::nullopt);
 }
 
@@ -321,7 +321,7 @@ TEST(Simple, DateTime) {
     auto json = formats::json::MakeObject("updated_at", date);
     auto obj = json.As<ns::ObjectDate>();
 
-    utils::datetime::TimePointTz tp{
+    const utils::datetime::TimePointTz tp{
         utils::datetime::UtcStringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
     EXPECT_EQ(obj.updated_at, tp);
 
@@ -334,7 +334,7 @@ TEST(Simple, DateTimeExtra) {
     auto json = formats::json::MakeObject("updated_at_extra", date);
     auto obj = json.As<ns::ObjectDate>();
 
-    utils::datetime::TimePointTz tp{
+    const utils::datetime::TimePointTz tp{
         utils::datetime::UtcStringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
     EXPECT_EQ(obj.updated_at_extra->time_point, tp);
 
@@ -347,7 +347,7 @@ TEST(Simple, DateTimeIsoBasic) {
     auto json = formats::json::MakeObject("deleted_at", date);
     auto obj = json.As<ns::ObjectDate>();
 
-    utils::datetime::TimePointTzIsoBasic tp{
+    const utils::datetime::TimePointTzIsoBasic tp{
         utils::datetime::UtcStringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
     EXPECT_EQ(obj.deleted_at, tp);
 
@@ -360,8 +360,8 @@ TEST(Simple, Uuid) {
     auto json = formats::json::MakeObject("uuid", uuid);
     auto obj = json.As<ns::ObjectUuid>();
 
-    boost::uuids::string_generator gen;
-    boost::uuids::uuid expected = gen(uuid);
+    const boost::uuids::string_generator gen;
+    const boost::uuids::uuid expected = gen(uuid);
     EXPECT_EQ(obj.uuid, expected);
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["uuid"].As<std::string>();

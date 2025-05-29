@@ -60,7 +60,7 @@ std::optional<std::string> PrivateKey::GetPemStringUnencrypted() const {
 }
 
 PrivateKey PrivateKey::LoadFromString(std::string_view key) {
-    std::string_view empty_password{};
+    const std::string_view empty_password{};
     return LoadFromString(key, empty_password);
 }
 

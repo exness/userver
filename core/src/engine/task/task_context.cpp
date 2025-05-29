@@ -214,7 +214,7 @@ void TaskContext::DoStep() {
     // eh_globals is replaced in task scope, we must proxy the exception
     std::exception_ptr uncaught;
     {
-        CurrentTaskScope current_task_scope(*this, eh_globals_);
+        const CurrentTaskScope current_task_scope(*this, eh_globals_);
         try {
             SetState(Task::State::kRunning);
             auto& coro_ref = *coro_;

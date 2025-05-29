@@ -152,7 +152,7 @@ public:
     bool IsInRecovery() const;
     bool IsReadOnly() const;
     void RefreshReplicaState(engine::Deadline) const;
-    ConnectionSettings const& GetSettings() const;
+    const ConnectionSettings& GetSettings() const;
 
     /// Get current connection state
     ConnectionState GetState() const;

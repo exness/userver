@@ -441,7 +441,7 @@ StreamReadFuture<RPC>& StreamReadFuture<RPC>::operator=(StreamReadFuture<RPC>&& 
 template <typename RPC>
 StreamReadFuture<RPC>::~StreamReadFuture() {
     if (state_) {
-        impl::CallState::AsyncMethodInvocationGuard guard(*state_);
+        const impl::CallState::AsyncMethodInvocationGuard guard(*state_);
         const auto wait_status = impl::Wait(state_->GetAsyncMethodInvocation(), state_->GetContext());
         if (wait_status != impl::AsyncMethodInvocation::WaitStatus::kOk) {
             if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
@@ -459,7 +459,7 @@ StreamReadFuture<RPC>::~StreamReadFuture() {
 template <typename RPC>
 bool StreamReadFuture<RPC>::Get() {
     UINVARIANT(state_, "'Get' must be called only once");
-    impl::CallState::AsyncMethodInvocationGuard guard(*state_);
+    const impl::CallState::AsyncMethodInvocationGuard guard(*state_);
     auto* const state = std::exchange(state_, nullptr);
     const auto result = impl::Wait(state->GetAsyncMethodInvocation(), state->GetContext());
     if (result == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
@@ -590,7 +590,7 @@ bool OutputStream<Request, Response>::Write(const Request& request) {
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered
-    grpc::WriteOptions write_options{};
+    const grpc::WriteOptions write_options{};
     return impl::Write(*stream_, request, write_options, GetState());
 }
 
@@ -606,7 +606,7 @@ void OutputStream<Request, Response>::WriteAndCheck(const Request& request) {
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered
-    grpc::WriteOptions write_options{};
+    const grpc::WriteOptions write_options{};
     if (!impl::Write(*stream_, request, write_options, GetState())) {
         // We don't need final_response here, because the RPC is broken anyway.
         impl::Finish(*stream_, GetState(), /*final_response=*/nullptr, /*throw_on_error=*/true);
@@ -677,7 +677,7 @@ bool BidirectionalStream<Request, Response>::Write(const Request& request) {
     impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
-    grpc::WriteOptions write_options{};
+    const grpc::WriteOptions write_options{};
     return impl::Write(*stream_, request, write_options, GetState());
 }
 
@@ -692,7 +692,7 @@ void BidirectionalStream<Request, Response>::WriteAndCheck(const Request& reques
     impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
-    grpc::WriteOptions write_options{};
+    const grpc::WriteOptions write_options{};
     impl::WriteAndCheck(*stream_, request, write_options, GetState());
 }
 

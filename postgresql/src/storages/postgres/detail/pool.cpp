@@ -413,14 +413,14 @@ engine::TaskWithResult<bool> ConnectionPool::Connect(engine::SemaphoreLock lock,
 bool ConnectionPool::DoConnect(engine::SemaphoreLock size_lock, ConnectionSettings&& conn_settings) {
     if (!size_lock) return false;
     LOG_TRACE() << "Creating PostgreSQL connection, current pool size: " << size_semaphore_.UsedApprox();
-    engine::SemaphoreLock connecting_lock{connecting_semaphore_, kConnectingTimeout};
+    const engine::SemaphoreLock connecting_lock{connecting_semaphore_, kConnectingTimeout};
     if (!connecting_lock) {
         LOG_WARNING() << "Pool has too many establishing connections";
         return false;
     }
     const uint32_t conn_id = ++stats_.connection.open_total;
     std::unique_ptr<Connection> connection;
-    Stopwatch st{stats_.connection_percentile};
+    const Stopwatch st{stats_.connection_percentile};
     try {
         connection = Connection::Connect(
             dsn_,
@@ -523,7 +523,7 @@ Connection* ConnectionPool::Pop(engine::Deadline deadline) {
         ++stats_.connection.error_timeout;
         throw PoolError("Deadline reached before trying to get a connection");
     }
-    Stopwatch st{stats_.acquire_percentile};
+    const Stopwatch st{stats_.acquire_percentile};
     Connection* connection = nullptr;
     auto conn_settings = conn_settings_.Read();
     while (conn_consumer_.PopNoblock(connection)) {
@@ -539,7 +539,7 @@ Connection* ConnectionPool::Pop(engine::Deadline deadline) {
     }
 
     auto settings = settings_.Read();
-    SizeGuard wg(wait_count_);
+    const SizeGuard wg(wait_count_);
     if (wg.GetValue() > settings->max_queue_size) {
         ++stats_.queue_size_errors;
         throw PoolError("Wait queue size exceeded");

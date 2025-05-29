@@ -195,7 +195,7 @@ UTEST_F(GrpcBidirectionalStream, BidirectionalStreamReadRemainingAfterWritesDone
 
 UTEST_F(GrpcInputStream, InputStreamTest) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
-    sample::ugrpc::StreamGreetingRequest request;
+    const sample::ugrpc::StreamGreetingRequest request;
     auto stream = client.ReadMany(request);
 
     sample::ugrpc::StreamGreetingResponse response;
@@ -210,7 +210,7 @@ UTEST_F(GrpcInputStream, InputStreamTest) {
 
 UTEST_F(GrpcInputStream, InputStreamReadRemainingNoMessages) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
-    sample::ugrpc::StreamGreetingRequest request;
+    const sample::ugrpc::StreamGreetingRequest request;
     auto stream = client.ReadMany(request);
 
     sample::ugrpc::StreamGreetingResponse response;
@@ -224,7 +224,7 @@ UTEST_F(GrpcInputStream, InputStreamReadRemainingNoMessages) {
 
 UTEST_F(GrpcInputStream, InputStreamReadRemainingMultipleMessages) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
-    sample::ugrpc::StreamGreetingRequest request;
+    const sample::ugrpc::StreamGreetingRequest request;
     auto stream = client.ReadMany(request);
 
     sample::ugrpc::StreamGreetingResponse response;
@@ -238,7 +238,7 @@ UTEST_F(GrpcOutputStream, OutputStreamTest) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
     auto stream = client.WriteMany();
 
-    sample::ugrpc::StreamGreetingRequest request;
+    const sample::ugrpc::StreamGreetingRequest request;
     ASSERT_TRUE(stream.Write(request));
     UEXPECT_NO_THROW(stream.Finish());
 

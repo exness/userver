@@ -162,7 +162,7 @@ void Responder<CallTraits>::DoWrite(Response& response) {
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered.
-    grpc::WriteOptions write_options{};
+    const grpc::WriteOptions write_options{};
 
     try {
         impl::Write(raw_responder_, response, write_options, GetCallName());
@@ -192,7 +192,7 @@ template <typename CallTraits>
 
     if constexpr (impl::IsServerStreaming(kCallKind)) {
         // Don't buffer writes, optimize for ping-pong-style interaction.
-        grpc::WriteOptions write_options{};
+        const grpc::WriteOptions write_options{};
 
         return impl::WriteAndFinish(raw_responder_, response, write_options, grpc::Status::OK);
     } else {

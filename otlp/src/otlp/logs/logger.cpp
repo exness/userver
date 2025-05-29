@@ -238,7 +238,7 @@ void Logger::Log(logging::Level level, logging::impl::formatters::LoggerItemRef 
     auto& log = static_cast<Item&>(item);
 
     if (!log.otlp.valueless_by_exception()) {
-        bool ok = queue_producer_.PushNoblock(std::move(log.otlp));
+        const bool ok = queue_producer_.PushNoblock(std::move(log.otlp));
         if (!ok) {
             // Drop a log/trace if overflown
             ++stats_.dropped;

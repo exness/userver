@@ -169,7 +169,7 @@ void VisitorCompiler::Compile(const google::protobuf::Descriptor* descriptor) {
 void VisitorCompiler::Compile(const DescriptorList& descriptors) {
     {
         bool are_compiled = true;
-        std::shared_lock read_lock = LockRead();
+        const std::shared_lock read_lock = LockRead();
         for (const google::protobuf::Descriptor* descriptor : descriptors) {
             if (compiled_.find(descriptor) == compiled_.end()) {
                 // Something is not compiled. Need to compile.
@@ -183,7 +183,7 @@ void VisitorCompiler::Compile(const DescriptorList& descriptors) {
         }
     }
 
-    std::unique_lock write_lock = LockWrite();
+    const std::unique_lock write_lock = LockWrite();
     for (const google::protobuf::Descriptor* descriptor : GetFullSubtrees(descriptors)) {
         UINVARIANT(descriptor, "descriptor is nullptr");
 
@@ -234,7 +234,7 @@ bool VisitorCompiler::ContainsSelected(const google::protobuf::Descriptor* descr
     // Compile if not yet compiled
     Compile(descriptor);
 
-    std::shared_lock read_lock = LockRead();
+    const std::shared_lock read_lock = LockRead();
     return fields_with_selected_children_.find(descriptor) != fields_with_selected_children_.end() ||
            IsSelected(*descriptor);
 }

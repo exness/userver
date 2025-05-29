@@ -138,7 +138,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientWriteManyWriteAndCheck) {
     auto context = std::make_unique<grpc::ClientContext>();
     auto call = Client().WriteMany(std::move(context));
 
-    sample::ugrpc::StreamGreetingResponse response;
+    const sample::ugrpc::StreamGreetingResponse response;
 
     CheckSuccessWrite(call, request, tests::kRequests[0]);
     CheckSuccessWrite(call, request, tests::kRequests[1]);
@@ -320,7 +320,7 @@ UTEST_F(GrpcTestInheritedDedline, TestServerDataExist) {
     out.set_name("userver");
 
     auto context = std::make_unique<grpc::ClientContext>();
-    engine::Deadline deadline = engine::Deadline::FromDuration(tests::kLongTimeout);
+    const engine::Deadline deadline = engine::Deadline::FromDuration(tests::kLongTimeout);
 
     GetService().SetClientInitialTimeout(tests::kLongTimeout);
     context->set_deadline(deadline);
@@ -340,7 +340,7 @@ UTEST_F(GrpcTestInheritedDedline, TestDeadlineExpiresBeforeCall) {
     out.set_name("userver");
 
     auto context = std::make_unique<grpc::ClientContext>();
-    engine::Deadline deadline = engine::Deadline::FromDuration(tests::kShortTimeout);
+    const engine::Deadline deadline = engine::Deadline::FromDuration(tests::kShortTimeout);
     context->set_deadline(deadline);
 
     // Test that the time between client context

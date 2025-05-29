@@ -41,7 +41,7 @@ UTEST(Cancel, UnwindWorksInDtorSubtask) {
 
     engine::TaskWithResult<void> detached_task;
     engine::SingleConsumerEvent task_detached_event;
-    auto task = engine::AsyncNoSpan([&] { DetachingRaii raii(task_detached_event, detached_task); });
+    auto task = engine::AsyncNoSpan([&] { const DetachingRaii raii(task_detached_event, detached_task); });
     ASSERT_TRUE(task_detached_event.WaitForEvent());
     task.Wait();
 
@@ -124,7 +124,7 @@ UTEST(Cancel, DeadlineBeforeTaskStarted) {
 
 UTEST(Cancel, DeadlineBeforeTaskStartedCritical) {
     const auto passed_deadline = engine::Deadline::FromDuration(-1s);
-    engine::SingleConsumerEvent infinity;
+    const engine::SingleConsumerEvent infinity;
 
     auto task = engine::CriticalAsyncNoSpan(passed_deadline, [&] {
         // Critical should ensure that the task is started, but should still allow
@@ -216,7 +216,7 @@ UTEST(Cancel, CancellationBlocker) {
         engine::current_task::SetDeadline(engine::Deadline::FromDuration(-1s));
 
         {
-            engine::TaskCancellationBlocker cancel_blocker;
+            const engine::TaskCancellationBlocker cancel_blocker;
             EXPECT_TRUE(delayed_event.WaitForEventFor(utest::kMaxTestWaitTime));
             EXPECT_FALSE(engine::current_task::ShouldCancel());
         }
@@ -299,7 +299,7 @@ UTEST(Cancel, CancellationTokenDtorNoWait) {
         return kTaskResult;
     });
 
-    { engine::TaskCancellationToken token{task}; }
+    { const engine::TaskCancellationToken token{task}; }
     // destroying token neither waits for task, nor
     // cancels the task
     EXPECT_EQ(engine::TaskCancellationReason::kNone, task.CancellationReason());

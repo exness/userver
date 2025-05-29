@@ -651,7 +651,7 @@ UTEST(FieldsVisitorCompile, ThreeCAB) {
 }
 
 UTEST(FieldsVisitorConstructor, TestComponent1) {
-    ugrpc::FieldsVisitor visitor(FieldSelector, component1::Get());
+    const ugrpc::FieldsVisitor visitor(FieldSelector, component1::Get());
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), component1::GetSelectedFields());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component1::GetFieldsWithSelectedChildren()
@@ -659,7 +659,7 @@ UTEST(FieldsVisitorConstructor, TestComponent1) {
 }
 
 UTEST(FieldsVisitorConstructor, TestComponent2) {
-    ugrpc::FieldsVisitor visitor(FieldSelector, component2::Get());
+    const ugrpc::FieldsVisitor visitor(FieldSelector, component2::Get());
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), component2::GetSelectedFields());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component2::GetFieldsWithSelectedChildren()
@@ -667,7 +667,7 @@ UTEST(FieldsVisitorConstructor, TestComponent2) {
 }
 
 UTEST(FieldsVisitorConstructor, TestComponent3) {
-    ugrpc::FieldsVisitor visitor(FieldSelector, component3::Get());
+    const ugrpc::FieldsVisitor visitor(FieldSelector, component3::Get());
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), component3::GetSelectedFields());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component3::GetFieldsWithSelectedChildren()
@@ -675,7 +675,7 @@ UTEST(FieldsVisitorConstructor, TestComponent3) {
 }
 
 UTEST(FieldsVisitorConstructor, TestComponent4) {
-    ugrpc::FieldsVisitor visitor(FieldSelector, component4::Get());
+    const ugrpc::FieldsVisitor visitor(FieldSelector, component4::Get());
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), component4::GetSelectedFields());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component4::GetFieldsWithSelectedChildren()
@@ -683,7 +683,7 @@ UTEST(FieldsVisitorConstructor, TestComponent4) {
 }
 
 UTEST(FieldsVisitorConstructor, TestDiffTypes) {
-    ugrpc::FieldsVisitor visitor(FieldSelector, diff_types::Get());
+    const ugrpc::FieldsVisitor visitor(FieldSelector, diff_types::Get());
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), diff_types::GetSelectedFields());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), diff_types::GetFieldsWithSelectedChildren()
@@ -691,13 +691,13 @@ UTEST(FieldsVisitorConstructor, TestDiffTypes) {
 }
 
 UTEST(FieldsVisitorConstructor, TestPartialComponent) {
-    ugrpc::DescriptorList messages = {
+    const ugrpc::DescriptorList messages = {
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1A"),
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1C"),
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1D"),
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1E")};
 
-    ugrpc::FieldsVisitor visitor(FieldSelector, messages);
+    const ugrpc::FieldsVisitor visitor(FieldSelector, messages);
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), component1::GetSelectedFields());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component1::GetFieldsWithSelectedChildren()
@@ -723,13 +723,13 @@ UTEST(FieldsVisitorConstructor, TestMultipleComponents) {
     fields_with_selected_children.merge(component3::GetFieldsWithSelectedChildren());
     fields_with_selected_children.merge(component4::GetFieldsWithSelectedChildren());
 
-    ugrpc::FieldsVisitor visitor(FieldSelector, messages);
+    const ugrpc::FieldsVisitor visitor(FieldSelector, messages);
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), selected_fields);
     MyExpectEq(visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), fields_with_selected_children);
 }
 
 UTEST(FieldsVisitorConstructor, TestAllMessageTypes) {
-    ugrpc::FieldsVisitor visitor(FieldSelector);
+    const ugrpc::FieldsVisitor visitor(FieldSelector);
 
     const ugrpc::VisitorCompiler::Dependencies& sf = visitor.GetSelectedFields(utils::impl::InternalTag());
     EXPECT_TRUE(ContainsMessage(sf, "sample.ugrpc.MessageWithDifferentTypes"));
@@ -828,7 +828,7 @@ UTEST(FieldsVisitorContainsSelected, TestMessage) {
 }
 
 UTEST(MessagesVisitorConstructor, TestComponent1) {
-    ugrpc::MessagesVisitor visitor(MessageSelector, component1::Get());
+    const ugrpc::MessagesVisitor visitor(MessageSelector, component1::Get());
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), component1::GetSelectedMessages());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component1::GetFieldsWithSelectedChildren()
@@ -836,7 +836,7 @@ UTEST(MessagesVisitorConstructor, TestComponent1) {
 }
 
 UTEST(MessagesVisitorConstructor, TestComponent2) {
-    ugrpc::MessagesVisitor visitor(MessageSelector, component2::Get());
+    const ugrpc::MessagesVisitor visitor(MessageSelector, component2::Get());
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), component2::GetSelectedMessages());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component2::GetFieldsWithSelectedChildren()
@@ -844,7 +844,7 @@ UTEST(MessagesVisitorConstructor, TestComponent2) {
 }
 
 UTEST(MessagesVisitorConstructor, TestComponent3) {
-    ugrpc::MessagesVisitor visitor(MessageSelector, component3::Get());
+    const ugrpc::MessagesVisitor visitor(MessageSelector, component3::Get());
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), component3::GetSelectedMessages());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component3::GetFieldsWithSelectedChildren()
@@ -852,7 +852,7 @@ UTEST(MessagesVisitorConstructor, TestComponent3) {
 }
 
 UTEST(MessagesVisitorConstructor, TestComponent4) {
-    ugrpc::MessagesVisitor visitor(MessageSelector, component4::Get());
+    const ugrpc::MessagesVisitor visitor(MessageSelector, component4::Get());
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), component4::GetSelectedMessages());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component4::GetFieldsWithSelectedChildren()
@@ -860,7 +860,7 @@ UTEST(MessagesVisitorConstructor, TestComponent4) {
 }
 
 UTEST(MessagesVisitorConstructor, TestDiffTypes) {
-    ugrpc::MessagesVisitor visitor(MessageSelector, diff_types::Get());
+    const ugrpc::MessagesVisitor visitor(MessageSelector, diff_types::Get());
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), diff_types::GetSelectedMessages());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), diff_types::GetFieldsWithSelectedChildren()
@@ -868,12 +868,12 @@ UTEST(MessagesVisitorConstructor, TestDiffTypes) {
 }
 
 UTEST(MessagesVisitorConstructor, TestPartialComponent) {
-    ugrpc::DescriptorList messages = {
+    const ugrpc::DescriptorList messages = {
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1A"),
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1C"),
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1D"),
         ugrpc::FindGeneratedMessage("sample.ugrpc.Msg1E")};
-    ugrpc::MessagesVisitor visitor(MessageSelector, messages);
+    const ugrpc::MessagesVisitor visitor(MessageSelector, messages);
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), component1::GetSelectedMessages());
     MyExpectEq(
         visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), component1::GetFieldsWithSelectedChildren()
@@ -899,13 +899,13 @@ UTEST(MessagesVisitorConstructor, TestMultipleComponents) {
     fields_with_selected_children.merge(component3::GetFieldsWithSelectedChildren());
     fields_with_selected_children.merge(component4::GetFieldsWithSelectedChildren());
 
-    ugrpc::MessagesVisitor visitor(MessageSelector, messages);
+    const ugrpc::MessagesVisitor visitor(MessageSelector, messages);
     MyExpectEq(visitor.GetSelectedMessages(utils::impl::InternalTag()), selected_messages);
     MyExpectEq(visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), fields_with_selected_children);
 }
 
 UTEST(MessagesVisitorConstructor, TestAllMessageTypes) {
-    ugrpc::MessagesVisitor visitor(MessageSelector);
+    const ugrpc::MessagesVisitor visitor(MessageSelector);
 
     const ugrpc::VisitorCompiler::DescriptorSet& sm = visitor.GetSelectedMessages(utils::impl::InternalTag());
     EXPECT_TRUE(ContainsMessage(sm, "sample.ugrpc.MessageWithDifferentTypes.NestedMessage"));

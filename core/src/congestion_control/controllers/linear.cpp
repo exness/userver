@@ -42,7 +42,7 @@ Limit LinearController::Update(const Sensor::Data& current) {
 
     bool overloaded = 100 * rate > config.errors_threshold_percent;
 
-    std::size_t divisor = std::max<std::size_t>(long_timings_.GetSmoothed(), config.min_timings.count());
+    const std::size_t divisor = std::max<std::size_t>(long_timings_.GetSmoothed(), config.min_timings.count());
 
     LOG_DEBUG() << "CC mongo:"
                 << " sensor=(" << current.ToLogString() << ") divisor=" << divisor

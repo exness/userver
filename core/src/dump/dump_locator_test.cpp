@@ -175,7 +175,7 @@ max-age: null
     InsertAll(expected_files, UnrelatedFileNames());
 
     const dump::Config config{dump::ConfigFromYaml(kConfig, dir, kDumperName)};
-    dump::DumpLocator locator{config};
+    const dump::DumpLocator locator{config};
 
     auto dump_info = locator.GetLatestDump();
     EXPECT_TRUE(dump_info);

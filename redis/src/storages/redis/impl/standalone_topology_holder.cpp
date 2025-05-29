@@ -124,7 +124,7 @@ void StandaloneTopologyHolder::SetConnectionInfo(const std::vector<ConnectionInf
     LOG_DEBUG() << "Update connection info to " << new_conn.Fulltext();
 
     {
-        std::unique_lock<std::mutex> lock(mutex_);
+        const std::unique_lock<std::mutex> lock(mutex_);
         conn_to_create_ = new_conn;
         is_nodes_received_.store(false);
     }
@@ -183,7 +183,7 @@ void StandaloneTopologyHolder::CreateNode() {
                 return;
             }
             topology_holder->GetSignalNodeStateChanged()(host_port, state);
-            { std::lock_guard lock{topology_holder->mutex_}; }
+            { const std::lock_guard lock{topology_holder->mutex_}; }
             topology_holder->cv_.NotifyAll();
         });
 

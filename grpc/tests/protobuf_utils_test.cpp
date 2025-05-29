@@ -39,7 +39,7 @@ sample::ugrpc::LoggingMessage ConstructComplexMessage() {
 }  // namespace
 
 UTEST(ToLimitedString, Fit) {
-    std::size_t kLimit = 20;
+    const std::size_t kLimit = 20;
     sample::ugrpc::GreetingResponse message;
     message.set_name("1234567890");
     const auto out = ugrpc::impl::ToLimitedString(message, kLimit);
@@ -47,7 +47,7 @@ UTEST(ToLimitedString, Fit) {
 }
 
 UTEST(ToLimitedString, Limited) {
-    std::size_t kLimit = 10;
+    const std::size_t kLimit = 10;
     sample::ugrpc::GreetingResponse message;
     message.set_name("1234567890");
     const auto out = ugrpc::impl::ToLimitedString(message, kLimit);
@@ -55,7 +55,7 @@ UTEST(ToLimitedString, Limited) {
 }
 
 UTEST(ToLimitedString, Complex) {
-    std::size_t kLimit = 512;
+    const std::size_t kLimit = 512;
     const auto message = ConstructComplexMessage();
     const auto expected = ugrpc::impl::ToString(message.Utf8DebugString().substr(0, kLimit));
     ASSERT_EQ(expected, ugrpc::impl::ToLimitedString(message, kLimit));

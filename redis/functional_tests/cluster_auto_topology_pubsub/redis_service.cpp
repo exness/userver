@@ -137,7 +137,7 @@ std::string ReadStoreReturn::Get(const server::http::HttpRequest& request) const
     {
         const auto& publish_msg = request.GetArg("publish");
         if (!publish_msg.empty()) {
-            storages::redis::CommandControl cc{};
+            const storages::redis::CommandControl cc{};
             if (request.GetArg("round_robin") == "true") {
                 /// Publish message to different shards
                 redis_client_->Publish("output_channel", publish_msg, cc, storages::redis::PubShard::kRoundRobin);

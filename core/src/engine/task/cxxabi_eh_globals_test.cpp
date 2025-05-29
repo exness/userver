@@ -27,7 +27,7 @@ UTEST(CxxabiEhGlobals, UncaughtIsCoroLocal) {
 
         auto subtask = engine::AsyncNoSpan([&cv, &mutex] {
             {
-                std::unique_lock<engine::Mutex> lock(mutex);
+                const std::unique_lock<engine::Mutex> lock(mutex);
                 cv.NotifyOne();
             }
             engine::SleepFor(std::chrono::seconds(1));

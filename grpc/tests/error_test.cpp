@@ -189,7 +189,7 @@ UTEST_F(GrpcThrowCustomFinish, InputStream) {
 
     sample::ugrpc::StreamGreetingResponse in;
     try {
-        [[maybe_unused]] bool result1 = is.Read(in);
+        [[maybe_unused]] const bool result1 = is.Read(in);
         FAIL();
     } catch (const ugrpc::client::UnauthenticatedError& e) {
         EXPECT_EQ(e.GetStatus().error_code(), grpc::StatusCode::UNAUTHENTICATED);

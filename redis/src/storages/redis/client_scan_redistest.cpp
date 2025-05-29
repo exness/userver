@@ -26,7 +26,7 @@ public:
 
     static std::vector<std::string> GetExpected() {
         std::vector<std::string> expected;
-        utils::regex rgx(pattern_cpp);
+        const utils::regex rgx(pattern_cpp);
         utils::match_results match;
         for (int i = 0; i < N; i++) {
             auto key = "key:" + std::to_string(i);
@@ -44,7 +44,7 @@ private:
     static auto GetScanOptions() {
         static Match match(pattern);
         static Count count(10);
-        static storages::redis::ScanOptionsTmpl<Tag> options(match, count);
+        static const storages::redis::ScanOptionsTmpl<Tag> options(match, count);
         return options;
     }
 };

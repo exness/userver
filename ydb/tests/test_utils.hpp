@@ -67,9 +67,9 @@ protected:
         driver_settings.endpoint = endpoint;
         driver_settings.database = database;
 
-        ydb::impl::TableSettings table_settings;
+        const ydb::impl::TableSettings table_settings;
 
-        ydb::OperationSettings query_params = {
+        const ydb::OperationSettings query_params = {
             3,                                      // retries
             kMaxYdbBootTimeout,                     // operation_timeout_ms
             kMaxYdbBootTimeout,                     // cancel_after_ms

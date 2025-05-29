@@ -17,13 +17,13 @@ namespace {
 
 std::string EscapeLogString(std::string_view str, const std::array<uint8_t, 256>& need_escape_map) {
     size_t esc_cnt = 0;
-    for (char ch : str) {
+    for (const char ch : str) {
         if (need_escape_map[static_cast<uint8_t>(ch)]) esc_cnt++;
     }
     if (!esc_cnt) return std::string{str};
     std::string res;
     res.reserve(str.size() + esc_cnt * 3);
-    for (char ch : str) {
+    for (const char ch : str) {
         if (need_escape_map[static_cast<uint8_t>(ch)]) {
             res += '\\';
             res += 'x';
