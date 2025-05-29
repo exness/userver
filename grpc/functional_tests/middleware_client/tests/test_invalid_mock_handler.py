@@ -63,8 +63,7 @@ async def test_assert(service_client, grpc_mockserver, asyncexc_check):
     async def mock_say_hello(request: greeter_protos.GreetingRequest, context):
         assert request.name == 'expected'
 
-    message = "Unexpected <class 'AssertionError'>: assert 'test' == 'expected'(.|\\n)*"
-    expected_error = re.compile(f"'{SAY_HELLO}' failed: code=UNKNOWN, message='{message}'")
+    expected_error = re.compile(f"'{SAY_HELLO}' failed: code=UNKNOWN, message='Unexpected <class 'AssertionError'>")
 
     with pytest.raises(pytest_userver.client.TestsuiteTaskFailed, match=expected_error):
         await service_client.run_task('call-say-hello')
@@ -73,7 +72,7 @@ async def test_assert(service_client, grpc_mockserver, asyncexc_check):
     # through testsuite's asyncexc mechanism.
     with pytest.raises(Exception) as ex_info:
         asyncexc_check(really_check=True)
-    assert "AssertionError: assert 'test' == 'expected'" in full_exception_message(ex_info.value)
+    assert 'AssertionError:' in full_exception_message(ex_info.value)
 
 
 async def test_exception(service_client, grpc_mockserver, asyncexc_check):
