@@ -112,7 +112,7 @@ void Consumer::RunConsuming(ConsumerScope::Callback callback) {
         if (polled_messages.empty()) {
             continue;
         }
-        engine::TaskCancellationBlocker cancelation_blocker;
+        const engine::TaskCancellationBlocker cancelation_blocker;
 
         TESTPOINT(fmt::format("tp_{}_polled", name_), {});
 

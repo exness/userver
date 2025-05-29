@@ -29,6 +29,7 @@ struct Settings;
 /// msg-log-level | log level to use for request and response messages themselves | debug
 /// msg-size-log-limit | max message size to log, the rest will be truncated | 512
 /// trim-secrets | trim the secrets from logs as marked by the protobuf option | true (*)
+/// local-log-level | local log level for the span with server logs | debug
 ///
 /// @warning * Trimming secrets causes a segmentation fault for messages that contain
 /// optional fields in protobuf versions prior to 3.13. You should set trim-secrets to false

@@ -51,7 +51,7 @@ TEST(Redis, NoPassword) {
     auto ping_handler = server.RegisterPingHandler();
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), storages::redis::Password(""), kDatabaseIndex);
 
@@ -64,7 +64,7 @@ TEST(Redis, Auth) {
     auto auth_handler = server.RegisterStatusReplyHandler("AUTH", "OK");
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), storages::redis::Password("password"), kDatabaseIndex);
 
@@ -78,7 +78,7 @@ TEST(Redis, AuthFail) {
     auto auth_error_handler = server.RegisterErrorReplyHandler("AUTH", "NO PASARAN");
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), storages::redis::Password("password"), kDatabaseIndex);
 
@@ -93,7 +93,7 @@ TEST(Redis, AuthTimeout) {
     auto auth_error_handler = server.RegisterTimeoutHandler("AUTH", sleep_period);
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), storages::redis::Password("password"), kDatabaseIndex);
 
@@ -107,7 +107,7 @@ TEST(Redis, Select) {
     auto select_handler = server.RegisterStatusReplyHandler("SELECT", "OK");
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), {}, kRedisDatabaseIndex);
 
@@ -121,7 +121,7 @@ TEST(Redis, SelectFail) {
     auto select_error_handler = server.RegisterErrorReplyHandler("SELECT", "NO PASARAN");
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), {}, kRedisDatabaseIndex);
 
@@ -136,7 +136,7 @@ TEST(Redis, SelectTimeout) {
     auto select_error_handler = server.RegisterTimeoutHandler("SELECT", sleep_period);
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), {}, kRedisDatabaseIndex);
 
@@ -179,7 +179,7 @@ TEST(Redis, PingFail) {
     auto ping_error_handler = server.RegisterErrorReplyHandler("PING", "PONG");
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), storages::redis::Password(""), kDatabaseIndex);
 
@@ -206,7 +206,7 @@ TEST_P(RedisDisconnectingReplies, X) {
     auto get_handler = server.RegisterErrorReplyHandler("GET", GetParam());
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
-    storages::redis::RedisCreationSettings redis_settings;
+    const storages::redis::RedisCreationSettings redis_settings;
     auto redis = std::make_shared<storages::redis::impl::Redis>(pool->GetRedisThreadPool(), redis_settings);
     redis->Connect({kLocalhost}, server.GetPort(), storages::redis::Password(""), kDatabaseIndex);
 

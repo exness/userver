@@ -218,7 +218,7 @@ UTEST_F(ClientMiddlewaresHooksTest, HappyPathDetailedUnary) {
 
     ::testing::MockFunction<void(std::string_view checkpoint_name)> checkpoint;
     {
-        ::testing::InSequence s;
+        const ::testing::InSequence s;
 
         // Pre* called after request created
         EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
@@ -257,7 +257,7 @@ UTEST_F(ClientMiddlewaresHooksTest, HappyPathDetailedClientStreaming) {
 
     ::testing::MockFunction<void(std::string_view checkpoint_name)> checkpoint;
     {
-        ::testing::InSequence s;
+        const ::testing::InSequence s;
 
         // Pre* called on stream init
         EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
@@ -299,7 +299,7 @@ UTEST_F(ClientMiddlewaresHooksTest, HappyPathDetailedServerStreaming) {
 
     ::testing::MockFunction<void(std::string_view checkpoint_name)> checkpoint;
     {
-        ::testing::InSequence s;
+        const ::testing::InSequence s;
 
         // Pre* called on stream init
         EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
@@ -343,7 +343,7 @@ UTEST_F(ClientMiddlewaresHooksTest, HappyPathDetailedBidirectionalStreaming) {
 
     ::testing::MockFunction<void(std::string_view checkpoint_name)> checkpoint;
     {
-        ::testing::InSequence s;
+        const ::testing::InSequence s;
 
         // PreStart called on stream init
         EXPECT_CALL(Middleware(0), PreStartCall).Times(1);

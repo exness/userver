@@ -64,7 +64,7 @@ std::string MakeHeaderDate() {
     if (result_len) {
         header_date.resize(result_len);
     } else {
-        std::string kErrorMessage{"MakeHeaderDate strftime fail [exceed maxsize]"};
+        const std::string kErrorMessage{"MakeHeaderDate strftime fail [exceed maxsize]"};
         throw std::runtime_error{kErrorMessage};
     }
 

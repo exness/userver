@@ -85,7 +85,7 @@ bool CheckAndSetupDeadline(
         return false;
     }
 
-    USERVER_NAMESPACE::server::request::TaskInheritedData inherited_data{
+    const USERVER_NAMESPACE::server::request::TaskInheritedData inherited_data{
         service_name, method_name, std::chrono::steady_clock::now(), engine::Deadline::FromDuration(deadline_duration)};
     USERVER_NAMESPACE::server::request::kTaskInheritedData.Set(inherited_data);
 

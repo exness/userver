@@ -7,6 +7,7 @@
 
 #include <userver/tracing/span.hpp>
 #include <userver/utils/fast_pimpl.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -17,16 +18,24 @@ namespace tracing {
 /// cause stack overflow.
 class InPlaceSpan final {
 public:
+    struct DetachedTag {};
+
     explicit InPlaceSpan(
         std::string&& name,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
     );
 
     explicit InPlaceSpan(
         std::string&& name,
         std::string&& trace_id,
         std::string&& parent_span_id,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
+    );
+
+    explicit InPlaceSpan(
+        std::string&& name,
+        DetachedTag,
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
     );
 
     InPlaceSpan(InPlaceSpan&&) = delete;
@@ -35,9 +44,14 @@ public:
 
     tracing::Span& Get() noexcept;
 
+    /// @cond
+    // For internal use only.
+    void SetParentLink(utils::impl::InternalTag, std::string_view parent_link);
+    /// @endcond
+
 private:
     struct Impl;
-    utils::FastPimpl<Impl, 4240, 8> impl_;
+    utils::FastPimpl<Impl, 4392, 8> impl_;
 };
 
 }  // namespace tracing

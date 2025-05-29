@@ -19,6 +19,9 @@ struct Settings final {
 
     /// Whether to trim the fields marked as secret from the message
     bool trim_secrets{true};
+
+    // Local log level of the server span
+    logging::Level local_log_level{logging::Level::kDebug};
 };
 
 class Middleware final : public MiddlewareBase {

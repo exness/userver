@@ -191,7 +191,7 @@ private:
     static void LogInstanceErrorReply(const CommandPtr& command, const ReplyPtr& reply);
 
     bool SetDestroying() {
-        std::lock_guard<std::mutex> lock(command_mutex_);
+        const std::lock_guard<std::mutex> lock(command_mutex_);
         if (destroying_) return false;
         destroying_ = true;
         return true;
@@ -535,7 +535,7 @@ bool Redis::RedisImpl::AsyncCommand(const CommandPtr& command) {
     LOG_DEBUG() << "AsyncCommand for server_id=" << GetServerId().GetId()
                 << " server=" << GetServerId().GetDescription() << " cmd=" << command->args;
     {
-        std::lock_guard<std::mutex> lock(command_mutex_);
+        const std::lock_guard<std::mutex> lock(command_mutex_);
         if (destroying_) return false;
         ++commands_size_;
         commands_.push_back(command);
@@ -575,7 +575,7 @@ void Redis::RedisImpl::OnCommandTimeout(struct ev_loop*, ev_timer* w, int) noexc
 }
 
 void Redis::RedisImpl::OnCommandTimeoutImpl(ev_timer* w) {
-    size_t cmd_idx = reply_privdata_rev_.at(w);
+    const size_t cmd_idx = reply_privdata_rev_.at(w);
     auto reply_iterator = reply_privdata_.find(cmd_idx);
     if (reply_iterator != reply_privdata_.end()) {
         SingleCommand& command = *reply_iterator->second;
@@ -850,7 +850,7 @@ void Redis::RedisImpl::CommandLoopImpl() {
     }
     std::deque<CommandPtr> commands;
     {
-        std::lock_guard<std::mutex> lock(command_mutex_);
+        const std::lock_guard<std::mutex> lock(command_mutex_);
         commands_size_ -= commands_.size();
         std::swap(commands_, commands);
     }
@@ -898,7 +898,7 @@ void Redis::RedisImpl::OnConnectImpl(int status) {
     LOG_INFO() << log_extra_ << "Connected to Redis successfully";
     self_ = shared_from_this();
 
-    int keep_alive_status = redisEnableKeepAlive(&context_->c);
+    const int keep_alive_status = redisEnableKeepAlive(&context_->c);
     if (keep_alive_status != REDIS_OK) {
         LOG_ERROR() << "redisEnableKeepAlive() failed. Hiredis errstr='"
                     << (keep_alive_status == REDIS_ERR ? context_->errstr : "") << '\'';
@@ -961,7 +961,6 @@ void Redis::RedisImpl::Authenticate() {
                                           << "AUTH failed: unknown command `AUTH` - "
                                              "possible when connecting to sentinel instead "
                                              "of RedisCluster instance";
-                            if (redis_obj_) redis_obj_->signal_not_in_cluster_mode();
                             Disconnect();
                             return;
                         }

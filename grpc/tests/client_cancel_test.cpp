@@ -265,7 +265,7 @@ UTEST_F(GrpcClientCancel, BidirectionalStreamWrite) {
 
         engine::current_task::GetCancellationToken().RequestCancel();
 
-        sample::ugrpc::StreamGreetingRequest out{};
+        const sample::ugrpc::StreamGreetingRequest out{};
         EXPECT_FALSE(bs.Write(out));
     }
 

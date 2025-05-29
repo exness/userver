@@ -126,11 +126,11 @@ std::string ToSolomonFormat(
     formats::json::StringBuilder builder;
     SolomonJsonBuilder solomon_json_builder(builder);
     {
-        formats::json::StringBuilder::ObjectGuard object_guard(builder);
+        const formats::json::StringBuilder::ObjectGuard object_guard(builder);
         solomon_json_builder.AddCommonLabels(common_labels);
 
         builder.Key("metrics");
-        formats::json::StringBuilder::ArrayGuard array_guard(builder);
+        const formats::json::StringBuilder::ArrayGuard array_guard(builder);
         statistics.VisitMetrics(solomon_json_builder, request);
     }
     return builder.GetString();

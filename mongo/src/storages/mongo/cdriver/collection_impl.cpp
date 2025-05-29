@@ -10,6 +10,7 @@
 #include <userver/storages/mongo/mongo_error.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/tracing/tags.hpp>
+#include <userver/utils/algo.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/impl/userver_experiments.hpp>
 #include <userver/utils/text.hpp>
@@ -43,7 +44,7 @@ private:
     formats::bson::impl::UninitializedBson bson_;
 };
 
-std::optional<std::string> GetCurrentSpanLink() {
+std::optional<std::string_view> GetCurrentSpanLink() {
     auto* span = tracing::Span::CurrentSpanUnchecked();
     if (span) return span->GetLink();
     return std::nullopt;
@@ -51,7 +52,7 @@ std::optional<std::string> GetCurrentSpanLink() {
 
 void SetLinkComment(formats::bson::impl::BsonBuilder& builder, bool& has_comment_option) {
     auto link = GetCurrentSpanLink();
-    if (link) operations::AppendComment(builder, has_comment_option, options::Comment("link=" + *link));
+    if (link) operations::AppendComment(builder, has_comment_option, options::Comment(utils::StrCat("link=", *link)));
 }
 
 impl::cdriver::FindAndModifyOptsPtr CopyFindAndModifyOptions(const impl::cdriver::FindAndModifyOptsPtr& options) {

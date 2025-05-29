@@ -39,7 +39,7 @@ void PrintBuffer(std::ostream& os, const std::uint8_t* buffer, std::size_t size)
     std::size_t b_no{0};
     std::ostringstream printable;
     for (const std::uint8_t* c = buffer; c != buffer + size; ++c) {
-        unsigned char byte = *c;
+        const unsigned char byte = *c;
         os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
         printable << (std::isprint(*c) ? *c : '.');
         ++b_no;

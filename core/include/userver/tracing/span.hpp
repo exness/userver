@@ -34,15 +34,6 @@ class Span final {
 public:
     class Impl;
 
-    explicit Span(
-        TracerPtr tracer,
-        std::string name,
-        const Span* parent,
-        ReferenceType reference_type,
-        logging::Level log_level = logging::Level::kInfo,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
-    );
-
     /// Use default tracer and implicit coro local storage for parent
     /// identification, takes TraceID from the parent.
     ///
@@ -52,21 +43,22 @@ public:
         std::string name,
         ReferenceType reference_type = ReferenceType::kChild,
         logging::Level log_level = logging::Level::kInfo,
-        utils::impl::SourceLocation source_location = utils::impl::SourceLocation::Current()
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
     );
 
-    /// @cond
-    // For internal use only
-    explicit Span(Span::Impl& impl);
-    /// @endcond
+    explicit Span(
+        std::string name,
+        const Span* parent,
+        ReferenceType reference_type = ReferenceType::kChild,
+        logging::Level log_level = logging::Level::kInfo,
+        const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
+    );
 
     Span(Span&& other) noexcept;
-
-    ~Span();
-
-    Span& operator=(const Span&) = delete;
-
+    Span(const Span& other) = delete;
     Span& operator=(Span&&) = delete;
+    Span& operator=(const Span&) = delete;
+    ~Span();
 
     /// @brief Returns the Span of the current task.
     ///
@@ -102,7 +94,7 @@ public:
     /// @param parent_span_id Id of the parent Span, could be empty.
     /// @param link The new link
     static Span
-    MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id, std::string link);
+    MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id, std::string_view link);
 
     /// Factory function for rare cases of creating a root Span that starts
     /// the trace_id chain, ignoring `CurrentSpan`, if any. Useful
@@ -168,13 +160,20 @@ public:
     /// @brief Sets log level with which the current span itself is written into the tracing
     /// system.
     ///
+    /// This (mostly) does not affect logs written within the span,
+    /// unlike @ref tracing::Span::SetLocalLogLevel.
+    ///
     /// If `Span`'s log level is less than the global logger's log level, then the span is
-    /// not written out. In that case, nested logs are still written to the logging system
-    /// as usual, inheriting `trace_id`, `link`, `span_id` and inheritable tags of the current
-    /// `Span` object.
+    /// not written out. In that case:
+    /// * nested logs are still written to the logging system;
+    /// * they inherit `trace_id`, `link` and `span_id` of the nearest *written* `Span` object;
+    /// * tags are still inherited from the *nearest* `Span` even if it is hidden;
+    ///    * this allows to use `Span`s as tag scopes regardless of their tracing purposes.
+    ///
+    /// Tracing systems use span's log level to highlight `warning` and `error` spans.
     void SetLogLevel(logging::Level log_level);
 
-    /// @brief Returns level for tags logging
+    /// See @ref tracing::Span::SetLogLevel.
     logging::Level GetLogLevel() const;
 
     /// @brief Sets an additional cutoff for the logs written in the scope of this `Span`,
@@ -184,42 +183,58 @@ public:
     /// (own or inherited) local log level `warning`, then all `LOG_INFO`s within the current
     /// scope will be thrown away.
     ///
+    /// The cutoff also applies to the span itself. If the @ref tracing::Span::SetLogLevel "span's log level"
+    /// is less than the local log level, then the span is not written to the tracing system.
+    ///
+    /// Local log level of child spans can override local log level of parent spans in both directions.
+    /// For example:
+    /// * if local log level of a parent `Span` is `warning`,
+    /// * and local log level of a child span is set `info`,
+    /// * then `info` logs within that `Span` will be written,
+    /// * as long as the global log level is not higher than `info`.
+    ///
     /// Currently, local log level cannot override the global log level of the logger.
     /// For example, if the global log level is `info`, and the current `Span` has
     /// (own or inherited) local log level `debug`, then all `LOG_DEBUG`s within the current
     /// scope will **still** be thrown away.
     void SetLocalLogLevel(std::optional<logging::Level> log_level);
 
-    /// @brief Returns the local log level that disables logging of this span if
-    /// it is set and greater than the main log level of the Span.
+    /// See @ref tracing::Span::SetLocalLogLevel.
     std::optional<logging::Level> GetLocalLogLevel() const;
 
     /// Set link - a request ID within a service. Can be called only once.
     ///
     /// Propagates within a single service, but not from client to server. A new
     /// link is generated for the "root" request handling task
-    void SetLink(std::string link);
-
-    /// Set parent_link - an ID . Can be called only once.
-    void SetParentLink(std::string parent_link);
+    // TODO restrict SetLink to SpanBuilder.
+    void SetLink(std::string_view link);
 
     /// Get link - a request ID within the service.
     ///
     /// Propagates within a single service, but not from client to server. A new
     /// link is generated for the "root" request handling task
-    std::string GetLink() const;
+    std::string_view GetLink() const;
 
-    std::string GetParentLink() const;
+    std::string_view GetParentLink() const;
 
     /// An ID of the request that does not change from service to service.
     ///
     /// Propagates both to sub-spans within a single service, and from client
     /// to server
-    const std::string& GetTraceId() const;
+    std::string_view GetTraceId() const;
 
-    /// Identifies a specific span. It does not propagate
-    const std::string& GetSpanId() const;
-    const std::string& GetParentId() const;
+    /// Identifies a specific span. It does not propagate.
+    std::string_view GetSpanId() const;
+
+    /// Span ID of the nearest loggable parent span, or empty string if none exists.
+    std::string_view GetParentId() const;
+
+    /// Span ID of the nearest loggable span within the span chain, including the current span.
+    /// If the current span and all parent spans will not be logged, returns `std::nullopt`.
+    std::optional<std::string_view> GetSpanIdForChildLogs() const;
+
+    /// Get name the Span was created with
+    std::string_view GetName() const;
 
     /// @returns true if this span would be logged with the current local and
     /// global log levels to the default logger.
@@ -243,7 +258,7 @@ public:
     impl::TimeStorage& GetTimeStorage(utils::impl::InternalTag);
 
     // For internal use only.
-    void LogTo(logging::impl::TagWriter writer) const&;
+    void LogTo(utils::impl::InternalTag, logging::impl::TagWriter writer) const;
     /// @endcond
 
 private:
@@ -262,10 +277,11 @@ private:
 
     friend class SpanBuilder;
     friend class TagScope;
+    friend class InPlaceSpan;
 
     explicit Span(std::unique_ptr<Impl, OptionalDeleter>&& pimpl);
 
-    std::string GetTag(std::string_view tag) const;
+    std::string_view GetTag(std::string_view tag) const;
 
     std::unique_ptr<Impl, OptionalDeleter> pimpl_;
 };

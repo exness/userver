@@ -99,7 +99,7 @@ std::ptrdiff_t Row::Distance(const Row& rhs) const {
 Row& Row::Advance(std::ptrdiff_t distance) {
     if (IsValid()) {
         // movement is defined only for valid iterators
-        std::ptrdiff_t target = distance + row_index_;
+        const std::ptrdiff_t target = distance + row_index_;
         if (target < 0 || target > static_cast<std::ptrdiff_t>(res_->RowCount())) {
             row_index_ = ResultSet::npos;
         } else {

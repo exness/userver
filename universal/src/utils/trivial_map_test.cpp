@@ -180,7 +180,7 @@ TEST(TrivialBiMap, MakeTrivialBiMap) {
     EXPECT_EQ(kMap.TryFind(std::string_view{"one"}), 1);
     EXPECT_EQ(kMap.TryFind(std::string("ten")), std::nullopt);
     EXPECT_EQ(kMap.TryFind(2), "two");
-    utils::StringLiteral res = kMap.TryFind(2).value();
+    const utils::StringLiteral res = kMap.TryFind(2).value();
     EXPECT_EQ(res.c_str(), std::string_view{"two"});
     EXPECT_EQ(kMap.TryFind(42), std::nullopt);
 
@@ -200,7 +200,7 @@ TEST(TrivialBiMap, MakeTrivialBiMap2) {
     EXPECT_EQ(kMap.TryFind(std::string("ten")), std::nullopt);
     EXPECT_EQ(kMap.TryFind(2), "two");
 
-    utils::NullTerminatedView res = kMap.TryFind(2).value();
+    const utils::NullTerminatedView res = kMap.TryFind(2).value();
     EXPECT_EQ(res.c_str(), std::string_view{"two"});
     EXPECT_EQ(kMap.TryFind(42), std::nullopt);
 

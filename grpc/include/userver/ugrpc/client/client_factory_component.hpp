@@ -16,7 +16,7 @@ namespace ugrpc::client {
 namespace impl {
 
 /// @brief The interface for a `ClientFactoryComponent` component. So, `ClientFactoryComponent` runs with middlewares.
-using MiddlewareRunner = USERVER_NAMESPACE::middlewares::RunnerComponentBase<MiddlewareBase, ClientInfo>;
+using MiddlewareRunnerComponentBase = USERVER_NAMESPACE::middlewares::RunnerComponentBase<MiddlewareBase, ClientInfo>;
 
 }  // namespace impl
 
@@ -63,7 +63,7 @@ using MiddlewareRunner = USERVER_NAMESPACE::middlewares::RunnerComponentBase<Mid
 
 // clang-format on
 
-class ClientFactoryComponent final : public impl::MiddlewareRunner {
+class ClientFactoryComponent final : public impl::MiddlewareRunnerComponentBase {
 public:
     /// @ingroup userver_component_names
     /// @brief The default name of ugrpc::client::middlewares::log::Component

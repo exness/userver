@@ -167,7 +167,7 @@ Server::Impl::~Impl() {
 }
 
 void Server::Impl::AddListeningPort(int port, const TlsConfig& tls_config) {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     UASSERT_MSG(!port_, "As of now, AddListeningPort can be called no more than once");
@@ -179,7 +179,7 @@ void Server::Impl::AddListeningPort(int port, const TlsConfig& tls_config) {
 }
 
 void Server::Impl::AddListeningUnixSocket(std::string_view path, const TlsConfig& tls_config) {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     UASSERT_MSG(!path.empty(), "Empty unix socket path is not allowed");
@@ -219,7 +219,7 @@ void Server::Impl::AddService(GenericServiceBase& service, ServiceConfig&& confi
 std::vector<std::string_view> Server::Impl::GetServiceNames() const {
     std::vector<std::string_view> ret;
 
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
 
     ret.reserve(service_workers_.size());
     for (const auto& worker : service_workers_) {
@@ -229,7 +229,7 @@ std::vector<std::string_view> Server::Impl::GetServiceNames() const {
 }
 
 void Server::Impl::WithServerBuilder(SetupHook setup) {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     setup(*server_builder_);
@@ -241,7 +241,7 @@ ugrpc::impl::CompletionQueuePoolBase& Server::Impl::GetCompletionQueues() noexce
 }
 
 void Server::Impl::Start() {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     try {
@@ -331,7 +331,9 @@ void Server::Impl::DoStart() {
         server_builder_->RegisterAsyncGenericService(&worker.GetService());
     }
 
-    server_ = server_builder_->BuildAndStart();
+    server_ = engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [this] {
+                  return server_builder_->BuildAndStart();
+              }).Get();
     UINVARIANT(server_, "See grpcpp logs for details");
     server_builder_.reset();
 

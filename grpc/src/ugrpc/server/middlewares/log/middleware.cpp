@@ -1,4 +1,4 @@
-#include "middleware.hpp"
+#include <ugrpc/server/middlewares/log/middleware.hpp>
 
 #include <userver/logging/log_extra.hpp>
 #include <userver/tracing/tags.hpp>
@@ -26,6 +26,7 @@ Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 
 void Middleware::OnCallStart(MiddlewareCallContext& context) const {
     auto& span = context.GetSpan();
+    span.SetLocalLogLevel(settings_.local_log_level);
 
     span.AddTag(ugrpc::impl::kComponentTag, "server");
     span.AddTag("meta_type", std::string{context.GetCallName()});

@@ -51,7 +51,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(StringToDuration, Basic) {
     const auto p = GetParam();
-    std::chrono::milliseconds ms = utils::StringToDuration(p.data);
+    const std::chrono::milliseconds ms = utils::StringToDuration(p.data);
     EXPECT_EQ(ms, p.ethalon);
 }
 

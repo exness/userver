@@ -22,6 +22,7 @@ enum class TaskCancellationReason {
     kUserRequest,  ///< User request
     kDeadline,     ///< Deadline
     kOverload,     ///< Task processor overload
+    kOOM,          ///< Not enough memory
     kAbandoned,    ///< Task destructor is called before the payload finished
     kShutdown,     ///< Task processor shutdown
 };

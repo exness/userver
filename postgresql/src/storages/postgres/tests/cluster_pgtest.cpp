@@ -326,7 +326,7 @@ UTEST_F(PostgreCluster, TransactionTimeouts) {
     }
     {
         static const std::string kTestTransactionName = "test-transaction-name";
-        pg::CommandControlByQueryMap ccq_map{
+        const pg::CommandControlByQueryMap ccq_map{
             {kTestTransactionName, kTestCmdCtl.WithStatementTimeout(std::chrono::milliseconds{50})}};
         cluster.SetQueriesCommandControl(ccq_map);
         // Use timeout for custom transaction name

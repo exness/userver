@@ -195,7 +195,7 @@ void ServerImpl::StartPortInfos() {
 
 void ServerImpl::Stop() {
     {
-        std::unique_lock lock{on_stop_mutex_};
+        const std::unique_lock lock{on_stop_mutex_};
         if (is_stopping_) return;
         is_stopping_ = true;
     }
@@ -257,7 +257,7 @@ const http::HttpRequestHandler& ServerImpl::GetHttpRequestHandler(bool is_monito
 net::StatsAggregation ServerImpl::GetServerStats() const {
     net::StatsAggregation summary;
 
-    std::shared_lock lock{on_stop_mutex_};
+    const std::shared_lock lock{on_stop_mutex_};
     if (is_stopping_) return summary;
     for (const auto& listener : main_port_info_.listeners_) {
         summary += listener.GetStats();
@@ -282,7 +282,7 @@ void ServerImpl::WriteTotalHandlerStatistics(utils::statistics::Writer& writer) 
 
     {
         // Protect against main_port_info_.request_handler_.reset() in Stop()
-        std::shared_lock lock{on_stop_mutex_};
+        const std::shared_lock lock{on_stop_mutex_};
         if (is_stopping_) {
             return;
         }

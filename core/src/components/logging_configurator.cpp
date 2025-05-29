@@ -43,7 +43,7 @@ LoggingConfigurator::~LoggingConfigurator() { config_subscription_.Unsubscribe()
 
 void LoggingConfigurator::OnConfigUpdate(const dynamic_config::Snapshot& config) {
     (void)this;  // silence clang-tidy
-    tracing::Tracer::SetNoLogSpans(tracing::NoLogSpans{config[::dynamic_config::USERVER_NO_LOG_SPANS]});
+    tracing::SetNoLogSpans(tracing::NoLogSpans{config[::dynamic_config::USERVER_NO_LOG_SPANS]});
 
     try {
         const auto& dd = config[kDynamicDebugConfig];

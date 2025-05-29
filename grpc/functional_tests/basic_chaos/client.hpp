@@ -106,7 +106,7 @@ std::string GreeterClient::SayHelloResponseStream(std::string name, bool is_smal
 }
 
 std::string GreeterClient::SayHelloRequestStream(const std::vector<std::string>& names, bool is_small_timeout) {
-    std::string result{};
+    const std::string result{};
     auto stream = client_.SayHelloRequestStream(CreateClientContext(is_small_timeout));
     for (const auto& name : names) {
         api::GreetingRequest request;

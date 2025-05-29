@@ -10,7 +10,7 @@
 #include <userver/yaml_config/yaml_config.hpp>
 
 #include <ugrpc/server/impl/parse_config.hpp>
-#include <userver/ugrpc/server/middlewares/base.hpp>
+#include <userver/ugrpc/server/middlewares/pipeline.hpp>
 #include <userver/ugrpc/server/server_component.hpp>
 #include <userver/ugrpc/server/service_base.hpp>
 
@@ -22,7 +22,7 @@ ServiceComponentBase::ServiceComponentBase(
     const components::ComponentConfig& config,
     const components::ComponentContext& context
 )
-    : impl::MiddlewareRunner(config, context, MiddlewarePipelineComponent::kName),
+    : impl::MiddlewareRunnerComponentBase(config, context, MiddlewarePipelineComponent::kName),
       server_(context.FindComponent<ServerComponent>()),
       config_(server_.ParseServiceConfig(config, context)),
       info_(ServiceInfo{config.Name()}) {
@@ -43,7 +43,7 @@ void ServiceComponentBase::RegisterService(GenericServiceBase& service) {
 }
 
 yaml_config::Schema ServiceComponentBase::GetStaticConfigSchema() {
-    return yaml_config::MergeSchemas<impl::MiddlewareRunner>(R"(
+    return yaml_config::MergeSchemas<impl::MiddlewareRunnerComponentBase>(R"(
 type: object
 description: base class for all the gRPC service components
 additionalProperties: false

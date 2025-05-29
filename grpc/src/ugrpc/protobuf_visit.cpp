@@ -144,7 +144,7 @@ DescriptorList GetNestedMessageDescriptors(const google::protobuf::Descriptor& d
 const google::protobuf::Descriptor* FindGeneratedMessage(std::string_view name) {
     const google::protobuf::DescriptorPool* pool = google::protobuf::DescriptorPool::generated_pool();
     UINVARIANT(pool, "pool is nullptr");
-#if GOOGLE_PROTOBUF_VERSION >= 3022000
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
     return pool->FindMessageTypeByName(name);
 #else
     return pool->FindMessageTypeByName(std::string(name));
@@ -154,7 +154,7 @@ const google::protobuf::Descriptor* FindGeneratedMessage(std::string_view name) 
 const google::protobuf::FieldDescriptor*
 FindField(const google::protobuf::Descriptor* descriptor, std::string_view field) {
     UINVARIANT(descriptor, "descriptor is nullptr");
-#if GOOGLE_PROTOBUF_VERSION >= 3022000
+#if GOOGLE_PROTOBUF_VERSION >= 4022000
     return descriptor->FindFieldByName(field);
 #else
     return descriptor->FindFieldByName(std::string(field));
@@ -169,7 +169,7 @@ void VisitorCompiler::Compile(const google::protobuf::Descriptor* descriptor) {
 void VisitorCompiler::Compile(const DescriptorList& descriptors) {
     {
         bool are_compiled = true;
-        std::shared_lock read_lock = LockRead();
+        const std::shared_lock read_lock = LockRead();
         for (const google::protobuf::Descriptor* descriptor : descriptors) {
             if (compiled_.find(descriptor) == compiled_.end()) {
                 // Something is not compiled. Need to compile.
@@ -183,7 +183,7 @@ void VisitorCompiler::Compile(const DescriptorList& descriptors) {
         }
     }
 
-    std::unique_lock write_lock = LockWrite();
+    const std::unique_lock write_lock = LockWrite();
     for (const google::protobuf::Descriptor* descriptor : GetFullSubtrees(descriptors)) {
         UINVARIANT(descriptor, "descriptor is nullptr");
 
@@ -234,18 +234,18 @@ bool VisitorCompiler::ContainsSelected(const google::protobuf::Descriptor* descr
     // Compile if not yet compiled
     Compile(descriptor);
 
-    std::shared_lock read_lock = LockRead();
+    const std::shared_lock read_lock = LockRead();
     return fields_with_selected_children_.find(descriptor) != fields_with_selected_children_.end() ||
            IsSelected(*descriptor);
 }
 
-std::shared_lock<std::shared_mutex> VisitorCompiler::LockRead() {
+std::shared_lock<engine::SharedMutex> VisitorCompiler::LockRead() {
     std::shared_lock read_lock(mutex_, std::defer_lock);
     if (lock_behavior_ == LockBehavior::kShared) read_lock.lock();
     return read_lock;
 }
 
-std::unique_lock<std::shared_mutex> VisitorCompiler::LockWrite() {
+std::unique_lock<engine::SharedMutex> VisitorCompiler::LockWrite() {
     std::unique_lock write_lock(mutex_, std::defer_lock);
     if (lock_behavior_ == LockBehavior::kShared) write_lock.lock();
     return write_lock;

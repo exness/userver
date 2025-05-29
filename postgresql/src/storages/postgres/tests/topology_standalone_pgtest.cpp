@@ -15,7 +15,7 @@ namespace pg = storages::postgres;
 class Standalone : public PostgreSQLBase {};
 
 UTEST_F(Standalone, Smoke) {
-    pg::detail::topology::Standalone sa(
+    const pg::detail::topology::Standalone sa(
         GetTaskProcessor(),
         GetDsnListFromEnv(),
         nullptr,

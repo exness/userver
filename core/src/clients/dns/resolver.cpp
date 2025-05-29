@@ -28,7 +28,7 @@ std::optional<engine::io::Sockaddr> ParseIpV4Addr(const std::string& ip) {
     // inet_pton accepts formats other than ddd.ddd.ddd.ddd on some systems
     // so additional checks are necessary.
     size_t dots_count = 0;
-    for (char c : ip) {
+    for (const char c : ip) {
         if (c == '.') {
             ++dots_count;
         } else if (!std::isdigit(c)) {
@@ -81,7 +81,7 @@ std::optional<engine::io::Sockaddr> ParseNumericAddr(const std::string& name) {
 
 void CheckValidDomainName(const std::string& name) {
     // Not exhaustive, just quick character set check.
-    for (char c : name) {
+    for (const char c : name) {
         if (c != '.' && c != '-' && !std::isdigit(c) &&
             // not using isalpha/isalnum here as only ASCII is allowed
             !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z')) {

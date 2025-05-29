@@ -19,6 +19,9 @@ struct Settings {
 
     /// Whether to trim the fields marked as secret from the message
     bool trim_secrets{true};
+
+    // Local log level of the client span
+    logging::Level local_log_level{logging::Level::kDebug};
 };
 
 /// [MiddlewareBase example declaration]

@@ -48,7 +48,7 @@ public:
     // This method can be called from the tests
     void TriggerChatResponse() {
         {
-            std::lock_guard guard{mutex_};
+            const std::lock_guard guard{mutex_};
             answers_count_++;
         }
         cv_.NotifyOne();
@@ -310,7 +310,7 @@ UTEST_F_MT(GrpcClientWaitAnyTest, ServerTimeout, 2) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
     auto context = std::make_unique<grpc::ClientContext>();
 
-    std::chrono::milliseconds deadline_ms{1500};
+    const std::chrono::milliseconds deadline_ms{1500};
     auto deadline = engine::Deadline::FromDuration(deadline_ms);
     context->set_deadline(deadline);
 

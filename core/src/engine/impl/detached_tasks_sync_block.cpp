@@ -85,7 +85,7 @@ void DetachedTasksSyncBlock::RequestCancellation(TaskCancellationReason reason) 
         auto* const context_ptr = token.task.exchange(nullptr);
 
         if (context_ptr != nullptr) {
-            boost::intrusive_ptr<TaskContext> context(
+            const boost::intrusive_ptr<TaskContext> context(
                 context_ptr,
                 /*add_ref=*/false
             );

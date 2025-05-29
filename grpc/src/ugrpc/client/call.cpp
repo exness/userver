@@ -1,25 +1,36 @@
 #include <userver/ugrpc/client/call.hpp>
 
+#include <userver/ugrpc/client/impl/call_state.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client {
 
-grpc::ClientContext& CallAnyBase::GetContext() { return GetData().GetContext(); }
+grpc::ClientContext& CallAnyBase::GetContext() { return GetState().GetContext(); }
 
-std::string_view CallAnyBase::GetClientName() const { return GetData().GetClientName(); }
+std::string_view CallAnyBase::GetClientName() const { return GetState().GetClientName(); }
 
-std::string_view CallAnyBase::GetCallName() const { return GetData().GetCallName(); }
+std::string_view CallAnyBase::GetCallName() const { return GetState().GetCallName(); }
 
-tracing::Span& CallAnyBase::GetSpan() { return GetData().GetSpan(); }
+tracing::Span& CallAnyBase::GetSpan() { return GetState().GetSpan(); }
 
-impl::RpcData& CallAnyBase::GetData() {
-    UASSERT(data_);
-    return *data_;
+CallAnyBase::CallAnyBase(impl::CallParams&& params, impl::CallKind call_kind)
+    : state_(std::make_unique<impl::CallState>(std::move(params), call_kind)) {}
+
+CallAnyBase::CallAnyBase(CallAnyBase&& other) noexcept = default;
+
+CallAnyBase& CallAnyBase::operator=(CallAnyBase&& other) noexcept = default;
+
+CallAnyBase::~CallAnyBase() = default;
+
+impl::CallState& CallAnyBase::GetState() {
+    UASSERT(state_);
+    return *state_;
 }
 
-const impl::RpcData& CallAnyBase::GetData() const {
-    UASSERT(data_);
-    return *data_;
+const impl::CallState& CallAnyBase::GetState() const {
+    UASSERT(state_);
+    return *state_;
 }
 
 }  // namespace ugrpc::client

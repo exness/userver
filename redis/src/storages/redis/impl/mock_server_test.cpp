@@ -34,7 +34,7 @@ void HandlerHotFound(const std::string& command, const std::vector<std::string>&
 MockRedisServerBase::MockRedisServerBase(int port)
     : acceptor_(io_service_), socket_(io_service_), reader_(redisReaderCreate(), &redisReaderFree) {
     acceptor_.open(io::ip::tcp::v4());
-    boost::asio::ip::tcp::acceptor::reuse_address option(true);
+    const boost::asio::ip::tcp::acceptor::reuse_address option(true);
     acceptor_.set_option(option);
     acceptor_.bind(io::ip::tcp::endpoint(io::ip::tcp::v4(), port));
     acceptor_.listen();
@@ -245,7 +245,7 @@ void MockRedisServer::OnCommand(std::shared_ptr<storages::redis::Reply> cmd) {
     ASSERT_TRUE(array[0].IsString());
 
     const auto& command = array[0].GetString();
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     auto handler_it = handlers_.find(boost::algorithm::to_lower_copy(command));
     if (handler_it == handlers_.end()) {
         EXPECT_TRUE(false) << "Unknown command: " << command;
@@ -269,7 +269,7 @@ void MockRedisServer::RegisterHandlerFunc(
     const std::vector<std::string>& args_prefix,
     HandlerFunc handler
 ) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     AddHandlerFunc(handlers_[boost::algorithm::to_lower_copy(cmd)], args_prefix, std::move(handler));
 }
 
@@ -309,13 +309,13 @@ MockRedisServer::HandlerPtr MockRedisServer::DoRegisterTimeoutHandler(
 }
 
 size_t MockRedisServer::Handler::GetReplyCount() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     return reply_count_;
 }
 
 void MockRedisServer::Handler::AccountReply() {
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        const std::lock_guard<std::mutex> lock(mutex_);
         ++reply_count_;
     }
     cv_.notify_one();

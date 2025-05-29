@@ -26,7 +26,7 @@ struct ServiceInfo;
 namespace impl {
 
 /// @brief The interface for a `ServerComponentBase` component. So, `ServerComponentBase` runs with middlewares.
-using MiddlewareRunner = USERVER_NAMESPACE::middlewares::RunnerComponentBase<MiddlewareBase, ServiceInfo>;
+using MiddlewareRunnerComponentBase = USERVER_NAMESPACE::middlewares::RunnerComponentBase<MiddlewareBase, ServiceInfo>;
 
 }  // namespace impl
 
@@ -46,7 +46,7 @@ using MiddlewareRunner = USERVER_NAMESPACE::middlewares::RunnerComponentBase<Mid
 
 // clang-format on
 
-class ServiceComponentBase : public impl::MiddlewareRunner {
+class ServiceComponentBase : public impl::MiddlewareRunnerComponentBase {
 public:
     ServiceComponentBase(const components::ComponentConfig& config, const components::ComponentContext& context);
 

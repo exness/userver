@@ -93,7 +93,7 @@ UTEST_F(RedisClusterClientTest, MgetCrossSlot) {
     auto shard = client->ShardByKey(MakeKey(idx[0]));
     while (client->ShardByKey(MakeKey(idx[1])) != shard) ++idx[1];
 
-    for (unsigned long i : idx) {
+    for (const unsigned long i : idx) {
         auto req = client->Set(MakeKey(i), std::to_string(add + i), kDefaultCc);
         UASSERT_NO_THROW(req.Get());
     }
@@ -103,7 +103,7 @@ UTEST_F(RedisClusterClientTest, MgetCrossSlot) {
         UASSERT_THROW(req.Get(), storages::redis::ParseReplyException);
     }
 
-    for (unsigned long i : idx) {
+    for (const unsigned long i : idx) {
         auto req = client->Del(MakeKey(i), kDefaultCc);
         EXPECT_EQ(req.Get(), 1);
     }
@@ -313,7 +313,7 @@ UTEST_F(RedisClusterClientTest, Subscribe) {
 
 // for manual testing of CLUSTER FAILOVER
 UTEST_F(RedisClusterClientTest, LongWork) {
-    bool kIsManualTesting = false;
+    const bool kIsManualTesting = false;
     const auto kTestTime = std::chrono::seconds(300);
     auto deadline = engine::Deadline::FromDuration(kTestTime);
 

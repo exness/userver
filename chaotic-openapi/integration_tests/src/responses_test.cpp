@@ -15,7 +15,7 @@ USERVER_NAMESPACE_BEGIN
 namespace {
 
 UTEST(Responses, Smoke) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = R"({"bar": "bar"})";
@@ -35,7 +35,7 @@ UTEST(Responses, Smoke) {
 }
 
 UTEST(Responses, Status200) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = R"({"bar": "bar"})";
@@ -50,7 +50,7 @@ UTEST(Responses, Status200) {
 }
 
 UTEST(Responses, Status500) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 500;
         return r;
@@ -65,7 +65,7 @@ UTEST(Responses, Status500) {
 }
 
 UTEST(Responses, StatusUnknown) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 555;
         return r;
@@ -83,7 +83,7 @@ UTEST(Responses, StatusUnknown) {
 }
 
 UTEST(Responses, Timeout) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         engine::SleepFor(std::chrono::milliseconds(100));
         r.response_status = 200;
@@ -102,7 +102,7 @@ UTEST(Responses, Timeout) {
 }
 
 UTEST(ResponsesMultipleContentType, ApplicationJson) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = R"({"bar": "a"})";
@@ -120,7 +120,7 @@ UTEST(ResponsesMultipleContentType, ApplicationJson) {
 }
 
 UTEST(ResponsesMultipleContentType, ApplicationOctetStream) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = "blabla";
@@ -138,7 +138,7 @@ UTEST(ResponsesMultipleContentType, ApplicationOctetStream) {
 }
 
 UTEST(ResponsesMultipleContentType, UnknownContentType) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = R"({"bar": "a"})";
@@ -153,7 +153,7 @@ UTEST(ResponsesMultipleContentType, UnknownContentType) {
 }
 
 UTEST(ResponsesMultipleContentType, InvalidJson) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = R"({"bar": "a")";
@@ -168,7 +168,7 @@ UTEST(ResponsesMultipleContentType, InvalidJson) {
 }
 
 UTEST(ResponsesMultipleContentType, InvalidSchema) {
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
         utest::HttpServerMock::HttpResponse r;
         r.response_status = 200;
         r.body = R"({"barrrrrr": "a"})";

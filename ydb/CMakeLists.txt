@@ -12,6 +12,7 @@ set(YDB_LIBRARIES
     YDB-CPP-SDK::SolomonStats
     YDB-CPP-SDK::Table
     YDB-CPP-SDK::Topic
+    YDB-CPP-SDK::FederatedTopic
     YDB-CPP-SDK::Types
 )
 

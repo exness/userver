@@ -69,7 +69,7 @@ bool Connection::IsReadOnly() const { return pimpl_->IsReadOnly(); }
 
 void Connection::RefreshReplicaState(engine::Deadline deadline) const { pimpl_->RefreshReplicaState(deadline); }
 
-ConnectionSettings const& Connection::GetSettings() const { return pimpl_->GetSettings(); }
+const ConnectionSettings& Connection::GetSettings() const { return pimpl_->GetSettings(); }
 
 ConnectionState Connection::GetState() const { return pimpl_->GetConnectionState(); }
 
