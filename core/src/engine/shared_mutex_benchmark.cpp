@@ -14,7 +14,7 @@ void shared_mutex_benchmark(benchmark::State& state) {
 
         auto initial_lock_holder = engine::AsyncNoSpan([&] {
             // ensure the locks are actually needed
-            const std::unique_lock lock(mutex);
+            const std::lock_guard lock(mutex);
             variable = 1;
         });
 

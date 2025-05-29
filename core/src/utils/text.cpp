@@ -71,7 +71,7 @@ const std::locale& GetLocale(const std::string& name) {
     const boost::locale::generator gen;
     const std::locale loc = gen(name);
     {
-        const std::unique_lock write_lock(m);
+        const std::lock_guard write_lock(m);
         return locales.emplace(name, std::move(loc)).first->second;
     }
 }

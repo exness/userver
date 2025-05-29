@@ -251,7 +251,7 @@ void Shard::Clean() {
     std::vector<ConnectionStatus> local_clean_wait;
 
     {
-        const std::unique_lock lock(mutex_);
+        const std::lock_guard lock(mutex_);
         destroying_ = true;
         local_instances.swap(instances_);
         local_clean_wait.swap(clean_wait_);
@@ -302,7 +302,7 @@ bool Shard::ProcessStateUpdate() {
     bool instances_changed = false;
     bool new_connected = false;
     {
-        const std::unique_lock lock(mutex_);
+        const std::lock_guard lock(mutex_);
         // NOLINTNEXTLINE(readability-qualified-auto)
         for (auto info = instances_.begin(); info != instances_.end();) {
             if (info->instance->GetState() != Redis::State::kConnected) {
@@ -363,7 +363,7 @@ bool Shard::ProcessStateUpdate() {
 }
 
 bool Shard::SetConnectionInfo(std::vector<ConnectionInfoInt> info_array) {
-    const std::unique_lock lock(mutex_);
+    const std::lock_guard lock(mutex_);
     if (info_array == connection_infos_) return false;
     std::swap(connection_infos_, info_array);
     return true;
@@ -455,7 +455,7 @@ bool Shard::UpdateCleanWaitQueue(std::vector<ConnectionStatus>&& add_clean_wait)
     std::vector<ConnectionStatus> erase_instance;
 
     {
-        const std::unique_lock lock(mutex_);
+        const std::lock_guard lock(mutex_);
         for (auto& instance : add_clean_wait) clean_wait_.push_back(std::move(instance));
 
         // NOLINTNEXTLINE(readability-qualified-auto)

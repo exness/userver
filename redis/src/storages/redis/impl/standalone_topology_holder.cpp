@@ -124,7 +124,7 @@ void StandaloneTopologyHolder::SetConnectionInfo(const std::vector<ConnectionInf
     LOG_DEBUG() << "Update connection info to " << new_conn.Fulltext();
 
     {
-        const std::unique_lock<std::mutex> lock(mutex_);
+        const std::lock_guard<std::mutex> lock(mutex_);
         conn_to_create_ = new_conn;
         is_nodes_received_.store(false);
     }

@@ -649,8 +649,6 @@ easy::time_point::duration easy::time_to_start() const {
 }
 
 native::curl_socket_t easy::open_tcp_socket(native::curl_sockaddr* address) {
-    const std::error_code ec;
-
     LOG_TRACE() << "open_tcp_socket family=" << address->family;
 
     const int fd = socket(address->family, address->socktype, address->protocol);

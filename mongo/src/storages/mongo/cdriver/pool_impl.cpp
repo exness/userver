@@ -296,7 +296,7 @@ void CreateGlobalInitializer() {
     // Initialize static variable, and wait not on std::mutex, but on engine::Mutex.
     // Otherwise, CPU will burn.
     static engine::Mutex mutex;
-    const std::unique_lock lock(mutex);
+    const std::lock_guard lock(mutex);
 
     static std::optional<GlobalInitializer> kInitMongoc;
     engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [] {
