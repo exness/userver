@@ -93,6 +93,10 @@ std::string DoMakeQuery(T begin, T end) {
 
 template <typename T>
 std::string MakeUrl(std::string_view path, T begin, T end) {
+    if (begin == end) {
+        return std::string{path};
+    }
+
     std::string result;
     result.reserve(path.size() + 1 + GetInitialQueryCapacity(begin, end));
 
