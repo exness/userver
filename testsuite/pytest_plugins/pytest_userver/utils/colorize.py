@@ -157,7 +157,7 @@ class Colorizer:
                 localhost_pos = text.find(HTTP_LOCALHOST_PREFIX)
                 if localhost_pos != -1:
                     start_url_pos = text.find('/', localhost_pos + len(HTTP_LOCALHOST_PREFIX))
-                    text = text[:localhost_pos] + text[start_url_pos:]
+                    text = text[:localhost_pos] + self.textcolor(text[start_url_pos:], Colors.GREEN)
 
                 meta_code = row.pop('meta_code', None)
                 if meta_code:
