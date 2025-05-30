@@ -23,6 +23,10 @@ USERVER_NAMESPACE_BEGIN
 
 namespace tracing {
 
+inline constexpr std::size_t kTypicalSpanIdSize = 16;
+inline constexpr std::size_t kTypicalTraceIdSize = 32;
+inline constexpr std::size_t kTypicalLinkSize = 32;
+
 class Span::Impl : public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
 public:
     Impl(
@@ -73,10 +77,6 @@ private:
 
     static std::string_view GetParentIdForLogging(const Span::Impl* parent);
     bool ShouldLog() const;
-
-    static constexpr std::size_t kTypicalSpanIdSize = 16;
-    static constexpr std::size_t kTypicalTraceIdSize = 36;  // UUID-4
-    static constexpr std::size_t kTypicalLinkSize = 36;     // UUID-4
 
     const std::string name_;
     const bool is_no_log_span_;

@@ -14,8 +14,6 @@ namespace {
 
 constexpr std::size_t kTraceParentSize = 55;
 constexpr std::size_t kVersionSize = 2;
-constexpr std::size_t kTraceIdSize = 32;
-constexpr std::size_t kSpanIdSize = 16;
 constexpr std::size_t kTraceFlagsSize = 2;
 
 constexpr char kDefaultVersion[] = "00";

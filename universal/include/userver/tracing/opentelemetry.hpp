@@ -9,6 +9,9 @@ USERVER_NAMESPACE_BEGIN
 
 namespace tracing::opentelemetry {
 
+inline constexpr std::size_t kTraceIdSize = 32;
+inline constexpr std::size_t kSpanIdSize = 16;
+
 struct TraceParentData {
     std::string version;
     std::string trace_id;

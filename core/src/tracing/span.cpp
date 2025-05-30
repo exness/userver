@@ -11,6 +11,7 @@
 #include <userver/formats/json/string_builder.hpp>
 #include <userver/logging/impl/logger_base.hpp>
 #include <userver/logging/impl/tag_writer.hpp>
+#include <userver/tracing/opentelemetry.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/tracing/span_event.hpp>
 #include <userver/tracing/tags.hpp>
@@ -18,7 +19,6 @@
 #include <userver/utils/assert.hpp>
 #include <userver/utils/encoding/hex.hpp>
 #include <userver/utils/rand.hpp>
-#include <userver/utils/uuid4.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -68,12 +68,41 @@ TsBuffer StartTsToString(std::chrono::system_clock::time_point start) {
 // Maintain coro-local span stack to identify "current span" in O(1).
 engine::TaskLocalVariable<SpanStack> task_local_spans;
 
-std::string GenerateSpanId() {
-    std::uniform_int_distribution<std::uint64_t> dist;
-    const auto random_value = utils::WithDefaultRandom(dist);
+template <std::size_t kSboSize, std::size_t kIdSize>
+utils::SmallString<kSboSize> GenerateId() {
+    using Chunk = utils::RandomBase::result_type;
+    static constexpr std::size_t kHexChunkSize = utils::encoding::LengthInHexForm(sizeof(Chunk));
+    static_assert(kIdSize % kHexChunkSize == 0);
+    static_assert(utils::RandomBase::min() == std::numeric_limits<Chunk>::min());
+    static_assert(utils::RandomBase::max() == std::numeric_limits<Chunk>::max());
 
-    static_assert(sizeof(random_value) == 8);
-    return utils::encoding::ToHex(&random_value, 8);
+    utils::SmallString<kSboSize> result;
+
+    result.resize_and_overwrite(kIdSize, [](char* data, std::size_t size) {
+        utils::WithDefaultRandom([&](auto& rnd) {
+            for (std::size_t pos = 0; pos < size; pos += kHexChunkSize) {
+                const auto random_value = rnd();
+                utils::encoding::ToHexBuffer(
+                    {reinterpret_cast<const char*>(&random_value), sizeof(random_value)}, {data + pos, data + size}
+                );
+            }
+        });
+        return size;
+    });
+
+    return result;
+}
+
+utils::SmallString<kTypicalTraceIdSize> GenerateTraceId() {
+    return GenerateId<kTypicalTraceIdSize, opentelemetry::kTraceIdSize>();
+}
+
+utils::SmallString<kTypicalSpanIdSize> GenerateSpanId() {
+    return GenerateId<kTypicalSpanIdSize, opentelemetry::kSpanIdSize>();
+}
+
+utils::SmallString<kTypicalLinkSize> GenerateLink() {
+    return GenerateId<kTypicalLinkSize, opentelemetry::kTraceIdSize>();
 }
 
 std::string MakeTagFromEvents(const std::vector<SpanEvent>& events) {
@@ -96,11 +125,11 @@ Span::Impl::Impl(
       log_level_(is_no_log_span_ ? logging::Level::kNone : log_level),
       reference_type_(reference_type),
       source_location_(source_location),
-      trace_id_(parent ? parent->GetTraceId() : utils::generators::GenerateUuid()),
+      trace_id_(parent ? utils::SmallString<kTypicalTraceIdSize>(parent->GetTraceId()) : GenerateTraceId()),
       span_id_(GenerateSpanId()),
       parent_id_(GetParentIdForLogging(parent)),
-      link_(parent ? parent->GetLink() : utils::generators::GenerateUuid()),
-      parent_link_(parent ? parent->GetParentLink() : std::string{}),
+      link_(parent ? utils::SmallString<kTypicalLinkSize>(parent->GetLink()) : GenerateLink()),
+      parent_link_(parent ? parent->GetParentLink() : std::string_view{}),
       start_system_time_(std::chrono::system_clock::now()),
       start_steady_time_(std::chrono::steady_clock::now()) {
     if (parent) {
