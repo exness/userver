@@ -161,7 +161,9 @@ class Colorizer:
 
                 meta_code = row.pop('meta_code', None)
                 if meta_code:
-                    text = f'{text} {self.textcolor(f"meta_code={meta_code}", Colors.GREEN)}'
+                    extra_fields.append(
+                        self._http_status('meta_code', meta_code),
+                    )
 
                 if 'body' in row:
                     extra_fields.append(
