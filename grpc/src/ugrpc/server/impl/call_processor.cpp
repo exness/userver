@@ -68,10 +68,7 @@ void SetupSpan(
         } else {
             auto data = std::move(extraction_result).value();
             span_holder.emplace(
-                std::move(span_name),
-                std::move(data.trace_id),
-                std::move(data.span_id),
-                utils::impl::SourceLocation::Current()
+                std::move(span_name), data.trace_id, data.span_id, utils::impl::SourceLocation::Current()
             );
         }
     } else if (trace_id) {
@@ -85,9 +82,10 @@ void SetupSpan(
         span_holder.emplace(std::move(span_name), utils::impl::SourceLocation::Current());
     }
 
+    auto& span = span_holder->Get();
     const auto* const parent_link = utils::FindOrNullptr(client_metadata, ugrpc::impl::kXYaRequestId);
     if (parent_link) {
-        span_holder->SetParentLink(utils::impl::InternalTag{}, ugrpc::impl::ToStringView(*parent_link));
+        span.SetParentLink(ugrpc::impl::ToStringView(*parent_link));
     }
 }
 

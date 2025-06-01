@@ -117,12 +117,11 @@ Span::Impl::Impl(
     std::string name,
     const Impl* parent,
     ReferenceType reference_type,
-    logging::Level log_level,
     const utils::impl::SourceLocation& source_location
 )
     : name_(std::move(name)),
       is_no_log_span_(IsNoLogSpan(name_)),
-      log_level_(is_no_log_span_ ? logging::Level::kNone : log_level),
+      log_level_(is_no_log_span_ ? logging::Level::kNone : logging::Level::kInfo),
       reference_type_(reference_type),
       source_location_(source_location),
       trace_id_(parent ? utils::SmallString<kTypicalTraceIdSize>(parent->GetTraceId()) : GenerateTraceId()),
@@ -246,31 +245,19 @@ Span::Span(
     std::string name,
     const Span* parent,
     ReferenceType reference_type,
-    logging::Level log_level,
     const utils::impl::SourceLocation& source_location
 )
     : pimpl_(
-          AllocateImpl(
-              std::move(name),
-              parent ? parent->pimpl_.get() : nullptr,
-              reference_type,
-              log_level,
-              source_location
-          ),
+          AllocateImpl(std::move(name), parent ? parent->pimpl_.get() : nullptr, reference_type, source_location),
           Span::OptionalDeleter{Span::OptionalDeleter::ShouldDelete()}
       ) {
     AttachToCoroStack();
     pimpl_->span_ = this;
 }
 
-Span::Span(
-    std::string name,
-    ReferenceType reference_type,
-    logging::Level log_level,
-    const utils::impl::SourceLocation& source_location
-)
+Span::Span(std::string name, const utils::impl::SourceLocation& source_location)
     : pimpl_(
-          AllocateImpl(std::move(name), GetParentSpanImpl(), reference_type, log_level, source_location),
+          AllocateImpl(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, source_location),
           Span::OptionalDeleter{OptionalDeleter::ShouldDelete()}
       ) {
     AttachToCoroStack();
@@ -306,8 +293,13 @@ Span* Span::CurrentSpanUnchecked() {
     return !spans_ptr || spans_ptr->empty() ? nullptr : spans_ptr->back().span_;
 }
 
-Span Span::MakeSpan(std::string name, std::string_view trace_id, std::string_view parent_span_id) {
-    Span span(std::move(name));
+Span Span::MakeSpan(
+    std::string name,
+    std::string_view trace_id,
+    std::string_view parent_span_id,
+    const utils::impl::SourceLocation& source_location
+) {
+    Span span(std::move(name), nullptr, ReferenceType::kChild, source_location);
     if (!trace_id.empty()) span.pimpl_->SetTraceId(trace_id);
     span.pimpl_->SetParentId(parent_span_id);
     return span;
@@ -317,22 +309,27 @@ Span Span::MakeSpan(
     std::string name,
     std::string_view trace_id,
     std::string_view parent_span_id,
-    std::string_view link
+    std::string_view link,
+    const utils::impl::SourceLocation& source_location
 ) {
-    Span span(std::move(name), nullptr);
-    span.pimpl_->SetLink(link);
+    Span span(std::move(name), nullptr, ReferenceType::kChild, source_location);
     if (!trace_id.empty()) span.pimpl_->SetTraceId(trace_id);
     span.pimpl_->SetParentId(parent_span_id);
+    if (!link.empty()) span.pimpl_->SetLink(link);
     return span;
 }
 
-Span Span::MakeRootSpan(std::string name, logging::Level log_level) {
-    return Span(std::move(name), nullptr, ReferenceType::kChild, log_level);
+Span Span::MakeRootSpan(std::string name, const utils::impl::SourceLocation& source_location) {
+    return Span(std::move(name), nullptr, ReferenceType::kChild, source_location);
 }
 
-Span Span::CreateChild(std::string name) const { return Span(std::move(name), this, ReferenceType::kChild); }
+Span Span::CreateChild(std::string name, const utils::impl::SourceLocation& source_location) const {
+    return Span(std::move(name), this, ReferenceType::kChild, source_location);
+}
 
-Span Span::CreateFollower(std::string name) const { return Span(std::move(name), this, ReferenceType::kReference); }
+Span Span::CreateFollower(std::string name, const utils::impl::SourceLocation& source_location) const {
+    return Span(std::move(name), this, ReferenceType::kReference, source_location);
+}
 
 tracing::ScopeTime Span::CreateScopeTime() { return ScopeTime(pimpl_->GetTimeStorage()); }
 
@@ -389,6 +386,8 @@ void Span::AddEvent(std::string_view event_name) { pimpl_->events_.emplace_back(
 void Span::AddEvent(SpanEvent&& event) { pimpl_->events_.emplace_back(std::move(event)); }
 
 void Span::SetLink(std::string_view link) { pimpl_->SetLink(link); }
+
+void Span::SetParentLink(std::string_view parent_link) { pimpl_->SetParentLink(parent_link); }
 
 bool Span::ShouldLogDefault() const noexcept { return pimpl_->ShouldLog(); }
 

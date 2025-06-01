@@ -670,9 +670,11 @@ UTEST_F(Span, SetLogLevelDoesntBreakGenealogyLoggableParent) {
 UTEST_F(Span, SetLogLevelDoesntBreakGenealogyMultiSkip) {
     const tracing::Span root_span{"root_span"};
     {
-        const tracing::Span span_no_log{"no_log", tracing::ReferenceType::kChild, logging::Level::kTrace};
+        tracing::Span span_no_log{"no_log"};
+        span_no_log.SetLogLevel(logging::Level::kTrace);
         {
-            const tracing::Span span_no_log_2{"no_log_2", tracing::ReferenceType::kChild, logging::Level::kTrace};
+            tracing::Span span_no_log_2{"no_log_2"};
+            span_no_log_2.SetLogLevel(logging::Level::kTrace);
             {
                 const tracing::Span child{"child"};
                 EXPECT_EQ(child.GetParentId(), root_span.GetSpanId());

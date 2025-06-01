@@ -7,7 +7,6 @@
 
 #include <userver/tracing/span.hpp>
 #include <userver/utils/fast_pimpl.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -27,8 +26,8 @@ public:
 
     explicit InPlaceSpan(
         std::string&& name,
-        std::string&& trace_id,
-        std::string&& parent_span_id,
+        std::string_view trace_id,
+        std::string_view parent_span_id,
         const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
     );
 
@@ -43,11 +42,6 @@ public:
     ~InPlaceSpan();
 
     tracing::Span& Get() noexcept;
-
-    /// @cond
-    // For internal use only.
-    void SetParentLink(utils::impl::InternalTag, std::string_view parent_link);
-    /// @endcond
 
 private:
     struct Impl;

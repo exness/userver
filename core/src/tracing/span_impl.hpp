@@ -33,7 +33,6 @@ public:
         std::string name,
         const Impl* parent,
         ReferenceType reference_type,
-        logging::Level log_level,
         const utils::impl::SourceLocation& source_location
     );
 
