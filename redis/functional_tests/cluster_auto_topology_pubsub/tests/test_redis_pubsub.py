@@ -2,10 +2,8 @@ import asyncio
 
 import redis
 
-# Some messages may be lost (it's a Redis limitation)
-REDIS_PORT = 6379
-REQUESTS_RETRIES = 42
-REQUESTS_RETRIES_NOT_EXPECTED = 3
+# Some messages may be lost (it's a Redis limitation). *_failover tests require more than 100 retries on slow CI
+REQUESTS_RETRIES = 9000
 REQUESTS_RELAX_TIME = 1.0
 
 # Target channel. Same constant in c++ code
@@ -89,8 +87,7 @@ async def _test_service_sharded_subscription(
 
 async def _validate_service_publish(service_client, nodes, shards_count=0):
     """
-    Check publishing by service with 'publish' command in each shard is heard
-    from any node from any shard
+    Check publishing by service with 'publish' command in each shard is heard from any node from any shard
     """
     redis_clients = [(node, node.get_client()) for node in nodes]
 
@@ -325,8 +322,7 @@ async def test_cluster_happy_path(service_client, redis_cluster_topology):
 
 async def test_cluster_add_shard(service_client, redis_cluster_topology):
     """
-    Check service still can receive messages published on any of cluster's node
-    even after addition of new shard
+    Check service still can receive messages published on any of cluster's node even after addition of new shard
     """
 
     await service_client.delete('/redis-cluster')

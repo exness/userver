@@ -282,6 +282,9 @@ public:
     }
 
     void Stop() override {
+        signal_node_state_change_.disconnect_all_slots();
+        signal_topology_changed_.disconnect_all_slots();
+
         ev_thread_.RunInEvLoopBlocking([this] {
             update_topology_timer_.Stop();
             explore_nodes_timer_.Stop();
@@ -433,7 +436,6 @@ private:
     bool IsInitialized() const { return is_nodes_received_.load() && is_topology_received_.load(); }
     ///}
 
-    // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
     boost::signals2::signal<void(HostPort, Redis::State)> signal_node_state_change_;
     boost::signals2::signal<void(size_t shards_count)> signal_topology_changed_;
     NodesStorage nodes_;
