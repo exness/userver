@@ -153,7 +153,6 @@ class Colorizer:
         ]
         if text:
             if 'http_url' in row:
-                text = text.removesuffix('?')
                 localhost_pos = text.find(HTTP_LOCALHOST_PREFIX)
                 if localhost_pos != -1:
                     start_url_pos = text.find('/', localhost_pos + len(HTTP_LOCALHOST_PREFIX))
