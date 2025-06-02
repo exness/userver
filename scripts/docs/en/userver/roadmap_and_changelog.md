@@ -24,6 +24,7 @@ Changelog news also go to the
 * ✔️ Secdist simplification and functionality improvement.
 * ✔️ Improved MacOS build support.
 * ✔️ Improved Conan support.
+* ✔️ SQLite driver
 * 👨‍💻 gRPC simplification and functionality improvement.
 * 👨‍💻 Add retry budget or retry circuit breaker for clients.
 * 👨‍💻 Generate full-blown accessories for OpenAPI:
@@ -33,6 +34,29 @@ Changelog news also go to the
 
 
 ## Changelog
+
+### Release v2.10
+
+* Initial implementation of @ref scripts/docs/en/userver/sqlite/sqlite_driver.md. Many thanks to
+  [Turulin Zakhar](https://github.com/zahartd) for the implementation, tests and for the documentation.
+* Merged a foundation for the ODBC driver. Many thanks to [Alexey](https://github.com/Olex1313) for the PR!
+* GDB pretty printers now can list all the tasks via `utask list` and can apply commands to all or selected
+  tasks. For example `utask apply all bt` prints the backtraces of all the tasks, `utask apply some_task_name bt`
+  prints the backtrace of the task with name `some_task_name`. Many thanks to
+  [Maxim Belov](https://github.com/UNEXPECTEDsemicolon) for the brilliant implementation.
+* Redis driver now can ignore ping times to different instances to do a fair round-robin. See `consider_ping` field
+  in storages::redis::CommandControl.
+* Dropped gRPC `[(userver.field).secret = true];`. Use `[debug_redact = true];` instead.
+* Statically assert that a destructor of an object in utils::FastPimpl is `noexcept`. Many thanks to
+  [Шаблов Анатолий Владимирович](https://github.com/AnatoliiShablov) for the PR!
+
+* Optimizations:
+  * Reduced memory allocations while generating strings for ID in tracing::Span. About a 150ns speedup on average on
+    tracing::Span construction.
+  * Removed unused code and class members in Redis internals, reducing runtime memory usage and binary code size.
+  * Multiple optimizations for the gRPC logging. Up to 100 times faster logging in edge cases.
+  * Replaced `std::unique_lock` with `std::lock_guard` where possible to simplify optimization work for the compiler.
+
 
 ### Release v2.9
 
