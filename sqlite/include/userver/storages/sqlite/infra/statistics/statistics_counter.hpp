@@ -7,7 +7,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite::infra::statistics {
 
-// TODO: make RAII alghorithms
+// TODO: make RAII algorithms
 
 class QueryStatCounter {
 public:
@@ -41,7 +41,7 @@ public:
     void AccountTransactionRollback() noexcept;
 
 private:
-    PoolTransactionsStatistics& transations_stats_;
+    PoolTransactionsStatistics& transactions_stats_;
     utils::datetime::SteadyClock::time_point exec_begin_time;
 };
 

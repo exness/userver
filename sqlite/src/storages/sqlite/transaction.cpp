@@ -33,7 +33,7 @@ Transaction::~Transaction() {
 
 void Transaction::AssertValid() const {
     // TODO: exception or abort?
-    UINVARIANT(connection_ && connection_->IsValid(), "Transaction accessed after it's been commited");
+    UINVARIANT(connection_ && connection_->IsValid(), "Transaction accessed after it's been committed");
 }
 
 Savepoint Transaction::Save(std::string name) const {

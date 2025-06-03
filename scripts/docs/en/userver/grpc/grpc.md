@@ -389,7 +389,7 @@ These are the metrics provided for each gRPC method:
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/profile_context_switches.md | @ref scripts/docs/en/userver/grpc/server_middlewares.md ⇨
+⇦ @ref scripts/docs/en/userver/gdb_debugging.md | @ref scripts/docs/en/userver/grpc/server_middlewares.md ⇨
 @htmlonly </div> @endhtmlonly
 
 @example grpc-generic-proxy/src/proxy_service.hpp

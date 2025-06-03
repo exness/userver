@@ -93,7 +93,7 @@ void FreestandingBind(OutputBindingsFwd& binds, std::size_t pos, ExplicitRef<boo
     std::vector<std::uint8_t> blob;
     binds.Extract(pos, blob);
     if (blob.size() != boost::uuids::uuid::static_size()) {
-        throw SQLiteException{"Incorect representation of UUIDv4 in SQLite"};
+        throw SQLiteException{"Incorrect representation of UUIDv4 in SQLite"};
     }
     boost::range::copy(blob, val.Get().begin());
 }

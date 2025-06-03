@@ -25,7 +25,7 @@ std::string TestParamNameIsolationLevel(
     return IsolationLevelToString(info.param);
 }
 
-class SQLiteTransactionsConcurentTest
+class SQLiteTransactionsConcurrentTest
     : public SQLiteParametrizedFixture<SQLiteCustomConnection, settings::TransactionOptions::IsolationLevel> {
     void PreInitialize(const ClientPtr& client) final {
         UEXPECT_NO_THROW(
@@ -36,7 +36,7 @@ class SQLiteTransactionsConcurentTest
 
 }  // namespace
 
-UTEST_P_MT(SQLiteTransactionsConcurentTest, IsolationLevels, 3) {
+UTEST_P_MT(SQLiteTransactionsConcurrentTest, IsolationLevels, 3) {
     settings::SQLiteSettings settings;
     settings.db_path = GetTestDbPath("test.db");
     settings::TransactionOptions::IsolationLevel trx_isolation_lvl = GetParam();
@@ -100,7 +100,7 @@ UTEST_P_MT(SQLiteTransactionsConcurentTest, IsolationLevels, 3) {
 
 INSTANTIATE_UTEST_SUITE_P(
     SQLiteTrxIsolationLevels,
-    SQLiteTransactionsConcurentTest,
+    SQLiteTransactionsConcurrentTest,
     ::testing::Values(
         settings::TransactionOptions::IsolationLevel::kSerializable,
         settings::TransactionOptions::IsolationLevel::kReadUncommitted

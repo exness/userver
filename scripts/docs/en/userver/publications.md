@@ -5,6 +5,8 @@
 
 ## Introductions
 * 🎥 [Microservices on C++, or why we made our own framework](https://youtu.be/WkcmNOmwAH8)
+* 📖 Implementing pastebin using only userver (ru):
+  [Пишем свой pastebin, используя только userver](https://habr.com/ru/companies/yandex/articles/894294/)
 * 🎥 Writing a new service with database and cache from scratch (ru):
   [Эффективные и высоконагруженные сервисы на C++](https://youtu.be/qrGZARf2Wno?t=2034)
 * 🎥 Writing a new gRPC server and client with userver (ru):

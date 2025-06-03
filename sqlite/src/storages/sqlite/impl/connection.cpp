@@ -15,7 +15,7 @@ namespace storages::sqlite::impl {
 
 namespace {
 constexpr utils::StringLiteral kStatementTransactionSerializableIsolationLevel = "PRAGMA read_uncommitted=0";
-constexpr utils::StringLiteral kStatementTransactionReadUncommitedIsolationLevel = "PRAGMA read_uncommitted=1";
+constexpr utils::StringLiteral kStatementTransactionReadUncommittedIsolationLevel = "PRAGMA read_uncommitted=1";
 constexpr utils::StringLiteral kStatementTransactionBeginDeferred = "BEGIN DEFERRED";
 constexpr utils::StringLiteral kStatementTransactionBeginImmediate = "BEGIN IMMEDIATE";
 constexpr utils::StringLiteral kStatementTransactionBeginExclusive = "BEGIN EXCLUSIVE";
@@ -60,8 +60,8 @@ void Connection::ExecutionStep(StatementBasePtr prepare_statement) const {
 
 void Connection::Begin(const settings::TransactionOptions& options) {
     if (options.isolation_level == settings::TransactionOptions::IsolationLevel::kReadUncommitted &&
-        !settings_.read_uncommited) {
-        ExecuteQuery(kStatementTransactionReadUncommitedIsolationLevel);
+        !settings_.read_uncommitted) {
+        ExecuteQuery(kStatementTransactionReadUncommittedIsolationLevel);
     }
     switch (options.mode) {
         case settings::TransactionOptions::kDeferred:
@@ -82,7 +82,7 @@ void Connection::Begin(const settings::TransactionOptions& options) {
 void Connection::Commit() {
     ExecuteQuery(kStatementTransactionCommit);
     AccountTransactionCommit();
-    if (!settings_.read_uncommited) {
+    if (!settings_.read_uncommitted) {
         ExecuteQuery(kStatementTransactionSerializableIsolationLevel);
     }
 }
@@ -90,7 +90,7 @@ void Connection::Commit() {
 void Connection::Rollback() {
     ExecuteQuery(kStatementTransactionRollback);
     AccountTransactionRollback();
-    if (!settings_.read_uncommited) {
+    if (!settings_.read_uncommitted) {
         ExecuteQuery(kStatementTransactionSerializableIsolationLevel);
     }
 }

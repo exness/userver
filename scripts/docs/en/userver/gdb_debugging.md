@@ -1,12 +1,16 @@
 # Debugging with GDB
 
-In the most cases writing extensive logs and running profilers is sufficient for debugging. But in the most complex cases it may be useful to do interactive debugging with GDB. Additionally, GDB is the only option for debugging coredumps. Userver provides the capability to perform such debugging.
+In the most cases writing extensive logs and running profilers is sufficient for debugging. But in the most complex
+cases it may be useful to do interactive debugging with GDB. Additionally, GDB is the only option for debugging
+coredumps. 🐙 userver provides the capability to perform such debugging.
 
-First of all, you can use GDB on your service based on Userver just like any other binary (debug symbols are included by default in all build types).
+First of all, you can use GDB on your service based on userver just like any other binary (debug symbols are included
+by default in all build types).
+
 
 ## Userver-specific debug features
 
-To use Userver-specific debug features, you need to allow execution of debug scripts, linked into your binary.
+To use userver-specific debug features, you need to allow execution of debug scripts, linked into your binary.
 It can be done by adding the following line to your ~/.gdbinit file
 ```
 add-auto-load-safe-path <path-to-your-binary>
@@ -17,9 +21,11 @@ add-auto-load-safe-path /
 ```
 See [GDB manual](https://www.sourceware.org/gdb/current/onlinedocs/gdb.html/Auto_002dloading-safe-path.html) for more details.
 
+
 ### Custom pretty-printers
 
-The simplest extentions for GDB, that Userver provides, are pretty-printers for certain data stuctures. Below is an example comparing the output for a `formats::json::Value` with and without pretty-printers:
+The simplest extentions for GDB, that userver provides, are pretty-printers for certain data stuctures. Below is an
+example comparing the output for a `formats::json::Value` with and without pretty-printers:
 
 ```
 (gdb) print value
@@ -39,9 +45,12 @@ $2 = {holder_ = {static kInvalidVersion = 18446744073709551615, data_ = {__ptr_ 
 
 In addition, the output has a hierarchical structure that is displayed correctly when debugging from the IDE.
 
+
 ### Coroutines exploration
 
-Userver provides GDB command `utask`, which mimics `thread` command and allows you to explore all coroutines (Userver Tasks), including running and suspended ones, in a manner similar to threads.
+🐙 userver provides GDB command `utask`, which mimics `thread` command and allows you to explore all coroutines
+(userver tasks), including running and suspended ones, in a manner similar to threads.
+
 
 #### Commands
 
@@ -57,7 +66,10 @@ Task           State     Span
 0x10f27fc42000 Running   task_4
 ```
 
-* `utask apply <task> <cmd...>`: Executes `<cmd...>` in the context of selected `<task>`. The `<task>` may be specified by its ID ("Task") or name ("Span") (as shown in `utask list`), or set to "all" to apply the command to all tasks. `<cmd...>` can be any GDB command, including Python scripts.
+* `utask apply <task> <cmd...>`: Executes `<cmd...>` in the context of selected `<task>`. The `<task>` may be 
+specified by its ID ("Task") or name ("Span") (as shown in `utask list`), or set to "all" to apply the command to all
+ tasks. `<cmd...>` can be any GDB command, including Python scripts.
+
 
 #### Examples:
     
@@ -108,6 +120,15 @@ For now `utask` commands are implemented for only linux x86 platforms, but can b
 
 In addition, all of the above functionality works for debugging both a live process and coredumps.
 
+
 ## Adding new pretty-printers and commands
 
-If you need a new pretty-printer or a GDB command, you can always implement it yourself in `userver/scripts/gdb` and bring us a PR!
+If you need a new pretty-printer or a GDB command, you can always implement it yourself in `userver/scripts/gdb` and
+bring us a PR!
+
+
+----------
+
+@htmlonly <div class="bottom-nav"> @endhtmlonly
+⇦ @ref scripts/docs/en/userver/profile_context_switches.md | @ref scripts/docs/en/userver/grpc/grpc.md ⇨
+@htmlonly </div> @endhtmlonly

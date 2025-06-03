@@ -39,11 +39,12 @@ Changelog news also go to the
 
 * Initial implementation of @ref scripts/docs/en/userver/sqlite/sqlite_driver.md. Many thanks to
   [Turulin Zakhar](https://github.com/zahartd) for the implementation, tests and for the documentation.
-* Merged a foundation for the ODBC driver. Many thanks to [Alexey](https://github.com/Olex1313) for the PR!
 * GDB pretty printers now can list all the tasks via `utask list` and can apply commands to all or selected
   tasks. For example `utask apply all bt` prints the backtraces of all the tasks, `utask apply some_task_name bt`
-  prints the backtrace of the task with name `some_task_name`. Many thanks to
+  prints the backtrace of the task with name `some_task_name`. See
+  @ref scripts/docs/en/userver/gdb_debugging.md for more info. Many thanks to
   [Maxim Belov](https://github.com/UNEXPECTEDsemicolon) for the brilliant implementation.
+* Merged a foundation for the ODBC driver. Many thanks to [Alexey](https://github.com/Olex1313) for the PR!
 * Redis driver now can ignore ping times to different instances to do a fair round-robin. See `consider_ping` field
   in storages::redis::CommandControl.
 * Dropped gRPC `[(userver.field).secret = true];`. Use `[debug_redact = true];` instead.

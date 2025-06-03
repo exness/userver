@@ -51,7 +51,7 @@ storages::sqlite::settings::SQLiteSettings GetSettings(const components::Compone
                              ? storages::sqlite::settings::SQLiteSettings::ReadMode::kReadOnly
                              : storages::sqlite::settings::SQLiteSettings::ReadMode::kReadWrite;
     settings.shared_cache = config["shared_cache"].As<bool>(settings.shared_cache);
-    settings.read_uncommited = config["read_uncommited"].As<bool>(settings.read_uncommited);
+    settings.read_uncommitted = config["read_uncommitted"].As<bool>(settings.read_uncommitted);
     settings.foreign_keys = config["foreign_keys"].As<bool>(settings.foreign_keys);
     settings.journal_mode =
         ParseJournalMode(config["journal_mode"].As<std::string>(storages::sqlite::settings::kDefaultJournalMode));
@@ -132,7 +132,7 @@ properties:
         type: boolean
         description: enable shared in-memory cache for the database
         defaultDescription: false
-    read_uncommited:
+    read_uncommitted:
         type: boolean
         description: allow reading uncommitted data (requires shared_cache)
         defaultDescription: false
