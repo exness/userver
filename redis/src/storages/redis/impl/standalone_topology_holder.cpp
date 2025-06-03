@@ -38,6 +38,9 @@ void StandaloneTopologyHolder::Start() {
 }
 
 void StandaloneTopologyHolder::Stop() {
+    signal_node_state_change_.disconnect_all_slots();
+    signal_topology_changed_.disconnect_all_slots();
+
     node_.Cleanup();
     topology_.Cleanup();
 }
