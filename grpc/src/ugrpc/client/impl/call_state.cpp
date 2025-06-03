@@ -149,7 +149,7 @@ void CallState::EmplaceFinishAsyncMethodInvocation() {
         std::holds_alternative<std::monostate>(invocation_),
         "Another method is already running for this RPC concurrently"
     );
-    invocation_.emplace<FinishAsyncMethodInvocation>(*this);
+    invocation_.emplace<FinishAsyncMethodInvocation>();
 }
 
 AsyncMethodInvocation& CallState::GetAsyncMethodInvocation() noexcept {

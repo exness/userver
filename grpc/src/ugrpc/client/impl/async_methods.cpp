@@ -16,6 +16,15 @@ namespace ugrpc::client::impl {
 
 namespace {
 
+void ProcessCallStatistics(CallState& state, const grpc::Status& status) {
+    auto& stats = state.GetStatsScope();
+    stats.OnExplicitFinish(status.error_code());
+    if (status.error_code() == grpc::StatusCode::DEADLINE_EXCEEDED && state.IsDeadlinePropagated()) {
+        stats.OnCancelledByDeadlinePropagation();
+    }
+    stats.Flush();
+}
+
 void SetStatusAndResetSpan(CallState& state, const grpc::Status& status) {
     SetStatusForSpan(state.GetSpan(), status);
     state.ResetSpan();
@@ -28,6 +37,23 @@ void SetErrorAndResetSpan(CallState& state, std::string_view error_message) {
 
 }  // namespace
 
+ugrpc::impl::AsyncMethodInvocation::WaitStatus WaitAndTryCancelIfNeeded(
+    ugrpc::impl::AsyncMethodInvocation& invocation,
+    engine::Deadline deadline,
+    grpc::ClientContext& context
+) noexcept {
+    const auto wait_status = invocation.WaitUntil(deadline);
+    if (ugrpc::impl::AsyncMethodInvocation::WaitStatus::kCancelled == wait_status) {
+        context.TryCancel();
+    }
+    return wait_status;
+}
+
+ugrpc::impl::AsyncMethodInvocation::WaitStatus
+WaitAndTryCancelIfNeeded(ugrpc::impl::AsyncMethodInvocation& invocation, grpc::ClientContext& context) noexcept {
+    return WaitAndTryCancelIfNeeded(invocation, engine::Deadline{}, context);
+}
+
 void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::string_view stage) {
     if (status == impl::AsyncMethodInvocation::WaitStatus::kError) {
         state.SetFinished();
@@ -38,7 +64,7 @@ void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::st
     } else if (status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state.SetFinished();
         state.GetStatsScope().OnCancelled();
-        // Cannot do stats_scope.Flush(), as it can be called in Notify concurrently.
+        state.GetStatsScope().Flush();
         SetErrorAndResetSpan(state, fmt::format("Task cancellation at '{}'", stage));
         throw RpcCancelledError(state.GetCallName(), stage);
     }
@@ -52,8 +78,7 @@ void PrepareFinish(CallState& state) {
 void ProcessFinish(CallState& state, google::protobuf::Message* final_response) {
     const auto& status = state.GetStatus();
 
-    state.GetStatsScope().OnExplicitFinish(status.error_code());
-    state.GetStatsScope().Flush();
+    ProcessCallStatistics(state, status);
 
     if (final_response && status.ok()) {
         MiddlewarePipeline::PostRecvMessage(state, *final_response);
@@ -63,40 +88,16 @@ void ProcessFinish(CallState& state, google::protobuf::Message* final_response) 
     SetStatusAndResetSpan(state, status);
 }
 
+void ProcessFinishCancelled(CallState& state) {
+    state.GetStatsScope().OnCancelled();
+    state.GetStatsScope().Flush();
+    SetErrorAndResetSpan(state, "Task cancellation at 'Finish'");
+}
+
 void CheckFinishStatus(CallState& state) {
     auto& status = state.GetStatus();
     if (!status.ok()) {
         ThrowErrorWithStatus(state.GetCallName(), std::move(status));
-    }
-}
-
-void ProcessFinishResult(
-    CallState& state,
-    AsyncMethodInvocation::WaitStatus wait_status,
-    google::protobuf::Message* final_response,
-    bool throw_on_error
-) {
-    if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state.GetStatsScope().OnCancelled();
-        // Cannot do stats_scope.Flush(), as it can be called in Notify concurrently.
-        state.GetContext().TryCancel();
-        SetErrorAndResetSpan(state, "Task cancellation at 'Finish'");
-        // Finish AsyncMethodInvocation will be awaited in its destructor.
-        if (throw_on_error) {
-            throw RpcCancelledError(state.GetCallName(), "Finish");
-        }
-        return;
-    }
-
-    UASSERT_MSG(
-        wait_status == impl::AsyncMethodInvocation::WaitStatus::kOk,
-        "ok=false in async Finish method invocation is prohibited "
-        "by gRPC docs, see grpc::CompletionQueue::Next"
-    );
-
-    ProcessFinish(state, final_response);
-    if (throw_on_error) {
-        CheckFinishStatus(state);
     }
 }
 
