@@ -28,7 +28,7 @@ struct CallParams {
     StubHandle stub;
     std::unique_ptr<grpc::ClientContext> context;
     ugrpc::impl::MethodStatistics& statistics;
-    const Middlewares& mws;
+    const Middlewares& middlewares;
 };
 
 CallParams CreateCallParams(

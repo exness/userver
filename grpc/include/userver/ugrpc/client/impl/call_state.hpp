@@ -140,7 +140,7 @@ private:
     ugrpc::impl::RpcStatisticsScope stats_scope_;
     grpc::CompletionQueue& queue_;
     RpcConfigValues config_values_;
-    const Middlewares& mws_;
+    const Middlewares& middlewares_;
 
     CallKind call_kind_{};
 

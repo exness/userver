@@ -100,7 +100,7 @@ public:
 
     std::string_view GetClientName() const { return internals_.client_name; }
 
-    const Middlewares& GetMiddlewares() const { return internals_.mws; }
+    const Middlewares& GetMiddlewares() const { return internals_.middlewares; }
 
     const ugrpc::impl::StaticServiceMetadata& GetMetadata() const;
 
