@@ -10,7 +10,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::middlewares::log {
 
-struct Settings {
+struct Settings final {
     /// gRPC message body logging level
     logging::Level msg_log_level{logging::Level::kDebug};
 

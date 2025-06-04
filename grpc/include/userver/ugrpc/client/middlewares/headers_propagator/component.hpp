@@ -3,7 +3,7 @@
 /// @file userver/ugrpc/client/middlewares/headers_propagator/component.hpp
 /// @brief @copybrief ugrpc::client::middlewares::headers_propagator::Component
 
-#include <userver/ugrpc/client/middlewares/headers_propagator/middleware.hpp>
+#include <userver/ugrpc/client/middlewares/base.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -16,9 +16,31 @@ namespace ugrpc::client::middlewares::headers_propagator {
 ///
 /// @brief The component for @ref ugrpc::client::middlewares::headers_propagator::Middleware.
 ///
+/// ## Static options:
+/// Name | Description | Default value
+/// ---- | ----------- | -------------
+/// skip-headers | map from metadata fields (headers) to whether it should be skipped | {}
+///
 /// @see @ref scripts/docs/en/userver/grpc/client_middlewares.md
 
-using Component = SimpleMiddlewareFactoryComponent<Middleware>;
+class Component final : public MiddlewareFactoryComponentBase {
+public:
+    /// @ingroup userver_component_names
+    /// @brief The default name of
+    /// ugrpc::client::middlewares::headers_propagator::Component.
+    static constexpr std::string_view kName = "grpc-client-headers-propagator";
+
+    Component(const components::ComponentConfig& config, const components::ComponentContext& context);
+
+    ~Component() override;
+
+    static yaml_config::Schema GetStaticConfigSchema();
+
+    yaml_config::Schema GetMiddlewareConfigSchema() const override;
+
+    std::shared_ptr<const MiddlewareBase>
+    CreateMiddleware(const ugrpc::client::ClientInfo&, const yaml_config::YamlConfig& middleware_config) const override;
+};
 
 }  // namespace ugrpc::client::middlewares::headers_propagator
 
