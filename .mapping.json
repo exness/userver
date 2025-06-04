@@ -1945,7 +1945,6 @@
   "grpc/benchmarks/base.cpp":"taxi/uservices/userver/grpc/benchmarks/base.cpp",
   "grpc/benchmarks/format_log_message.cpp":"taxi/uservices/userver/grpc/benchmarks/format_log_message.cpp",
   "grpc/benchmarks/logging.cpp":"taxi/uservices/userver/grpc/benchmarks/logging.cpp",
-  "grpc/benchmarks/trim_secrets.cpp":"taxi/uservices/userver/grpc/benchmarks/trim_secrets.cpp",
   "grpc/benchmarks/ya.make":"taxi/uservices/userver/grpc/benchmarks/ya.make",
   "grpc/dynamic_configs/USERVER_GRPC_CLIENT_ENABLE_DEADLINE_PROPAGATION.yaml":"taxi/uservices/userver/grpc/dynamic_configs/USERVER_GRPC_CLIENT_ENABLE_DEADLINE_PROPAGATION.yaml",
   "grpc/dynamic_configs/USERVER_GRPC_SERVER_CANCEL_TASK_BY_DEADLINE.yaml":"taxi/uservices/userver/grpc/dynamic_configs/USERVER_GRPC_SERVER_CANCEL_TASK_BY_DEADLINE.yaml",

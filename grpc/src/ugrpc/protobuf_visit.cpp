@@ -4,10 +4,11 @@
 #include <google/protobuf/port.h>
 #include <google/protobuf/reflection.h>
 
+#include <userver/utils/assert.hpp>
+
 #include <ugrpc/impl/protobuf_utils.hpp>
 #include <userver/ugrpc/impl/protobuf_collector.hpp>
 #include <userver/ugrpc/protobuf_visit.hpp>
-#include <userver/utils/assert.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

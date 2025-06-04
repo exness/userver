@@ -38,27 +38,42 @@ sample::ugrpc::LoggingMessage ConstructComplexMessage() {
 
 }  // namespace
 
-UTEST(ToLimitedString, Fit) {
-    const std::size_t kLimit = 20;
-    sample::ugrpc::GreetingResponse message;
-    message.set_name("1234567890");
-    const auto out = ugrpc::impl::ToLimitedString(message, kLimit);
-    EXPECT_EQ(out, "name: \"1234567890\"\n") << out;
+UTEST(ToLimitedDebugString, Basic) {
+    constexpr std::size_t kLimit = 200;
+    sample::ugrpc::LoggingMessage message;
+
+    message.set_id("swag");
+    *message.add_names() = "test-name-1";
+    *message.add_names() = "test-name-2";
+    auto out = ugrpc::impl::ToLimitedDebugString(message, kLimit);
+    const auto expected = message.DebugString();
+    EXPECT_EQ(out, expected);
+
+    out = ugrpc::impl::ToLimitedDebugString(message, 8);
+    EXPECT_EQ(out, expected.substr(0, 8));
 }
 
-UTEST(ToLimitedString, Limited) {
-    const std::size_t kLimit = 10;
+UTEST(ToLimitedDebugString, Fit) {
+    constexpr std::size_t kLimit = 20;
     sample::ugrpc::GreetingResponse message;
     message.set_name("1234567890");
-    const auto out = ugrpc::impl::ToLimitedString(message, kLimit);
-    EXPECT_EQ(out, "name: \"123") << out;
+    const auto out = ugrpc::impl::ToLimitedDebugString(message, kLimit);
+    EXPECT_EQ(out, "name: \"1234567890\"\n");
 }
 
-UTEST(ToLimitedString, Complex) {
-    const std::size_t kLimit = 512;
+UTEST(ToLimitedDebugString, Limited) {
+    constexpr std::size_t kLimit = 10;
+    sample::ugrpc::GreetingResponse message;
+    message.set_name("1234567890");
+    const auto out = ugrpc::impl::ToLimitedDebugString(message, kLimit);
+    EXPECT_EQ(out, "name: \"123");
+}
+
+UTEST(ToLimitedDebugString, Complex) {
+    constexpr std::size_t kLimit = 512;
     const auto message = ConstructComplexMessage();
     const auto expected = ugrpc::impl::ToString(message.Utf8DebugString().substr(0, kLimit));
-    ASSERT_EQ(expected, ugrpc::impl::ToLimitedString(message, kLimit));
+    ASSERT_EQ(expected, ugrpc::impl::ToLimitedDebugString(message, kLimit));
 }
 
 USERVER_NAMESPACE_END

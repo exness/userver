@@ -17,9 +17,6 @@ struct Settings final {
     /// Max gRPC message size, the rest will be truncated
     std::size_t max_msg_size{512};
 
-    /// Whether to trim the fields marked as secret from the message
-    bool trim_secrets{true};
-
     // Local log level of the server span
     logging::Level local_log_level{logging::Level::kDebug};
 };

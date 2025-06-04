@@ -14,7 +14,6 @@ Settings Parse(const yaml_config::YamlConfig& config, formats::parse::To<Setting
     Settings settings;
     settings.msg_log_level = config["msg-log-level"].As<logging::Level>(settings.msg_log_level);
     settings.max_msg_size = config["msg-size-log-limit"].As<std::size_t>(settings.max_msg_size);
-    settings.trim_secrets = config["trim-secrets"].As<bool>(settings.trim_secrets);
     settings.local_log_level = config["local-log-level"].As<logging::Level>(settings.local_log_level);
     return settings;
 }
@@ -50,12 +49,6 @@ properties:
     msg-size-log-limit:
         type: string
         description: max message size to log, the rest will be truncated
-    trim-secrets:
-        type: boolean
-        description: |
-            trim the secrets from logs as marked by the protobuf option.
-            you should set this to false if the responses contain
-            optional fields and you are using protobuf prior to 3.13
     local-log-level:
         type: string
         description: local log level for the span with client logs

@@ -22,15 +22,7 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, Messa
     if (!logging::ShouldLog(options.log_level)) {
         return "hidden by log level";
     }
-
-    if (!options.trim_secrets || !HasSecrets(message)) {
-        return ugrpc::impl::ToLimitedString(message, options.max_size);
-    }
-
-    std::unique_ptr<google::protobuf::Message> trimmed{message.New()};
-    trimmed->CopyFrom(message);
-    TrimSecrets(*trimmed);
-    return ugrpc::impl::ToLimitedString(*trimmed, options.max_size);
+    return ugrpc::impl::ToLimitedDebugString(message, options.max_size);
 }
 
 std::string GetErrorDetailsForLogging(const grpc::Status& status) {

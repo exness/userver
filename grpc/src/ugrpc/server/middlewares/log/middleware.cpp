@@ -15,8 +15,7 @@ namespace {
 
 std::string GetMessageForLogging(const google::protobuf::Message& message, const Settings& settings) {
     return ugrpc::impl::GetMessageForLogging(
-        message,
-        ugrpc::impl::MessageLoggingOptions{settings.msg_log_level, settings.max_msg_size, settings.trim_secrets}
+        message, ugrpc::impl::MessageLoggingOptions{settings.msg_log_level, settings.max_msg_size}
     );
 }
 

@@ -455,7 +455,14 @@ UTEST(GetNestedMessageDescriptors, MessageWithDifferentTypes) {
 }
 
 UTEST(FieldsVisitorCompile, OneLeafNoSelected) {
-    ugrpc::FieldsVisitor visitor(FieldSelector, ugrpc::DescriptorList{});
+    /// [fields visitor]
+    ugrpc::FieldsVisitor visitor(
+        [](const google::protobuf::FieldDescriptor& field) {
+            return field.options().GetExtension(sample::ugrpc::field).selected();
+        },
+        ugrpc::DescriptorList{}
+    );
+    /// [fields visitor]
     visitor.CompileGenerated("sample.ugrpc.Msg3B");
     MyExpectEq(visitor.GetSelectedFields(utils::impl::InternalTag()), {});
     MyExpectEq(visitor.GetFieldsWithSelectedChildren(utils::impl::InternalTag()), {});
