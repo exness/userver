@@ -8,7 +8,6 @@
 #include <utility>
 
 #include <grpcpp/completion_queue.h>
-#include <grpcpp/impl/service_type.h>
 #include <grpcpp/server_context.h>
 
 #include <userver/engine/async.hpp>
@@ -166,7 +165,6 @@ private:
                 span_storage_,
                 method_data_.service_data.internals.middlewares,
                 method_data_.service_data.internals.config_source,
-                *method_data_.service_data.internals.access_tskv_logger,
             },
             raw_responder_,
             initial_request_,
