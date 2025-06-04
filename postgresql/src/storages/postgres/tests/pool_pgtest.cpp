@@ -183,12 +183,11 @@ UTEST_P(PostgrePool, BlockWaitingOnAvailableConnection) {
 
     UASSERT_NO_THROW(conn = pool->Acquire(MakeDeadline())) << "Obtained connection from pool";
     // Free up connection asynchronously
-    engine::AsyncNoSpan(
+    engine::DetachUnscopedUnsafe(engine::AsyncNoSpan(
         GetTaskProcessor(),
         [](pg::detail::ConnectionPtr conn) { conn = pg::detail::ConnectionPtr(nullptr); },
         std::move(conn)
-    )
-        .Detach();
+    ));
     // NOLINTNEXTLINE(bugprone-use-after-move)
     UASSERT_NO_THROW(conn = pool->Acquire(MakeDeadline()))
         << "Execution blocked because pool reached max size, but connection "

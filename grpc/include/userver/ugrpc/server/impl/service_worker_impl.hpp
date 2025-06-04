@@ -137,9 +137,9 @@ public:
     }
 
     static void ListenAsync(const MethodData<GrpcppService, CallTraits>& method_data) {
-        engine::CriticalAsyncNoSpan(
+        engine::DetachUnscopedUnsafe(engine::CriticalAsyncNoSpan(
             method_data.service_data.internals.task_processor, utils::LazyPrvalue([&] { return CallData(method_data); })
-        ).Detach();
+        ));
     }
 
 private:
