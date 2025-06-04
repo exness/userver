@@ -886,7 +886,7 @@ void SubscriptionStorage::PsubscribeImpl(
         const size_t selected_shard_idx = is_cluster_mode_ ? shard_rotate_counter_++ % shards_count : 0;
         infos.reserve(shards_count);
         for (size_t i = 0; i < shards_count; ++i) {
-            bool fake = is_cluster_mode_ && i != selected_shard_idx;
+            const bool fake = is_cluster_mode_ && i != selected_shard_idx;
             infos.emplace_back(i, fake);
             if (!fake) storage_impl_.ReadActions(infos.back().fsm, channel_name);
         }
