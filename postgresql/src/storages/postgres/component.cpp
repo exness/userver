@@ -308,7 +308,7 @@ properties:
     max_prepared_cache_size:
         type: integer
         description: prepared statements cache size limit
-        defaultDescription: 5000
+        defaultDescription: 200
     max_statement_metrics:
         type: integer
         description: limit of exported metrics for named statements
