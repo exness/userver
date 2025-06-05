@@ -35,6 +35,14 @@ Changelog news also go to the
 
 ## Changelog
 
+### Release v2.11
+
+WIP
+
+* Optimizations:
+  * Multiple optimizations for the gRPC logging. Up to 100 times faster logging in edge cases.
+
+
 ### Release v2.10
 
 * Initial implementation of @ref scripts/docs/en/userver/sqlite/sqlite_driver.md. Many thanks to
@@ -55,7 +63,6 @@ Changelog news also go to the
   * Reduced memory allocations while generating strings for ID in tracing::Span. About a 150ns speedup on average on
     tracing::Span construction.
   * Removed unused code and class members in Redis internals, reducing runtime memory usage and binary code size.
-  * Multiple optimizations for the gRPC logging. Up to 100 times faster logging in edge cases.
   * Replaced `std::unique_lock` with `std::lock_guard` where possible to simplify optimization work for the compiler.
 
 
@@ -76,7 +83,7 @@ Changelog news also go to the
   [Nikolay Pervushin](https://github.com/Greenvi4) for the PR!
 * Modernized testsuite code, including removal of `event_loop` usages and usage of asyncio-socket.
 * Hidden `thread_id` and `task_id` for `INFO`+ logger levels to make the logs shorter.
-* Stack usage monitor now could be disabled in test via `USERVER_GTEST_ENABLE_STACK_USAGE_MONITOR=1`
+* Stack usage monitor now could be disabled in test via `USERVER_GTEST_ENABLE_STACK_USAGE_MONITOR=0`
   environment variable.
 
 * gRPC

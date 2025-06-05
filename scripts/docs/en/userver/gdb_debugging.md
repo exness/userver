@@ -121,6 +121,15 @@ For now `utask` commands are implemented for only linux x86 platforms, but can b
 In addition, all of the above functionality works for debugging both a live process and coredumps.
 
 
+## GDB complains: received signal ?, Unknown signal 
+
+This is a side effect of stack usage monitor interferring with GDB. In unit tests you can set the environment variable
+`USERVER_GTEST_ENABLE_STACK_USAGE_MONITOR=0` to disable the monitor, in other binaries you can either disable it
+via static config option `coro_pool.stack_usage_monitor_enabled` in components::ManagerControllerComponent or by
+disabling it at all at build time of the framework via `USERVER_FEATURE_STACK_USAGE_MONITOR`
+(see @ref @ref scripts/docs/en/userver/build/options.md).
+
+
 ## Adding new pretty-printers and commands
 
 If you need a new pretty-printer or a GDB command, you can always implement it yourself in `userver/scripts/gdb` and

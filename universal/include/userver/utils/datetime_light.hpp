@@ -23,9 +23,9 @@ inline const std::string kRfc3339Format = "%Y-%m-%dT%H:%M:%E*S%Ez";
 /// @snippet utils/datetime/from_string_saturating_test.cpp  kTaximeterFormat
 inline const std::string kTaximeterFormat = "%Y-%m-%dT%H:%M:%E6SZ";
 inline constexpr std::time_t kStartOfTheEpoch = 0;
-/// @snippet utils/datetime/datetime_test.cpp  kDefaultDriverTimezone
+/// @snippet utils/datetime_test.cpp  kDefaultDriverTimezone
 inline const std::string kDefaultDriverTimezone = "Europe/Moscow";
-/// @snippet utils/datetime/datetime_test.cpp  kDefaultTimezone
+/// @snippet utils/datetime_test.cpp  kDefaultTimezone
 inline const std::string kDefaultTimezone = "UTC";
 /// @snippet utils/datetime/from_string_saturating_test.cpp  kDefaultFormat
 inline const std::string kDefaultFormat = "%Y-%m-%dT%H:%M:%E*S%z";
@@ -157,7 +157,7 @@ std::chrono::system_clock::time_point GuessLocalTimezoneStringtime(const std::st
 ///
 /// Example:
 ///
-/// @snippet utils/datetime/datetime_test.cpp  Timestring C time example
+/// @snippet utils/datetime_test.cpp  Timestring C time example
 std::time_t Timestamp(std::chrono::system_clock::time_point tp) noexcept;
 
 /// @brief Returned current time as std::time_t; could be mocked
@@ -185,7 +185,7 @@ std::string TimestampToString(std::time_t timestamp);
 ///
 /// Example:
 ///
-/// @snippet utils/datetime/datetime_test.cpp  TimePointToTicks example
+/// @snippet utils/datetime_test.cpp  TimePointToTicks example
 std::int64_t TimePointToTicks(const std::chrono::system_clock::time_point& tp) noexcept;
 
 /// @brief Convert DotNet ticks to a time point

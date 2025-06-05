@@ -9,6 +9,14 @@ USERVER_NAMESPACE_BEGIN
 
 namespace {
 
+TEST(Datetime, Timestring) {
+    /// [Timestring example]
+    const auto format = "%Y-%m-%dT%H:%M:%E*S%z";
+    const auto time_string = utils::datetime::Timestring(std::time_t{0}, "Europe/Moscow", format);  // UTC+3 zone
+    EXPECT_EQ(time_string, "1970-01-01T03:00:00+0300");
+    /// [Timestring example]
+}
+
 TEST(Datetime, UtcStringtime) {
     /// [Stringtime example]
     const auto tp = utils::datetime::UtcStringtime("2014-03-17T02:47:07+0000");
