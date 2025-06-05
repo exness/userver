@@ -228,7 +228,7 @@ private:
 template <typename GrpcppService, typename Service, typename... ServiceMethods>
 std::unique_ptr<ServiceWorker> MakeServiceWorker(
     ServiceInternals&& internals,
-    const std::string_view (&method_full_names)[sizeof...(ServiceMethods)],
+    const std::array<std::string_view, sizeof...(ServiceMethods)>& method_full_names,
     Service& service,
     ServiceMethods... service_methods
 ) {

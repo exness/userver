@@ -13,7 +13,7 @@
 {% for service in proto.services %}
 
 // Inline to deduplicate between client.usrv.cpp and service.usrv.cpp
-inline constexpr std::string_view k{{service.name}}MethodNames[] = {
+inline constexpr std::array<std::string_view, {{service.method | length}}> k{{service.name}}MethodNames = {
 {% for method in service.method %}
     "{{proto.package_prefix}}{{service.name}}/{{method.name}}",
 {% endfor %}
