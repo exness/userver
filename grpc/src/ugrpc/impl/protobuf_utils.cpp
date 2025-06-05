@@ -1,17 +1,18 @@
 #include <ugrpc/impl/protobuf_utils.hpp>
 
+#include <exception>
+#include <memory>
 #include <unordered_set>
 
 #include <google/protobuf/descriptor.pb.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/text_format.h>
-#include <grpcpp/support/string_ref.h>
+#include <grpcpp/support/config.h>
 #include <boost/container/small_vector.hpp>
 
 #include <userver/compiler/thread_local.hpp>
+#include <userver/utils/assert.hpp>
 #include <userver/utils/numeric_cast.hpp>
-
-#include <userver/ugrpc/protobuf_visit.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -58,7 +59,7 @@ private:
     bool limit_reached_{false};
 };
 
-class HideFieldValuePrinter final : public google::protobuf::TextFormat::FastFieldValuePrinter {
+class DebugRedactFieldValuePrinter final : public google::protobuf::TextFormat::FastFieldValuePrinter {
 public:
     using BaseTextGenerator = google::protobuf::TextFormat::BaseTextGenerator;
 
@@ -128,71 +129,71 @@ public:
     }
 
 private:
-    static void PrintRedacted(BaseTextGenerator* generator) { generator->PrintLiteral("[REDACTED]"); }
+    void PrintRedacted(BaseTextGenerator* generator) const { generator->PrintLiteral("[REDACTED]"); }
 };
 
-class SecretFieldsPrinter final {
+class DebugStringPrinter {
 public:
-    SecretFieldsPrinter() {
+    DebugStringPrinter() {
         printer_.SetUseUtf8StringEscaping(true);
         printer_.SetExpandAny(true);
     }
 
-    void VisitAllDescriptors(const google::protobuf::Descriptor* desc) {
-        if (!desc) {
-            return;
-        }
-        const auto [_, inserted] = registered_.insert(desc);
+    void Print(const google::protobuf::Message& message, LimitingOutputStream& stream) const {
+        printer_.Print(message, &stream);
+    }
+
+    void RegisterDebugRedactPrinters(const google::protobuf::Descriptor& desc) { VisitMessageRecursive(desc); }
+
+private:
+    void VisitMessageRecursive(const google::protobuf::Descriptor& desc) {
+        const auto [_, inserted] = registered_messages_.insert(&desc);
         if (inserted) {
-            for (int i = 0; i < desc->field_count(); ++i) {
-                const google::protobuf::FieldDescriptor* field = desc->field(i);
-                UASSERT(field);
-                if (HasDebugRedactOption(*field)) {
-                    RegisterSecretFieldValuePrinter(*field);
-                }
-                VisitAllDescriptors(field->message_type());
+            for (int i = 0; i < desc.field_count(); ++i) {
+                const google::protobuf::FieldDescriptor* field = desc.field(i);
+                UINVARIANT(field, "field is nullptr");
+                VisitField(*field);
             }
         }
     }
 
-    void Print(const google::protobuf::Message& message, LimitingOutputStream& stream) {
-        printer_.Print(message, &stream);
-    }
-
-private:
-    void RegisterSecretFieldValuePrinter(const google::protobuf::FieldDescriptor& field) {
-        auto printer = std::make_unique<HideFieldValuePrinter>();
-
-        if (!printer_.RegisterFieldValuePrinter(&field, printer.get())) {
-            throw std::runtime_error{
-                fmt::format("Failed to register the printer for the field: '{}'", field.full_name())};
+    void VisitField(const google::protobuf::FieldDescriptor& field) {
+        if (HasDebugRedactOption(field)) {
+            RegisterDebugRedactFieldValuePrinter(field);
+        } else {
+            const google::protobuf::Descriptor* msg = field.message_type();
+            if (msg) {
+                VisitMessageRecursive(*msg);
+            }
         }
-        // RegisterFieldValuePrinter took an ownership of the printer => release it.
-        [[maybe_unused]] const auto ptr = printer.release();
     }
 
-    using Registered = std::unordered_set<const google::protobuf::Descriptor*>;
+    void RegisterDebugRedactFieldValuePrinter(const google::protobuf::FieldDescriptor& field) {
+        auto field_value_printer = std::make_unique<DebugRedactFieldValuePrinter>();
+        if (printer_.RegisterFieldValuePrinter(&field, field_value_printer.get())) {
+            // RegisterFieldValuePrinter takes ownership of the printer on successful registration
+            [[maybe_unused]] const auto p = field_value_printer.release();
+        } else {
+            throw std::runtime_error{
+                fmt::format("Failed to register field value printer for field: '{}'", field.full_name())};
+        }
+    }
 
-    Registered registered_;
     google::protobuf::TextFormat::Printer printer_;
+    std::unordered_set<const google::protobuf::Descriptor*> registered_messages_;
 };
 
-compiler::ThreadLocal kSecretFieldsPrinter = [] { return SecretFieldsPrinter{}; };
+compiler::ThreadLocal kDebugStringPrinter = [] { return DebugStringPrinter{}; };
 
 }  // namespace
 
-bool IsMessage(const google::protobuf::FieldDescriptor& field) {
-    return field.type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE ||
-           field.type() == google::protobuf::FieldDescriptor::TYPE_GROUP;
-}
-
 std::string ToLimitedDebugString(const google::protobuf::Message& message, std::size_t limit) {
-    auto printer = kSecretFieldsPrinter.Use();
-    printer->VisitAllDescriptors(message.GetDescriptor());
-
     boost::container::small_vector<char, 1024> output_buffer{limit, boost::container::default_init};
     google::protobuf::io::ArrayOutputStream output_stream{output_buffer.data(), utils::numeric_cast<int>(limit)};
     LimitingOutputStream limiting_output_stream{output_stream};
+
+    auto printer = kDebugStringPrinter.Use();
+    printer->RegisterDebugRedactPrinters(*message.GetDescriptor());
 
     // Throwing an exception is apparently the only way to terminate message traversal once size limit is reached.
     try {

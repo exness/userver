@@ -18,6 +18,11 @@ namespace {
 
 constexpr int kMaxRecursionLimit = 100;
 
+bool IsMessage(const google::protobuf::FieldDescriptor& field) {
+    return field.type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE ||
+           field.type() == google::protobuf::FieldDescriptor::TYPE_GROUP;
+}
+
 void VisitMessagesRecursiveImpl(
     google::protobuf::Message& message,
     MessageVisitCallback callback,
@@ -34,7 +39,7 @@ void VisitMessagesRecursiveImpl(
         [&callback,
          &recursion_limit](google::protobuf::Message& message, const google::protobuf::FieldDescriptor& field) -> void {
             // Not a nested message
-            if (!impl::IsMessage(field)) return;
+            if (!IsMessage(field)) return;
 
             VisitNestedMessage(message, field, [&](google::protobuf::Message& msg) {
                 VisitMessagesRecursiveImpl(msg, callback, recursion_limit - 1);
@@ -57,7 +62,7 @@ void GetNestedMessageDescriptorsImpl(
         UINVARIANT(field, "field is nullptr");
 
         // Not a nested message
-        if (!impl::IsMessage(*field)) continue;
+        if (!IsMessage(*field)) continue;
 
         const google::protobuf::Descriptor* msg = field->message_type();
         UINVARIANT(msg, "msg is nullptr");
@@ -104,7 +109,7 @@ void VisitNestedMessage(
     const google::protobuf::FieldDescriptor& field,
     MessageVisitCallback callback
 ) {
-    UINVARIANT(impl::IsMessage(field), "Not a nested message");
+    UINVARIANT(IsMessage(field), "Not a nested message");
 
     // Get reflection
     const google::protobuf::Reflection* reflection = message.GetReflection();
@@ -199,7 +204,7 @@ void VisitorCompiler::Compile(const DescriptorList& descriptors) {
             UINVARIANT(field, "field is nullptr");
 
             // Not a nested message
-            if (!impl::IsMessage(*field)) continue;
+            if (!IsMessage(*field)) continue;
 
             // Sync the reverse edges.
             // Even from unknown types - we might need to compile them in the future.
