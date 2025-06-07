@@ -2071,6 +2071,7 @@
   "grpc/include/userver/ugrpc/client/impl/completion_queue_pool.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/completion_queue_pool.hpp",
   "grpc/include/userver/ugrpc/client/impl/graceful_stream_finish.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/graceful_stream_finish.hpp",
   "grpc/include/userver/ugrpc/client/impl/middleware_pipeline.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/middleware_pipeline.hpp",
+  "grpc/include/userver/ugrpc/client/impl/prepare_call.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/prepare_call.hpp",
   "grpc/include/userver/ugrpc/client/impl/stub_any.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/stub_any.hpp",
   "grpc/include/userver/ugrpc/client/impl/stub_handle.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/stub_handle.hpp",
   "grpc/include/userver/ugrpc/client/impl/stub_pool.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/impl/stub_pool.hpp",

@@ -18,6 +18,7 @@
 #include <userver/ugrpc/client/impl/async_methods.hpp>
 #include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
+#include <userver/ugrpc/client/impl/prepare_call.hpp>
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
 #include <userver/ugrpc/deadline_timepoint.hpp>
 
@@ -179,8 +180,13 @@ public:
 
     /// @cond
     // For internal use only
-    template <typename PrepareAsyncCall, typename Request>
-    UnaryCall(impl::CallParams&& params, PrepareAsyncCall prepare_async_call, const Request& req);
+    template <typename PrepareAsyncMethod, typename Request, typename... PrepareExtra>
+    UnaryCall(
+        impl::CallParams&& params,
+        PrepareAsyncMethod prepare_async_method,
+        const Request& request,
+        PrepareExtra&&... extra
+    );
     /// @endcond
 
     UnaryCall(UnaryCall&&) noexcept = default;
@@ -220,8 +226,8 @@ public:
     // For internal use only
     using RawStream = grpc::ClientAsyncReader<Response>;
 
-    template <typename PrepareAsyncCall, typename Request>
-    InputStream(impl::CallParams&& params, PrepareAsyncCall prepare_async_call, const Request& req);
+    template <typename PrepareAsyncMethod, typename Request>
+    InputStream(impl::CallParams&& params, PrepareAsyncMethod prepare_async_method, const Request& request);
     /// @endcond
 
     InputStream(InputStream&&) noexcept = default;
@@ -287,8 +293,8 @@ public:
     // For internal use only
     using RawStream = grpc::ClientAsyncWriter<Request>;
 
-    template <typename PrepareAsyncCall>
-    OutputStream(impl::CallParams&& params, PrepareAsyncCall prepare_async_call);
+    template <typename PrepareAsyncMethod>
+    OutputStream(impl::CallParams&& params, PrepareAsyncMethod prepare_async_method);
     /// @endcond
 
     OutputStream(OutputStream&&) noexcept = default;
@@ -396,8 +402,8 @@ public:
     // For internal use only
     using RawStream = grpc::ClientAsyncReaderWriter<Request, Response>;
 
-    template <typename PrepareAsyncCall>
-    BidirectionalStream(impl::CallParams&& params, PrepareAsyncCall prepare_async_call);
+    template <typename PrepareAsyncMethod>
+    BidirectionalStream(impl::CallParams&& params, PrepareAsyncMethod prepare_async_method);
     /// @endcond
 
     BidirectionalStream(BidirectionalStream&&) noexcept = default;
@@ -482,14 +488,27 @@ bool StreamReadFuture<RPC>::IsReady() const noexcept {
 namespace impl {
 
 template <typename Response>
-template <typename PrepareAsyncCall, typename Request>
-UnaryCall<Response>::UnaryCall(impl::CallParams&& params, PrepareAsyncCall prepare_async_call, const Request& request)
+template <typename PrepareAsyncMethod, typename Request, typename... PrepareExtra>
+UnaryCall<Response>::UnaryCall(
+    impl::CallParams&& params,
+    PrepareAsyncMethod prepare_async_method,
+    const Request& request,
+    PrepareExtra&&... extra
+)
     : CallAnyBase(std::move(params), impl::CallKind::kUnaryCall) {
     impl::MiddlewarePipeline::PreStartCall(GetState());
     if constexpr (std::is_base_of_v<google::protobuf::Message, Request>) {
         impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
     }
-    reader_ = prepare_async_call(GetState().GetStub(), &GetState().GetContext(), request, &GetState().GetQueue());
+
+    reader_ = impl::PrepareCall(
+        GetState().GetStub(),
+        prepare_async_method,
+        &GetState().GetContext(),
+        request,
+        &GetState().GetQueue(),
+        std::forward<PrepareExtra>(extra)...
+    );
     reader_->StartCall();
 
     GetState().SetWritesFinished();
@@ -526,14 +545,20 @@ const UnaryFinishFuture<Response>& UnaryCall<Response>::GetFinishFuture() const 
 }  // namespace impl
 
 template <typename Response>
-template <typename PrepareAsyncCall, typename Request>
-InputStream<Response>::InputStream(impl::CallParams&& params, PrepareAsyncCall prepare_async_call, const Request& req)
+template <typename PrepareAsyncMethod, typename Request>
+InputStream<Response>::InputStream(
+    impl::CallParams&& params,
+    PrepareAsyncMethod prepare_async_method,
+    const Request& request
+)
     : CallAnyBase(std::move(params), impl::CallKind::kInputStream) {
     impl::MiddlewarePipeline::PreStartCall(GetState());
-    impl::MiddlewarePipeline::PreSendMessage(GetState(), req);
+    impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    stream_ = prepare_async_call(GetState().GetStub(), &GetState().GetContext(), req, &GetState().GetQueue());
+    stream_ = impl::PrepareCall(
+        GetState().GetStub(), prepare_async_method, &GetState().GetContext(), request, &GetState().GetQueue()
+    );
     impl::StartCall(*stream_, GetState());
 
     GetState().SetWritesFinished();
@@ -559,15 +584,16 @@ bool InputStream<Response>::Read(Response& response) {
 }
 
 template <typename Request, typename Response>
-template <typename PrepareAsyncCall>
-OutputStream<Request, Response>::OutputStream(impl::CallParams&& params, PrepareAsyncCall prepare_async_call)
+template <typename PrepareAsyncMethod>
+OutputStream<Request, Response>::OutputStream(impl::CallParams&& params, PrepareAsyncMethod prepare_async_method)
     : CallAnyBase(std::move(params), impl::CallKind::kOutputStream), response_(std::make_unique<Response>()) {
     impl::MiddlewarePipeline::PreStartCall(GetState());
 
     // 'response_' will be filled upon successful 'Finish' async call
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    stream_ =
-        prepare_async_call(GetState().GetStub(), &GetState().GetContext(), response_.get(), &GetState().GetQueue());
+    stream_ = impl::PrepareCall(
+        GetState().GetStub(), prepare_async_method, &GetState().GetContext(), response_.get(), &GetState().GetQueue()
+    );
     impl::StartCall(*stream_, GetState());
 }
 
@@ -621,16 +647,17 @@ Response OutputStream<Request, Response>::Finish() {
 }
 
 template <typename Request, typename Response>
-template <typename PrepareAsyncCall>
+template <typename PrepareAsyncMethod>
 BidirectionalStream<Request, Response>::BidirectionalStream(
     impl::CallParams&& params,
-    PrepareAsyncCall prepare_async_call
+    PrepareAsyncMethod prepare_async_method
 )
     : CallAnyBase(std::move(params), impl::CallKind::kBidirectionalStream) {
     impl::MiddlewarePipeline::PreStartCall(GetState());
 
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    stream_ = prepare_async_call(GetState().GetStub(), &GetState().GetContext(), &GetState().GetQueue());
+    stream_ =
+        impl::PrepareCall(GetState().GetStub(), prepare_async_method, &GetState().GetContext(), &GetState().GetQueue());
     impl::StartCall(*stream_, GetState());
 }
 

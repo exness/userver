@@ -55,9 +55,14 @@ public:
 
     /// @cond
     // For internal use only
-    template <typename PrepareFunc, typename Request>
-    ResponseFuture(impl::CallParams&& params, PrepareFunc prepare_func, const Request& req)
-        : call_(std::move(params), prepare_func, req) {}
+    template <typename PrepareAsyncMethod, typename Request, typename... PrepareExtra>
+    ResponseFuture(
+        impl::CallParams&& params,
+        PrepareAsyncMethod prepare_async_method,
+        const Request& request,
+        PrepareExtra&&... extra
+    )
+        : call_(std::move(params), prepare_async_method, request, std::forward<PrepareExtra>(extra)...) {}
 
     // For internal use only.
     engine::impl::ContextAccessor* TryGetContextAccessor() noexcept {
