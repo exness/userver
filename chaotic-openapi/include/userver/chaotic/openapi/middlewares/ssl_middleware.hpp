@@ -24,6 +24,11 @@ private:
 
 class SslMiddlewareFactory final : public client::MiddlewareFactory {
 public:
+    SslMiddlewareFactory(const components::ComponentConfig& config, const components::ComponentContext& context)
+        : client::MiddlewareFactory(config, context) {}
+
+    static constexpr std::string_view kName = "chaotic-client-middleware-ssl";
+
     std::shared_ptr<client::Middleware> Create(const USERVER_NAMESPACE::yaml_config::YamlConfig& config) override;
     std::string GetStaticConfigSchemaStr() override;
 };
@@ -31,3 +36,7 @@ public:
 }  // namespace chaotic::openapi
 
 USERVER_NAMESPACE_END
+
+template <>
+inline constexpr auto USERVER_NAMESPACE::components::kConfigFileMode<chaotic::openapi::SslMiddlewareFactory> =
+    USERVER_NAMESPACE::components::ConfigFileMode::kNotRequired;

@@ -24,8 +24,7 @@ UTEST(RequestsMultipleContentTypes, Json) {
     auto http_client_ptr = utest::CreateHttpClient();
     auto request = http_client_ptr->CreateRequest();
 
-    request.url(http_server.GetBaseUrl());
-    client::SerializeRequest({client::RequestBodyApplicationJson{"a"}}, request);
+    client::SerializeRequest({client::RequestBodyApplicationJson{"a"}}, http_server.GetBaseUrl(), request);
 
     auto response = request.perform();
     EXPECT_EQ(response->status_code(), 200);
@@ -41,9 +40,10 @@ UTEST(RequestsMultipleContentTypes, XWwwFormUrlencoded) {
     auto http_client_ptr = utest::CreateHttpClient();
     auto request = http_client_ptr->CreateRequest();
 
-    request.url(http_server.GetBaseUrl());
     client::SerializeRequest(
-        {client::RequestBodyApplicationXWwwFormUrlencoded{"abc", "123 456", 30, 1000.5, true}}, request
+        {client::RequestBodyApplicationXWwwFormUrlencoded{"abc", "123 456", 30, 1000.5, true}},
+        http_server.GetBaseUrl(),
+        request
     );
 
     auto response = request.perform();
@@ -73,8 +73,9 @@ UTEST(RequestsMultipleContentTypes, MultipartFormData) {
     auto http_client_ptr = utest::CreateHttpClient();
     auto request = http_client_ptr->CreateRequest();
 
-    request.url(http_server.GetBaseUrl());
-    client::SerializeRequest({client::RequestBodyMultipartFormData{"filename", "file\ncontent"}}, request);
+    client::SerializeRequest(
+        {client::RequestBodyMultipartFormData{"filename", "file\ncontent"}}, http_server.GetBaseUrl(), request
+    );
 
     auto response = request.perform();
     EXPECT_EQ(response->status_code(), 200);
@@ -90,8 +91,7 @@ UTEST(RequestsMultipleContentTypes, OctetStream) {
     auto http_client_ptr = utest::CreateHttpClient();
     auto request = http_client_ptr->CreateRequest();
 
-    request.url(http_server.GetBaseUrl());
-    client::SerializeRequest({client::RequestBodyApplicationOctetStream{"blabla"}}, request);
+    client::SerializeRequest({client::RequestBodyApplicationOctetStream{"blabla"}}, http_server.GetBaseUrl(), request);
 
     auto response = request.perform();
     EXPECT_EQ(response->status_code(), 200);

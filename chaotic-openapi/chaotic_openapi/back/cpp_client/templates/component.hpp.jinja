@@ -15,9 +15,7 @@ public:
     
     Client& GetClient();
     
-    static USERVER_NAMESPACE::yaml_config::Schema GetStaticConfigSchema() {
-        return ClientImpl::GetStaticConfigSchema();
-    }
+    static yaml_config::Schema GetStaticConfigSchema();
 
 private:
     ClientImpl client_;

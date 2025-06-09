@@ -9,8 +9,8 @@
 #include <userver/chaotic/openapi/middlewares/follow_redirects_middleware.hpp>
 #include <userver/chaotic/openapi/middlewares/logging_middleware.hpp>
 #include <userver/chaotic/openapi/middlewares/proxy_middleware.hpp>
+#include <userver/chaotic/openapi/middlewares/qos_middleware.hpp>
 #include <userver/chaotic/openapi/middlewares/ssl_middleware.hpp>
-#include <userver/chaotic/openapi/middlewares/timeout_retry_middleware.hpp>
 
 #include <string>
 #include <userver/logging/log.hpp>
@@ -23,7 +23,7 @@ constexpr http::headers::PredefinedHeader kLocation("Location");
 
 }
 
-UTEST(TestMiddleware, TimeoutRetryMiddleware) {
+UTEST(TestMiddleware, QosMiddleware) {
     int request_count = 0;
 
     const utest::HttpServerMock http_server([&request_count](const utest::HttpServerMock::HttpRequest&) {
@@ -43,7 +43,7 @@ UTEST(TestMiddleware, TimeoutRetryMiddleware) {
 
     request.url(http_server.GetBaseUrl() + "/test");
 
-    chaotic::openapi::TimeoutRetryMiddleware timeout_retry_middleware(std::chrono::milliseconds(100), 3);
+    chaotic::openapi::QosMiddleware timeout_retry_middleware(std::chrono::milliseconds(100), 3);
     timeout_retry_middleware.OnRequest(request);
 
     auto response = request.perform();

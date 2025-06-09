@@ -7,11 +7,15 @@ USERVER_NAMESPACE_BEGIN
 namespace chaotic::openapi::client {
 
 void ApplyConfig(clients::http::Request& request, const CommandControl& cc, const Config& config) {
-    if (cc) {
+    if (cc.timeout.count()) {
         request.timeout(cc.timeout.count());
-        request.retry(cc.attempts);
     } else {
         request.timeout(config.timeout.count());
+    }
+
+    if (cc.attempts) {
+        request.retry(cc.attempts);
+    } else {
         request.retry(config.attempts);
     }
 }
