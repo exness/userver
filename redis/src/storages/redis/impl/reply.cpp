@@ -243,14 +243,15 @@ void ReplyData::ExpectError(const std::string& request_description) const {
     );
 }
 
-Reply::Reply(std::string cmd, redisReply* redis_reply, ReplyStatus status)
-    : cmd(std::move(cmd)), data(redis_reply), status(status) {}
-
-Reply::Reply(std::string cmd, redisReply* redis_reply, ReplyStatus status, std::string status_string)
-    : cmd(std::move(cmd)), data(redis_reply), status(status), status_string(std::move(status_string)) {}
-
-Reply::Reply(std::string cmd, ReplyData&& data)
-    : cmd(std::move(cmd)), data(std::move(data)), status(ReplyStatus::kOk) {}
+Reply::Reply(std::string command, ReplyData&& reply_data, ReplyStatus reply_status)
+    : cmd(std::move(command)), data(std::move(reply_data)), status(reply_status) {
+    UASSERT_MSG(
+        !IsOk() || !data.IsError(),
+        fmt::format(
+            "For command '{}' the ReplyData contains error='{}' that missmatch Reply status kOk", cmd, data.GetError()
+        )
+    );
+}
 
 bool Reply::IsOk() const { return status == ReplyStatus::kOk; }
 

@@ -632,7 +632,9 @@ void ClusterSentinelImpl::ProcessWaitingCommands() {
         if (scommand.start + cc.timeout_all < now) {
             for (const auto& args : command->args) {
                 auto reply = std::make_shared<Reply>(
-                    args.GetCommandName(), nullptr, ReplyStatus::kTimeoutError, "Command in the send queue timed out"
+                    args.GetCommandName(),
+                    ReplyData::CreateError("Command in the send queue timed out"),
+                    ReplyStatus::kTimeoutError
                 );
                 statistics_internal_.redis_not_ready++;
                 InvokeCommand(command, std::move(reply));
@@ -656,9 +658,8 @@ void ClusterSentinelImpl::ProcessWaitingCommandsOnStop() {
         for (const auto& args : command->args) {
             auto reply = std::make_shared<Reply>(
                 args.GetCommandName(),
-                nullptr,
-                ReplyStatus::kTimeoutError,
-                "Stopping, killing commands remaining in send queue"
+                ReplyData::CreateError("Stopping, killing commands remaining in send queue"),
+                ReplyStatus::kTimeoutError
             );
             statistics_internal_.redis_not_ready++;
             InvokeCommand(command, std::move(reply));
@@ -896,8 +897,8 @@ void ClusterSentinelImpl::Init() {
 
 void ClusterSentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_instance_idx) {
     if (!AdjustDeadline(scommand, dynamic_config_source_.GetSnapshot())) {
-        auto reply = std::make_shared<Reply>("", ReplyData::CreateNil());
-        reply->status = ReplyStatus::kTimeoutError;
+        auto reply =
+            std::make_shared<Reply>("", ReplyData::CreateError("Deadline propagation"), ReplyStatus::kTimeoutError);
         InvokeCommand(scommand.command, std::move(reply));
         return;
     }
@@ -916,11 +917,15 @@ void ClusterSentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t p
             const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 
             const bool error_ask = reply->data.IsErrorAsk();
-            const bool error_moved = reply->data.IsErrorMoved();
+            const bool error_moved =
+                reply->data.IsErrorMoved()
+                // *SUBSCRIBE commands have logic in FSM, those commands do not expect retries on move.
+                // The behavior is tested in redis/functional_tests/cluster_auto_topology_pubsub/tests
+                && ccommand->args.GetCommandCount() == 1 && !ccommand->args.begin()->IsSubscribeCommand();
+
             if (error_moved) {
-                LOG_DEBUG() << "MOVED" << reply->status_string << " c.instance_idx:" << ccommand->instance_idx
-                            << " shard: " << shard << " movedto:" << ParseMovedShard(reply->data.GetError())
-                            << " args:" << ccommand->args;
+                LOG_DEBUG() << "MOVED c.instance_idx:" << ccommand->instance_idx << " shard: " << shard
+                            << " movedto:" << ParseMovedShard(reply->data.GetError()) << " args:" << ccommand->args;
                 this->topology_holder_->SendUpdateClusterTopology();
             }
             const bool retry_to_master =

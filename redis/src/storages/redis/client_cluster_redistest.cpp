@@ -100,7 +100,7 @@ UTEST_F(RedisClusterClientTest, MgetCrossSlot) {
 
     {
         auto req = client->Mget({MakeKey(idx[0]), MakeKey(idx[1])}, kDefaultCc);
-        UASSERT_THROW(req.Get(), storages::redis::ParseReplyException);
+        UASSERT_THROW(req.Get(), storages::redis::RequestFailedException);
     }
 
     for (const unsigned long i : idx) {
@@ -171,7 +171,7 @@ UTEST_F(RedisClusterClientTest, TransactionCrossSlot) {
         auto set = transaction->Set(MakeKey(idx[i]), std::to_string(add + i));
         auto get = transaction->Get(MakeKey(idx[i]));
     }
-    UASSERT_THROW(transaction->Exec(kDefaultCc).Get(), storages::redis::ParseReplyException);
+    UASSERT_THROW(transaction->Exec(kDefaultCc).Get(), storages::redis::RequestFailedException);
 }
 
 UTEST_F(RedisClusterClientTest, TransactionDistinctShards) {
@@ -185,7 +185,7 @@ UTEST_F(RedisClusterClientTest, TransactionDistinctShards) {
         auto set = transaction->Set(MakeKey(i), std::to_string(add + i));
         auto get = transaction->Get(MakeKey(i));
     }
-    UASSERT_THROW(transaction->Exec(kDefaultCc).Get(), storages::redis::ParseReplyException);
+    UASSERT_THROW(transaction->Exec(kDefaultCc).Get(), storages::redis::RequestFailedException);
 }
 
 UTEST_F(RedisClusterClientTest, Eval) {

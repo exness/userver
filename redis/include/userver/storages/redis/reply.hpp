@@ -228,20 +228,21 @@ private:
 
 class Reply final {
 public:
-    Reply(std::string cmd, redisReply* redis_reply, ReplyStatus status);
-    Reply(std::string cmd, redisReply* redis_reply, ReplyStatus status, std::string status_string);
-    Reply(std::string cmd, ReplyData&& data);
+    Reply(std::string command, ReplyData&& reply_data, ReplyStatus reply_status = ReplyStatus::kOk);
 
     std::string server;
     ServerId server_id;
-    std::string cmd;
+    const std::string cmd;
     ReplyData data;
-    ReplyStatus status;
-    std::string status_string;
+    const ReplyStatus status;
     double time = 0.0;
     logging::LogExtra log_extra;
 
     operator bool() const { return IsOk(); }
+
+    std::string_view GetStatusString() const {
+        return (!IsOk() && data.IsError() ? data.GetError() : std::string_view{});
+    }
 
     bool IsOk() const;
     bool IsLoggableError() const;

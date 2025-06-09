@@ -47,7 +47,7 @@ bool IsConnected(const storages::redis::impl::Redis& redis) {
 }  // namespace
 
 TEST(Redis, NoPassword) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
@@ -59,7 +59,7 @@ TEST(Redis, NoPassword) {
 }
 
 TEST(Redis, Auth) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto auth_handler = server.RegisterStatusReplyHandler("AUTH", "OK");
 
@@ -73,7 +73,7 @@ TEST(Redis, Auth) {
 }
 
 TEST(Redis, AuthFail) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto auth_error_handler = server.RegisterErrorReplyHandler("AUTH", "NO PASARAN");
 
@@ -87,7 +87,7 @@ TEST(Redis, AuthFail) {
 }
 
 TEST(Redis, AuthTimeout) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto sleep_period = storages::redis::kDefaultTimeoutSingle + std::chrono::milliseconds(30);
     auto auth_error_handler = server.RegisterTimeoutHandler("AUTH", sleep_period);
@@ -102,7 +102,7 @@ TEST(Redis, AuthTimeout) {
 }
 
 TEST(Redis, Select) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto select_handler = server.RegisterStatusReplyHandler("SELECT", "OK");
 
@@ -116,7 +116,7 @@ TEST(Redis, Select) {
 }
 
 TEST(Redis, SelectFail) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto select_error_handler = server.RegisterErrorReplyHandler("SELECT", "NO PASARAN");
 
@@ -130,7 +130,7 @@ TEST(Redis, SelectFail) {
 }
 
 TEST(Redis, SelectTimeout) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto sleep_period = storages::redis::kDefaultTimeoutSingle + std::chrono::milliseconds(30);
     auto select_error_handler = server.RegisterTimeoutHandler("SELECT", sleep_period);
@@ -145,7 +145,7 @@ TEST(Redis, SelectTimeout) {
 }
 
 TEST(Redis, SlaveREADONLY) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto readonly_handler = server.RegisterStatusReplyHandler("READONLY", "OK");
 
@@ -160,7 +160,7 @@ TEST(Redis, SlaveREADONLY) {
 }
 
 TEST(Redis, SlaveREADONLYFail) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto readonly_handler = server.RegisterErrorReplyHandler("READONLY", "FAIL");
 
@@ -175,7 +175,7 @@ TEST(Redis, SlaveREADONLYFail) {
 }
 
 TEST(Redis, PingFail) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_error_handler = server.RegisterErrorReplyHandler("PING", "PONG");
 
     auto pool = std::make_shared<storages::redis::impl::ThreadPools>(1, 1);
@@ -201,7 +201,7 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 TEST_P(RedisDisconnectingReplies, X) {
-    MockRedisServer server;
+    MockRedisServer server{"redis_db"};
     auto ping_handler = server.RegisterPingHandler();
     auto get_handler = server.RegisterErrorReplyHandler("GET", GetParam());
 

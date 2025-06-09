@@ -87,7 +87,7 @@ std::string ClusterTopology::GetReadinessInfo() const {
         const auto master_ready = shard.IsReady(WaitConnectedMode::kMaster);
         const auto replica_ready = shard.IsReady(WaitConnectedMode::kSlave);
         fmt::format_to(
-            std::back_inserter(result), "master: {}, replicas: {}", master_ready, replica_ready
+            std::back_inserter(result), "{{master: {}, replicas: {}}},", master_ready, replica_ready
 
         );
         at_least_one_is_fine = (at_least_one_is_fine || master_ready || replica_ready);
