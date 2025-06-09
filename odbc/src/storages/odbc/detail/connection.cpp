@@ -118,6 +118,18 @@ ResultSet Connection::Query(const std::string& query) {
     return ResultSet(std::move(wrapper));
 }
 
+bool Connection::IsBroken() const {
+    SQLUINTEGER state = 0;
+    SQLRETURN ret = SQLGetConnectAttr(handle_.get(), SQL_ATTR_CONNECTION_DEAD, &state, sizeof(state), nullptr);
+    if (!SQL_SUCCEEDED(ret) || state == SQL_CD_TRUE) {
+        return true;
+    }
+
+    return false;
+}
+
+void Connection::NotifyBroken() {}
+
 }  // namespace storages::odbc
 
 USERVER_NAMESPACE_END
