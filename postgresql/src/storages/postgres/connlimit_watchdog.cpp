@@ -61,7 +61,7 @@ void ConnlimitWatchdog::Start() {
         periodic_.Start(
             "connlimit_watchdog",
             {std::chrono::seconds(2), {}, {USERVER_NAMESPACE::utils::PeriodicTask::Flags::kNow}},
-            [this] { StepV1(); }
+            [this] { StepV2(); }
         );
     }
 }
