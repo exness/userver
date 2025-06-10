@@ -84,19 +84,19 @@ public:
     bool IsWriteAndCheckAvailable() const noexcept;
 
     // please read comments for 'invocation_' private member on why
-    // we use two different invocation types
+    // we use different invocation types
     void EmplaceAsyncMethodInvocation();
 
     // please read comments for 'invocation_' private member on why
-    // we use two different invocation types
+    // we use different invocation types
     void EmplaceFinishAsyncMethodInvocation();
 
     // please read comments for 'invocation_' private member on why
-    // we use two different invocation types
+    // we use different invocation types
     AsyncMethodInvocation& GetAsyncMethodInvocation() noexcept;
 
     // please read comments for 'invocation_' private member on why
-    // we use two different invocation types
+    // we use different invocation types
     FinishAsyncMethodInvocation& GetFinishAsyncMethodInvocation() noexcept;
 
     // These are for asserts and invariants. Do NOT branch actual code

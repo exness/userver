@@ -16,7 +16,7 @@ namespace ugrpc::client::impl {
 
 namespace {
 
-void ProcessCallStatistics(CallState& state, const grpc::Status& status) {
+void ProcessCallStatistics(CallState& state, const grpc::Status& status) noexcept {
     auto& stats = state.GetStatsScope();
     stats.OnExplicitFinish(status.error_code());
     if (status.error_code() == grpc::StatusCode::DEADLINE_EXCEEDED && state.IsDeadlinePropagated()) {
@@ -88,13 +88,13 @@ void ProcessFinish(CallState& state, const google::protobuf::Message* final_resp
     SetStatusAndResetSpan(state, status);
 }
 
-void ProcessFinishCancelled(CallState& state) {
+void ProcessFinishCancelled(CallState& state) noexcept {
     state.GetStatsScope().OnCancelled();
     state.GetStatsScope().Flush();
     SetErrorAndResetSpan(state, "Task cancellation at 'Finish'");
 }
 
-void ProcessFinishNetworkError(CallState& state) {
+void ProcessFinishNetworkError(CallState& state) noexcept {
     state.GetStatsScope().OnNetworkError();
     state.GetStatsScope().Flush();
     SetErrorAndResetSpan(state, "Network error at 'Finish'");

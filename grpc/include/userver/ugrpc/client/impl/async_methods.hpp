@@ -68,9 +68,9 @@ void PrepareFinish(CallState& state);
 
 void ProcessFinish(CallState& state, const google::protobuf::Message* final_response);
 
-void ProcessFinishCancelled(CallState& state);
+void ProcessFinishCancelled(CallState& state) noexcept;
 
-void ProcessFinishNetworkError(CallState& state);
+void ProcessFinishNetworkError(CallState& state) noexcept;
 
 void CheckFinishStatus(CallState& state);
 

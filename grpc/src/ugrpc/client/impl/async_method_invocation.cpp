@@ -1,5 +1,7 @@
 #include <userver/ugrpc/client/impl/async_method_invocation.hpp>
 
+#include <userver/utils/assert.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
@@ -9,8 +11,8 @@ void FinishAsyncMethodInvocation::Notify(bool ok) noexcept {
     AsyncMethodInvocation::Notify(ok);
 }
 
-std::chrono::steady_clock::time_point FinishAsyncMethodInvocation::GetFinishTime() const {
-    UINVARIANT(finish_time_.has_value(), "GetFinishTime should be called after invocation was notified");
+std::chrono::steady_clock::time_point FinishAsyncMethodInvocation::GetFinishTime() const noexcept {
+    UASSERT_MSG(finish_time_.has_value(), "GetFinishTime should be called after invocation was notified");
     return *finish_time_;
 }
 

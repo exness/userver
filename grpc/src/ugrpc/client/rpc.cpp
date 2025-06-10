@@ -24,6 +24,7 @@ UnaryFinishFutureImpl::UnaryFinishFutureImpl(UnaryFinishFutureImpl&& other) noex
 
 UnaryFinishFutureImpl& UnaryFinishFutureImpl::operator=(UnaryFinishFutureImpl&& other) noexcept {
     if (this == &other) return *this;
+    // we should destruct current instance
     [[maybe_unused]] auto for_destruction = std::move(*this);
     // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
     state_ = std::exchange(other.state_, nullptr);
@@ -61,8 +62,8 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline)
     switch (wait_status) {
         case impl::AsyncMethodInvocation::WaitStatus::kOk:
             state_->SetFinishProcessed();
+            state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
             try {
-                state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
                 ProcessFinish(*state_, response_);
             } catch (...) {
                 exception_ = std::current_exception();
@@ -71,13 +72,9 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline)
 
         case impl::AsyncMethodInvocation::WaitStatus::kError:
             state_->SetFinishProcessed();
-            try {
-                state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
-                ProcessFinishNetworkError(*state_);
-                exception_ = std::make_exception_ptr(RpcInterruptedError(state_->GetCallName(), "Finish"));
-            } catch (...) {
-                exception_ = std::current_exception();
-            }
+            state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
+            ProcessFinishNetworkError(*state_);
+            exception_ = std::make_exception_ptr(RpcInterruptedError(state_->GetCallName(), "Finish"));
             return engine::FutureStatus::kReady;
 
         case impl::AsyncMethodInvocation::WaitStatus::kCancelled:

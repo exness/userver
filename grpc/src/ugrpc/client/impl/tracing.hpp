@@ -19,9 +19,9 @@ void SetupSpan(
     std::string_view call_name
 );
 
-void SetStatusForSpan(tracing::Span& span, const grpc::Status& status);
+void SetStatusForSpan(tracing::Span& span, const grpc::Status& status) noexcept;
 
-void SetErrorForSpan(tracing::Span& span, std::string_view error_message);
+void SetErrorForSpan(tracing::Span& span, std::string_view error_message) noexcept;
 
 }  // namespace ugrpc::client::impl
 

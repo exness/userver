@@ -4,8 +4,9 @@
 
 #include <userver/utils/assert.hpp>
 
-#include <ugrpc/client/impl/tracing.hpp>
 #include <userver/ugrpc/client/impl/call_params.hpp>
+
+#include <ugrpc/client/impl/tracing.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
