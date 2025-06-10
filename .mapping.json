@@ -2094,6 +2094,7 @@
   "grpc/include/userver/ugrpc/impl/async_method_invocation.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/async_method_invocation.hpp",
   "grpc/include/userver/ugrpc/impl/code_statistics.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/code_statistics.hpp",
   "grpc/include/userver/ugrpc/impl/completion_queue_pool_base.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/completion_queue_pool_base.hpp",
+  "grpc/include/userver/ugrpc/impl/event_base.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/event_base.hpp",
   "grpc/include/userver/ugrpc/impl/internal_tag_fwd.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/internal_tag_fwd.hpp",
   "grpc/include/userver/ugrpc/impl/maybe_owned_string.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/maybe_owned_string.hpp",
   "grpc/include/userver/ugrpc/impl/protobuf_collector.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/protobuf_collector.hpp",

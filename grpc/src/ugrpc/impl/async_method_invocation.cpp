@@ -8,8 +8,6 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::impl {
 
-EventBase::~EventBase() = default;
-
 AsyncMethodInvocation::~AsyncMethodInvocation() { WaitWhileBusy(); }
 
 void AsyncMethodInvocation::Notify(bool ok) noexcept {
