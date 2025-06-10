@@ -70,6 +70,8 @@ void ProcessFinish(CallState& state, const google::protobuf::Message* final_resp
 
 void ProcessFinishCancelled(CallState& state);
 
+void ProcessFinishNetworkError(CallState& state);
+
 void CheckFinishStatus(CallState& state);
 
 template <typename GrpcStream>
@@ -88,15 +90,18 @@ void Finish(
     const auto wait_status = WaitAndTryCancelIfNeeded(finish, state.GetContext());
     switch (wait_status) {
         case impl::AsyncMethodInvocation::WaitStatus::kOk:
-        case impl::AsyncMethodInvocation::WaitStatus::kError:
-            UINVARIANT(
-                impl::AsyncMethodInvocation::WaitStatus::kOk == wait_status,
-                "Client-side Finish: ok should always be true"
-            );
             state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
             ProcessFinish(state, final_response);
             if (throw_on_error) {
                 CheckFinishStatus(state);
+            }
+            break;
+
+        case impl::AsyncMethodInvocation::WaitStatus::kError:
+            state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
+            ProcessFinishNetworkError(state);
+            if (throw_on_error) {
+                throw RpcInterruptedError(state.GetCallName(), "Finish");
             }
             break;
 

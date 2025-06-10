@@ -94,6 +94,12 @@ void ProcessFinishCancelled(CallState& state) {
     SetErrorAndResetSpan(state, "Task cancellation at 'Finish'");
 }
 
+void ProcessFinishNetworkError(CallState& state) {
+    state.GetStatsScope().OnNetworkError();
+    state.GetStatsScope().Flush();
+    SetErrorAndResetSpan(state, "Network error at 'Finish'");
+}
+
 void CheckFinishStatus(CallState& state) {
     auto& status = state.GetStatus();
     if (!status.ok()) {

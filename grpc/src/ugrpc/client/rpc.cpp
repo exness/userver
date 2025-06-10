@@ -60,15 +60,21 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline)
     const auto wait_status = impl::WaitAndTryCancelIfNeeded(finish, deadline, state_->GetContext());
     switch (wait_status) {
         case impl::AsyncMethodInvocation::WaitStatus::kOk:
+            state_->SetFinishProcessed();
+            try {
+                state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
+                ProcessFinish(*state_, response_);
+            } catch (...) {
+                exception_ = std::current_exception();
+            }
+            return engine::FutureStatus::kReady;
+
         case impl::AsyncMethodInvocation::WaitStatus::kError:
             state_->SetFinishProcessed();
             try {
-                UINVARIANT(
-                    impl::AsyncMethodInvocation::WaitStatus::kOk == wait_status,
-                    "Client-side Finish: ok should always be true"
-                );
                 state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
-                ProcessFinish(*state_, response_);
+                ProcessFinishNetworkError(*state_);
+                exception_ = std::make_exception_ptr(RpcInterruptedError(state_->GetCallName(), "Finish"));
             } catch (...) {
                 exception_ = std::current_exception();
             }
