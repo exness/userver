@@ -193,5 +193,5 @@ MiddlewareComponent::MiddlewareComponent(const components::ComponentConfig& conf
 ```
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/grpc/client_middlewares.md | @ref scripts/docs/en/userver/grpc/middlewares_toggle.md ⇨
+⇦ @ref scripts/docs/en/userver/grpc/client_middleware_implementation.md | @ref scripts/docs/en/userver/grpc/middlewares_toggle.md ⇨
 @htmlonly </div> @endhtmlonly

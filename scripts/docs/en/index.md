@@ -101,7 +101,9 @@ and make sure that it builds and passes tests.
 * @ref scripts/docs/en/userver/grpc/grpc.md
     * Middlewares
         * @ref scripts/docs/en/userver/grpc/server_middlewares.md
+            * @ref scripts/docs/en/userver/grpc/server_middleware_implementation.md
         * @ref scripts/docs/en/userver/grpc/client_middlewares.md
+            * @ref scripts/docs/en/userver/grpc/client_middleware_implementation.md
         * @ref scripts/docs/en/userver/grpc/middlewares_order.md
         * @ref scripts/docs/en/userver/grpc/middlewares_toggle.md
         * @ref scripts/docs/en/userver/grpc/middlewares_configuration.md
