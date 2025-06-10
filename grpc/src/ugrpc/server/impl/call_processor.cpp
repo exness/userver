@@ -93,10 +93,11 @@ void SetupSpan(
 grpc::Status ReportHandlerError(const std::exception& ex, CallState& state) noexcept {
     try {
         auto& span = state.GetSpan();
-        LOG_ERROR() << "Uncaught exception in '" << state.call_name << "': " << ex;
+        const auto log_level = AdjustLogLevelForCancellations(logging::Level::kError);
+        LOG(log_level) << "Uncaught exception in '" << state.call_name << "': " << ex;
         span.AddNonInheritableTag(tracing::kErrorFlag, true);
         span.AddNonInheritableTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(AdjustLogLevelForCancellations(logging::Level::kError));
+        span.SetLogLevel(log_level);
         return kUnknownErrorStatus;
     } catch (const std::exception& new_ex) {
         LOG_ERROR() << "Error in ReportHandlerError: " << new_ex;
@@ -127,12 +128,14 @@ ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerExcept
     try {
         grpc::Status status{CustomStatusToGrpc(ex.GetCode()), ugrpc::impl::ToGrpcString(ex.GetExternalErrorBody())};
 
-        const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
+        const auto log_level = AdjustLogLevelForCancellations(
+            IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning
+        );
         LOG(log_level) << "Error in " << state.call_name << ": " << ex;
         auto& span = state.GetSpan();
         span.AddNonInheritableTag(tracing::kErrorFlag, true);
         span.AddNonInheritableTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(AdjustLogLevelForCancellations(log_level));
+        span.SetLogLevel(log_level);
         return status;
     } catch (const std::exception& new_ex) {
         LOG_ERROR() << "Error in ReportCustomError: " << new_ex;
