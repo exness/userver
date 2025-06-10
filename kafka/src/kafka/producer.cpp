@@ -138,6 +138,7 @@ void Producer::SendImpl(
     impl::HeadersHolder&& headers_holder
 ) const {
     tracing::Span::CurrentSpan().AddTag("kafka_producer", name_);
+    tracing::Span::CurrentSpan().AddTag("kafka_send_key", std::string{key});
 
     std::vector<OwningHeader> headers_copy;
     if (testsuite::AreTestpointsAvailable()) {
