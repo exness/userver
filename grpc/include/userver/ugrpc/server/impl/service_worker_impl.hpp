@@ -99,13 +99,19 @@ public:
         // and grpc::ServerContext::AsyncNotifyWhenDone
         ugrpc::server::impl::RpcFinishedEvent notify_when_done(engine::current_task::GetCancellationToken(), context_);
 
-        context_.AsyncNotifyWhenDone(notify_when_done.GetTag());
+        context_.AsyncNotifyWhenDone(notify_when_done.GetCompletionTag());
 
         auto& queue = method_data_.service_data.internals.completion_queues.GetQueue(method_data_.queue_id);
 
         // the request for an incoming RPC must be performed synchronously
         method_data_.service_data.async_service.template Prepare<CallTraits>(
-            method_data_.method_id, context_, initial_request_, raw_responder_, queue, queue, prepare_.GetTag()
+            method_data_.method_id,
+            context_,
+            initial_request_,
+            raw_responder_,
+            queue,
+            queue,
+            prepare_.GetCompletionTag()
         );
 
         // Note: we ignore task cancellations here. Even if notify_when_done has

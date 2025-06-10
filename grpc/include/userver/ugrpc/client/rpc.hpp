@@ -525,7 +525,7 @@ void UnaryCall<Response>::FinishAsync() {
     GetState().EmplaceFinishAsyncMethodInvocation();
     auto& finish = GetState().GetFinishAsyncMethodInvocation();
     auto& status = GetState().GetStatus();
-    reader_->Finish(response.get(), &status, finish.GetTag());
+    reader_->Finish(response.get(), &status, finish.GetCompletionTag());
 
     finish_future_.emplace(GetState(), std::move(response));
 }

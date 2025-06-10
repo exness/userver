@@ -24,7 +24,7 @@ public:
 
     /// @brief For use from coroutines
     /// @return This object's `void* tag` for `grpc::CompletionQueue::Next`
-    void* GetTag() noexcept;
+    void* GetCompletionTag() noexcept;
 
     /// @see EventBase::Notify
     void Notify(bool ok) noexcept override;

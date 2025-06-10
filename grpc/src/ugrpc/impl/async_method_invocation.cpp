@@ -19,7 +19,7 @@ void AsyncMethodInvocation::Notify(bool ok) noexcept {
 
 bool AsyncMethodInvocation::IsBusy() const noexcept { return busy_; }
 
-void* AsyncMethodInvocation::GetTag() noexcept {
+void* AsyncMethodInvocation::GetCompletionTag() noexcept {
     UASSERT(!busy_);
     busy_ = true;
     return static_cast<EventBase*>(this);

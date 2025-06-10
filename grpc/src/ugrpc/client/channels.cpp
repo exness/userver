@@ -29,7 +29,7 @@ DoTryWaitForConnected(grpc::Channel& channel, grpc::CompletionQueue& queue, engi
         if (state == ::GRPC_CHANNEL_SHUTDOWN) return false;
 
         ugrpc::impl::AsyncMethodInvocation operation;
-        channel.NotifyOnStateChange(state, deadline, &queue, operation.GetTag());
+        channel.NotifyOnStateChange(state, deadline, &queue, operation.GetCompletionTag());
         if (operation.Wait() != ugrpc::impl::AsyncMethodInvocation::WaitStatus::kOk) return false;
     }
 }
