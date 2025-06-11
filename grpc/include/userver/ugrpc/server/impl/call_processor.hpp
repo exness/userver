@@ -35,7 +35,7 @@ void SetupSpan(
 
 grpc::Status ReportHandlerError(const std::exception& ex, CallState& state) noexcept;
 
-grpc::Status ReportRpcInterruptedError(CallState& state) noexcept;
+void ReportRpcInterruptedError(CallState& state) noexcept;
 
 grpc::Status
 ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex, CallState& state) noexcept;
