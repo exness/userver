@@ -26,6 +26,7 @@ endif()
 file(GLOB SOURCES
   ${api-common-protos_SOURCE_DIR}/google/api/*.proto
   ${api-common-protos_SOURCE_DIR}/google/rpc/*.proto
+  ${api-common-protos_SOURCE_DIR}/google/type/*.proto
 )
 
 include(UserverGrpcTargets)
