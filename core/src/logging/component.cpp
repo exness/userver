@@ -1,13 +1,12 @@
 #include <userver/logging/component.hpp>
 
 #include <chrono>
+#include <iostream>
 #include <stdexcept>
 
+#include <fmt/chrono.h>
 #include <fmt/ranges.h>
-#include <logging/config.hpp>
-#include <logging/impl/tcp_socket_sink.hpp>
-#include <logging/tp_logger.hpp>
-#include <logging/tp_logger_utils.hpp>
+
 #include <userver/alerts/source.hpp>
 #include <userver/components/component.hpp>
 #include <userver/components/statistics_storage.hpp>
@@ -22,6 +21,11 @@
 #include <userver/utils/thread_name.hpp>
 #include <userver/yaml_config/map_to_array.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
+
+#include <logging/config.hpp>
+#include <logging/impl/tcp_socket_sink.hpp>
+#include <logging/tp_logger.hpp>
+#include <logging/tp_logger_utils.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -222,9 +226,11 @@ void Logging::TryReopenFiles() {
 
     if (!result_messages.empty()) {
         kLogReopeningAlert.FireAlert(*metrics_storage_);
-        LOG_ERROR() << fmt::format(
-            "loggers [{}] failed to reopen the log "
+        const auto now = std::chrono::system_clock::now();
+        std::cerr << fmt::format(
+            "[{:%Y-%m-%d %H:%M:%S %Z}] loggers [{}] failed to reopen the log "
             "file: logs are getting lost now",
+            now,
             fmt::join(failed_loggers, ", ")
         );
 
