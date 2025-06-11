@@ -56,7 +56,7 @@ storages::postgres::OmitDescribeInExecuteMode ParseOmitDescribe(const dynamic_co
 
 Postgres::Postgres(const ComponentConfig& config, const ComponentContext& context)
     : ComponentBase(config, context),
-      name_{config.Name()},
+      name_{config["name_alias"].As<std::string>(config.Name())},
       database_{std::make_shared<storages::postgres::Database>()},
       config_source_{context.FindComponent<DynamicConfig>().GetSource()} {
     storages::postgres::LogRegisteredTypesOnce();
@@ -235,6 +235,9 @@ properties:
     dbalias:
         type: string
         description: name of the database in secdist config (if available)
+    name_alias:
+        type: string
+        description: name alias to use in configs (by default - component name)
     dbconnection:
         type: string
         description: connection DSN string (used if no dbalias specified)
