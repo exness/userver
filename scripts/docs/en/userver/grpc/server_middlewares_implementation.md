@@ -4,8 +4,8 @@
 
 There are two main interfaces for implementing a middleware:
 1. @ref ugrpc::server::MiddlewareBase. Class that implements the main logic of a middleware
-2. @ref ugrpc::server::MiddlewareFactoryComponentBase. The factory for the middleware to declare static options.
-    * Or for simple cases without static options @ref ugrpc::server::SimpleMiddlewareFactoryComponent.
+2. @ref ugrpc::server::SimpleMiddlewareFactoryComponent short-cut for simple cases without static options. 
+    * Or @ref ugrpc::server::MiddlewareFactoryComponentBase to declare static options.
 
 ## MiddlewareBase
 
@@ -164,6 +164,12 @@ The static YAML config.
 Register the middleware component in the component system.
 
 @snippet grpc/functional_tests/middleware_server/src/main.cpp Register middlewares
+
+
+## MiddlewareFactoryComponent
+
+We use a simple short-cut @ref ugrpc::server::SimpleMiddlewareFactoryComponent in the example above. 
+To declare static config options of your middleware see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 ## Exceptions and errors in middlewares
 
