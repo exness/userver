@@ -23,7 +23,7 @@ public:
     constexpr Deadline() = default;
 
     /// Returns whether the deadline can be reached
-    constexpr bool IsReachable() const noexcept { return value_ != TimePoint{}; }
+    constexpr bool IsReachable() const noexcept { return value_ != kUnreachable; }
 
     /// Returns whether the deadline is reached
     bool IsReached() const noexcept;
@@ -39,6 +39,11 @@ public:
     /// deadline. May be faster than TimeLeft.
     /// @see utils::datetime::SteadyCoarseClock
     Duration TimeLeftApprox() const noexcept;
+
+    /// Returns the native time point value.
+    /// Returns `TimePoint::max()` for unreachable deadline
+    /// and `TimePoint::min()` for `Deadline::Passed()`
+    constexpr TimePoint GetTimePoint() const noexcept { return value_; }
 
     /// Converts duration to a Deadline
     template <typename Rep, typename Period>
@@ -106,9 +111,10 @@ private:
 
     static void OnDurationOverflow(std::chrono::duration<double> incoming_duration);
 
+    static constexpr TimePoint kUnreachable = TimePoint::max();
     static constexpr TimePoint kPassed = TimePoint::min();
 
-    TimePoint value_;
+    TimePoint value_{kUnreachable};
 };
 
 }  // namespace engine

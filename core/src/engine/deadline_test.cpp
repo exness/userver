@@ -39,4 +39,17 @@ TEST(DeadlineDeathTest, Overflow) {
 }
 #endif
 
+TEST(Deadline, TimePoint) {
+    // special cases
+    // Unreachable Deadline
+    EXPECT_EQ(engine::Deadline{}.GetTimePoint(), engine::Deadline::TimePoint::max());
+    // Passed Deadline
+    EXPECT_EQ(engine::Deadline::Passed().GetTimePoint(), engine::Deadline::TimePoint::min());
+
+    // common use
+    const auto tp = engine::Deadline::Clock::now();
+    const auto deadline = engine::Deadline::FromTimePoint(tp);
+    EXPECT_EQ(deadline.GetTimePoint(), tp);
+}
+
 USERVER_NAMESPACE_END
