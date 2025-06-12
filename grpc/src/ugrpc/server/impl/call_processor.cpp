@@ -30,17 +30,19 @@ void ReportFinishSuccess(
         const auto status_code = status.error_code();
         statistics_scope.OnExplicitFinish(status_code);
 
-        span.AddTag("grpc_code", ugrpc::ToString(status_code));
+        span.AddNonInheritableTag("grpc_code", ugrpc::ToString(status_code));
         if (!status.ok()) {
-            span.AddTag(tracing::kErrorFlag, true);
-            span.AddTag(tracing::kErrorMessage, status.error_message());
-            // TODO if Finish with error status fails, should we leave span level as INFO??
-            //  Because that's what happens if ReportFinishSuccess is not called.
+            span.AddNonInheritableTag(tracing::kErrorFlag, true);
+            span.AddNonInheritableTag(tracing::kErrorMessage, status.error_message());
             span.SetLogLevel(IsServerError(status_code) ? logging::Level::kError : logging::Level::kWarning);
         }
     } catch (const std::exception& ex) {
         LOG_ERROR() << "Error in ReportFinishSuccess: " << ex;
     }
+}
+
+logging::Level AdjustLogLevelForCancellations(logging::Level level) {
+    return engine::current_task::ShouldCancel() ? std::min(level, logging::Level::kWarning) : level;
 }
 
 }  // namespace
@@ -68,10 +70,7 @@ void SetupSpan(
         } else {
             auto data = std::move(extraction_result).value();
             span_holder.emplace(
-                std::move(span_name),
-                std::move(data.trace_id),
-                std::move(data.span_id),
-                utils::impl::SourceLocation::Current()
+                std::move(span_name), data.trace_id, data.span_id, utils::impl::SourceLocation::Current()
             );
         }
     } else if (trace_id) {
@@ -85,19 +84,20 @@ void SetupSpan(
         span_holder.emplace(std::move(span_name), utils::impl::SourceLocation::Current());
     }
 
+    auto& span = span_holder->Get();
     const auto* const parent_link = utils::FindOrNullptr(client_metadata, ugrpc::impl::kXYaRequestId);
     if (parent_link) {
-        span_holder->SetParentLink(utils::impl::InternalTag{}, ugrpc::impl::ToStringView(*parent_link));
+        span.SetParentLink(ugrpc::impl::ToStringView(*parent_link));
     }
 }
 
 grpc::Status ReportHandlerError(const std::exception& ex, CallState& state) noexcept {
     try {
         auto& span = state.GetSpan();
-        span.AddNonInheritableTag(tracing::kErrorFlag, true);
         LOG_ERROR() << "Uncaught exception in '" << state.call_name << "': " << ex;
-        span.AddTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(logging::Level::kError);
+        span.AddNonInheritableTag(tracing::kErrorFlag, true);
+        span.AddNonInheritableTag(tracing::kErrorMessage, ex.what());
+        span.SetLogLevel(AdjustLogLevelForCancellations(logging::Level::kError));
         return kUnknownErrorStatus;
     } catch (const std::exception& new_ex) {
         LOG_ERROR() << "Error in ReportHandlerError: " << new_ex;
@@ -113,8 +113,8 @@ grpc::Status ReportRpcInterruptedError(CallState& state) noexcept {
                       << "'. The previously logged cancellation or network exception, if any, is likely caused by it.";
         state.statistics_scope.OnNetworkError();
         auto& span = state.GetSpan();
-        span.AddTag(tracing::kErrorMessage, "RPC interrupted");
-        span.AddTag(tracing::kErrorFlag, true);
+        span.AddNonInheritableTag(tracing::kErrorMessage, "RPC interrupted");
+        span.AddNonInheritableTag(tracing::kErrorFlag, true);
         span.SetLogLevel(logging::Level::kWarning);
         return grpc::Status::CANCELLED;
     } catch (const std::exception& ex) {
@@ -131,9 +131,9 @@ ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerExcept
         const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
         LOG(log_level) << "Error in " << state.call_name << ": " << ex;
         auto& span = state.GetSpan();
-        span.AddTag(tracing::kErrorFlag, true);
-        span.AddTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(log_level);
+        span.AddNonInheritableTag(tracing::kErrorFlag, true);
+        span.AddNonInheritableTag(tracing::kErrorMessage, ex.what());
+        span.SetLogLevel(AdjustLogLevelForCancellations(log_level));
         return status;
     } catch (const std::exception& new_ex) {
         LOG_ERROR() << "Error in ReportCustomError: " << new_ex;

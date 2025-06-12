@@ -295,7 +295,7 @@ std::function<void(const CommandPtr&, const ReplyPtr&)> GetHostsContext::Generat
 void GetHostsContext::OnResponse(const CommandPtr& command, const ReplyPtr& reply) {
     bool need_process_responses = false;
     {
-        const std::unique_lock<std::mutex> lock(mutex_);
+        const std::lock_guard<std::mutex> lock(mutex_);
         response_got_++;
 
         SentinelResponse response;
@@ -415,7 +415,7 @@ void GetClusterHostsContext::OnResponse(const CommandPtr&, const ReplyPtr& reply
     switch (ParseClusterSlotsResponse(reply, response)) {
         case ClusterSlotsResponseStatus::kOk: {
             {
-                const std::unique_lock<std::mutex> lock(mutex_);
+                const std::lock_guard<std::mutex> lock(mutex_);
                 responses_by_id_[reply->server_id] = std::move(response);
             }
             responses_parsed_++;

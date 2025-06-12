@@ -60,7 +60,7 @@ UTEST(SharedMutex, UniqueAndSharedLock) {
     engine::SharedMutex mutex;
 
     std::shared_lock<engine::SharedMutex> lock(mutex);
-    auto writer = utils::Async("", [&mutex] { const std::unique_lock<engine::SharedMutex> lock(mutex); });
+    auto writer = utils::Async("", [&mutex] { const std::lock_guard<engine::SharedMutex> lock(mutex); });
 
     writer.WaitFor(std::chrono::milliseconds(50));
     EXPECT_FALSE(writer.IsFinished());
@@ -79,7 +79,7 @@ UTEST_MT(SharedMutex, WritersDontStarve, 2) {
 
     std::shared_lock<engine::SharedMutex> lock(mutex);
     auto writer = utils::Async("", [&mutex, &counter, &loaded] {
-        const std::unique_lock<engine::SharedMutex> lock(mutex);
+        const std::lock_guard<engine::SharedMutex> lock(mutex);
         loaded = counter.load();
     });
 
@@ -123,7 +123,7 @@ UTEST(SharedMutex, TryLock) {
 UTEST(SharedMutex, TryLockFail) {
     engine::SharedMutex mutex;
 
-    const std::unique_lock<engine::SharedMutex> lock(mutex);
+    const std::lock_guard<engine::SharedMutex> lock(mutex);
     auto task = utils::Async("", [&mutex] { return mutex.try_lock(); });
     EXPECT_FALSE(task.Get());
 }

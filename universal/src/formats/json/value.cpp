@@ -227,7 +227,7 @@ bool Value::IsUInt() const noexcept {
     const auto& native = GetNative();
     if (native.IsUint()) return true;
     if (native.IsDouble()) {
-        return IsNonOverflowingIntegral<uint>(native.GetDouble());
+        return IsNonOverflowingIntegral<unsigned int>(native.GetDouble());
     }
     return false;
 }

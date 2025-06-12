@@ -389,7 +389,7 @@ void AssertConcurrentResets() {
     const auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime / 2);
 
     {
-        const std::unique_lock lock{block_updates_mutex};
+        const std::lock_guard lock{block_updates_mutex};
         updates_cond_var.NotifyAll();
     }
 

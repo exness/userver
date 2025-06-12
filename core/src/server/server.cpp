@@ -195,7 +195,7 @@ void ServerImpl::StartPortInfos() {
 
 void ServerImpl::Stop() {
     {
-        const std::unique_lock lock{on_stop_mutex_};
+        const std::lock_guard lock{on_stop_mutex_};
         if (is_stopping_) return;
         is_stopping_ = true;
     }

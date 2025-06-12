@@ -315,6 +315,8 @@ UTEST(Cancel, CancellationTokenCancelSelf) {
     auto task = engine::CriticalAsyncNoSpan([] {
         auto token = engine::current_task::GetCancellationToken();
         token.RequestCancel();
+        EXPECT_TRUE(token.IsCancelRequested());
+        EXPECT_TRUE(token.CancellationReason() == engine::TaskCancellationReason::kUserRequest);
         engine::current_task::CancellationPoint();
         return kTaskResult;
     });

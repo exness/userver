@@ -26,7 +26,7 @@ struct Row final {
 
 using RowTuple = std::tuple<int, std::string>;
 
-// Main fixture for handle tempory database files
+// Main fixture for handle temporary database files
 // Create test tmp dir on start and delete it on finish
 class SQLiteFixture : public ::testing::Test {
 protected:
@@ -66,7 +66,7 @@ private:
     std::unique_ptr<ConnectionProvider> connection_provider_;
 };
 
-// Create sqlite client (set of conection pools) with custom settings
+// Create sqlite client (set of connection pools) with custom settings
 class SQLiteCustomConnection {
 public:
     ClientPtr CreateClient(settings::SQLiteSettings settings) {
@@ -81,7 +81,7 @@ public:
     }
 };
 
-// Create sqlite client (set of conection pools) without any inits and checks
+// Create sqlite client (set of connection pools) without any inits and checks
 class SQLitePureConnection {
 public:
     ClientPtr CreateClient(settings::SQLiteSettings settings) {

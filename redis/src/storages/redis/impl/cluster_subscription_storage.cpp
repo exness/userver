@@ -115,7 +115,7 @@ void ClusterSubscriptionStorage::Unsubscribe(SubscriptionId subscription_id) {
 
 void ClusterSubscriptionStorage::Stop() {
     storage_impl_.ClearCallbackMaps();
-    rebalance_scheduler_.reset();
+    rebalance_scheduler_->Stop();
 }
 
 RawPubsubClusterStatistics ClusterSubscriptionStorage::GetStatistics() const {

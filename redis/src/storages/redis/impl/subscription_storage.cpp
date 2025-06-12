@@ -322,7 +322,7 @@ bool SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
     SubscriptionId subscription_id,
     bool sharded
 ) {
-    const std::unique_lock<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     for (auto& it1 : callback_map) {
         const auto& key = it1.first;
         auto& m = it1.second;

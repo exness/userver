@@ -23,12 +23,12 @@ public:
 
 protected:
     MiddlewaresFixture() {
-        std::generate(mws_.begin(), mws_.end(), [] { return std::make_shared<MiddlewareMock>(); });
+        std::generate(middlewares_.begin(), middlewares_.end(), [] { return std::make_shared<MiddlewareMock>(); });
 
         if constexpr (std::is_base_of_v<ugrpc::server::MiddlewareBase, MiddlewareType>) {
-            SetServerMiddlewares({mws_.begin(), mws_.end()});
+            SetServerMiddlewares({middlewares_.begin(), middlewares_.end()});
         } else {
-            SetClientMiddlewares({mws_.begin(), mws_.end()});
+            SetClientMiddlewares({middlewares_.begin(), middlewares_.end()});
         }
         RegisterService(service_);
         StartServer();
@@ -44,12 +44,12 @@ protected:
 
     ClientType& Client() { return client_.value(); }
 
-    const MiddlewareMock& Middleware(std::size_t index) const { return *mws_[index]; }
+    const MiddlewareMock& Middleware(std::size_t index) const { return *middlewares_[index]; }
 
 private:
     ServiceType service_;
     std::optional<ClientType> client_;
-    std::array<std::shared_ptr<const MiddlewareMock>, N> mws_;
+    std::array<std::shared_ptr<const MiddlewareMock>, N> middlewares_;
 };
 
 }  // namespace tests

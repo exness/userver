@@ -24,9 +24,8 @@ tracing::Span MakeSpan(
     tracing::Span* custom_parent_span,
     utils::impl::SourceLocation location
 ) {
-    auto span = custom_parent_span
-                    ? custom_parent_span->CreateChild("ydb_query")
-                    : tracing::Span("ydb_query", tracing::ReferenceType::kChild, logging::Level::kInfo, location);
+    auto span = custom_parent_span ? custom_parent_span->CreateChild("ydb_query", location)
+                                   : tracing::Span("ydb_query", location);
 
     settings.trace_id = span.GetTraceId();
 

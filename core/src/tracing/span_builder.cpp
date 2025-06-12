@@ -10,9 +10,14 @@ namespace tracing {
 
 SpanBuilder::SpanBuilder(std::string name, const utils::impl::SourceLocation& location)
     : pimpl_(
-          AllocateImpl(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, logging::Level::kInfo, location),
+          AllocateImpl(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, location),
           Span::OptionalDeleter{Span::OptionalDeleter::ShouldDelete()}
-      ) {}
+      ) {
+    // 1. If we AttachToCoroStack() in Build(), then any logs will not be attached to the trace for now.
+    // 2. If we AttachToCoroStack() here, then logs may get attached to a "non-existent" span
+    //    (logs will get `trace_id` that will change before Build()).
+    // Let's do (1) for now.
+}
 
 void SpanBuilder::SetSpanId(std::string_view parent_span_id) { pimpl_->SetSpanId(parent_span_id); }
 

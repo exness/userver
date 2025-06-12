@@ -52,7 +52,7 @@ from pytest_userver.utils import tskv
         ),
     ],
 )
-async def test_single_line(tskv_line, result):
+def test_single_line(tskv_line, result):
     assert tskv.parse_line(tskv_line) == result
 
 
@@ -106,7 +106,7 @@ async def test_single_line(tskv_line, result):
         ),
     ],
 )
-async def test_escape_single_line(tskv_line, result):
+def test_escape_single_line(tskv_line, result):
     assert tskv.parse_line(tskv_line) == result
 
 
@@ -135,5 +135,5 @@ async def test_escape_single_line(tskv_line, result):
         ),
     ],
 )
-async def test_single_line_empties(tskv_line, result):
+def test_single_line_empties(tskv_line, result):
     assert tskv.parse_line(tskv_line) == result

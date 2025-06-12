@@ -182,6 +182,35 @@ Use ugrpc::server::MiddlewareBase to implement new middlewares.
   4. `grpc-server-baggage` with component ugrpc::server::middlewares::baggage::Component - passes request baggage to subrequests.
   5. `grpc-server-headers-propagator` with component ugrpc::server::middlewares::headers_propagator::Component - propagates headers.
 
+## gRPC compression
+
+Userver doesn't compress messages by default. You can enable compression using the `channel-args` option on a client and a server.
+See static options of @ref ugrpc::server::ServerComponent and @ref ugrpc::client::ClientFactoryComponent components.
+See [gRPC channel arguments docs](https://grpc.github.io/grpc/core/group__grpc__arg__keys.html): `GRPC_COMPRESSION_CHANNEL_DEFAULT_ALGORITHM` and `GRPC_COMPRESSION_CHANNEL_DEFAULT_LEVEL`.
+
+See native [docs about compression](https://github.com/grpc/grpc/blob/master/doc/compression.md#compression-levels-and-algorithms).
+
+### Key notes from the native gRPC documentation
+
+1) When a compression level is not specified for either the channel or the message, the default channel level none is considered: data MUST NOT be compressed.
+2) You can set a compression **algorithm** and a compression **level** on the server side. 
+3) On client side, one can set a compression **algorithm**.
+4) `GRPC_COMPRESS_LEVEL_LOW` mapping to "gzip -3" and `GRPC_COMPRESS_LEVEL_HIGH` mapping to "gzip -9".
+
+@note If you enable compress on the server side and a client doesn't support a compression, the server won't compress messages.
+See docs for more information https://grpc.io/docs/guides/compression.
+
+Config example:
+```yaml
+        grpc-client-factory:
+            channel-args:
+                grpc.default_compression_algorithm: 2 # GRPC_COMPRESS_GZIP
+        grpc-server:
+            channel-args:
+                grpc.default_compression_algorithm: 2 # GRPC_COMPRESS_GZIP
+                grpc.default_compression_level: 1 # GRPC_COMPRESS_LEVEL_LOW
+```
+
 ## gRPC Logs
 
 Each gRPC call generates a span ( `tracing::Span` ) containing tags which are inherited by all child logs. 
@@ -360,7 +389,7 @@ These are the metrics provided for each gRPC method:
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/profile_context_switches.md | @ref scripts/docs/en/userver/grpc/server_middlewares.md ⇨
+⇦ @ref scripts/docs/en/userver/gdb_debugging.md | @ref scripts/docs/en/userver/grpc/server_middlewares.md ⇨
 @htmlonly </div> @endhtmlonly
 
 @example grpc-generic-proxy/src/proxy_service.hpp

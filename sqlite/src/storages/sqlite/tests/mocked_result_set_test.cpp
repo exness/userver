@@ -16,8 +16,8 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite::tests {
 
-// Mock class for main object in sqlite execution query processs
-// Bind -> Execution (step, chech actual status) -> Extract (result set or
+// Mock class for main object in sqlite execution query process
+// Bind -> Execution (step, check actual status) -> Extract (result set or
 // execution result)
 class MockSQLiteStatement : public impl::StatementBase {
 public:

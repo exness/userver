@@ -38,6 +38,9 @@ void StandaloneTopologyHolder::Start() {
 }
 
 void StandaloneTopologyHolder::Stop() {
+    signal_node_state_change_.disconnect_all_slots();
+    signal_topology_changed_.disconnect_all_slots();
+
     node_.Cleanup();
     topology_.Cleanup();
 }
@@ -124,7 +127,7 @@ void StandaloneTopologyHolder::SetConnectionInfo(const std::vector<ConnectionInf
     LOG_DEBUG() << "Update connection info to " << new_conn.Fulltext();
 
     {
-        const std::unique_lock<std::mutex> lock(mutex_);
+        const std::lock_guard<std::mutex> lock(mutex_);
         conn_to_create_ = new_conn;
         is_nodes_received_.store(false);
     }

@@ -78,7 +78,7 @@ struct ConnectionSettings {
 };
 
 /// @brief Default initial size for the connection pool
-inline constexpr std::size_t kDefaulInitialPoolSize = 5;
+inline constexpr std::size_t kDefaultInitialPoolSize = 5;
 
 /// @brief Default maximum size for the connection pool
 inline constexpr std::size_t kDefaultMaxPoolSize = 10;
@@ -88,7 +88,7 @@ inline constexpr std::size_t kDefaultMaxPoolSize = 10;
 /// Configures the behavior of the connection pool, including its size.
 struct PoolSettings final {
     /// @brief Number of connections created initially.
-    std::size_t initial_pool_size{kDefaulInitialPoolSize};
+    std::size_t initial_pool_size{kDefaultInitialPoolSize};
 
     /// @brief Maximum number of connections in the pool.
     std::size_t max_pool_size{kDefaultMaxPoolSize};
@@ -99,7 +99,7 @@ struct PoolSettings final {
 inline constexpr bool kDefaultCreateFile = true;
 inline constexpr bool kDefaultIsReadOnly = false;
 inline constexpr bool kDefaultSharedCache = false;
-inline constexpr bool kDefaultReadUncommited = false;
+inline constexpr bool kDefaultReadUncommitted = false;
 inline constexpr bool kDefaultForeignKeys = true;
 inline constexpr std::string_view kDefaultJournalMode = "wal";
 inline constexpr std::string_view kDefaultSynchronous = "normal";
@@ -147,7 +147,7 @@ struct SQLiteSettings {
     ReadMode read_mode = !kDefaultIsReadOnly ? ReadMode::kReadWrite : ReadMode::kReadOnly;
     bool create_file = kDefaultCreateFile;
     bool shared_cache = kDefaultSharedCache;
-    bool read_uncommited = kDefaultReadUncommited;
+    bool read_uncommitted = kDefaultReadUncommitted;
     bool foreign_keys = kDefaultForeignKeys;
     JournalMode journal_mode = JournalMode::kWal;
     int busy_timeout = kDefaultBusyTimeout;

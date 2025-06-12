@@ -80,7 +80,7 @@ UTEST_P_MT(SQLiteJournalModesTest, ReadWrite, 10) {
 }
 
 INSTANTIATE_UTEST_SUITE_P(
-    SQLiteCommonConcurent,
+    SQLiteCommonConcurrent,
     SQLiteJournalModesTest,
     ::testing::Values(
         settings::SQLiteSettings::JournalMode::kWal,

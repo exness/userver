@@ -36,7 +36,7 @@ impl::ClientInternals ClientFactory::MakeClientInternals(
         info.service_full_name.emplace(meta.value().service_full_name);
     }
 
-    auto mws = middleware_pipeline_creator_.CreateMiddlewares(info);
+    auto middlewares = middleware_pipeline_creator_.CreateMiddlewares(info);
 
     auto channel_credentials = testsuite_grpc_.IsTlsEnabled()
                                    ? GetClientCredentials(client_factory_settings_, client_settings.client_name)
@@ -47,7 +47,7 @@ impl::ClientInternals ClientFactory::MakeClientInternals(
 
     return impl::ClientInternals{
         std::move(client_settings.client_name),
-        std::move(mws),
+        std::move(middlewares),
         completion_queues_,
         client_statistics_storage_,
         config_source_,

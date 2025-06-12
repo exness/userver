@@ -1,6 +1,6 @@
 ## SQLite Driver
 
-Quality: TODO
+**Quality:** @ref QUALITY_TIERS "Silver Tier".
 
 🐙 **userver** provides access to SQLite databases servers via
 components::SQLite. The uSQLite driver is asynchronous, and with it one can

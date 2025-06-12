@@ -115,7 +115,7 @@ public:
 
 private:
     void SetLocked(bool locked) {
-        const std::unique_lock<engine::Mutex> lock(mutex_);
+        const std::lock_guard<engine::Mutex> lock(mutex_);
         is_locked_ = locked;
         cv_.NotifyAll();
     }

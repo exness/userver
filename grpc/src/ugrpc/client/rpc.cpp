@@ -57,8 +57,7 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline)
     if (state_->IsFinishProcessed()) return engine::FutureStatus::kReady;
 
     auto& finish = state_->GetFinishAsyncMethodInvocation();
-    const auto wait_status = impl::WaitUntil(finish, state_->GetContext(), deadline);
-
+    const auto wait_status = impl::WaitAndTryCancelIfNeeded(finish, deadline, state_->GetContext());
     switch (wait_status) {
         case impl::AsyncMethodInvocation::WaitStatus::kOk:
         case impl::AsyncMethodInvocation::WaitStatus::kError:
@@ -68,6 +67,7 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline)
                     impl::AsyncMethodInvocation::WaitStatus::kOk == wait_status,
                     "Client-side Finish: ok should always be true"
                 );
+                state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
                 ProcessFinish(*state_, final_response_);
             } catch (...) {
                 exception_ = std::current_exception();

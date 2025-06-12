@@ -1124,7 +1124,7 @@ void ConnectionImpl::Cancel() { conn_wrapper_.Cancel().Wait(); }
 void ConnectionImpl::ReportStatement(const std::string& name) {
     // Only report statement usage once.
     {
-        const std::unique_lock<engine::Mutex> lock{statements_mutex_};
+        const std::lock_guard<engine::Mutex> lock{statements_mutex_};
         if (statements_reported_.count(name)) return;
     }
 

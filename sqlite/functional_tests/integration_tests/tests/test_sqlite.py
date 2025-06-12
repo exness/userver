@@ -64,8 +64,8 @@ async def test_update_by_unknown_key(service_client):
     assert response.status == 404
 
 
-# A test for checking succesful execute standard transactions with deferred mode
-async def test_trx_deffered_ok(service_client):
+# A test for checking successful execute standard transactions with deferred mode
+async def test_trx_deferred_ok(service_client):
     response = await service_client.delete('/basic/sqlite/key-value?key=foo')
     assert response.status == 200
 

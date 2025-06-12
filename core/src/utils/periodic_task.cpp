@@ -179,7 +179,8 @@ bool PeriodicTask::DoStep() {
     auto settings_ptr = settings_.Read();
     const auto span_log_level = settings_ptr->span_level;
     const auto name = GetName();
-    const tracing::Span span(std::string{name}, tracing::ReferenceType::kChild, span_log_level);
+    tracing::Span span(std::string{name});
+    span.SetLogLevel(span_log_level);
     try {
         callback_();
         return true;

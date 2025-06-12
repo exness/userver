@@ -22,24 +22,24 @@ void QueryStatCounter::AccountQueryCompleted() noexcept {
 
 void QueryStatCounter::AccountQueryFailed() noexcept { ++queries_stats_.error; }
 
-TransactionStatCounter::TransactionStatCounter(PoolTransactionsStatistics& stats) : transations_stats_{stats} {}
+TransactionStatCounter::TransactionStatCounter(PoolTransactionsStatistics& stats) : transactions_stats_{stats} {}
 
 TransactionStatCounter::~TransactionStatCounter() = default;
 
 void TransactionStatCounter::AccountTransactionStart() noexcept {
-    ++transations_stats_.total;
+    ++transactions_stats_.total;
     exec_begin_time = utils::datetime::SteadyClock::now();
 }
 
 void TransactionStatCounter::AccountTransactionCommit() noexcept {
     auto now = utils::datetime::SteadyClock::now();
-    ++transations_stats_.commit;
-    transations_stats_.timings.Account(
+    ++transactions_stats_.commit;
+    transactions_stats_.timings.Account(
         std::chrono::duration_cast<std::chrono::milliseconds>(now - exec_begin_time).count()
     );
 }
 
-void TransactionStatCounter::AccountTransactionRollback() noexcept { ++transations_stats_.rollback; }
+void TransactionStatCounter::AccountTransactionRollback() noexcept { ++transactions_stats_.rollback; }
 
 }  // namespace storages::sqlite::infra::statistics
 

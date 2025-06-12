@@ -22,7 +22,7 @@ CallState::CallState(CallParams&& params, CallKind call_kind)
       stats_scope_(params.statistics),
       queue_(params.queue),
       config_values_(params.config),
-      mws_(params.mws),
+      middlewares_(params.middlewares),
       call_kind_(call_kind) {
     UASSERT(context_);
     UASSERT(!client_name_.empty());
@@ -65,7 +65,7 @@ const RpcConfigValues& CallState::GetConfigValues() const noexcept {
 
 const Middlewares& CallState::GetMiddlewares() const noexcept {
     UASSERT(context_);
-    return mws_;
+    return middlewares_;
 }
 
 std::string_view CallState::GetCallName() const noexcept {
@@ -149,7 +149,7 @@ void CallState::EmplaceFinishAsyncMethodInvocation() {
         std::holds_alternative<std::monostate>(invocation_),
         "Another method is already running for this RPC concurrently"
     );
-    invocation_.emplace<FinishAsyncMethodInvocation>(*this);
+    invocation_.emplace<FinishAsyncMethodInvocation>();
 }
 
 AsyncMethodInvocation& CallState::GetAsyncMethodInvocation() noexcept {

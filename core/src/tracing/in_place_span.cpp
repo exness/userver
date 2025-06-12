@@ -19,32 +19,28 @@ struct InPlaceSpan::Impl final {
 };
 
 InPlaceSpan::InPlaceSpan(std::string&& name, const utils::impl::SourceLocation& source_location)
-    : impl_(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, logging::Level::kInfo, source_location) {
+    : impl_(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, source_location) {
     impl_->span.AttachToCoroStack();
 }
 
 InPlaceSpan::InPlaceSpan(
     std::string&& name,
-    std::string&& trace_id,
-    std::string&& parent_span_id,
+    std::string_view trace_id,
+    std::string_view parent_span_id,
     const utils::impl::SourceLocation& source_location
 )
-    : impl_(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, logging::Level::kInfo, source_location) {
+    : impl_(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, source_location) {
     impl_->span.AttachToCoroStack();
-    impl_->span_impl.SetTraceId(std::move(trace_id));
-    impl_->span_impl.SetParentId(std::move(parent_span_id));
+    impl_->span_impl.SetTraceId(trace_id);
+    impl_->span_impl.SetParentId(parent_span_id);
 }
 
 InPlaceSpan::InPlaceSpan(std::string&& name, DetachedTag, const utils::impl::SourceLocation& source_location)
-    : impl_(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, logging::Level::kInfo, source_location) {}
+    : impl_(std::move(name), GetParentSpanImpl(), ReferenceType::kChild, source_location) {}
 
 InPlaceSpan::~InPlaceSpan() = default;
 
 tracing::Span& InPlaceSpan::Get() noexcept { return impl_->span; }
-
-void InPlaceSpan::SetParentLink(utils::impl::InternalTag, std::string_view parent_link) {
-    impl_->span_impl.SetParentLink(parent_link);
-}
 
 }  // namespace tracing
 

@@ -269,7 +269,7 @@ UTEST_MT(Task, MultiWait, 4) {
     for (size_t i = 0; i < kWaitingTasksCount; ++i) {
         tasks.push_back(engine::AsyncNoSpan([&shared_task, &mutex, &cv, &tasks_started, test_deadline]() {
             {
-                const std::unique_lock<engine::Mutex> lock{mutex};
+                const std::lock_guard<engine::Mutex> lock{mutex};
                 tasks_started++;
                 cv.NotifyOne();
             }

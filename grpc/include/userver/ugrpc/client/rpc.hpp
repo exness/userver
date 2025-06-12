@@ -442,7 +442,8 @@ template <typename RPC>
 StreamReadFuture<RPC>::~StreamReadFuture() {
     if (state_) {
         const impl::CallState::AsyncMethodInvocationGuard guard(*state_);
-        const auto wait_status = impl::Wait(state_->GetAsyncMethodInvocation(), state_->GetContext());
+        const auto wait_status =
+            impl::WaitAndTryCancelIfNeeded(state_->GetAsyncMethodInvocation(), state_->GetContext());
         if (wait_status != impl::AsyncMethodInvocation::WaitStatus::kOk) {
             if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
                 state_->GetStatsScope().OnCancelled();
@@ -461,7 +462,7 @@ bool StreamReadFuture<RPC>::Get() {
     UINVARIANT(state_, "'Get' must be called only once");
     const impl::CallState::AsyncMethodInvocationGuard guard(*state_);
     auto* const state = std::exchange(state_, nullptr);
-    const auto result = impl::Wait(state->GetAsyncMethodInvocation(), state->GetContext());
+    const auto result = impl::WaitAndTryCancelIfNeeded(state->GetAsyncMethodInvocation(), state->GetContext());
     if (result == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state->GetStatsScope().OnCancelled();
         state->GetStatsScope().Flush();

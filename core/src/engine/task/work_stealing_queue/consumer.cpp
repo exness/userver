@@ -313,7 +313,7 @@ void Consumer::WakeUp() {
     sleep_counter_.fetch_add(1);
     FutexWake(&sleep_counter_, 1);
 #else
-    const std::unique_lock lk(mutex_);
+    const std::lock_guard lk(mutex_);
     sleep_counter_.fetch_add(1);
     cv_.notify_one();
 #endif

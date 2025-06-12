@@ -426,7 +426,7 @@ void Manager::AddComponentImpl(
 
 void Manager::ClearComponents() noexcept {
     {
-        const std::unique_lock<std::shared_timed_mutex> lock(context_mutex_);
+        const std::lock_guard<std::shared_timed_mutex> lock(context_mutex_);
         components_cleared_ = true;
     }
     try {

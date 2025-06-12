@@ -19,7 +19,7 @@ namespace components {
 ///
 /// @brief SQLite client component
 ///
-/// Provides access to a SQLite connections.
+/// Provides access to a SQLite connections via storages::sqlite::Client.
 ///
 /// ## Static configuration example:
 ///
@@ -33,7 +33,7 @@ namespace components {
 ///    read_only: false
 ///    initial_read_only_pool_size: 4
 ///    max_read_only_pool_size: 16
-//     persistent_prepared_statements: true
+///    persistent_prepared_statements: true
 ///    cache_size: -65536 # KiB
 ///    foreign_keys: true
 /// ```
@@ -52,7 +52,7 @@ namespace components {
 /// create_file                        | сreate the database file if it does not exist at the specified path               | true
 /// is_read_only                       | open the database in read-only mode                                               | false
 /// shared_cache                       | enable shared in-memory cache for the database                                    | false
-/// read_uncommited                    | allow reading uncommitted data (requires shared_cache)                            | false
+/// read_uncommitted                    | allow reading uncommitted data (requires shared_cache)                           | false
 /// journal_mode                       | mode for database journaling                                                      | wal
 /// busy_timeout                       | timeout duration (in milliseconds) to wait when the database is busy              | 5000
 /// foreign_keys                       | enable enforcement of foreign key constraints                                     | true

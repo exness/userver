@@ -113,7 +113,7 @@ UTEST_F_MT(SQLiteMetricsTest, PoolWriteInProcess, 10) {
     engine::ConditionVariable blocked_writer_cv;
     engine::ConditionVariable stat_read_cv;
     bool blocked_writer_inserted = false;
-    bool stat_readed = false;
+    bool stat_read = false;
 
     auto blocked_writer = engine::AsyncNoSpan([&]() {
         auto trx = client->Begin(OperationType::kReadWrite, {});
@@ -121,7 +121,7 @@ UTEST_F_MT(SQLiteMetricsTest, PoolWriteInProcess, 10) {
         std::unique_lock<engine::Mutex> lock(mu);
         blocked_writer_inserted = true;
         blocked_writer_cv.NotifyAll();
-        EXPECT_TRUE(stat_read_cv.Wait(lock, [&stat_readed] { return stat_readed; }));
+        EXPECT_TRUE(stat_read_cv.Wait(lock, [&stat_read] { return stat_read; }));
         trx.Commit();
     });
 
@@ -147,7 +147,7 @@ UTEST_F_MT(SQLiteMetricsTest, PoolWriteInProcess, 10) {
     EXPECT_EQ(write_connection_stats.SingleMetric("busy").AsInt(), 1);
 
     lock.lock();
-    stat_readed = true;
+    stat_read = true;
     stat_read_cv.NotifyAll();
     lock.unlock();
 
@@ -182,7 +182,7 @@ UTEST_F_MT(SQLiteMetricsTest, PoolReadsInProcess, 10) {
     engine::Mutex mu;
     engine::ConditionVariable blocked_readers_cv;
     engine::ConditionVariable stat_read_cv;
-    bool stat_readed = false;
+    bool stat_read = false;
     std::atomic_size_t read_trx_start = 0;
 
     for (size_t i = 0; i < kReadTaskCount; ++i) {
@@ -194,7 +194,7 @@ UTEST_F_MT(SQLiteMetricsTest, PoolReadsInProcess, 10) {
             if (read_trx_start == settings.pool_settings.max_pool_size) {
                 blocked_readers_cv.NotifyAll();
             }
-            EXPECT_TRUE(stat_read_cv.Wait(lock, [&stat_readed] { return stat_readed; }));
+            EXPECT_TRUE(stat_read_cv.Wait(lock, [&stat_read] { return stat_read; }));
             trx.Commit();
         }));
     }
@@ -211,7 +211,7 @@ UTEST_F_MT(SQLiteMetricsTest, PoolReadsInProcess, 10) {
     EXPECT_EQ(read_connection_stats.SingleMetric("busy").AsInt(), settings.pool_settings.max_pool_size);
 
     lock.lock();
-    stat_readed = true;
+    stat_read = true;
     stat_read_cv.NotifyAll();
     lock.unlock();
 
@@ -352,15 +352,15 @@ UTEST_F(SQLiteMetricsTest, TransactionsBasic) {
         storages::sqlite::OperationType::kReadWrite, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)"
     ));
 
-    constexpr size_t kCommitedWriteTransactions = 5;
+    constexpr size_t kCommittedWriteTransactions = 5;
     constexpr size_t kRollbackedWriteTransactions = 5;
-    constexpr size_t kCommitedReadTransactions = 5;
+    constexpr size_t kCommittedReadTransactions = 5;
     constexpr size_t kRollbackedReadTransactions = 5;
-    constexpr size_t kTotalCommitedTransactions = kCommitedWriteTransactions + kCommitedReadTransactions;
+    constexpr size_t kTotalCommittedTransactions = kCommittedWriteTransactions + kCommittedReadTransactions;
     constexpr size_t kTotalRollbackedTransactions = kRollbackedReadTransactions + kRollbackedWriteTransactions;
-    constexpr size_t kTotalTransactions = kTotalCommitedTransactions + kTotalRollbackedTransactions;
+    constexpr size_t kTotalTransactions = kTotalCommittedTransactions + kTotalRollbackedTransactions;
 
-    for (size_t i = 0; i < kCommitedWriteTransactions; ++i) {
+    for (size_t i = 0; i < kCommittedWriteTransactions; ++i) {
         auto trx = client->Begin(storages::sqlite::OperationType::kReadWrite, {});
         UEXPECT_NO_THROW(trx.Execute("INSERT INTO test VALUES (?, ?)", static_cast<std::uint64_t>(i), "data"));
         trx.Commit();
@@ -373,13 +373,13 @@ UTEST_F(SQLiteMetricsTest, TransactionsBasic) {
         );
     }
 
-    for (size_t i = 0; i < kCommitedReadTransactions; ++i) {
+    for (size_t i = 0; i < kCommittedReadTransactions; ++i) {
         auto trx = client->Begin(storages::sqlite::OperationType::kReadOnly, {});
         UEXPECT_NO_THROW((trx.Execute("SELECT * FROM test").AsVector<RowTuple>()));
         trx.Commit();
     }
 
-    for (size_t i = 0; i < kCommitedReadTransactions; ++i) {
+    for (size_t i = 0; i < kCommittedReadTransactions; ++i) {
         auto trx = client->Begin(storages::sqlite::OperationType::kReadOnly, {});
         UEXPECT_NO_THROW((trx.Execute("SELECT * FROM test").AsVector<RowTuple>()));
         trx.Rollback();
@@ -388,7 +388,7 @@ UTEST_F(SQLiteMetricsTest, TransactionsBasic) {
     const auto transactions_stats = GetStatistics("sqlite.transactions");
 
     EXPECT_EQ(transactions_stats.SingleMetric("total").AsRate(), kTotalTransactions);
-    EXPECT_EQ(transactions_stats.SingleMetric("commit").AsRate(), kTotalCommitedTransactions);
+    EXPECT_EQ(transactions_stats.SingleMetric("commit").AsRate(), kTotalCommittedTransactions);
     EXPECT_EQ(transactions_stats.SingleMetric("rollback").AsRate(), kTotalRollbackedTransactions);
 }
 
