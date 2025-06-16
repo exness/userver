@@ -26,7 +26,7 @@ bool Deadline::IsSurelyReachedApprox() const noexcept {
 
 Deadline::Duration Deadline::TimeLeft() const noexcept {
     UASSERT(IsReachable());
-    if (value_ == kPassed) return Duration::zero();
+    if (value_ == kPassed) return Duration::min();
     return value_ - TimePoint::clock::now();
 }
 

@@ -33,6 +33,9 @@ engine::Deadline::Duration ExtractDeadlineDuration(::gpr_timespec deadline) {
     if (gpr_time_cmp(deadline, gpr_inf_future(deadline.clock_type)) == 0) {
         return Duration::max();
     }
+    if (gpr_time_cmp(deadline, gpr_inf_past(deadline.clock_type)) == 0) {
+        return Duration::min();
+    }
 
     // May call some now() function and lose precision if not ::GPR_TIMESPAN
     const auto time_span = gpr_convert_clock_type(deadline, ::GPR_TIMESPAN);
