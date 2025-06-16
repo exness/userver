@@ -703,7 +703,7 @@ class Generator:
                 nullable=False,
                 user_cpp_type=None,
             ),
-            raw_cpp_type=type_name.TypeName(''),
+            raw_cpp_type=name,
             indirect=False,
             self_ref=False,
         )

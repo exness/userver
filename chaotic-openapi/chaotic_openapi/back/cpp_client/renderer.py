@@ -79,6 +79,7 @@ JINJA_ENV = make_env()
 
 
 def render(spec: types.ClientSpec, context: Context) -> List[CppOutput]:
+    assert '-' not in spec.cpp_namespace
     env = {
         'spec': spec,
         'namespace': spec.cpp_namespace,

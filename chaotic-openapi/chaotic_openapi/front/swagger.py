@@ -89,7 +89,7 @@ class Response(pydantic.BaseModel):
     examples: Dict[str, Any] = pydantic.Field(default_factory=dict)
 
 
-Responses = Dict[str, Union[Response, Ref]]
+Responses = Dict[Union[str, int], Union[Response, Ref]]
 
 
 class SecurityType(str, enum.Enum):
@@ -185,14 +185,14 @@ Paths = Dict[str, Path]
 
 # https://spec.openapis.org/oas/v2.0.html#schema
 class Swagger(pydantic.BaseModel):
-    swagger: str
-    info: Info
+    swagger: str = '2.0'
+    info: Optional[Info] = None
     host: Optional[str] = None
     basePath: str = ''
     schemes: List[str] = pydantic.Field(default_factory=list)
     consumes: List[str] = pydantic.Field(default_factory=list)
     produces: List[str] = pydantic.Field(default_factory=list)
-    paths: Paths
+    paths: Paths = pydantic.Field(default_factory=dict)
     definitions: Dict[str, Schema] = pydantic.Field(default_factory=dict)
     parameters: Dict[str, Parameter] = pydantic.Field(default_factory=dict)
     responses: Dict[str, Response] = pydantic.Field(default_factory=dict)

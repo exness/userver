@@ -22,7 +22,7 @@ UTEST(Responses, Smoke) {
         return r;
     });
     auto http_client = utest::CreateHttpClient();
-    clients::test_object::ClientImpl client(
+    ::clients::test_object::ClientImpl client(
         {
             http_server.GetBaseUrl(),
         },
@@ -91,7 +91,7 @@ UTEST(Responses, Timeout) {
     });
 
     auto http_client = utest::CreateHttpClient();
-    clients::test_object::ClientImpl client(
+    ::clients::test_object::ClientImpl client(
         {
             http_server.GetBaseUrl(),
         },

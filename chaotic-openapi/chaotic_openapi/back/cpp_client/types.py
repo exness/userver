@@ -149,6 +149,9 @@ class ClientSpec:
     description: str = ''
     operations: List[Operation] = dataclasses.field(default_factory=list)
 
+    # Internal types which cannot be referred to
+    internal_schemas: Dict[str, cpp_types.CppType] = dataclasses.field(default_factory=dict)
+    # Types which can be referred to
     schemas: Dict[str, cpp_types.CppType] = dataclasses.field(default_factory=dict)
 
     def has_multiple_content_type_request(self) -> bool:
@@ -206,34 +209,12 @@ class ClientSpec:
             )
         return includes
 
+    @staticmethod
+    def _path_namespace(path: str) -> str:
+        return path.replace('/', '_').replace('-', '_').replace('{', '_').replace('}', '_')
+
     def extract_cpp_types(self) -> Dict[str, cpp_types.CppType]:
         types = self.schemas.copy()
-
-        for operation in self.operations:
-            for body in operation.request_bodies:
-                if body.schema:
-                    name = '{}::{}_{}::Body{}'.format(
-                        self.cpp_namespace,
-                        operation.path[1:],
-                        operation.method.lower(),
-                        cpp_names.camel_case(
-                            cpp_names.cpp_identifier(body.content_type),
-                        ),
-                    )
-                    types[name] = body.schema
-            for response in operation.responses:
-                for content_type, cpp_type in response.body.items():
-                    name = '{}::{}_{}::Response{}Body{}'.format(
-                        self.cpp_namespace,
-                        operation.path[1:],
-                        operation.method.lower(),
-                        response.status,
-                        cpp_names.camel_case(
-                            cpp_names.cpp_identifier(content_type),
-                        ),
-                    )
-                    types[name] = cpp_type
-
-        # TODO: response.content
+        types.update(self.internal_schemas)
 
         return types

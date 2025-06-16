@@ -221,6 +221,13 @@ function(userver_target_generate_openapi_client TARGET)
     "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/responses.cpp"
     "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/exceptions.cpp"
   )
+  foreach(SCHEMA ${PARSE_SCHEMAS})
+    string(REGEX REPLACE "^.*/([^/]*)\\.([^.]*)\$" "\\1" SCHEMA "${SCHEMA}")
+    set(SCHEMAS ${SCHEMAS}
+	    "${PARSE_OUTPUT_DIR}/include/client/${PARSE_NAME}/${SCHEMA}.hpp"
+	    "${PARSE_OUTPUT_DIR}/src/client/${PARSE_NAME}/${SCHEMA}.cpp"
+    )
+  endforeach()
 
   _userver_initialize_codegen_flag()
   add_custom_command(

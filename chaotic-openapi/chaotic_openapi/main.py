@@ -38,6 +38,7 @@ def do_main():
     spec = translator.Translator(
         parser.service(),
         args.namespace or f'clients::{args.name}',
+        [],
     ).spec()
 
     # render

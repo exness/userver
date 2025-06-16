@@ -68,7 +68,6 @@ def validate_type(field_name: str, value, type_) -> None:
         except AttributeError:
             pytype = type_
 
-    # print(f'{value} is {pytype}?')
     try:
         if not isinstance(value, pytype):
             # TODO: better text
@@ -169,6 +168,9 @@ class Ref(Schema):
     indirect: bool
     self_ref: bool
     schema: Schema = _NOT_IMPL
+
+    def __post_init__(self):
+        assert self.ref.find('/../') == -1
 
     __hash__ = Schema.__hash__
 
