@@ -5,6 +5,8 @@
 
 #include <grpc/support/time.h>
 
+#include <userver/utils/assert.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::impl {
