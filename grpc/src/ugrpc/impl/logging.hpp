@@ -11,7 +11,10 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::impl {
 
+extern const std::string kBodyTag;
+extern const std::string kCodeTag;
 extern const std::string kComponentTag;
+extern const std::string kMessageMarshalledLenTag;
 extern const std::string kTypeTag;
 
 struct MessageLoggingOptions {

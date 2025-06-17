@@ -3,6 +3,7 @@
 #include <userver/logging/level.hpp>
 #include <userver/logging/log_extra.hpp>
 #include <userver/tracing/tags.hpp>
+#include <userver/ugrpc/status_codes.hpp>
 
 #include <ugrpc/impl/logging.hpp>
 
@@ -20,7 +21,7 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, const
 
 class SpanLogger {
 public:
-    explicit SpanLogger(const tracing::Span& span, logging::Level local_log_level)
+    SpanLogger(const tracing::Span& span, logging::Level local_log_level)
         : span_{span}, local_log_level_(local_log_level) {}
 
     void Log(logging::Level level, std::string_view message, logging::LogExtra&& extra) const {
@@ -59,8 +60,8 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::pr
     const SpanLogger logger{context.GetSpan(), settings_.local_log_level};
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "request"},
-        {"body", GetMessageForLogging(message, settings_)},
-        {"grpc_message_marshalled_len", message.ByteSizeLong()},
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
+        {ugrpc::impl::kMessageMarshalledLenTag, message.ByteSizeLong()},
     };
     if (context.IsClientStreaming()) {
         logger.Log(logging::Level::kInfo, "gRPC request stream message", std::move(extra));
@@ -72,8 +73,8 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::pr
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     const SpanLogger logger{context.GetSpan(), settings_.local_log_level};
     logging::LogExtra extra{
-        {ugrpc::impl::kTypeTag, "response"},                 //
-        {"body", GetMessageForLogging(message, settings_)},  //
+        {ugrpc::impl::kTypeTag, "response"},                                //
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},  //
     };
     if (context.IsServerStreaming()) {
         logger.Log(logging::Level::kInfo, "gRPC response stream message", std::move(extra));
@@ -94,8 +95,9 @@ void Middleware::PostFinish(MiddlewareCallContext& context, const grpc::Status& 
     } else {
         auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
         logging::LogExtra extra{
-            {ugrpc::impl::kTypeTag, "error_status"},            //
-            {tracing::kErrorMessage, std::move(error_details)}  //
+            {ugrpc::impl::kTypeTag, "error_status"},                        //
+            {ugrpc::impl::kCodeTag, ugrpc::ToString(status.error_code())},  //
+            {tracing::kErrorMessage, std::move(error_details)}              //
         };
 
         logger.Log(logging::Level::kWarning, "gRPC error", std::move(extra));

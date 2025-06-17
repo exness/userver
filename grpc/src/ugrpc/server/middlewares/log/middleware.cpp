@@ -39,8 +39,8 @@ void Middleware::OnCallStart(MiddlewareCallContext& context) const {
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobuf::Message& request) const {
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "request"},
-        {"body", GetMessageForLogging(request, settings_)},
-        {"grpc_message_marshalled_len", request.ByteSizeLong()},
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(request, settings_)},
+        {ugrpc::impl::kMessageMarshalledLenTag, request.ByteSizeLong()},
     };
     if (context.IsClientStreaming()) {
         LOG_INFO() << "gRPC request stream message" << std::move(extra);
@@ -52,9 +52,9 @@ void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobu
 
 void Middleware::PreSendMessage(MiddlewareCallContext& context, google::protobuf::Message& response) const {
     logging::LogExtra extra{
-        {ugrpc::impl::kTypeTag, "response"},                  //
-        {"grpc_code", "OK"},                                  // TODO: revert
-        {"body", GetMessageForLogging(response, settings_)},  //
+        {ugrpc::impl::kTypeTag, "response"},                                 //
+        {"grpc_code", "OK"},                                                 // TODO: revert
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(response, settings_)},  //
     };
     if (context.IsServerStreaming()) {
         LOG_INFO() << "gRPC response stream message" << std::move(extra);
@@ -74,8 +74,9 @@ void Middleware::OnCallFinish(MiddlewareCallContext& context, const grpc::Status
         auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
         logging::LogExtra extra{
             {"type", "response"},
+            {ugrpc::impl::kCodeTag, ugrpc::ToString(status.error_code())},
             {ugrpc::impl::kTypeTag, "error_status"},
-            {"body", std::move(error_details)},
+            {ugrpc::impl::kBodyTag, std::move(error_details)},
         };
 
         LOG(log_level) << "gRPC error" << std::move(extra);
