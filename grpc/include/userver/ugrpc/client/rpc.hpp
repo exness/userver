@@ -20,7 +20,7 @@
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/client/impl/prepare_call.hpp>
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
-#include <userver/ugrpc/deadline_timepoint.hpp>
+#include <userver/ugrpc/time_utils.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
