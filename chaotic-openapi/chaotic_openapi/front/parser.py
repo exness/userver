@@ -464,7 +464,7 @@ class Parser:
                 self._append_openapi_operation(path, 'head', path_item.head, _convert_op_security, path_params)
                 self._append_openapi_operation(path, 'patch', path_item.patch, _convert_op_security, path_params)
                 self._append_openapi_operation(path, 'trace', path_item.trace, _convert_op_security, path_params)
-
+            self._make_sure_operations_are_unique()
         elif isinstance(parsed, swagger.Swagger):
             parsed = typing.cast(swagger.Swagger, parsed)
             components_schemas = parsed.definitions
@@ -569,6 +569,7 @@ class Parser:
                 self._append_swagger_operation(
                     parsed.basePath + sw_path, 'patch', sw_path_item.patch, _convert_op_security, _convert_op_params
                 )
+            self._make_sure_operations_are_unique()
         else:
             assert False
 
@@ -584,6 +585,14 @@ class Parser:
         parsed_schemas = parser.parsed_schemas()
         for name, schema in parsed_schemas.schemas.items():
             self._state.service.schemas[name] = schema
+
+    def _make_sure_operations_are_unique(self) -> None:
+        seen = set()
+        for operation in self._state.service.operations:
+            new = (operation.path, operation.method.upper())
+            if new in seen:
+                raise Exception(f'Operation {operation.method.upper()} {operation.path} is duplicated')
+            seen.add(new)
 
     @staticmethod
     def _gen_operation_id(path: str, method: str) -> str:

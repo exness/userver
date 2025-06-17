@@ -250,6 +250,7 @@ class Number(Schema):
 
 
 class StringFormat(enum.Enum):
+    BINARY = enum.auto()
     BYTE = enum.auto()
     DATE = enum.auto()
     DATE_TIME = enum.auto()
@@ -265,6 +266,7 @@ class StringFormat(enum.Enum):
 
 
 STRING_FORMAT_TO_FORMAT = {
+    'binary': StringFormat.BINARY,
     'byte': StringFormat.BYTE,
     'date': StringFormat.DATE,
     'date-time': StringFormat.DATE_TIME,

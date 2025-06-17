@@ -126,7 +126,7 @@ def extract_includes(name: str, path: pathlib.Path) -> Optional[List[str]]:
             for v in data:
                 visit(v)
 
-    if 'definitions' in content or 'components' in content:
+    if 'definitions' in content or 'components' in content or 'paths' in content:
         visit(content)
         return includes
     else:
@@ -135,22 +135,12 @@ def extract_includes(name: str, path: pathlib.Path) -> Optional[List[str]]:
 
 def include_graph(name: str, schemas_dir: pathlib.Path) -> Dict[str, List[str]]:
     result = {}
-    if (schemas_dir / 'definitions.yaml').exists():
-        result['definitions.hpp'] = extract_includes(name, schemas_dir / 'definitions.yaml')
-
-    for d in (schemas_dir / 'api').iterdir():
-        base = d.stem
-        if base:
-            result[f'{base}.hpp'] = extract_includes(name, d)
-
-    # TODO: libraries
-
-    definitions = schemas_dir / 'definitions'
-    if definitions.exists():
-        for d in definitions.iterdir():
-            base = d.stem
-            if base:
-                result[f'{base}.hpp'] = extract_includes(name, d)
+    for root, _, filenames in schemas_dir.walk():
+        for filename in filenames:
+            filepath = pathlib.Path(root) / filename
+            if filepath == schemas_dir / 'client.yaml' or filename == 'a.yaml':
+                continue
+            result[filepath.stem + '.hpp'] = extract_includes(name, filepath)
 
     return {key: result[key] for key in result if result[key] is not None}  # type: ignore
 

@@ -442,7 +442,7 @@ class Generator:
                 )
             user_cpp_type = f'userver::utils::StrongTypedef<{typedef_tag}, std::string>'
 
-        if schema.format:
+        if schema.format and schema.format != types.StringFormat.BINARY:
             if schema.format == types.StringFormat.BYTE:
                 format_cpp_type = 'crypto::base64::String64'
             elif schema.format == types.StringFormat.UUID:
@@ -531,8 +531,7 @@ class Generator:
             user_cpp_type = None
 
         return cpp_types.CppArray(
-            # _cpp_type() is overridden in array
-            raw_cpp_type=type_name.TypeName('NOT_USED'),
+            raw_cpp_type=name,
             json_schema=schema,
             nullable=schema.nullable,
             user_cpp_type=user_cpp_type,

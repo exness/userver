@@ -154,7 +154,7 @@ Parameters = List[Union[Parameter, Ref]]
 
 # https://spec.openapis.org/oas/v2.0.html#operation-object
 class Operation(pydantic.BaseModel):
-    tags: Optional[str] = None
+    tags: Optional[List[str]] = None
     summary: Optional[str] = None
     description: str = ''
     externalDocs: Optional[Dict] = None

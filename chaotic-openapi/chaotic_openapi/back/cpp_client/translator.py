@@ -90,7 +90,7 @@ class Translator:
             )
 
         match = re.fullmatch(
-            '/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/headers/([a-zA-Z0-9_]*)/schema', name
+            '/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/headers/([-a-zA-Z0-9_]*)/schema', name
         )
         if match:
             return '{}::{}_{}::Response{}Header{}'.format(
@@ -103,7 +103,7 @@ class Translator:
                 ),
             )
 
-        match = re.fullmatch('/components/responses/([a-zA-Z_0-9]*)/content/(.*)/schema', name)
+        match = re.fullmatch('/components/responses/([-a-zA-Z_0-9]*)/content/(.*)/schema', name)
         if match:
             return '{}::Response{}Body{}'.format(
                 self._spec.cpp_namespace,
@@ -143,7 +143,7 @@ class Translator:
                 ),
             )
 
-        match = re.fullmatch('/components/requestBodies/([a-zA-Z0-9_]*)/content/\\[([^\\]]*)\\]/schema', name)
+        match = re.fullmatch('/components/requestBodies/([-a-zA-Z0-9_]*)/content/\\[([^\\]]*)\\]/schema', name)
         if match:
             return '{}::{}{}'.format(
                 self._spec.cpp_namespace,
@@ -153,7 +153,7 @@ class Translator:
                 ),
             )
 
-        match = re.fullmatch('/components/parameters/([a-zA-Z0-9_]*)/schema', name)
+        match = re.fullmatch('/parameters/([-a-zA-Z0-9_]*)', name)
         if match:
             return '{}::Parameter{}'.format(
                 self._spec.cpp_namespace,
@@ -161,7 +161,16 @@ class Translator:
                     cpp_names.cpp_identifier(match.group(1)),
                 ),
             )
-        match = re.fullmatch('/components/headers/([a-zA-Z0-9]*)/schema', name)
+
+        match = re.fullmatch('/components/parameters/([-a-zA-Z0-9_]*)/schema', name)
+        if match:
+            return '{}::Parameter{}'.format(
+                self._spec.cpp_namespace,
+                cpp_names.camel_case(
+                    cpp_names.cpp_identifier(match.group(1)),
+                ),
+            )
+        match = re.fullmatch('/components/headers/([-a-zA-Z0-9]*)/schema', name)
         if match:
             return '{}::Header{}'.format(
                 self._spec.cpp_namespace,
