@@ -2,7 +2,11 @@
 
 #include <array>
 
+#include <userver/logging/log.hpp>
 #include <utils/impl/internal_tag.hpp>
+
+#include <fmt/args.h>
+#include <fmt/format.h>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -106,6 +110,26 @@ std::string MakeUrl(std::string_view path, T begin, T end) {
     return result;
 }
 
+template <typename T>
+std::optional<std::string> MakeUrlWithPathArgsImpl(std::string_view path, const PathArgs& path_args, T begin, T end) {
+    auto built_path_opt = MakeUrlWithPathArgs(path, path_args);
+    if (!built_path_opt.has_value()) {
+        return std::nullopt;
+    }
+
+    if (begin == end) {
+        return built_path_opt;
+    }
+
+    auto built_path = std::move(built_path_opt).value();
+    built_path.reserve(built_path.size() + GetInitialQueryCapacity(begin, end));
+
+    built_path.append(1, '?');
+    DoMakeQueryTo(begin, end, built_path);
+
+    return built_path;
+}
+
 }  // namespace
 
 std::string MakeUrl(std::string_view path, const Args& query_args) {
@@ -138,6 +162,62 @@ std::string MakeQuery(const std::unordered_map<std::string, std::string>& query_
 
 std::string MakeQuery(std::initializer_list<std::pair<std::string_view, std::string_view>> query_args) {
     return DoMakeQuery(query_args.begin(), query_args.end());
+}
+
+std::optional<std::string> MakeUrlWithPathArgs(std::string_view path_template, const PathArgs& path_args) {
+    if (path_args.empty()) {
+        return std::string{path_template};
+    }
+
+    fmt::dynamic_format_arg_store<fmt::format_context> fmt_args;
+    fmt_args.reserve(path_args.size(), 0);
+
+    for (const auto& [key, value] : path_args) {
+        if (key.empty()) {
+            return std::nullopt;
+        }
+        fmt_args.push_back(fmt::arg(key.data(), UrlEncode(value)));
+    }
+
+    try {
+        return fmt::vformat(path_template, fmt_args);
+    } catch (const fmt::format_error& exc) {
+        LOG_ERROR() << "Failed to format URL path template: '" << path_template << "'. Format error: " << exc.what();
+        return std::nullopt;
+    }
+}
+
+std::optional<std::string>
+MakeUrlWithPathArgs(std::string_view path, const PathArgs& path_args, const Args& query_args) {
+    return MakeUrlWithPathArgsImpl(path, path_args, query_args.begin(), query_args.end());
+}
+
+std::optional<std::string> MakeUrlWithPathArgs(
+    std::string_view path,
+    const PathArgs& path_args,
+    const std::unordered_map<std::string, std::string>& query_args
+) {
+    return MakeUrlWithPathArgsImpl(path, path_args, query_args.begin(), query_args.end());
+}
+
+std::optional<std::string> MakeUrlWithPathArgs(
+    std::string_view path,
+    const PathArgs& path_args,
+    const Args& query_args,
+    MultiArgs query_multiargs
+) {
+    for (const auto& [key, value] : query_args) {
+        query_multiargs.insert({key, value});
+    }
+    return MakeUrlWithPathArgsImpl(path, path_args, query_multiargs.begin(), query_multiargs.end());
+}
+
+std::optional<std::string> MakeUrlWithPathArgs(
+    std::string_view path,
+    const PathArgs& path_args,
+    std::initializer_list<std::pair<std::string_view, std::string_view>> query_args
+) {
+    return MakeUrlWithPathArgsImpl(path, path_args, query_args.begin(), query_args.end());
 }
 
 std::string ExtractMetaTypeFromUrl(const std::string& url) {

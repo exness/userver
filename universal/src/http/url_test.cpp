@@ -80,6 +80,134 @@ TEST(MakeUrl, QueryAndMultiquery) {
 
 TEST(MakeUrl, Empty) { EXPECT_EQ("path", http::MakeUrl("path", {})); }
 
+TEST(MakeUrlWithPathArgs, Empty) {
+    auto result = http::MakeUrlWithPathArgs("", {});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("", result.value());
+
+    result = http::MakeUrlWithPathArgs("/api/v1/users", {});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, SimpleSubstitution) {
+    auto result = http::MakeUrlWithPathArgs("/api/v1/users/{user_id}", {{"user_id", "123"}});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123", result.value());
+
+    result =
+        http::MakeUrlWithPathArgs("/api/v1/users/{user_id}/posts/{post_id}", {{"user_id", "123"}, {"post_id", "456"}});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123/posts/456", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, SpecialCharacters) {
+    const auto result = http::MakeUrlWithPathArgs("/api/v1/search/{query}", {{"query", "hello world & special chars"}});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/search/hello%20world%20%26%20special%20chars", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, MissingParameter) {
+    const auto result = http::MakeUrlWithPathArgs("/api/v1/users/{user_id}/posts/{post_id}", {{"user_id", "123"}});
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST(MakeUrlWithPathArgs, ExtraParameter) {
+    const auto result =
+        http::MakeUrlWithPathArgs("/api/v1/users/{user_id}", {{"user_id", "123"}, {"extra", "ignored"}});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, RepeatedParameter) {
+    const auto result = http::MakeUrlWithPathArgs("/api/{param}/test/{param}", {{"param", "value"}});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/value/test/value", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, InvalidTemplate) {
+    const auto result = http::MakeUrlWithPathArgs("/api/{unclosed", {{"unclosed", "value"}});
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST(MakeUrlWithPathArgs, EmptyKey) {
+    const auto result = http::MakeUrlWithPathArgs("/api/{}/test", {{"", "value"}});
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST(MakeUrlWithPathArgs, WithQueryArgs) {
+    const auto result = http::MakeUrlWithPathArgs(
+        "/api/v1/users/{user_id}", {{"user_id", "123"}}, http::Args{{"filter", "active"}, {"sort", "name"}}
+    );
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123?sort=name&filter=active", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithUnorderedMapQueryArgs) {
+    const auto result = http::MakeUrlWithPathArgs(
+        "/api/v1/users/{user_id}",
+        {{"user_id", "123"}},
+        std::unordered_map<std::string, std::string>{{"page", "1"}, {"limit", "20"}}
+    );
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123?limit=20&page=1", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithQueryArgsAndMultiArgs) {
+    const http::MultiArgs multi_args = {{"tag", "new"}, {"tag", "featured"}};
+
+    const auto result = http::MakeUrlWithPathArgs(
+        "/api/v1/products/{category}", {{"category", "electronics"}}, http::Args{{"sort", "price"}}, multi_args
+    );
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/products/electronics?sort=price&tag=new&tag=featured", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithInitializerListQueryArgs) {
+    const auto result = http::MakeUrlWithPathArgs(
+        "/api/v1/search/{term}", {{"term", "laptop"}}, {{"brand", "apple"}, {"price_max", "2000"}}
+    );
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/search/laptop?brand=apple&price_max=2000", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithQueryArgsAndError) {
+    const auto result =
+        http::MakeUrlWithPathArgs("/api/v1/users/{unclosed", {{"unclosed", "value"}}, http::Args{{"param", "value"}});
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST(MakeUrlWithPathArgs, WithQueryArgsEmptyPathArgs) {
+    const auto result =
+        http::MakeUrlWithPathArgs("/api/v1/products", {}, http::Args{{"category", "electronics"}, {"sort", "price"}});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/products?sort=price&category=electronics", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithQueryArgsEmptyQueryArgs) {
+    const auto result = http::MakeUrlWithPathArgs("/api/v1/users/{user_id}", {{"user_id", "123"}}, http::Args{});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithSpecialCharsInQueryArgs) {
+    const auto result = http::MakeUrlWithPathArgs(
+        "/api/v1/users/{user_id}", {{"user_id", "123"}}, http::Args{{"q", "special chars & symbols"}}
+    );
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v1/users/123?q=special%20chars%20%26%20symbols", result.value());
+}
+
+TEST(MakeUrlWithPathArgs, WithMixedPathAndQueryParameters) {
+    const auto result = http::MakeUrlWithPathArgs(
+        "/api/{version}/users/{user_id}/posts",
+        {{"version", "v2"}, {"user_id", "123"}},
+        {{"status", "published"}, {"order", "latest"}}
+    );
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ("/api/v2/users/123/posts?status=published&order=latest", result.value());
+}
+
 TEST(ExtractMetaTypeFromUrl, Empty) { EXPECT_EQ("", http::ExtractMetaTypeFromUrl("")); }
 
 TEST(ExtractMetaTypeFromUrl, NoQuery) {
