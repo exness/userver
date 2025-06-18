@@ -37,9 +37,12 @@ UTEST(DurationToTimespec, FromZeroDuration) {
 
 UTEST(DurationToTimespec, FromBaseTimeout) {
     const auto duration = kBaseTimeout;
+    const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(kBaseTimeout);
     gpr_timespec low = gpr_now(GPR_CLOCK_MONOTONIC);
+    low.tv_sec += (low.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
     gpr_timespec t = ugrpc::DurationToTimespec(duration);
     gpr_timespec high = gpr_now(GPR_CLOCK_MONOTONIC);
+    high.tv_sec += (high.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
     EXPECT_LE(low.tv_sec, t.tv_sec);
     EXPECT_LE(t.tv_sec, high.tv_sec);
 }
@@ -49,13 +52,12 @@ UTEST(DurationToTimespec, FromLongTimeout) {
     const auto secs = std::chrono::floor<std::chrono::seconds>(duration);
     const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - secs);
     gpr_timespec low = gpr_now(GPR_CLOCK_MONOTONIC);
-    low.tv_sec += std::chrono::floor<std::chrono::seconds>(duration).count();
+    low.tv_sec += secs.count();
+    low.tv_sec += (low.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
     gpr_timespec t = ugrpc::DurationToTimespec(duration);
     gpr_timespec high = gpr_now(GPR_CLOCK_MONOTONIC);
-    high.tv_sec += std::chrono::floor<std::chrono::seconds>(duration).count();
-    if (high.tv_nsec + nsecs.count() >= GPR_NS_PER_SEC) {
-        ++high.tv_sec;
-    }
+    high.tv_sec += secs.count();
+    high.tv_sec += (high.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
     EXPECT_LE(low.tv_sec, t.tv_sec);
     EXPECT_LE(t.tv_sec, high.tv_sec);
 }
