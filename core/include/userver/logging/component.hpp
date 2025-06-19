@@ -121,7 +121,7 @@ private:
 
     void FlushLogs();
 
-    engine::TaskProcessor* fs_task_processor_{nullptr};
+    engine::TaskProcessor& fs_task_processor_;
     std::unordered_map<std::string, std::shared_ptr<logging::impl::TpLogger>> loggers_;
     rcu::RcuMap<std::string, logging::LoggerPtr> extra_loggers_;
     utils::PeriodicTask flush_task_;

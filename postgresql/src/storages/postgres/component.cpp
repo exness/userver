@@ -116,8 +116,9 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
         config.As<storages::postgres::StatementMetricsSettings>()
     );
 
-    const auto task_processor_name = config["blocking_task_processor"].As<std::string>();
-    auto* bg_task_processor = &context.GetTaskProcessor(task_processor_name);
+    const auto task_processor_name = config["blocking_task_processor"].As<std::optional<std::string>>();
+    auto& bg_task_processor = task_processor_name ? context.GetTaskProcessor(*task_processor_name)
+                                                  : engine::current_task::GetBlockingTaskProcessor();
 
     error_injection::Settings ei_settings;
     auto ei_settings_opt = config["error-injection"].As<std::optional<error_injection::Settings>>();
@@ -142,7 +143,7 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
         auto cluster = std::make_shared<pg::Cluster>(
             std::move(dsns),
             resolver,
-            *bg_task_processor,
+            bg_task_processor,
             initial_settings_,
             storages::postgres::DefaultCommandControls{
                 pg_config.default_command_control,
@@ -244,6 +245,7 @@ properties:
     blocking_task_processor:
         type: string
         description: name of task processor for background blocking operations
+        defaultDescription: engine::current_task::GetBlockingTaskProcessor()
     max_replication_lag:
         type: string
         description: replication lag limit for usable slaves

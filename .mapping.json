@@ -1166,6 +1166,7 @@
   "core/src/components/component_context_component_info.hpp":"taxi/uservices/userver/core/src/components/component_context_component_info.hpp",
   "core/src/components/component_context_impl.cpp":"taxi/uservices/userver/core/src/components/component_context_impl.cpp",
   "core/src/components/component_context_impl.hpp":"taxi/uservices/userver/core/src/components/component_context_impl.hpp",
+  "core/src/components/component_fwd.cpp":"taxi/uservices/userver/core/src/components/component_fwd.cpp",
   "core/src/components/component_list.cpp":"taxi/uservices/userver/core/src/components/component_list.cpp",
   "core/src/components/component_list_test.cpp":"taxi/uservices/userver/core/src/components/component_list_test.cpp",
   "core/src/components/component_list_test.hpp":"taxi/uservices/userver/core/src/components/component_list_test.hpp",
