@@ -7,6 +7,7 @@
 #include <userver/utest/http_server_mock.hpp>
 
 #include <client/multiple_content_types/responses.hpp>
+#include <client/response_headers/responses.hpp>
 #include <client/test_object/client_impl.hpp>
 #include <client/test_object/responses.hpp>
 
@@ -180,6 +181,23 @@ UTEST(ResponsesMultipleContentType, InvalidSchema) {
 
     namespace client = ::clients::multiple_content_types::test1_post;
     UEXPECT_THROW(client::ParseResponse(*http_response), client::ExceptionWithStatusCode);
+}
+
+UTEST(ResponsesMultipleContentType, HeaderParse) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest&) {
+        utest::HttpServerMock::HttpResponse r;
+        r.response_status = 200;
+        r.body = R"({})";
+        r.headers[std::string{"Content-Type"}] = "application/json";
+        r.headers[std::string{"X-Header"}] = "string";
+        return r;
+    });
+    auto http_client = utest::CreateHttpClient();
+    auto http_response = http_client->CreateRequest().get(http_server.GetBaseUrl() + "/test1").perform();
+
+    namespace client = ::clients::response_headers::test1_post;
+    auto response = client::ParseResponse(*http_response);
+    EXPECT_EQ(response.X_Header, "string");
 }
 
 }  // namespace
