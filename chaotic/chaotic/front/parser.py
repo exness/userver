@@ -328,12 +328,15 @@ class SchemaParser:
             fmt = None
         return types.String(**input_, format=fmt)
 
-    REF_SHRINK_RE = re.compile('/[^/]+/../')
+    REF_SHRINK_RE = re.compile('/[^/]+/\\.\\./')
+    REF_SHRINK_DOT_RE = re.compile('/\\./')
 
     @staticmethod
     def _normalize_ref(ref: str) -> str:
         while SchemaParser.REF_SHRINK_RE.search(ref):
             ref = re.sub(SchemaParser.REF_SHRINK_RE, '/', ref)
+        while SchemaParser.REF_SHRINK_DOT_RE.search(ref):
+            ref = re.sub(SchemaParser.REF_SHRINK_DOT_RE, '/', ref)
         return ref
 
     def _make_abs_ref(self, ref: str) -> str:
