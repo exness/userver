@@ -1,12 +1,12 @@
 #include <fstream>
 #include <iostream>
-#include <list>
 #include <thread>
 
 #include <boost/program_options.hpp>
 
 #include <userver/clients/http/client.hpp>
 #include <userver/engine/async.hpp>
+#include <userver/engine/get_all.hpp>
 #include <userver/engine/run_standalone.hpp>
 #include <userver/http/http_version.hpp>
 #include <userver/logging/log.hpp>
@@ -21,50 +21,50 @@ namespace http = clients::http;
 struct Config {
     std::string log_level = "error";
     std::string logfile = "";
-    size_t count = 1000;
-    size_t coroutines = 1;
-    size_t worker_threads = 1;
-    size_t io_threads = 1;
+    std::size_t count = 1000;
+    std::size_t coroutines = 1;
+    std::size_t worker_threads = 1;
+    std::size_t io_threads = 1;
     long timeout_ms = 1000;
     bool multiplexing = false;
-    size_t max_host_connections = 0;
+    std::size_t max_host_connections = 0;
     USERVER_NAMESPACE::http::HttpVersion http_version = USERVER_NAMESPACE::http::HttpVersion::k11;
     std::string url_file;
 };
 
 struct WorkerContext {
-    std::atomic<uint64_t> counter{0};
-    const uint64_t print_each_counter;
-    uint64_t response_len;
+    std::atomic<std::uint64_t> counter{0};
+    const std::uint64_t print_each_counter;
+    std::uint64_t response_len;
 
     http::Client& http_client;
     const Config& config;
     const std::vector<std::string>& urls;
 };
 
-Config ParseConfig(int argc, char* argv[]) {
+Config ParseConfig(int argc, const char* const argv[]) {
     namespace po = boost::program_options;
 
-    Config config;
+    Config c;
     po::options_description desc("Allowed options");
-    desc.add_options()("help,h", "produce help message")(
-        "log-level",
-        po::value(&config.log_level)->default_value(config.log_level),
-        "log level (trace, debug, info, warning, error)"
-    )("log-file",
-      po::value(&config.logfile)->default_value(config.logfile),
-      "log filename (empty for synchronous stderr)")(
-        "url-file,f", po::value(&config.url_file)->default_value(config.url_file), "input file"
-    )("count,c", po::value(&config.count)->default_value(config.count), "request count")(
-        "coroutines", po::value(&config.coroutines)->default_value(config.coroutines), "client coroutine count"
-    )("worker-threads", po::value(&config.worker_threads)->default_value(config.worker_threads), "worker thread count")(
-        "io-threads", po::value(&config.io_threads)->default_value(config.io_threads), "io thread count"
-    )("timeout,t", po::value(&config.timeout_ms)->default_value(config.timeout_ms), "request timeout in ms")(
-        "multiplexing", "enable HTTP/2 multiplexing"
-    )("http-version,V", po::value<std::string>(), "http version, possible values: 1.0, 1.1, 2.0-prior"
-    )("max-host-connections",
-      po::value(&config.max_host_connections)->default_value(config.max_host_connections),
-      "maximum HTTP connection number to a single host");
+
+    // clang-format off
+    desc.add_options()
+      ("help,h", "produce help message")
+      ("log-level", po::value(&c.log_level)->default_value(c.log_level), "One of: trace, debug, info, warning, error")
+      ("log-file", po::value(&c.logfile)->default_value(c.logfile), "log filename (empty for synchronous stderr)")
+      ("url-file,f", po::value(&c.url_file)->default_value(c.url_file), "input file")
+      ("count,c", po::value(&c.count)->default_value(c.count), "request count")
+      ("coroutines", po::value(&c.coroutines)->default_value(c.coroutines), "client coroutine count")
+      ("worker-threads", po::value(&c.worker_threads)->default_value(c.worker_threads), "worker thread count")
+      ("io-threads", po::value(&c.io_threads)->default_value(c.io_threads), "IO thread count")
+      ("timeout,t", po::value(&c.timeout_ms)->default_value(c.timeout_ms), "request timeout in ms")
+      ("multiplexing", "enable HTTP/2 multiplexing")
+      ("http-version,V", po::value<std::string>(), "http version, possible values: 1.0, 1.1, 2, 2-prior")
+      ("max-host-connections", po::value(&c.max_host_connections)->default_value(c.max_host_connections)
+          , "maximum HTTP connection number to a single host")
+    ;
+    // clang-format on
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -72,35 +72,21 @@ Config ParseConfig(int argc, char* argv[]) {
 
     if (vm.count("help")) {
         std::cout << desc << std::endl;
-        exit(0);
+        std::exit(0);
     }
 
-    if (vm.count("multiplexing")) config.multiplexing = true;
+    c.multiplexing = vm.count("multiplexing");
     if (vm.count("http-version")) {
-        auto value = vm["http-version"].as<std::string>();
-        if (value == "1.0")
-            config.http_version = USERVER_NAMESPACE::http::HttpVersion::k10;
-        else if (value == "1.1")
-            config.http_version = USERVER_NAMESPACE::http::HttpVersion::k11;
-        else if (value == "2")
-            config.http_version = USERVER_NAMESPACE::http::HttpVersion::k2;
-        else if (value == "2tls")
-            config.http_version = USERVER_NAMESPACE::http::HttpVersion::k2Tls;
-        else if (value == "2-prior")
-            config.http_version = USERVER_NAMESPACE::http::HttpVersion::k2PriorKnowledge;
-        else {
-            std::cerr << "--http-version value is unknown" << std::endl;
-            exit(1);
-        }
+        c.http_version = USERVER_NAMESPACE::http::HttpVersionFromString(vm["http-version"].as<std::string>());
     }
 
-    if (config.url_file.empty()) {
+    if (c.url_file.empty()) {
         std::cerr << "url-file is undefined" << std::endl;
         std::cout << desc << std::endl;
-        exit(1);
+        std::exit(1);
     }
 
-    return config;
+    return c;
 }
 
 std::vector<std::string> ReadUrls(const Config& config) {
@@ -108,14 +94,15 @@ std::vector<std::string> ReadUrls(const Config& config) {
 
     std::ifstream infile(config.url_file);
     if (!infile.is_open()) {
-        std::cerr << "failed to open url-file\n";
-        exit(1);
+        throw std::runtime_error("Failed to open url-file\n");
     }
 
     std::string line;
     while (std::getline(infile, line)) urls.emplace_back(std::move(line));
 
-    if (urls.empty()) throw std::runtime_error("No URL in URL file!");
+    if (urls.empty()) {
+        throw std::runtime_error("No URL in URL file!");
+    }
 
     return urls;
 }
@@ -139,15 +126,15 @@ void Worker(WorkerContext& context) {
         const std::string& url = context.urls[idx % context.urls.size()];
 
         try {
-            auto ts1 = std::chrono::system_clock::now();
+            const auto ts1 = std::chrono::system_clock::now();
             auto request = CreateRequest(context.http_client, context.config, url);
-            auto ts2 = std::chrono::system_clock::now();
+            const auto ts2 = std::chrono::system_clock::now();
             LOG_DEBUG() << "CreateRequest";
 
             auto response = request.perform();
             context.response_len += response->body().size();
             LOG_DEBUG() << "Got response body_size=" << response->body().size();
-            auto ts3 = std::chrono::system_clock::now();
+            const auto ts3 = std::chrono::system_clock::now();
             LOG_INFO() << "timings create=" << std::chrono::duration_cast<std::chrono::microseconds>(ts2 - ts1).count()
                        << "us "
                        << "response=" << std::chrono::duration_cast<std::chrono::microseconds>(ts3 - ts2).count()
@@ -171,20 +158,20 @@ void DoWork(const Config& config, const std::vector<std::string>& urls) {
     http_client.SetMultiplexingEnabled(config.multiplexing);
     if (config.max_host_connections > 0) http_client.SetMaxHostConnections(config.max_host_connections);
 
-    WorkerContext worker_context{{0}, 2000, 0, std::ref(http_client), config, urls};
+    WorkerContext worker_context{{0}, 2000, 0, http_client, config, urls};
 
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.resize(config.coroutines);
-    auto tp1 = std::chrono::system_clock::now();
+    const auto tp1 = std::chrono::system_clock::now();
     LOG_WARNING() << "Creating workers...";
-    for (size_t i = 0; i < config.coroutines; ++i) {
+    for (std::size_t i = 0; i < config.coroutines; ++i) {
         tasks[i] = engine::AsyncNoSpan(tp, &Worker, std::ref(worker_context));
     }
     LOG_WARNING() << "All workers are started " << std::this_thread::get_id();
 
-    for (auto& task : tasks) task.Get();
+    engine::GetAll(tasks);
 
-    auto tp2 = std::chrono::system_clock::now();
+    const auto tp2 = std::chrono::system_clock::now();
     auto rps = config.count * 1000 / (std::chrono::duration_cast<std::chrono::milliseconds>(tp2 - tp1).count() + 1);
 
     std::cerr << std::endl;
@@ -194,17 +181,13 @@ void DoWork(const Config& config, const std::vector<std::string>& urls) {
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+int main(int argc, const char* const argv[]) {
     const Config config = ParseConfig(argc, argv);
 
-    logging::LoggerPtr logger;
     const auto level = logging::LevelFromString(config.log_level);
-    if (!config.logfile.empty()) {
-        logger = logging::MakeFileLogger("default", config.logfile, logging::Format::kTskv, level);
-    } else {
-        logger = logging::MakeStderrLogger("default", logging::Format::kTskv, level);
-    }
-    logging::DefaultLoggerGuard guard{logger};
+    const logging::DefaultLoggerGuard guard{
+        config.logfile.empty() ? logging::MakeStderrLogger("default", logging::Format::kTskv, level)
+                               : logging::MakeFileLogger("default", config.logfile, logging::Format::kTskv, level)};
 
     LOG_WARNING() << "Starting using requests=" << config.count << " coroutines=" << config.coroutines
                   << " timeout=" << config.timeout_ms << "ms";
@@ -212,8 +195,7 @@ int main(int argc, char* argv[]) {
                   << " max_host_connections=" << config.max_host_connections;
 
     const std::vector<std::string> urls = ReadUrls(config);
-
     engine::RunStandalone(config.worker_threads, [&]() { DoWork(config, urls); });
 
-    LOG_WARNING() << "Exit";
+    LOG_WARNING() << "Finished";
 }

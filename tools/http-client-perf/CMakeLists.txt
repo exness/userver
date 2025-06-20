@@ -1,11 +1,9 @@
 project(userver-tool-http-client-perf CXX)
 
-file(GLOB_RECURSE SOURCES *.cpp)
-
 find_package(Boost REQUIRED CONFIG COMPONENTS program_options)
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(${PROJECT_NAME} "httpclient_perf.cpp")
 target_link_libraries(${PROJECT_NAME}
-    userver-core
+    userver::core
     Boost::program_options
 )
