@@ -2,6 +2,7 @@
   ".":"taxi/uservices/userver",
   ".clang-format":"taxi/uservices/userver/.clang-format",
   ".clang-tidy":"taxi/uservices/userver/.clang-tidy",
+  ".cmake-format.py":"taxi/uservices/userver/.cmake-format.py",
   ".editorconfig":"taxi/uservices/userver/.editorconfig",
   ".gitattributes":"taxi/uservices/userver/.gitattributes",
   ".github/ISSUE_TEMPLATE/0-default.yml":"taxi/uservices/userver/.github/ISSUE_TEMPLATE/0-default.yml",
