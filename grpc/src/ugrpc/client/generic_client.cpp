@@ -15,11 +15,6 @@ struct GenericService final {
     using Stub = grpc::GenericStub;
 };
 
-using PrepareUnaryCall = std::unique_ptr<grpc::ClientAsyncResponseReader<
-    grpc::
-        ByteBuffer>> (grpc::
-                          GenericStub::*)(grpc::ClientContext*, const grpc::string&, const grpc::ByteBuffer&, grpc::CompletionQueue*);
-
 }  // namespace
 
 GenericClient::GenericClient(impl::ClientInternals&& internals)
@@ -40,10 +35,8 @@ ResponseFuture<grpc::ByteBuffer> GenericClient::AsyncUnaryCall(
         impl::CreateGenericCallParams(
             impl_, call_name, std::move(context), generic_options.qos, generic_options.metrics_call_name
         ),
-        static_cast<PrepareUnaryCall>(&grpc::GenericStub::PrepareUnaryCall),
-        request,
-        method_name,
-    };
+        impl::PrepareUnaryCallProxy(&grpc::GenericStub::PrepareUnaryCall, method_name),
+        request};
 }
 
 grpc::ByteBuffer GenericClient::UnaryCall(

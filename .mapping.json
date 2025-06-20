@@ -2173,6 +2173,7 @@
   "grpc/proto/tests/repeating_word_in_package_name.proto":"taxi/uservices/userver/grpc/proto/tests/repeating_word_in_package_name.proto",
   "grpc/proto/tests/same_service_and_method_name.proto":"taxi/uservices/userver/grpc/proto/tests/same_service_and_method_name.proto",
   "grpc/proto/tests/secret_fields.proto":"taxi/uservices/userver/grpc/proto/tests/secret_fields.proto",
+  "grpc/proto/tests/service_with_method_name_and_method_name_raw.proto":"taxi/uservices/userver/grpc/proto/tests/service_with_method_name_and_method_name_raw.proto",
   "grpc/proto/tests/unit_test.proto":"taxi/uservices/userver/grpc/proto/tests/unit_test.proto",
   "grpc/proto/userver/field_options.proto":"taxi/uservices/userver/grpc/proto/userver/field_options.proto",
   "grpc/src/dump/protobuf.cpp":"taxi/uservices/userver/grpc/src/dump/protobuf.cpp",

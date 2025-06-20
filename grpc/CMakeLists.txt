@@ -168,6 +168,7 @@ if (USERVER_BUILD_TESTS)
       tests/same_service_and_method_name.proto
       tests/global_package.proto
       tests/repeating_word_in_package_name.proto
+      tests/service_with_method_name_and_method_name_raw.proto
       ${secret_fields_proto}
       tests/logging.proto
       INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/proto
