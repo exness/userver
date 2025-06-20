@@ -157,7 +157,7 @@ std::chrono::system_clock::time_point GuessLocalTimezoneStringtime(const std::st
 ///
 /// Example:
 ///
-/// @snippet utils/datetime_test.cpp  Timestring C time example
+/// @snippet utils/datetime_test.cpp  UtcTimestring C time example
 std::time_t Timestamp(std::chrono::system_clock::time_point tp) noexcept;
 
 /// @brief Returned current time as std::time_t; could be mocked
