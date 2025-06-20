@@ -21,7 +21,7 @@ Settings Parse(const yaml_config::YamlConfig& config, formats::parse::To<Setting
     auto reject_status_code = config["grpc-status-code"].As<std::optional<std::string>>();
     if (reject_status_code) {
         settings.reject_status_code = ugrpc::StatusCodeFromString(*reject_status_code);
-        if (settings.reject_status_code != grpc::StatusCode::OK) {
+        if (settings.reject_status_code == grpc::StatusCode::OK) {
             throw std::invalid_argument("grpc-status-code must not be OK status");
         }
     }
