@@ -11,7 +11,6 @@ components_manager:
         server:
             listener:                 # configuring the main listening socket...
                 port: 8080            # ...to listen on this port and...
-                task_processor: main-task-processor    # ...process incoming requests on this task processor.
         logging:
             loggers:
                 default:
@@ -22,4 +21,3 @@ components_manager:
         handler-hello-sample:             # Finally! Our handler.
             path: /hello                  # Registering handler by URL '/hello'.
             method: GET,POST              # It will only reply to GET (HEAD) and POST requests.
-            task_processor: main-task-processor  # Run it on CPU bound task processor
