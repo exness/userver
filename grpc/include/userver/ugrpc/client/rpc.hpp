@@ -58,7 +58,7 @@ template <typename Response>
 class [[nodiscard]] UnaryFinishFuture {
 public:
     /// @cond
-    UnaryFinishFuture(impl::CallState& state, std::unique_ptr<Response>&& response) noexcept
+    UnaryFinishFuture(CallState& state, std::unique_ptr<Response>&& response) noexcept
         : response_(std::move(response)), impl_(state, impl::ToBaseMessage(*response_)) {}
     /// @endcond
 
@@ -102,7 +102,7 @@ public:
 
 private:
     std::unique_ptr<Response> response_;
-    impl::UnaryFinishFutureImpl impl_;
+    UnaryFinishFutureImpl impl_;
 };
 
 }  // namespace impl
@@ -182,8 +182,8 @@ public:
     // For internal use only
     template <typename Stub, typename Request>
     UnaryCall(
-        impl::CallParams&& params,
-        impl::PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
+        CallParams&& params,
+        PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
         const Request& request
     );
     /// @endcond
@@ -193,7 +193,7 @@ public:
     ~UnaryCall() = default;
 
 private:
-    impl::RawResponseReader<Response> reader_{};
+    RawResponseReader<Response> reader_{};
     std::optional<UnaryFinishFuture<Response>> finish_future_{};
 };
 
@@ -499,14 +499,14 @@ namespace impl {
 template <typename Response>
 template <typename Stub, typename Request>
 UnaryCall<Response>::UnaryCall(
-    impl::CallParams&& params,
-    impl::PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
+    CallParams&& params,
+    PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
     const Request& request
 )
-    : CallAnyBase(std::move(params), impl::CallKind::kUnaryCall) {
-    impl::MiddlewarePipeline::PreStartCall(GetState());
+    : CallAnyBase(std::move(params), CallKind::kUnaryCall) {
+    MiddlewarePipeline::PreStartCall(GetState());
     if constexpr (std::is_base_of_v<google::protobuf::Message, Request>) {
-        impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
+        MiddlewarePipeline::PreSendMessage(GetState(), request);
     }
 
     reader_ =
