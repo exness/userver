@@ -2496,6 +2496,7 @@
   "libraries/s3api/library.yaml":"taxi/uservices/userver/libraries/s3api/library.yaml",
   "libraries/s3api/src/s3api/authenticators/access_key.cpp":"taxi/uservices/userver/libraries/s3api/src/s3api/authenticators/access_key.cpp",
   "libraries/s3api/src/s3api/authenticators/utils.cpp":"taxi/uservices/userver/libraries/s3api/src/s3api/authenticators/utils.cpp",
+  "libraries/s3api/src/s3api/authenticators/utils_test.cpp":"taxi/uservices/userver/libraries/s3api/src/s3api/authenticators/utils_test.cpp",
   "libraries/s3api/src/s3api/clients/client.cpp":"taxi/uservices/userver/libraries/s3api/src/s3api/clients/client.cpp",
   "libraries/s3api/src/s3api/clients/client.hpp":"taxi/uservices/userver/libraries/s3api/src/s3api/clients/client.hpp",
   "libraries/s3api/src/s3api/models/s3api_connection_type.cpp":"taxi/uservices/userver/libraries/s3api/src/s3api/models/s3api_connection_type.cpp",
