@@ -453,6 +453,8 @@ class Generator:
                 format_cpp_type = 'userver::utils::datetime::TimePointTz'
             elif schema.format == types.StringFormat.DATE_TIME_ISO_BASIC:
                 format_cpp_type = 'userver::utils::datetime::TimePointTzIsoBasic'
+            elif schema.format == types.StringFormat.DATE_TIME_FRACTION:
+                format_cpp_type = 'userver::utils::datetime::TimePointTzFraction'
             else:
                 self._raise(
                     schema,

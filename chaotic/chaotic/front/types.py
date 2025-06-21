@@ -255,6 +255,7 @@ class StringFormat(enum.Enum):
     DATE = enum.auto()
     DATE_TIME = enum.auto()
     DATE_TIME_ISO_BASIC = enum.auto()
+    DATE_TIME_FRACTION = enum.auto()
     UUID = enum.auto()
 
     @classmethod
@@ -271,6 +272,7 @@ STRING_FORMAT_TO_FORMAT = {
     'date': StringFormat.DATE,
     'date-time': StringFormat.DATE_TIME,
     'date-time-iso-basic': StringFormat.DATE_TIME_ISO_BASIC,
+    'date-time-fraction': StringFormat.DATE_TIME_FRACTION,
     'uuid': StringFormat.UUID,
 }
 

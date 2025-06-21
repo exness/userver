@@ -31,6 +31,7 @@ inline const std::string kDefaultTimezone = "UTC";
 inline const std::string kDefaultFormat = "%Y-%m-%dT%H:%M:%E*S%z";
 /// @snippet utils/datetime/from_string_saturating_test.cpp  kIsoFormat
 inline const std::string kIsoFormat = "%Y-%m-%dT%H:%M:%SZ";
+inline const std::string kFractionFormat = "%Y-%m-%dT%H:%M:%S.%E*f%z";
 
 using timepair_t = std::pair<std::uint8_t, std::uint8_t>;
 
