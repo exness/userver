@@ -204,7 +204,7 @@ class ClientSpec:
             assert cpp_type.json_schema
             filepath = cpp_type.json_schema.source_location().filepath
             includes.append(
-                'client/{}/{}.hpp'.format(
+                'clients/{}/{}.hpp'.format(
                     self.client_name,
                     filepath.split('/')[-1].split('.')[0],
                 ),

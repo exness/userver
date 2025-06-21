@@ -6,10 +6,10 @@
 #include <userver/utest/http_client.hpp>
 #include <userver/utest/http_server_mock.hpp>
 
-#include <client/multiple_content_types/responses.hpp>
-#include <client/response_headers/responses.hpp>
-#include <client/test_object/client_impl.hpp>
-#include <client/test_object/responses.hpp>
+#include <clients/multiple_content_types/responses.hpp>
+#include <clients/response_headers/responses.hpp>
+#include <clients/test_object/client_impl.hpp>
+#include <clients/test_object/responses.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

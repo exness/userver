@@ -19,7 +19,7 @@ TYPES_INCLUDES = [
 def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[str]]) -> List[str]:
     includes = {
         'client.cpp': [
-            f'client/{client_name}/client.hpp',
+            f'clients/{client_name}/client.hpp',
         ],
         'client.hpp': [
             'requests.hpp',
@@ -28,7 +28,7 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
         ],
         'client_fwd.hpp': [],
         'client_impl.cpp': [
-            f'client/{client_name}/client_impl.hpp',
+            f'clients/{client_name}/client_impl.hpp',
             'userver/chaotic/openapi/middlewares/follow_redirects_middleware.hpp',
             'userver/chaotic/openapi/middlewares/qos_middleware.hpp',
             'userver/components/component_context.hpp',
@@ -36,7 +36,7 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
             'userver/yaml_config/merge_schemas.hpp',
         ],
         'client_impl.hpp': [
-            f'client/{client_name}/client.hpp',
+            f'clients/{client_name}/client.hpp',
             'userver/chaotic/openapi/client/config.hpp',
             'userver/chaotic/openapi/middlewares/manager.hpp',
             'userver/clients/http/client.hpp',
@@ -44,14 +44,14 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
             'userver/yaml_config/schema.hpp',
         ],
         'exceptions.cpp': [
-            f'client/{client_name}/exceptions.hpp',
+            f'clients/{client_name}/exceptions.hpp',
             'userver/clients/http/error_kind.hpp',
         ],
         'exceptions.hpp': [
             'userver/chaotic/openapi/client/exceptions.hpp',
         ],
         'component.cpp': [
-            f'client/{client_name}/component.hpp',
+            f'clients/{client_name}/component.hpp',
             'userver/chaotic/openapi/client/config.hpp',
             'userver/components/component_context.hpp',
             'userver/clients/http/component.hpp',
@@ -59,10 +59,10 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
         'component.hpp': [
             'userver/components/component_base.hpp',
             'userver/yaml_config/schema.hpp',
-            f'client/{client_name}/client_impl.hpp',
+            f'clients/{client_name}/client_impl.hpp',
         ],
         'requests.cpp': [
-            f'client/{client_name}/requests.hpp',
+            f'clients/{client_name}/requests.hpp',
             'userver/chaotic/openapi/parameters_write.hpp',
             'userver/formats/json/value_builder.hpp',
             'userver/http/common_headers.hpp',
@@ -73,11 +73,11 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
         'requests.hpp': [
             'string',
             'variant',
-            *[f'client/{client_name}/{dep}' for dep in graph],
+            *[f'clients/{client_name}/{dep}' for dep in graph],
             # TODO
         ],
         'responses.cpp': [
-            f'client/{client_name}/responses.hpp',
+            f'clients/{client_name}/responses.hpp',
             'userver/clients/http/response.hpp',
             'userver/formats/json/serialize.hpp',
             'userver/http/common_headers.hpp',
@@ -86,9 +86,9 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
         ],
         'responses.hpp': [
             'variant',
-            f'client/{client_name}/exceptions.hpp',
+            f'clients/{client_name}/exceptions.hpp',
             'userver/chaotic/openapi/client/exceptions.hpp',
-            *[f'client/{client_name}/{dep}' for dep in graph],
+            *[f'clients/{client_name}/{dep}' for dep in graph],
             # TODO
         ],
     }
@@ -117,7 +117,7 @@ def extract_includes(name: str, path: pathlib.Path) -> Optional[List[str]]:
                 ref_fname = ref.rsplit('/', 1)[-1]
                 if ref_fname:
                     stem = ref_fname.rsplit('.', 1)[0]
-                    includes.append(f'client/{name}/{stem}.hpp')
+                    includes.append(f'clients/{name}/{stem}.hpp')
             if 'x-taxi-cpp-type' in data:
                 pass
             if 'x-usrv-cpp-type' in data:
@@ -151,16 +151,16 @@ def get_includes(client_name: str, schemas_dir: str) -> Dict[str, List[str]]:
     output = collections.defaultdict(list)
     for name in renderer.TEMPLATE_NAMES:
         if name.endswith('.hpp'):
-            rel_path = f'include/client/{client_name}/{name}'
+            rel_path = f'include/clients/{client_name}/{name}'
         else:
-            rel_path = f'src/client/{client_name}/{name}'
+            rel_path = f'src/clients/{client_name}/{name}'
         output[rel_path] = _get_template_includes(name, client_name, graph)
 
     for file in graph:
         stem = pathlib.Path(file).stem
-        output[f'include/client/{client_name}/{stem}_fwd.hpp'] = []
-        output[f'include/client/{client_name}/{stem}.hpp'] = [
-            f'client/{client_name}/{stem}_fwd.hpp',
+        output[f'include/clients/{client_name}/{stem}_fwd.hpp'] = []
+        output[f'include/clients/{client_name}/{stem}.hpp'] = [
+            f'clients/{client_name}/{stem}_fwd.hpp',
             'userver/chaotic/type_bundle_hpp.hpp',
             *TYPES_INCLUDES,
             *graph[file],
@@ -191,5 +191,8 @@ def external_libraries(schemas_dir: str) -> List[str]:
 
     libraries = []
     for type_ in types:
-        libraries.append(type_.split('::')[0].replace('_', '-'))
+        library = type_.split('::')[0].replace('_', '-')
+        # special namespaces (and unsigned) which are defined in userver/, not in libraries/
+        if library not in {'std', 'storages', 'decimal64', 'unsigned'}:
+            libraries.append(library)
     return libraries

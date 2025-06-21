@@ -6,7 +6,7 @@
 #include <userver/utest/http_client.hpp>
 #include <userver/utest/http_server_mock.hpp>
 
-#include <client/multiple_content_types/requests.hpp>
+#include <clients/multiple_content_types/requests.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

@@ -13,6 +13,7 @@ from chaotic_openapi.back.cpp_client import types
 PARENT_DIR = os.path.dirname(__file__)
 
 TEMPLATE_NAMES = [
+    'client_fwd.hpp',
     'client.hpp',
     'client.cpp',
     'client_impl.hpp',
@@ -96,9 +97,9 @@ def render(spec: types.ClientSpec, context: Context) -> List[CppOutput]:
         pp = cpp_format.format_pp(pp, binary=context.clang_format_bin)
 
         if name.endswith('.hpp'):
-            rel_path = f'include/client/{spec.client_name}/{name}'
+            rel_path = f'include/clients/{spec.client_name}/{name}'
         else:
-            rel_path = f'src/client/{spec.client_name}/{name}'
+            rel_path = f'src/clients/{spec.client_name}/{name}'
 
         output.append(CppOutput(rel_path=rel_path, content=pp))
 
@@ -106,7 +107,7 @@ def render(spec: types.ClientSpec, context: Context) -> List[CppOutput]:
     for cpp_type in spec.extract_cpp_types().values():
         assert cpp_type.json_schema
         filepath = cpp_type.json_schema.source_location().filepath
-        vfilepath_map[filepath] = 'client/{}/{}'.format(
+        vfilepath_map[filepath] = 'clients/{}/{}'.format(
             spec.client_name,
             filepath.split('/')[-1],
         )

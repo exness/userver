@@ -383,8 +383,8 @@ class SchemaParser:
                 self_ref=False,
             )
 
-            del input_['$ref']
-            ref_value.x_properties = input_
+            ref_value.x_properties = input_.copy()
+            del ref_value.x_properties['$ref']
 
             return ref_value
 
