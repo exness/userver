@@ -104,6 +104,7 @@ class Parameter(base_model.BaseModel):
     # content: Dict[str, MediaType] = {}
 
     def model_post_init(self, context: Any, /) -> None:
+        super().model_post_init(context)
         if self.style:
             return
 
@@ -180,6 +181,8 @@ class SecurityScheme(base_model.BaseModel):
     openIdConnectUrl: Optional[str] = None
 
     def model_post_init(self, context: Any, /) -> None:
+        super().model_post_init(context)
+
         if self.type == SecurityType.apiKey:
             if not self.name:
                 raise ValueError(errors.missing_field_msg('name'))
@@ -206,11 +209,16 @@ Security = Dict[str, List[str]]
 # https://spec.openapis.org/oas/v3.0.0.html#components-object
 class Components(base_model.BaseModel):
     schemas: Dict[str, Schema] = pydantic.Field(default_factory=dict)
+    requests: Dict[str, Any] = pydantic.Field(default_factory=dict)  # TODO
     responses: Dict[str, Response] = pydantic.Field(default_factory=dict)
     parameters: Dict[str, Parameter] = pydantic.Field(default_factory=dict)
     headers: Dict[str, Header] = pydantic.Field(default_factory=dict)
     requestBodies: Dict[str, RequestBody] = pydantic.Field(default_factory=dict)
     securitySchemes: SecuritySchemes = pydantic.Field(default_factory=dict)
+
+
+class XTaxiMiddlewares(base_model.BaseModel):
+    tvm: bool = True
 
 
 # https://spec.openapis.org/oas/v3.0.0.html#operation-object
@@ -227,6 +235,11 @@ class Operation(base_model.BaseModel):
     deprecated: bool = False
     security: Optional[Security] = None
     servers: List[Server] = pydantic.Field(default_factory=list)
+
+    x_taxi_middlewares: Optional[XTaxiMiddlewares] = pydantic.Field(
+        default=None,
+        alias='x-taxi-middlewares',
+    )
 
 
 # https://spec.openapis.org/oas/v3.0.0.html#path-item-object
@@ -247,6 +260,10 @@ class Path(base_model.BaseModel):
     parameters: List[Union[Parameter, Ref]] = pydantic.Field(default_factory=list)
 
 
+class XTaxiClientQos(base_model.BaseModel):
+    taxi_config: str = pydantic.Field(alias='taxi-config')
+
+
 # https://spec.openapis.org/oas/v3.0.0.html#schema
 class OpenApi(base_model.BaseModel):
     openapi: str = '3.0.0'
@@ -257,6 +274,15 @@ class OpenApi(base_model.BaseModel):
     security: Security = pydantic.Field(default_factory=dict)
     tags: List[Any] = pydantic.Field(default_factory=list)
     externalDocs: Any = None
+
+    x_taxi_client_qos: Optional[XTaxiClientQos] = pydantic.Field(
+        default=None,
+        alias='x-taxi-client-qos',
+    )
+    x_taxi_middlewares: Optional[XTaxiMiddlewares] = pydantic.Field(
+        default=None,
+        alias='x-taxi-middlewares',
+    )
 
     def validate_security(self, security: Optional[Security]) -> None:
         if not security:
@@ -280,6 +306,8 @@ class OpenApi(base_model.BaseModel):
                         raise ValueError(f'For security "{name}" the array must be empty')
 
     def model_post_init(self, context: Any, /) -> None:
+        super().model_post_init(context)
+
         self.validate_security(self.security)
 
         for path in self.paths.values():

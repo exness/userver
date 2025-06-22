@@ -1,7 +1,5 @@
 swagger: '2.0'
-info:
-    title: test-object client
-    version: '1.0'
+description: test-object client
 
 paths:
     /test1/PATH-123:
