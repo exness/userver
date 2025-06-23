@@ -13,7 +13,10 @@ USERVER_NAMESPACE::retry_budget::Storage& Plugin::Storage() { return storage_; }
 
 void Plugin::HookPerformRequest(PluginRequest&) {}
 
-void Plugin::HookCreateSpan(PluginRequest&, tracing::Span&) {}
+void Plugin::HookCreateSpan(PluginRequest& request, tracing::Span&) {
+    // call GetDestination() to create RcuMap's key
+    [[maybe_unused]] auto& _ = GetDestination(request.GetOriginalUrl());
+}
 
 void Plugin::HookOnCompleted(PluginRequest& request, Response& response) {
     auto& dest = GetDestination(request.GetOriginalUrl());
