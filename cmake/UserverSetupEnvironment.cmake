@@ -57,9 +57,9 @@ function(_userver_setup_environment_impl)
         PARENT_SCOPE
     )
     if(NOT DEFINED CMAKE_CXX_STANDARD)
-        set(CMAKE_CXX_STANDARD 17)
+        set(CMAKE_CXX_STANDARD 20)
         set(CMAKE_CXX_STANDARD
-            17
+            20
             PARENT_SCOPE
         )
     endif()
