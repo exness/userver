@@ -39,7 +39,7 @@ bool Plugin::HookOnRetry(PluginRequest& request) {
 }
 
 USERVER_NAMESPACE::utils::RetryBudget& Plugin::GetDestination(const std::string& url) {
-    return storage_.GetDestination(USERVER_NAMESPACE::http::ExtractHostname(url));
+    return storage_.GetDestination(std::string{USERVER_NAMESPACE::http::ExtractHostname(url)});
 }
 
 }  // namespace clients::http::plugins::retry_budget

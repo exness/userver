@@ -14,7 +14,9 @@ namespace http {
 
 namespace {
 
-const std::string_view kSchemaSeparator = "://";
+constexpr std::string_view kSchemaSeparator = "://";
+constexpr char kQuerySeparator = '?';
+constexpr char kFragmentSeparator = '#';
 
 void UrlEncodeTo(std::string_view input_string, std::string& result) {
     for (const char symbol : input_string) {
@@ -220,51 +222,114 @@ std::optional<std::string> MakeUrlWithPathArgs(
     return MakeUrlWithPathArgsImpl(path, path_args, query_args.begin(), query_args.end());
 }
 
-std::string ExtractMetaTypeFromUrl(const std::string& url) {
-    auto pos = url.find('?');
+std::string_view ExtractMetaTypeFromUrlView(std::string_view url) {
+    auto pos = url.find(kQuerySeparator);
     if (pos == std::string::npos) return url;
 
     return url.substr(0, pos);
 }
 
-std::string ExtractPath(std::string_view url) {
-    auto pos = url.find(kSchemaSeparator);
+std::string ExtractMetaTypeFromUrl(std::string_view url) { return std::string{ExtractMetaTypeFromUrlView(url)}; }
+
+std::string_view ExtractPathView(std::string_view url) {
+    const auto pos = url.find(kSchemaSeparator);
+    // Cut scheme
     auto tmp = (pos == std::string::npos) ? url : url.substr(pos + kSchemaSeparator.size());
 
-    auto slash_pos = tmp.find('/');
-    if (slash_pos == std::string::npos) return "";
-    return std::string(tmp.substr(slash_pos));
+    const auto slash_pos = tmp.find('/');
+    if (slash_pos == std::string::npos) {
+        return {};
+    }
+    tmp = tmp.substr(slash_pos);
+
+    auto query_pos = tmp.find(kQuerySeparator);
+    const auto fragment_pos = tmp.find(kFragmentSeparator);
+
+    // Handle case when fragment placed right after path
+    if (fragment_pos != std::string::npos) {
+        tmp = tmp.substr(0, fragment_pos);
+        query_pos = tmp.find(kQuerySeparator);
+    }
+
+    if (query_pos != std::string::npos) {
+        tmp = tmp.substr(0, query_pos);
+    }
+    return tmp;
 }
 
-std::string ExtractHostname(std::string_view url) {
+std::string ExtractPath(std::string_view url) { return std::string{ExtractPathView(url)}; }
+
+std::string_view ExtractHostnameView(std::string_view url) {
     // Drop "schema://"
-    auto pos = url.find(kSchemaSeparator);
+    const auto pos = url.find(kSchemaSeparator);
     auto tmp = (pos == std::string::npos) ? url : url.substr(pos + kSchemaSeparator.size());
 
     // Drop /.*
-    auto slash_pos = tmp.find('/');
+    const auto slash_pos = tmp.find('/');
     if (slash_pos != std::string::npos) {
         tmp = tmp.substr(0, slash_pos);
     }
 
-    auto userinfo_pos = tmp.rfind('@');
+    const auto userinfo_pos = tmp.rfind('@');
     if (userinfo_pos != std::string::npos) {
         tmp = tmp.substr(userinfo_pos + 1);
     }
 
-    auto bracket_close_pos = tmp.find(']');
+    const auto bracket_close_pos = tmp.find(']');
     if (bracket_close_pos != std::string::npos) {
         // IPv6 address
         tmp = tmp.substr(0, bracket_close_pos + 1);
     } else {
         // DNS name or IPv4 address
-        auto port_pos = tmp.find(':');
+        const auto port_pos = tmp.find(':');
         if (port_pos != std::string::npos) {
             tmp = tmp.substr(0, port_pos);
         }
     }
 
-    return std::string{tmp};
+    return tmp;
+}
+
+std::string ExtractHostname(std::string_view url) { return std::string{ExtractHostnameView(url)}; }
+
+std::string_view ExtractSchemeView(std::string_view url) {
+    const auto pos = url.find(kSchemaSeparator);
+    return (pos == std::string::npos) ? "" : url.substr(0, pos);
+}
+
+std::string ExtractScheme(std::string_view url) { return std::string{ExtractSchemeView(url)}; }
+
+std::string_view ExtractQueryView(std::string_view url) {
+    auto query_start = url.find(kQuerySeparator);
+    if (query_start == std::string::npos || query_start + 1 >= url.size()) {
+        return {};
+    }
+
+    ++query_start;
+
+    const auto fragment_start = url.find(kFragmentSeparator);
+    const auto query_end = (fragment_start == std::string::npos) ? url.size() : fragment_start;
+
+    return url.substr(query_start, query_end - query_start);
+}
+
+std::string ExtractQuery(std::string_view url) { return std::string{ExtractQueryView(url)}; }
+
+std::string_view ExtractFragmentView(std::string_view url) {
+    const auto pos = url.find(kFragmentSeparator);
+    return (pos == std::string::npos) || pos + 1 >= url.size() ? "" : url.substr(pos + 1);
+}
+
+std::string ExtractFragment(std::string_view url) { return std::string{ExtractFragmentView(url)}; }
+
+DecomposedUrlView DecomposeUrlIntoViews(std::string_view url) {
+    DecomposedUrlView result;
+    result.scheme = ExtractSchemeView(url);
+    result.host = ExtractHostnameView(url);
+    result.path = ExtractPathView(url);
+    result.query = ExtractQueryView(url);
+    result.fragment = ExtractFragmentView(url);
+    return result;
 }
 
 namespace impl {

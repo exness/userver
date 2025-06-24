@@ -983,7 +983,7 @@ void RequestState::StartNewSpan(utils::impl::SourceLocation location) {
     UINVARIANT(!span_storage_, "Attempt to reuse request while the previous one has not finished");
 
     span_storage_.emplace(
-        kTracingClientName + USERVER_NAMESPACE::http::ExtractHostname(easy().get_original_url()), location
+        kTracingClientName + std::string{USERVER_NAMESPACE::http::ExtractHostname(easy().get_original_url())}, location
     );
     auto& span = span_storage_->Get();
 

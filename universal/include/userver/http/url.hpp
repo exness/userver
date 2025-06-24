@@ -17,6 +17,14 @@ USERVER_NAMESPACE_BEGIN
 
 namespace http {
 
+struct DecomposedUrlView {
+    std::string_view scheme;
+    std::string_view host;
+    std::string_view path;
+    std::string_view query;
+    std::string_view fragment;
+};
+
 /// @brief Decode URL
 [[deprecated("Use a more strict http::parser::UrlDecode instead")]] std::string UrlDecode(std::string_view range);
 
@@ -200,7 +208,8 @@ std::optional<std::string> MakeUrlWithPathArgs(
 ///   auto base = ExtractMetaTypeFromUrl("https://example.com/api/users?page=1&sort=name");
 ///   // Returns: "https://example.com/api/users"
 /// @endcode
-std::string ExtractMetaTypeFromUrl(const std::string& url);
+std::string ExtractMetaTypeFromUrl(std::string_view url);
+std::string_view ExtractMetaTypeFromUrlView(std::string_view url);
 
 /// @brief Returns HTTP path part of a URL
 /// @param url Full URL to extract from
@@ -212,6 +221,7 @@ std::string ExtractMetaTypeFromUrl(const std::string& url);
 ///   // Returns: "/api/users"
 /// @endcode
 std::string ExtractPath(std::string_view url);
+std::string_view ExtractPathView(std::string_view url);
 
 /// @brief Returns hostname part of a URL
 /// @param url Full URL to extract from
@@ -225,6 +235,55 @@ std::string ExtractPath(std::string_view url);
 ///   // Returns: "[::1]"
 /// @endcode
 std::string ExtractHostname(std::string_view url);
+std::string_view ExtractHostnameView(std::string_view url);
+
+/// @brief Returns scheme part of a URL
+/// @param url Full URL to extract from
+/// @returns Scheme component of the URL
+/// @code
+///   auto scheme = ExtractScheme("https://example.com/api/users");
+///   // Returns: "https"
+///   auto scheme2 = ExtractScheme("http://user:pass@example.com:8080/api");
+///   // Returns: "http"
+///   auto scheme3 = ExtractScheme("ftp://[::1]:8080/");
+///   // Returns: "ftp"
+/// @endcode
+std::string ExtractScheme(std::string_view url);
+std::string_view ExtractSchemeView(std::string_view url);
+
+/// @brief Returns query part of a URL
+/// @param url Full URL to extract from
+/// @returns Query component of the URL
+/// @code
+///   auto query = ExtractQuery("https://example.com/api/users?q=1");
+///   // Returns: "q=1"
+///   auto query2 = ExtractQuery("http://user:pass@example.com:8080/api");
+///   // Returns: ""
+///   auto query3 = ExtractQuery("ftp://[::1]:8080/?q=12&w=23");
+///   // Returns: "q=12&w=23"
+/// @endcode
+std::string ExtractQuery(std::string_view url);
+std::string_view ExtractQueryView(std::string_view url);
+
+/// @brief Returns fragment part of a URL
+/// @param url Full URL to extract from
+/// @returns Fragment component of the URL
+/// @code
+///   auto fragment = ExtractFragment("https://example.com/api/users?q=1");
+///   // Returns: ""
+///   auto fragment2 = ExtractFragment("http://user:pass@example.com:8080/api#123");
+///   // Returns: "123"
+///   auto fragment3 = ExtractFragment("ftp://[::1]:8080/#123?q=12&w=23");
+///   // Returns: "123"
+///   auto fragment4 = ExtractFragment("ftp://[::1]:8080/?q=12&w=23#123");
+///   // Returns: "123"
+/// @endcode
+std::string ExtractFragment(std::string_view url);
+std::string_view ExtractFragmentView(std::string_view url);
+
+/// @brief Returns decomposed URL as a struct,
+/// broken into main parts: scheme, host, path, query, and fragment
+DecomposedUrlView DecomposeUrlIntoViews(std::string_view url);
 
 namespace impl {
 

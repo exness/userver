@@ -208,50 +208,119 @@ TEST(MakeUrlWithPathArgs, WithMixedPathAndQueryParameters) {
     EXPECT_EQ("/api/v2/users/123/posts?status=published&order=latest", result.value());
 }
 
-TEST(ExtractMetaTypeFromUrl, Empty) { EXPECT_EQ("", http::ExtractMetaTypeFromUrl("")); }
+TEST(ExtractMetaTypeFromUrlViewView, Empty) { EXPECT_EQ("", http::ExtractMetaTypeFromUrlView("")); }
 
-TEST(ExtractMetaTypeFromUrl, NoQuery) {
-    EXPECT_EQ("ya.ru", http::ExtractMetaTypeFromUrl("ya.ru"));
-    EXPECT_EQ("ya.ru/some/path", http::ExtractMetaTypeFromUrl("ya.ru/some/path"));
-    EXPECT_EQ("http://ya.ru/some/path", http::ExtractMetaTypeFromUrl("http://ya.ru/some/path"));
+TEST(ExtractMetaTypeFromUrlView, NoQuery) {
+    EXPECT_EQ("ya.ru", http::ExtractMetaTypeFromUrlView("ya.ru"));
+    EXPECT_EQ("ya.ru/some/path", http::ExtractMetaTypeFromUrlView("ya.ru/some/path"));
+    EXPECT_EQ("http://ya.ru/some/path", http::ExtractMetaTypeFromUrlView("http://ya.ru/some/path"));
+    EXPECT_EQ("http://ya.ru/some/path#abc", http::ExtractMetaTypeFromUrlView("http://ya.ru/some/path#abc"));
 }
 
-TEST(ExtractMetaTypeFromUrl, WithQuery) {
-    EXPECT_EQ("ya.ru", http::ExtractMetaTypeFromUrl("ya.ru?abc=cde"));
-    EXPECT_EQ("ya.ru", http::ExtractMetaTypeFromUrl("ya.ru?abc=cde&v=x"));
-    EXPECT_EQ("https://ya.ru", http::ExtractMetaTypeFromUrl("https://ya.ru?abc=cde&v=x"));
-    EXPECT_EQ("https://ya.ru/some/path", http::ExtractMetaTypeFromUrl("https://ya.ru/some/path?abc=cde&v=x"));
+TEST(ExtractMetaTypeFromUrlView, WithQuery) {
+    EXPECT_EQ("ya.ru", http::ExtractMetaTypeFromUrlView("ya.ru?abc=cde"));
+    EXPECT_EQ("ya.ru", http::ExtractMetaTypeFromUrlView("ya.ru?abc=cde&v=x"));
+    EXPECT_EQ("https://ya.ru", http::ExtractMetaTypeFromUrlView("https://ya.ru?abc=cde&v=x"));
+    EXPECT_EQ("https://ya.ru/some/path", http::ExtractMetaTypeFromUrlView("https://ya.ru/some/path?abc=cde&v=x"));
 }
 
-TEST(ExtractPath, Smth) {
-    EXPECT_EQ("", http::ExtractPath("http://service.com"));
-    EXPECT_EQ("/", http::ExtractPath("http://service.com/"));
-    EXPECT_EQ("", http::ExtractPath("service.com"));
-    EXPECT_EQ("/", http::ExtractPath("service.com/"));
-    EXPECT_EQ("/aaa/bbb", http::ExtractPath("service.com/aaa/bbb"));
-    EXPECT_EQ("/aaa/bbb/", http::ExtractPath("service.com/aaa/bbb/"));
+TEST(ExtractPathView, Basic) {
+    EXPECT_EQ("", http::ExtractPathView("http://service.com"));
+    EXPECT_EQ("/", http::ExtractPathView("http://service.com/"));
+    EXPECT_EQ("", http::ExtractPathView("service.com"));
+    EXPECT_EQ("/", http::ExtractPathView("service.com/"));
+    EXPECT_EQ("/aaa/bbb", http::ExtractPathView("service.com/aaa/bbb"));
+    EXPECT_EQ("/aaa/bbb/", http::ExtractPathView("service.com/aaa/bbb/"));
+    EXPECT_EQ("/aaa/bbb/", http::ExtractPathView("service.com/aaa/bbb/?q=1&w=2"));
+    EXPECT_EQ("/aaa/bbb", http::ExtractPathView("service.com/aaa/bbb?q=1&w=2"));
+    EXPECT_EQ("/aaa/bbb/", http::ExtractPathView("service.com/aaa/bbb/#123"));
+    EXPECT_EQ("/aaa/bbb", http::ExtractPathView("service.com/aaa/bbb#123"));
+    EXPECT_EQ("/aaa/bbb/", http::ExtractPathView("http://service.com/aaa/bbb/?q=1&w=2#1231"));
+    EXPECT_EQ("/aaa/bbb", http::ExtractPathView("http://service.com/aaa/bbb?q=1&w=2#1231"));
+    EXPECT_EQ("/aaa/bbb/", http::ExtractPathView("http://service.com/aaa/bbb/#abc?q=1&w=2#1231"));
+    EXPECT_EQ("/aaa/bbb", http::ExtractPathView("http://service.com/aaa/bbb#abc?q=1&w=2#1231"));
 }
 
-TEST(ExtractHostname, Smth) {
-    EXPECT_EQ("service.com", http::ExtractHostname("http://service.com"));
-    EXPECT_EQ("service.com", http::ExtractHostname("http://service.com/"));
-    EXPECT_EQ("service.com", http::ExtractHostname("http://service.com/aaa"));
-    EXPECT_EQ("service.com", http::ExtractHostname("service.com"));
-    EXPECT_EQ("service.com", http::ExtractHostname("service.com/"));
-    EXPECT_EQ("service.com", http::ExtractHostname("service.com/aaa/bbb"));
+TEST(ExtractHostnameView, Basic) {
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://service.com"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://service.com/"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://service.com/aaa"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("service.com"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("service.com/"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("service.com/aaa/bbb"));
 
-    EXPECT_EQ("service.com", http::ExtractHostname("http://user@service.com"));
-    EXPECT_EQ("service.com", http::ExtractHostname("http://user:pass@service.com"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://user@service.com"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://user:pass@service.com"));
 
-    EXPECT_EQ("service.com", http::ExtractHostname("http://service.com:80"));
-    EXPECT_EQ("service.com", http::ExtractHostname("http://service.com:80/"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://service.com:80"));
+    EXPECT_EQ("service.com", http::ExtractHostnameView("http://service.com:80/"));
 
-    EXPECT_EQ("127.0.0.1", http::ExtractHostname("http://127.0.0.1:80"));
-    EXPECT_EQ("127.0.0.1", http::ExtractHostname("http://127.0.0.1"));
+    EXPECT_EQ("127.0.0.1", http::ExtractHostnameView("http://127.0.0.1:80"));
+    EXPECT_EQ("127.0.0.1", http::ExtractHostnameView("http://127.0.0.1"));
 
-    EXPECT_EQ("[::1]", http::ExtractHostname("http://[::1]:80/"));
-    EXPECT_EQ("[::1]", http::ExtractHostname("http://[::1]:80"));
-    EXPECT_EQ("[::1]", http::ExtractHostname("http://[::1]"));
+    EXPECT_EQ("[::1]", http::ExtractHostnameView("http://[::1]:80/"));
+    EXPECT_EQ("[::1]", http::ExtractHostnameView("http://[::1]:80"));
+    EXPECT_EQ("[::1]", http::ExtractHostnameView("http://[::1]"));
+}
+
+TEST(ExtractSchemeView, Basic) {
+    EXPECT_EQ("http", http::ExtractSchemeView("http://service.com"));
+    EXPECT_EQ("", http::ExtractSchemeView("service.com"));
+}
+
+TEST(ExtractFragmentView, Basic) {
+    EXPECT_EQ("", http::ExtractFragmentView("http://service.com/a/b/c?q=1"));
+    EXPECT_EQ("abc", http::ExtractFragmentView("http://service.com/a/b/c?q=1#abc"));
+    EXPECT_EQ("", http::ExtractFragmentView("http://service.com/a/b/c?q=1#"));
+}
+
+TEST(ExtractQueryView, Basic) {
+    EXPECT_EQ("q=1", http::ExtractQueryView("http://service.com/a/b/c?q=1"));
+    EXPECT_EQ("q=1&w=2", http::ExtractQueryView("http://service.com/a/b/c?q=1&w=2#abc"));
+    EXPECT_EQ("", http::ExtractQueryView("http://service.com/a/b/c"));
+    EXPECT_EQ("", http::ExtractQueryView("http://service.com/a/b/c#abc"));
+    EXPECT_EQ("q=1", http::ExtractQueryView("http://service.com?q=1"));
+    EXPECT_EQ("q=1", http::ExtractQueryView("http://service.com/?q=1"));
+    EXPECT_EQ("q=1", http::ExtractQueryView("http://service.com/#abc?q=1"));
+}
+
+TEST(DecomposeUrlIntoViews, Basic) {
+    {
+        std::string_view url = "http://service.com/a/b/c?q=1&w=2#abc";
+        auto decomposed = http::DecomposeUrlIntoViews(url);
+        EXPECT_EQ(decomposed.scheme, "http");
+        EXPECT_EQ(decomposed.host, "service.com");
+        EXPECT_EQ(decomposed.path, "/a/b/c");
+        EXPECT_EQ(decomposed.query, "q=1&w=2");
+        EXPECT_EQ(decomposed.fragment, "abc");
+    }
+    {
+        std::string_view url = "http://service.com/?q=1&w=2#abc";
+        auto decomposed = http::DecomposeUrlIntoViews(url);
+        EXPECT_EQ(decomposed.scheme, "http");
+        EXPECT_EQ(decomposed.host, "service.com");
+        EXPECT_EQ(decomposed.path, "/");
+        EXPECT_EQ(decomposed.query, "q=1&w=2");
+        EXPECT_EQ(decomposed.fragment, "abc");
+    }
+    {
+        std::string_view url = "http://service.com/?q=1&w=2";
+        auto decomposed = http::DecomposeUrlIntoViews(url);
+        EXPECT_EQ(decomposed.scheme, "http");
+        EXPECT_EQ(decomposed.host, "service.com");
+        EXPECT_EQ(decomposed.path, "/");
+        EXPECT_EQ(decomposed.query, "q=1&w=2");
+        EXPECT_EQ(decomposed.fragment, "");
+    }
+    {
+        std::string_view url = "http://service.com";
+        auto decomposed = http::DecomposeUrlIntoViews(url);
+        EXPECT_EQ(decomposed.scheme, "http");
+        EXPECT_EQ(decomposed.host, "service.com");
+        EXPECT_EQ(decomposed.path, "");
+        EXPECT_EQ(decomposed.query, "");
+        EXPECT_EQ(decomposed.fragment, "");
+    }
 }
 
 USERVER_NAMESPACE_END
