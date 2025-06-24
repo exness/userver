@@ -12,9 +12,6 @@ pytest_plugins = [
     'pytest_userver.plugins.mongo',  # mongo template current
     'pytest_userver.plugins.grpc',  # grpc template current
 ]
-USERVER_CONFIG_HOOKS = [
-    # 'prepare_service_config_grpc',  # grpc template current
-]
 
 
 # mongo template on
@@ -44,20 +41,10 @@ def grpc_service(grpc_channel, service_client):
     return hello_services.HelloServiceStub(grpc_channel)
 
 
-def pytest_configure(config):
-    sys.path.append(str(pathlib.Path(__file__).parent.parent / 'proto/handlers/'))
-
-
 # grpc template off
 
 
 # postgres template on
-@pytest.fixture(scope='session')
-def service_source_dir():
-    """Path to root directory service."""
-    return pathlib.Path(__file__).parent.parent
-
-
 @pytest.fixture(scope='session')
 def initial_data_path(service_source_dir):
     """Path for find files with data"""
