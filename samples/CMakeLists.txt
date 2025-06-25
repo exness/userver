@@ -40,6 +40,12 @@ endif()
 add_subdirectory(json2yaml)
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-json2yaml)
 
+add_subdirectory(dns-resolver)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-dns-resolver)
+
+add_subdirectory(http-client-perf)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-http-client-perf)
+
 add_subdirectory(hello_service)
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-hello_service)
 
@@ -51,6 +57,9 @@ add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-http_middleware_service)
 
 add_subdirectory(multipart_service)
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-multipart_service)
+
+add_subdirectory(netcat)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-netcat)
 
 add_subdirectory(websocket_service)
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-websocket_service)

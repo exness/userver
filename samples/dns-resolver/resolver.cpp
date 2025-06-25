@@ -1,10 +1,4 @@
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-
-#include <condition_variable>
+#include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -12,18 +6,15 @@
 
 #include <boost/program_options.hpp>
 
-#include <userver/clients/dns/exception.hpp>
 #include <userver/clients/dns/resolver.hpp>
-#include <userver/engine/async.hpp>
 #include <userver/engine/run_standalone.hpp>
-#include <userver/engine/sleep.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/logging/logger.hpp>
-#include <userver/utils/datetime.hpp>
-
-#include <userver/utest/using_namespace_userver.hpp>
 
 #include <userver/static_config/dns_client.hpp>
+
+#include <userver/utest/using_namespace_userver.hpp>
 
 namespace {
 
@@ -35,19 +26,22 @@ struct Config {
     std::vector<std::string> names;
 };
 
-Config ParseConfig(int argc, char** argv) {
+Config ParseConfig(int argc, const char* const argv[]) {
     namespace po = boost::program_options;
 
-    Config config;
+    Config c;
     po::options_description desc("Allowed options");
-    desc.add_options()("help,h", "produce help message")(
-        "log-level",
-        po::value(&config.log_level)->default_value(config.log_level),
-        "log level (trace, debug, info, warning, error)"
-    )("worker-threads,t", po::value(&config.worker_threads)->default_value(config.worker_threads), "worker thread count"
-    )("timeout", po::value(&config.timeout_ms)->default_value(config.timeout_ms), "network timeout (ms)")(
-        "attempts", po::value(&config.attempts)->default_value(config.attempts), "network resolution attempts"
-    )("names", po::value(&config.names), "list of names to resolve");
+
+    // clang-format off
+    desc.add_options()
+      ("help,h", "produce help message")
+      ("log-level", po::value(&c.log_level)->default_value(c.log_level), "log level (trace, debug, info, warning, error)")
+      ("worker-threads,t", po::value(&c.worker_threads)->default_value(c.worker_threads), "worker thread count")
+      ("timeout", po::value(&c.timeout_ms)->default_value(c.timeout_ms), "network timeout (ms)")
+      ("attempts", po::value(&c.attempts)->default_value(c.attempts), "network resolution attempts")
+      ("names", po::value(&c.names), "list of names to resolve")
+    ;
+    // clang-format on
 
     po::positional_options_description pos_desc;
     pos_desc.add("names", -1);
@@ -58,32 +52,32 @@ Config ParseConfig(int argc, char** argv) {
         po::notify(vm);
     } catch (const std::exception& ex) {
         std::cerr << "Cannot parse command line: " << ex.what() << '\n';
-        exit(1);
+        std::exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
 
     if (vm.count("help")) {
         std::cout << desc << '\n';
-        exit(0);
+        std::exit(0);  // NOLINT(concurrency-mt-unsafe)
     }
 
-    return config;
+    return c;
 }
 
 }  // namespace
 
-int main(int argc, char** argv) {
-    auto config = ParseConfig(argc, argv);
+int main(int argc, const char* const argv[]) {
+    const auto config = ParseConfig(argc, argv);
 
     signal(SIGPIPE, SIG_IGN);
 
-    logging::DefaultLoggerGuard guard{
+    const logging::DefaultLoggerGuard guard{
         logging::MakeStderrLogger("default", logging::Format::kTskv, logging::LevelFromString(config.log_level))};
 
     engine::RunStandalone(config.worker_threads, [&] {
         ::userver::static_config::DnsClient resolver_config;
         resolver_config.network_timeout = std::chrono::milliseconds{config.timeout_ms};
         resolver_config.network_attempts = config.attempts;
-        clients::dns::Resolver resolver{engine::current_task::GetTaskProcessor(), resolver_config};
+        clients::dns::Resolver resolver{engine::current_task::GetBlockingTaskProcessor(), resolver_config};
         for (const auto& name : config.names) {
             try {
                 auto response = resolver.Resolve(

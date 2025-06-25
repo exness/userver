@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <thread>
@@ -72,7 +73,7 @@ Config ParseConfig(int argc, const char* const argv[]) {
 
     if (vm.count("help")) {
         std::cout << desc << std::endl;
-        std::exit(0);
+        std::exit(0);  // NOLINT(concurrency-mt-unsafe)
     }
 
     c.multiplexing = vm.count("multiplexing");
@@ -83,7 +84,7 @@ Config ParseConfig(int argc, const char* const argv[]) {
     if (c.url_file.empty()) {
         std::cerr << "url-file is undefined" << std::endl;
         std::cout << desc << std::endl;
-        std::exit(1);
+        std::exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
 
     return c;
@@ -118,7 +119,7 @@ http::Request CreateRequest(http::Client& http_client, const Config& config, con
 
 void Worker(WorkerContext& context) {
     LOG_DEBUG() << "Worker started";
-    while (1) {
+    for (;;) {
         const uint32_t idx = context.counter++;
         if (idx >= context.config.count) break;
         if (idx % context.print_each_counter == 0) std::cerr << ".";
