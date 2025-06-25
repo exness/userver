@@ -1,4 +1,4 @@
-#include <userver/ugrpc/client/response_future.hpp>
+#include <userver/ugrpc/client/rpc.hpp>
 
 #include <userver/engine/task/cancel.hpp>
 

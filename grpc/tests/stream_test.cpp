@@ -31,8 +31,9 @@ public:
         sample::ugrpc::StreamGreetingRequest&& /*request*/,
         ReadManyWriter& writer
     ) override {
-        sample::ugrpc::StreamGreetingResponse response{};
         for (int i = 0; i < 3; ++i) {
+            sample::ugrpc::StreamGreetingResponse response{};
+            response.set_number(i);
             writer.Write(response);
         }
         return grpc::Status::OK;
@@ -191,6 +192,36 @@ UTEST_F(GrpcBidirectionalStream, BidirectionalStreamReadRemainingAfterWritesDone
     sample::ugrpc::StreamGreetingResponse response;
     ASSERT_FALSE(stream.Read(response));
     ASSERT_THROW([[maybe_unused]] auto _ = stream.ReadAsync(response), ugrpc::client::RpcError);
+}
+
+UTEST_F(GrpcInputStream, InputStreamDestroy) {
+    {
+        auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
+        const sample::ugrpc::StreamGreetingRequest request;
+        UEXPECT_NO_THROW(const auto stream = client.ReadMany(request));
+        // We want to TryCancel and Finish in a destructor without any problem.
+    }
+    {
+        auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
+        const sample::ugrpc::StreamGreetingRequest request;
+        auto stream1 = client.ReadMany(request);
+        auto stream2 = client.ReadMany(request);
+
+        sample::ugrpc::StreamGreetingResponse response;
+
+        ASSERT_TRUE(stream1.Read(response));
+        ASSERT_EQ(response.number(), 0);
+
+        for (std::size_t i = 0; i < 2; ++i) {
+            ASSERT_TRUE(stream2.Read(response));
+            ASSERT_EQ(response.number(), i);
+        }
+
+        UEXPECT_NO_THROW(stream1 = std::move(stream2));
+
+        ASSERT_TRUE(stream1.Read(response));
+        ASSERT_EQ(response.number(), 2);  // Expected response from stream2
+    }
 }
 
 UTEST_F(GrpcInputStream, InputStreamTest) {

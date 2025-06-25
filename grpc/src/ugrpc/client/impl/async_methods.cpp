@@ -25,12 +25,12 @@ void ProcessCallStatistics(CallState& state, const grpc::Status& status) noexcep
     stats.Flush();
 }
 
-void SetStatusAndResetSpan(CallState& state, const grpc::Status& status) {
+void SetStatusAndResetSpan(CallState& state, const grpc::Status& status) noexcept {
     SetStatusForSpan(state.GetSpan(), status);
     state.ResetSpan();
 }
 
-void SetErrorAndResetSpan(CallState& state, std::string_view error_message) {
+void SetErrorAndResetSpan(CallState& state, std::string_view error_message) noexcept {
     SetErrorForSpan(state.GetSpan(), error_message);
     state.ResetSpan();
 }
@@ -70,20 +70,22 @@ void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::st
     }
 }
 
-void PrepareFinish(CallState& state) {
-    UINVARIANT(!state.IsFinished(), "'Finish' called on a finished call");
-    state.SetFinished();
-}
-
-void ProcessFinish(CallState& state, const google::protobuf::Message* final_response) {
+void ProcessFinish(
+    CallState& state,
+    const google::protobuf::Message* final_response,
+    ShouldCallMiddlewares call_middlewares
+) {
     const auto& status = state.GetStatus();
 
     ProcessCallStatistics(state, status);
 
-    if (final_response && status.ok()) {
-        MiddlewarePipeline::PostRecvMessage(state, *final_response);
+    if (call_middlewares == ShouldCallMiddlewares::kCall) {
+        if (final_response && status.ok()) {
+            MiddlewarePipeline::PostRecvMessage(state, *final_response);
+        }
+
+        MiddlewarePipeline::PostFinish(state, status);
     }
-    MiddlewarePipeline::PostFinish(state, status);
 
     SetStatusAndResetSpan(state, status);
 }

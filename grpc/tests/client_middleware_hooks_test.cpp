@@ -645,4 +645,23 @@ UTEST_F(ClientMiddlewaresHooksTest, BadStatusBidirectionalStreaming) {
     UEXPECT_THROW([[maybe_unused]] auto ok = stream.Read(response), ugrpc::client::InvalidArgumentError);
 }
 
+UTEST_F(ClientMiddlewaresHooksTest, ThrowInDestructor) {
+    SetBidirectionalStreaming([](CallContext&, ReaderWriter&) -> BidirectionalStreamingResult {
+        return grpc::Status{};
+    });
+    EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
+    EXPECT_CALL(Middleware(0), PreSendMessage).Times(0);
+    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);
+    EXPECT_CALL(Middleware(0), PostFinish).Times(1);
+
+    ON_CALL(Middleware(0), PostFinish)
+        .WillByDefault([](const ugrpc::client::MiddlewareCallContext&, const grpc::Status&) {
+            throw std::runtime_error{"mock error"};
+        });
+
+    auto stream = Client().Chat();
+    StreamResponse response;
+    UEXPECT_NO_THROW(const auto future = stream.ReadAsync(response));
+}
+
 USERVER_NAMESPACE_END

@@ -165,13 +165,6 @@ class [[nodiscard]] UnaryCall final : public CallAnyBase {
     // to UnaryCall, and UnaryCall should be exposed via ResponseFuture::GetCall.
 
 public:
-    /// @brief Asynchronously finish the call
-    ///
-    /// `FinishAsync` should not be called multiple times for the same RPC.
-    ///
-    /// Creates the future inside this `UnaryCall`. It can be retrieved using @ref GetFinishFuture.
-    void FinishAsync();
-
     /// @brief Returns the future created earlier using @ref FinishAsync.
     UnaryFinishFuture<Response>& GetFinishFuture();
 
@@ -191,6 +184,12 @@ public:
     UnaryCall(UnaryCall&&) noexcept = default;
     UnaryCall& operator=(UnaryCall&&) noexcept = default;
     ~UnaryCall() = default;
+
+private:
+    // Asynchronously finish the call.
+    // `FinishAsync` should not be called multiple times for the same RPC.
+    // Creates the future inside this `UnaryCall`. It can be retrieved using @ref GetFinishFuture.
+    void FinishAsync();
 
 private:
     RawResponseReader<Response> reader_{};
@@ -233,11 +232,17 @@ public:
     );
     /// @endcond
 
+    InputStream(const InputStream&) = delete;
+    InputStream& operator=(const InputStream&) = delete;
+
     InputStream(InputStream&&) noexcept = default;
-    InputStream& operator=(InputStream&&) noexcept = default;
-    ~InputStream() = default;
+    InputStream& operator=(InputStream&&) noexcept;
+
+    ~InputStream();
 
 private:
+    void Destroy() noexcept;
+
     impl::RawReader<Response> stream_;
 };
 
@@ -523,7 +528,7 @@ void UnaryCall<Response>::FinishAsync() {
     UASSERT(reader_);
     auto response = std::make_unique<Response>();
 
-    PrepareFinish(GetState());
+    GetState().SetFinished();
     GetState().EmplaceFinishAsyncMethodInvocation();
     auto& finish = GetState().GetFinishAsyncMethodInvocation();
     auto& status = GetState().GetStatus();
@@ -564,6 +569,39 @@ InputStream<Response>::InputStream(
     impl::StartCall(*stream_, GetState());
 
     GetState().SetWritesFinished();
+}
+
+template <typename Response>
+InputStream<Response>& InputStream<Response>::operator=(InputStream<Response>&& other) noexcept {
+    if (this != &other) {
+        Destroy();
+        // destroy the older stream_ before the older CallAnyBase.
+        stream_ = std::move(other.stream_);
+        CallAnyBase::operator=(std::move(other));
+    }
+    return *this;
+}
+
+template <typename Response>
+void InputStream<Response>::Destroy() noexcept try {
+    if (IsValid() && !GetState().IsFinished()) {
+        GetContext().TryCancel();
+        const engine::TaskCancellationBlocker cancel_blocker;
+        impl::Finish(
+            *stream_,
+            GetState(),
+            /*final_response=*/nullptr,
+            /*throw_on_error=*/false,
+            impl::ShouldCallMiddlewares::kNone
+        );
+    }
+} catch (const std::exception& ex) {
+    LOG_WARNING() << "There is a caught exception in 'InputStream::Destroy': " << ex;
+}
+
+template <typename Response>
+InputStream<Response>::~InputStream() {
+    Destroy();
 }
 
 template <typename Response>
