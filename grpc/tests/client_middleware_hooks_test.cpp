@@ -514,11 +514,28 @@ UTEST_F(ClientMiddlewaresHooksTest, MiddlewareExceptionBidirectionalStreaming) {
     UEXPECT_THROW(auto future = Client().Chat(), std::runtime_error);
 }
 
+UTEST_F(ClientMiddlewaresHooksTest, ThrowInDestructorUnaryCall) {
+    SetHappyPathUnary();
+
+    EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
+    EXPECT_CALL(Middleware(0), PreSendMessage).Times(1);
+    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);
+    EXPECT_CALL(Middleware(0), PostFinish).Times(0);  // We don't call middlewares in a destructor.
+
+    ON_CALL(Middleware(0), PostFinish)
+        .WillByDefault([](const ugrpc::client::MiddlewareCallContext&, const grpc::Status&) {
+            throw std::runtime_error{"mock error"};
+        });
+
+    Request request;
+    UEXPECT_NO_THROW(auto future = Client().AsyncSayHello(request));
+}
+
 UTEST_F(ClientMiddlewaresHooksTest, ExceptionWhenCancelledUnary) {
     EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
     EXPECT_CALL(Middleware(0), PreSendMessage).Times(1);
-    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);  // skipped, because no response message
-    EXPECT_CALL(Middleware(0), PostFinish).Times(1);
+    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);  // skipped, because no response message.
+    EXPECT_CALL(Middleware(0), PostFinish).Times(0);
 
     SetUnary([](CallContext&, Request&&) -> UnaryResult {
         engine::InterruptibleSleepFor(utest::kMaxTestWaitTime);
@@ -529,12 +546,12 @@ UTEST_F(ClientMiddlewaresHooksTest, ExceptionWhenCancelledUnary) {
     {
         Request request;
         request.set_name("userver");
-        auto future = Client().AsyncSayHello(request);
+        const auto future = Client().AsyncSayHello(request);
 
         engine::current_task::GetCancellationToken().RequestCancel();
 
-        // The destructor of `future` will cancel the RPC and await grpcpp cleanup, then run middlewares.
-        // The exception from PostFinish should not lead to a crash.
+        // The destructor of `future` will cancel the RPC and await grpcpp cleanup (and don't run middlewares).
+        // Cancellation should not lead to a crash.
     }
 }
 

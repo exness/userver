@@ -41,7 +41,10 @@ public:
 
     [[nodiscard]] bool IsReady() const noexcept;
 
-    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept;
+    [[nodiscard]] engine::FutureStatus WaitUntil(
+        engine::Deadline deadline,
+        ShouldCallMiddlewares call_middlewares = ShouldCallMiddlewares::kCall
+    ) const noexcept;
 
     void Get();
 
