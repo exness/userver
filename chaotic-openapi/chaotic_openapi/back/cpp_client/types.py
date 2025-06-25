@@ -97,6 +97,13 @@ class Response:
         )
 
 
+def map_method(method: str) -> str:
+    method = method.lower()
+    if method == 'delete':
+        return 'delete_'
+    return method
+
+
 @dataclasses.dataclass
 class Operation:
     method: str
@@ -110,11 +117,11 @@ class Operation:
     client_generate: bool = True
 
     def cpp_namespace(self) -> str:
-        return cpp_names.namespace(self.path + '_' + self.method)
+        return cpp_names.namespace(self.path) + '::' + map_method(self.method)
 
     def cpp_method_name(self) -> str:
         return cpp_names.camel_case(
-            cpp_names.namespace(self.path + '_' + self.method),
+            cpp_names.namespace(self.path) + '_' + map_method(self.method),
         )
 
     def empty_request(self) -> bool:
@@ -210,10 +217,6 @@ class ClientSpec:
                 ),
             )
         return includes
-
-    @staticmethod
-    def _path_namespace(path: str) -> str:
-        return path.replace('/', '_').replace('-', '_').replace('{', '_').replace('}', '_')
 
     def extract_cpp_types(self) -> Dict[str, cpp_types.CppType]:
         types = self.schemas.copy()

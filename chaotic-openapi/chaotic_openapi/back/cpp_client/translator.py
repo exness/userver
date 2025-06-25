@@ -80,10 +80,10 @@ class Translator:
 
         match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/requestBody/content/\\[([^\\]]*)\\]/schema', name)
         if match:
-            return '{}::{}_{}::Body{}'.format(
+            return '{}::{}::{}::Body{}'.format(
                 self._spec.cpp_namespace,
-                types.ClientSpec._path_namespace(match.group(1)[1:]),
-                match.group(2),
+                cpp_names.namespace(match.group(1)),
+                types.map_method(match.group(2)),
                 cpp_names.camel_case(
                     cpp_names.cpp_identifier(match.group(3)),
                 ),
@@ -93,10 +93,10 @@ class Translator:
             '/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/headers/([-a-zA-Z0-9_]*)/schema', name
         )
         if match:
-            return '{}::{}_{}::Response{}Header{}'.format(
+            return '{}::{}::{}::Response{}Header{}'.format(
                 self._spec.cpp_namespace,
-                types.ClientSpec._path_namespace(match.group(1)[1:]),
-                match.group(2),
+                cpp_names.namespace(match.group(1)),
+                types.map_method(match.group(2)),
                 match.group(3),
                 cpp_names.camel_case(
                     cpp_names.cpp_identifier(match.group(4)),
@@ -115,28 +115,28 @@ class Translator:
 
         match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/parameters/([0-9]*)(/schema)?', name)
         if match:
-            return '{}::{}_{}::Parameter{}'.format(
+            return '{}::{}::{}::Parameter{}'.format(
                 self._spec.cpp_namespace,
-                types.ClientSpec._path_namespace(match.group(1)[1:]),
-                match.group(2),
+                cpp_names.namespace(match.group(1)),
+                types.map_method(match.group(2)),
                 match.group(3),
             )
 
         match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/schema', name)
         if match:
-            return '{}::{}_{}::Response{}Body'.format(
+            return '{}::{}::{}::Response{}Body'.format(
                 self._spec.cpp_namespace,
-                types.ClientSpec._path_namespace(match.group(1)[1:]),
-                match.group(2),
+                cpp_names.namespace(match.group(1)),
+                types.map_method(match.group(2)),
                 match.group(3),
             )
 
         match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/responses/([0-9]*)/content/(.*)/schema', name)
         if match:
-            return '{}::{}_{}::Response{}Body{}'.format(
+            return '{}::{}::{}::Response{}Body{}'.format(
                 self._spec.cpp_namespace,
-                types.ClientSpec._path_namespace(match.group(1)[1:]),
-                match.group(2),
+                cpp_names.namespace(match.group(1)),
+                types.map_method(match.group(2)),
                 match.group(3),
                 cpp_names.camel_case(
                     cpp_names.cpp_identifier(match.group(4)),

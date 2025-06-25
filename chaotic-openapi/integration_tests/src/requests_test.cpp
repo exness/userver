@@ -12,7 +12,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace {
 
-namespace client = ::clients::multiple_content_types::test1_post;
+namespace client = ::clients::multiple_content_types::test1::post;
 
 UTEST(RequestsMultipleContentTypes, Json) {
     const utest::HttpServerMock http_server([&](const utest::HttpServerMock::HttpRequest& request) {

@@ -12,7 +12,9 @@ from . import errors
 
 
 class Info(base_model.BaseModel):
-    pass
+    description: Optional[str] = None
+    title: Optional[str] = None
+    version: Optional[str] = None
 
 
 # https://spec.openapis.org/oas/v2.0.html#reference-object

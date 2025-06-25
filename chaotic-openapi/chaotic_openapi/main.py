@@ -45,6 +45,7 @@ def do_main():
     ctx = renderer.Context(
         generate_path='',
         clang_format_bin=args.clang_format,
+        uservices_library_tvm_guard_hack=False,
     )
     outputs = renderer.render(spec, ctx)
     renderer.CppOutput.save(outputs, args.output_dir)

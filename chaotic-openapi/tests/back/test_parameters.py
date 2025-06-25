@@ -48,7 +48,7 @@ def test_parameters(translate_single_schema):
                                 type='integer',
                             ),
                             validators=cpp_types.CppPrimitiveValidator(
-                                prefix='Parameter0', namespace='::test_namespace::_get'
+                                prefix='Parameter0', namespace='::test_namespace::root_::get'
                             ),
                         ),
                         parser='openapi::TrivialParameter<openapi::In::kQuery, kparam, int, int>',
@@ -167,7 +167,7 @@ def test_parameters_schemas_ref(translate_single_schema):
                         raw_name='param',
                         cpp_name='param',
                         cpp_type=cpp_types.CppRef(
-                            raw_cpp_type=type_name.TypeName('::test_namespace::_get::Parameter0'),
+                            raw_cpp_type=type_name.TypeName('::test_namespace::root_::get::Parameter0'),
                             user_cpp_type=None,
                             nullable=True,
                             json_schema=chaotic_types.Ref(
@@ -202,8 +202,8 @@ def test_parameters_schemas_ref(translate_single_schema):
             )
         ],
         internal_schemas={
-            '::test_namespace::_get::Parameter0': cpp_types.CppRef(
-                raw_cpp_type=type_name.TypeName('::test_namespace::_get::Parameter0'),
+            '::test_namespace::root_::get::Parameter0': cpp_types.CppRef(
+                raw_cpp_type=type_name.TypeName('::test_namespace::root_::get::Parameter0'),
                 json_schema=chaotic_types.Ref(
                     ref='<inline>#/components/schemas/Parameter',
                     indirect=False,
