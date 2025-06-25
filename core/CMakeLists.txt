@@ -163,7 +163,10 @@ else()
     )
 endif()
 
-if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin" AND NOT CMAKE_SYSTEM_NAME MATCHES "BSD")
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin"
+   AND NOT CMAKE_SYSTEM_NAME MATCHES "BSD"
+   AND NOT WIN32
+)
     target_link_libraries(${PROJECT_NAME} PUBLIC atomic)
 endif()
 
@@ -182,9 +185,11 @@ _userver_directory_install(
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/userver/third_party
 )
 
-target_include_directories(
-    ${PROJECT_NAME} SYSTEM BEFORE PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/libc_include_fixes>
-)
+if(NOT WIN32)
+    target_include_directories(
+        ${PROJECT_NAME} SYSTEM BEFORE PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/libc_include_fixes>
+    )
+endif()
 
 # The bug is only triggered with optimizations enabled -- TAXICOMMON-1729
 set_property(

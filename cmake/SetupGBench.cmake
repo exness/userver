@@ -36,7 +36,8 @@ cpmaddpackage(
     "BENCHMARK_ENABLE_GTEST_TESTS OFF"
 )
 
-target_compile_options(benchmark PRIVATE "-Wno-format-nonliteral")
+include(UserverCxxCompileOptionsIfSupported)
+userver_target_cxx_compile_options_if_supported(benchmark PRIVATE "-Wno-format-nonliteral")
 if(NOT TARGET benchmark::benchmark)
     add_library(benchmark::benchmark ALIAS benchmark) # Unify link names
 endif()
