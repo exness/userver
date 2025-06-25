@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
+#include <ratio>
 #include <stdexcept>
 #include <string>
 
@@ -119,7 +120,27 @@ LocalTimezoneTimestring(std::chrono::system_clock::time_point tp, const std::str
 /// @brief Returns time in a string of specified format in UTC timezone
 /// @see kRfc3339Format, kTaximeterFormat, kStartOfTheEpoch,
 /// kDefaultDriverTimezone, kDefaultTimezone, kDefaultFormat, kIsoFormat
-std::string UtcTimestring(std::chrono::system_clock::time_point tp, const std::string& format = kDefaultFormat);
+/// @throws std::runtime_error if tp does not fit into @c std::chrono::hours
+template <class Duration>
+std::string UtcTimestring(
+    std::chrono::time_point<std::chrono::system_clock, Duration> tp,
+    const std::string& format = kDefaultFormat
+) {
+    using quotient = std::ratio_divide<typename Duration::period, std::chrono::hours::period>;
+    if constexpr (quotient::num <= quotient::den) {
+        return cctz::format(format, tp, cctz::utc_time_zone());
+    } else {
+        // cctz cannot handle time_points with duration more than hours
+        const auto days = tp.time_since_epoch();
+        if (days > std::chrono::duration_cast<Duration>(std::chrono::hours::max())) {
+            throw std::runtime_error("tp does not find std::chrono::hours");
+        }
+        const std::chrono::time_point<std::chrono::system_clock, std::chrono::hours> tp_hours(
+            std::chrono::duration_cast<std::chrono::hours>(days)
+        );
+        return cctz::format(format, tp_hours, cctz::utc_time_zone());
+    }
+}
 
 /// @brief Extracts time point from a string of a specified format in local timezone
 /// @throws utils::datetime::DateParseError
