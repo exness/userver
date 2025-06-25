@@ -6,6 +6,8 @@
 
 #include <ugrpc/client/secdist.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
+#include <userver/fs/blocking/read.hpp>
+#include <userver/logging/log.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -13,15 +15,32 @@ namespace ugrpc::client::impl {
 
 namespace {
 
-std::shared_ptr<grpc::ChannelCredentials> MakeDefaultCredentials(impl::AuthType type) {
-    switch (type) {
-        case AuthType::kInsecure:
-            return grpc::InsecureChannelCredentials();
-        case AuthType::kSsl:
-            return grpc::SslCredentials({});
+std::shared_ptr<grpc::ChannelCredentials> MakeCredentials(const ClientFactoryConfig& config, bool isTlsEnabled)
+{
+    if(isTlsEnabled && config.auth_type == AuthType::kSsl) {
+        grpc::SslCredentialsOptions options;
+        if(config.pem_root_certs.has_value())
+        {
+            options.pem_root_certs = userver::fs::blocking::ReadFileContents(config.pem_root_certs.value());
+        }
+        if(config.pem_private_key.has_value())
+        {
+            options.pem_private_key = userver::fs::blocking::ReadFileContents(config.pem_private_key.value());
+        }
+        if(config.pem_cert_chain.has_value())
+        {
+            options.pem_cert_chain = userver::fs::blocking::ReadFileContents(config.pem_cert_chain.value());
+        }
+            LOG_INFO()<<fmt::format("GRPC client SSL credetials initialized: pem_root_certs = {}, pem_private_key = {}, pem_cert_chain = {}",config.pem_root_certs.value_or("(undefined)"), config.pem_private_key.value_or("(undefined)"), config.pem_cert_chain.value_or("(undefined)"));
+            return grpc::SslCredentials(options);
     }
-    UINVARIANT(false, "Invalid AuthType");
+    else
+    {
+        LOG_INFO()<<"GRPC client with non ssl initialized...";
+        return grpc::InsecureChannelCredentials();
+    }
 }
+
 
 grpc::ChannelArguments MakeChannelArgs(const yaml_config::YamlConfig& channel_args) {
     grpc::ChannelArguments args;
@@ -50,6 +69,19 @@ AuthType Parse(const yaml_config::YamlConfig& value, formats::parse::To<AuthType
 ClientFactoryConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<ClientFactoryConfig>) {
     ClientFactoryConfig config;
     config.auth_type = value["auth-type"].As<AuthType>(AuthType::kInsecure);
+    /// The buffer containing the PEM encoding of the server root certificates. If
+    /// this parameter is empty, the default roots will be used.  The default
+    /// roots can be overridden using the \a GRPC_DEFAULT_SSL_ROOTS_FILE_PATH
+    /// environment variable pointing to a file on the file system containing the
+    /// roots.
+    config.pem_root_certs = value["pem-root-certs"].As<std::optional<std::string>>();
+    /// The buffer containing the PEM encoding of the client's private key. This
+    /// parameter can be empty if the client does not have a private key.
+    config.pem_private_key = value["pem-private-key"].As<std::optional<std::string>>();
+    /// The buffer containing the PEM encoding of the client's certificate chain.
+    /// This parameter can be empty if the client does not have a certificate
+    /// chain.
+    config.pem_cert_chain = value["pem-cert-chain"].As<std::optional<std::string>>();
     config.channel_args = MakeChannelArgs(value["channel-args"]);
     config.default_service_config = value["default-service-config"].As<std::optional<std::string>>();
     config.channel_count = value["channel-count"].As<std::size_t>(config.channel_count);
@@ -57,8 +89,8 @@ ClientFactoryConfig Parse(const yaml_config::YamlConfig& value, formats::parse::
 }
 
 ClientFactorySettings
-MakeFactorySettings(ClientFactoryConfig&& config, const storages::secdist::SecdistConfig* secdist) {
-    auto credentials = MakeDefaultCredentials(config.auth_type);
+MakeFactorySettings(ClientFactoryConfig&& config, const storages::secdist::SecdistConfig* secdist, bool isTlsEnabled) {
+    std::shared_ptr<grpc::ChannelCredentials> credentials = MakeCredentials(config, isTlsEnabled);
     std::unordered_map<std::string, std::shared_ptr<grpc::ChannelCredentials>> client_credentials;
 
     if (secdist) {
