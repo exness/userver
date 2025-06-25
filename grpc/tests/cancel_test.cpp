@@ -346,9 +346,23 @@ public:
 using GrpcCancelError = utest::LogCaptureFixture<ugrpc::tests::ServiceFixture<UnitTestServiceCancelError>>;
 
 UTEST_F(GrpcCancelError, CancelByError) {
+    constexpr std::string_view kAbandoned = "abandoned-error";
+    constexpr std::string_view kCancelled = "cancelled";
+
+    const auto get_metric = [this](std::string_view name, std::vector<utils::statistics::Label> labels = {}) {
+        const auto stats = GetStatistics("grpc.client.total", labels);
+        return stats.SingleMetric(std::string{name}, labels).AsRate();
+    };
+
     {
         auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
         auto call = client.Chat();
+
+        EXPECT_EQ(get_metric(kAbandoned), 0);
+        EXPECT_EQ(get_metric(kCancelled), 0);
+        EXPECT_EQ(get_metric("status", {{"grpc_code", "OK"}}), 0);
+        EXPECT_FALSE(GetStatistics("grpc.client.total", {{"grpc_code", "CANCELLED"}}).SingleMetricOptional("status"));
+        EXPECT_EQ(get_metric("status", {{"grpc_code", "UNKNOWN"}}), 0);
 
         // Make sure server process request
         const auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
@@ -362,6 +376,14 @@ UTEST_F(GrpcCancelError, CancelByError) {
 
     // Make sure server logs are written.
     GetServer().StopServing();
+
+    // implicit finish is a abandoned-error + grpc_code=CANCELLED.
+    EXPECT_EQ(get_metric(kAbandoned), 1);
+    EXPECT_EQ(get_metric("status", {{"grpc_code", "CANCELLED"}}), 1);
+
+    EXPECT_EQ(get_metric(kCancelled), 0);
+    EXPECT_EQ(get_metric("status", {{"grpc_code", "OK"}}), 0);
+    EXPECT_EQ(get_metric("status", {{"grpc_code", "UNKNOWN"}}), 0);
 
     ASSERT_THAT(
         GetLogCapture().Filter(
