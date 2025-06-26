@@ -12,6 +12,7 @@
 
 #include <userver/storages/postgres/field.hpp>
 #include <userver/storages/postgres/io/supported_types.hpp>
+#include <userver/utils/null_terminated_view.hpp>
 
 #include <userver/logging/log.hpp>
 
@@ -84,7 +85,7 @@ public:
     /// @brief Field access field by name
     /// @throws FieldNameDoesntExist if the result set doesn't contain
     ///         such a field
-    reference operator[](const std::string& name) const;
+    reference operator[](USERVER_NAMESPACE::utils::NullTerminatedView name) const;
     //@}
 
     //@{
@@ -170,7 +171,7 @@ public:
     std::tuple<T...> As(const std::initializer_list<size_type>& indexes) const;
     //@}
 
-    size_type IndexOfName(const std::string&) const;
+    size_type IndexOfName(USERVER_NAMESPACE::utils::NullTerminatedView) const;
 
     FieldView GetFieldView(size_type index) const;
 
