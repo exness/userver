@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <stdexcept>
 
 USERVER_NAMESPACE_BEGIN
