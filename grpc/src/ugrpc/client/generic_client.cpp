@@ -30,12 +30,12 @@ ResponseFuture<grpc::ByteBuffer> GenericClient::AsyncUnaryCall(
     std::unique_ptr<grpc::ClientContext> context,
     const GenericOptions& generic_options
 ) const {
-    const auto method_name = utils::StrCat<grpc::string>("/", call_name);
+    auto method_name = utils::StrCat<grpc::string>("/", call_name);
     return {
         impl::CreateGenericCallParams(
             impl_, call_name, std::move(context), generic_options.qos, generic_options.metrics_call_name
         ),
-        impl::PrepareUnaryCallProxy(&grpc::GenericStub::PrepareUnaryCall, method_name),
+        impl::PrepareUnaryCallProxy(&grpc::GenericStub::PrepareUnaryCall, std::move(method_name)),
         request};
 }
 

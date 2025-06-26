@@ -179,7 +179,7 @@ public:
     template <typename Stub, typename Request>
     UnaryCall(
         CallParams&& params,
-        PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
+        PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
         const Request& request
     );
     /// @endcond
@@ -508,7 +508,7 @@ template <typename Response>
 template <typename Stub, typename Request>
 UnaryCall<Response>::UnaryCall(
     CallParams&& params,
-    PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
+    PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
     const Request& request
 )
     : CallAnyBase(std::move(params), CallKind::kUnaryCall) {

@@ -56,8 +56,8 @@ using GenericPrepareUnaryCall = std::unique_ptr<grpc::ClientAsyncResponseReader<
 template <>
 class PrepareUnaryCallProxy<grpc::GenericStub, grpc::ByteBuffer, grpc::ByteBuffer> {
 public:
-    PrepareUnaryCallProxy(GenericPrepareUnaryCall prepare_async_method, const grpc::string& method_name)
-        : prepare_async_method_{prepare_async_method}, method_name_{method_name} {}
+    PrepareUnaryCallProxy(GenericPrepareUnaryCall prepare_async_method, grpc::string method_name)
+        : prepare_async_method_{prepare_async_method}, method_name_{std::move(method_name)} {}
 
     decltype(auto) PrepareCall(
         StubHandle& stub_handle,
@@ -70,7 +70,7 @@ public:
 
 private:
     GenericPrepareUnaryCall prepare_async_method_;
-    const grpc::string& method_name_;
+    grpc::string method_name_;
 };
 
 PrepareUnaryCallProxy(GenericPrepareUnaryCall, const grpc::string&)

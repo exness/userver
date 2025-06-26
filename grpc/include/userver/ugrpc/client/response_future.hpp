@@ -58,10 +58,10 @@ public:
     template <typename Stub, typename Request>
     ResponseFuture(
         impl::CallParams&& params,
-        impl::PrepareUnaryCallProxy<Stub, Request, Response> prepare_unary_call,
+        impl::PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
         const Request& request
     )
-        : call_(std::move(params), prepare_unary_call, request) {}
+        : call_(std::move(params), std::move(prepare_unary_call), request) {}
 
     // For internal use only.
     engine::impl::ContextAccessor* TryGetContextAccessor() noexcept {
