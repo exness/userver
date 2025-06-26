@@ -353,7 +353,7 @@ if(USERVER_BUILD_TESTS)
         _add_create_service_test("--mongo" "")
     endif()
     if(USERVER_FEATURE_POSTGRESQL)
-        _add_create_service_test("--postgres" "")
+        _add_create_service_test("--postgresql" "")
     endif()
     if(USERVER_FEATURE_GRPC)
         _add_create_service_test(

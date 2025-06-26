@@ -9,7 +9,7 @@ find_package(
     COMPONENTS core #
                grpc # grpc template current
                mongo # mongo template current
-               postgresql # postgres template current
+               postgresql # postgresql template current
     QUIET
 )
 if(NOT userver_FOUND)
@@ -26,7 +26,7 @@ add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/greeting.cpp #
     src/hello.cpp #
-    src/hello_postgres.cpp # postgres template current
+    src/hello_postgres.cpp # postgresql template current
     src/hello_mongo.cpp # mongo template current
     src/hello_grpc.cpp # grpc template current
 )
@@ -35,7 +35,7 @@ target_link_libraries(
     PUBLIC userver::core #
            userver::grpc # grpc template current
            userver::mongo # mongo template current
-           userver::postgresql # postgres template current
+           userver::postgresql # postgresql template current
 )
 
 # grpc template on Create a proto library with userver extensions
