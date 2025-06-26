@@ -312,10 +312,12 @@ public:
     /// @endcond
 
     OutputStream(OutputStream&&) noexcept = default;
-    OutputStream& operator=(OutputStream&&) noexcept = default;
-    ~OutputStream() = default;
+    OutputStream& operator=(OutputStream&&) noexcept;
+    ~OutputStream();
 
 private:
+    void Destroy() noexcept;
+
     std::unique_ptr<Response> response_;
     impl::RawWriter<Request> stream_;
 };
@@ -641,6 +643,39 @@ OutputStream<Request, Response>::OutputStream(
         prepare_async_method, GetState().GetStub(), &GetState().GetContext(), response_.get(), &GetState().GetQueue()
     );
     impl::StartCall(*stream_, GetState());
+}
+
+template <typename Request, typename Response>
+OutputStream<Request, Response>::~OutputStream() {
+    Destroy();
+}
+
+template <typename Request, typename Response>
+OutputStream<Request, Response>& OutputStream<Request, Response>::operator=(OutputStream&& other) noexcept {
+    if (this != &other) {
+        Destroy();
+        stream_ = std::move(other.stream_);
+        response_ = std::move(other.response_);
+        CallAnyBase::operator=(std::move(other));
+    }
+    return *this;
+}
+
+template <typename Request, typename Response>
+void OutputStream<Request, Response>::Destroy() noexcept try {
+    if (IsValid() && !GetState().IsFinished()) {
+        GetContext().TryCancel();
+        const engine::TaskCancellationBlocker cancel_blocker;
+        impl::Finish(
+            *stream_,
+            GetState(),
+            /*final_response=*/nullptr,
+            /*throw_on_error=*/false,
+            impl::ShouldCallMiddlewares::kNone
+        );
+    }
+} catch (const std::exception& ex) {
+    LOG_WARNING() << "There is a caught exception in 'OutputStream::Destroy': " << ex;
 }
 
 template <typename Request, typename Response>
