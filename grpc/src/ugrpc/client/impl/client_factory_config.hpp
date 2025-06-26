@@ -47,8 +47,11 @@ struct ClientFactoryConfig final {
 
 ClientFactoryConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<ClientFactoryConfig>);
 
-ClientFactorySettings
-MakeFactorySettings(impl::ClientFactoryConfig&& config, const storages::secdist::SecdistConfig* secdist, bool isTlsEnabled);
+ClientFactorySettings MakeFactorySettings(
+    impl::ClientFactoryConfig&& config,
+    const storages::secdist::SecdistConfig* secdist,
+    bool isTlsEnabled
+);
 
 }  // namespace ugrpc::client::impl
 

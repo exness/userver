@@ -5,9 +5,9 @@
 #include <userver/yaml_config/yaml_config.hpp>
 
 #include <ugrpc/client/secdist.hpp>
-#include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/fs/blocking/read.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/ugrpc/impl/to_string.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -15,32 +15,30 @@ namespace ugrpc::client::impl {
 
 namespace {
 
-std::shared_ptr<grpc::ChannelCredentials> MakeCredentials(const ClientFactoryConfig& config, bool isTlsEnabled)
-{
-    if(isTlsEnabled && config.auth_type == AuthType::kSsl) {
+std::shared_ptr<grpc::ChannelCredentials> MakeCredentials(const ClientFactoryConfig& config, bool isTlsEnabled) {
+    if (isTlsEnabled && config.auth_type == AuthType::kSsl) {
         grpc::SslCredentialsOptions options;
-        if(config.pem_root_certs.has_value())
-        {
+        if (config.pem_root_certs.has_value()) {
             options.pem_root_certs = userver::fs::blocking::ReadFileContents(config.pem_root_certs.value());
         }
-        if(config.pem_private_key.has_value())
-        {
+        if (config.pem_private_key.has_value()) {
             options.pem_private_key = userver::fs::blocking::ReadFileContents(config.pem_private_key.value());
         }
-        if(config.pem_cert_chain.has_value())
-        {
+        if (config.pem_cert_chain.has_value()) {
             options.pem_cert_chain = userver::fs::blocking::ReadFileContents(config.pem_cert_chain.value());
         }
-            LOG_INFO()<<fmt::format("GRPC client SSL credetials initialized: pem_root_certs = {}, pem_private_key = {}, pem_cert_chain = {}",config.pem_root_certs.value_or("(undefined)"), config.pem_private_key.value_or("(undefined)"), config.pem_cert_chain.value_or("(undefined)"));
-            return grpc::SslCredentials(options);
-    }
-    else
-    {
-        LOG_INFO()<<"GRPC client with non ssl initialized...";
+        LOG_INFO() << fmt::format(
+            "GRPC client SSL credetials initialized: pem_root_certs = {}, pem_private_key = {}, pem_cert_chain = {}",
+            config.pem_root_certs.value_or("(undefined)"),
+            config.pem_private_key.value_or("(undefined)"),
+            config.pem_cert_chain.value_or("(undefined)")
+        );
+        return grpc::SslCredentials(options);
+    } else {
+        LOG_INFO() << "GRPC client with non ssl initialized...";
         return grpc::InsecureChannelCredentials();
     }
 }
-
 
 grpc::ChannelArguments MakeChannelArgs(const yaml_config::YamlConfig& channel_args) {
     grpc::ChannelArguments args;

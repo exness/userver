@@ -76,11 +76,11 @@ properties:
           - ssl
     pem-root-certs:
         type: string
-        description: The path to containing the PEM encoding of the server root certificates
+        description: The path to file containing the PEM encoding of the server root certificates
         defaultDescription: absent
     pem-private-key:
         type: string
-        description: The path to containing the PEM encoding of the client's private key
+        description: The path to file containing the PEM encoding of the client's private key
         defaultDescription: absent
     pem-cert-chain:
         type: string

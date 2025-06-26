@@ -80,6 +80,31 @@ Available values are:
 - `insecure` (default)
 - `ssl`
 
+Path to specific server root certificates for validating server certificate may be set by `pem-root-certs`
+Path to client private key may be set by `pem-private-key`
+Path to client certificate chain my be defined by `pem-cert-chain`
+
+```
+# yaml
+components_manager:
+    components:
+        grpc-client-factory:
+            pem-root-certs:
+                type: string
+                description: The path to file containing the PEM encoding of the server root certificates
+                defaultDescription: absent
+            pem-private-key:
+                type: string
+                description: The path to file containing the PEM encoding of the client's private key
+                defaultDescription: absent
+            pem-cert-chain:
+                type: string
+                description: The path to file containing the PEM encoding of the client's certificate chain
+                defaultDescription: absent
+```
+
+
+
 SSL has to be disabled in tests, because it
 requires the server to have a public domain name, which it does not in tests.
 In testsuite, SSL in gRPC clients is disabled automatically.
