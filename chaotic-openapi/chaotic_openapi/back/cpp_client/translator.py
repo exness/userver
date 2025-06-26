@@ -65,7 +65,7 @@ class Translator:
         # TODO: responses
         # TODO: parameters
 
-    def map_infile_path_to_cpp_type(self, name: str) -> str:
+    def map_infile_path_to_cpp_type(self, name: str, stem: str) -> str:
         if name.startswith('/components/schemas/'):
             return '{}::{}'.format(
                 self._spec.cpp_namespace,

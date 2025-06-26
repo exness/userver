@@ -22,8 +22,8 @@ userver_target_generate_chaotic(
     ${PROJECT_NAME}-chgen
     # Generate serializers for responses
     GENERATE_SERIALIZERS
-    # Map '/components/schemas/*' JSONSchema types to C++ types in 'samples::hello' namespace
-    LAYOUT "/components/schemas/([^/]*)/=samples::hello::{0}"
+    # Map '/components/schemas/*' JSONSchema types to C++ types in 'samples::STEM' namespace
+    LAYOUT "/components/schemas/([^/]*)/=samples::{stem}::{0}"
     OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/src
     SCHEMAS ${SCHEMAS}
     RELATIVE_TO ${CMAKE_CURRENT_SOURCE_DIR}

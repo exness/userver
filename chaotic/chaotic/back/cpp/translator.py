@@ -1,6 +1,7 @@
 import collections
 import dataclasses
 import os
+import pathlib
 import re
 from typing import Callable
 from typing import Dict
@@ -247,7 +248,7 @@ class Generator:
 
     def _gen_fq_cpp_name(self, jsonschema_name: str) -> str:
         vfile, infile = jsonschema_name.split('#')
-        name = self._config.infile_to_name_func(infile)
+        name = self._config.infile_to_name_func(infile, pathlib.Path(vfile).stem)
         namespace = self._config.namespaces[vfile]
         if namespace:
             return '::' + namespace + '::' + name
