@@ -3,7 +3,7 @@ include_guard(GLOBAL)
 function(userver_module MODULE)
     unset(ARG_UNPARSED_ARGUMENTS)
     set(OPTIONS NO_INSTALL NO_CORE_LINK GENERATE_DYNAMIC_CONFIGS)
-    set(ONE_VALUE_ARGS SOURCE_DIR)
+    set(ONE_VALUE_ARGS SOURCE_DIR INSTALL_COMPONENT)
     set(MULTI_VALUE_ARGS
         IGNORE_SOURCES
         LINK_LIBRARIES
@@ -66,23 +66,29 @@ function(userver_module MODULE)
     endif()
 
     if(NOT ARG_NO_INSTALL)
+        if(ARG_INSTALL_COMPONENT)
+            set(INSTALL_COMPONENT ${ARG_INSTALL_COMPONENT})
+        else()
+            set(INSTALL_COMPONENT ${MODULE})
+        endif()
         _userver_directory_install(
-            COMPONENT ${MODULE}
+            COMPONENT ${INSTALL_COMPONENT}
             DIRECTORY "${ARG_SOURCE_DIR}/include"
             DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/.."
         )
-        _userver_install_targets(COMPONENT ${MODULE} TARGETS userver-${MODULE})
+        _userver_install_targets(COMPONENT ${INSTALL_COMPONENT} TARGETS userver-${MODULE})
+        if(NOT ARG_INSTALL_COMPONENT)
+            set(install_config_file "${USERVER_ROOT_DIR}/cmake/install/userver-${MODULE}-config.cmake")
+            if(NOT EXISTS ${install_config_file})
+                message(FATAL_ERROR "Can not install ${MODULE}, no installation config in ${install_config_file}")
+            endif()
 
-        set(install_config_file "${USERVER_ROOT_DIR}/cmake/install/userver-${MODULE}-config.cmake")
-
-        if(NOT EXISTS ${install_config_file})
-            message(FATAL_ERROR "Can not install ${MODULE}, no installation config in ${install_config_file}")
+            _userver_directory_install(
+                COMPONENT ${MODULE}
+                FILES "${install_config_file}"
+                DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver"
+            )
         endif()
-        _userver_directory_install(
-            COMPONENT ${MODULE}
-            FILES "${install_config_file}"
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver"
-        )
     endif()
 
     # 1. userver-${MODULE}-unittest

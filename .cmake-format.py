@@ -10,6 +10,7 @@ with section('parse'):
             'pargs': 1,
             'kwargs': {
                 'SOURCE_DIR': '*',
+                'INSTALL_COMPONENT': '*',
                 'LINK_LIBRARIES': '*',
                 'LINK_LIBRARIES_PRIVATE': '*',
                 'UTEST_SOURCES': '*',
