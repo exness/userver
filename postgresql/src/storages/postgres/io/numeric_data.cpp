@@ -165,7 +165,7 @@ struct NumericData {
     // Get binary representation
     [[nodiscard]] std::string GetBuffer() const;
     // Parse string
-    void Parse(USERVER_NAMESPACE::utils::NullTerminatedView);
+    void Parse(USERVER_NAMESPACE::utils::zstring_view);
     // Output to string
     [[nodiscard]] std::string ToString() const;
     // Create buffer representation from an int64 value representation
@@ -251,7 +251,7 @@ std::string NumericData::ToString() const {
     return res;
 }
 
-void NumericData::Parse(USERVER_NAMESPACE::utils::NullTerminatedView str) {
+void NumericData::Parse(USERVER_NAMESPACE::utils::zstring_view str) {
     if (str.empty()) {
         throw InvalidInputFormat{"Empty numeric string representation"};
     }
@@ -464,7 +464,7 @@ std::string NumericBufferToString(const FieldBuffer& buffer) {
     return num_data.ToString();
 }
 
-std::string StringToNumericBuffer(USERVER_NAMESPACE::utils::NullTerminatedView str_rep) {
+std::string StringToNumericBuffer(USERVER_NAMESPACE::utils::zstring_view str_rep) {
     NumericData num_data;
     num_data.Parse(str_rep);
     return num_data.GetBuffer();

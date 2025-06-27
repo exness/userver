@@ -20,7 +20,7 @@ NonTransaction& NonTransaction::operator=(NonTransaction&&) noexcept = default;
 
 ResultSet NonTransaction::Execute(
     OptionalCommandControl statement_cmd_ctl,
-    USERVER_NAMESPACE::utils::NullTerminatedView statement,
+    USERVER_NAMESPACE::utils::zstring_view statement,
     const ParameterStore& store
 ) {
     return DoExecute(std::string{statement}, detail::QueryParameters{store.GetInternalData()}, statement_cmd_ctl);

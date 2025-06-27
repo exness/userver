@@ -2,7 +2,7 @@
 
 #include <userver/storages/postgres/io/buffer_io.hpp>
 
-#include <userver/utils/null_terminated_view.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -19,7 +19,7 @@ struct IntegralRepresentation {
 std::string NumericBufferToString(const FieldBuffer& buffer);
 /// A helper function to write string representation of a numeric/decimal to
 /// PostgreSQL binary buffer representation
-std::string StringToNumericBuffer(USERVER_NAMESPACE::utils::NullTerminatedView str_rep);
+std::string StringToNumericBuffer(USERVER_NAMESPACE::utils::zstring_view str_rep);
 
 /// A helper function to read PostgreSQL numeric/decimal binary buffer and pack
 /// the value in a single int64 value.

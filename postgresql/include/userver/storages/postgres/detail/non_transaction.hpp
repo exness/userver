@@ -8,7 +8,7 @@
 #include <userver/storages/postgres/query.hpp>
 #include <userver/storages/postgres/result_set.hpp>
 
-#include <userver/utils/null_terminated_view.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 #include <userver/storages/postgres/detail/connection_ptr.hpp>
 #include <userver/storages/postgres/detail/query_parameters.hpp>
@@ -54,7 +54,7 @@ public:
     /// Execute statement with stored arguments.
     ///
     /// Suspends coroutine for execution.
-    ResultSet Execute(USERVER_NAMESPACE::utils::NullTerminatedView statement, const ParameterStore& store) {
+    ResultSet Execute(USERVER_NAMESPACE::utils::zstring_view statement, const ParameterStore& store) {
         return Execute(OptionalCommandControl{}, statement, store);
     }
 
@@ -63,7 +63,7 @@ public:
     /// Suspends coroutine for execution.
     ResultSet Execute(
         OptionalCommandControl statement_cmd_ctl,
-        USERVER_NAMESPACE::utils::NullTerminatedView statement,
+        USERVER_NAMESPACE::utils::zstring_view statement,
         const ParameterStore& store
     );
     /// @}

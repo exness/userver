@@ -115,7 +115,7 @@ std::int64_t Message::GetOffset() const { return data_->message->offset; }
 
 HeadersReader Message::GetHeaders() const& { return HeadersReader{ParseHeaders(data_->message.GetHandle())}; }
 
-std::optional<std::string_view> Message::GetHeader(utils::NullTerminatedView name) const {
+std::optional<std::string_view> Message::GetHeader(utils::zstring_view name) const {
     const auto* headers = ParseHeaders(data_->message.GetHandle());
     if (headers == nullptr) {
         return std::nullopt;
