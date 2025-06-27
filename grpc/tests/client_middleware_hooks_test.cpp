@@ -594,6 +594,8 @@ UTEST_F(ClientMiddlewaresHooksTest, BadStatusClientStreaming) {
 }
 
 UTEST_F(ClientMiddlewaresHooksTest, ThrowInDestructorOutputStream) {
+    SetHappyPathClientStreaming();
+
     EXPECT_CALL(Middleware(0), PreStartCall).Times(2);  // Two streams were created.
     EXPECT_CALL(Middleware(0), PreSendMessage).Times(1);
     EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);  // Skipped, because no response message.
