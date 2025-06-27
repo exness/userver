@@ -37,7 +37,7 @@ function(_userver_prepare_chaotic)
   find_program(CLANG_FORMAT_BIN clang-format)
   message(STATUS "Found clang-format: ${CLANG_FORMAT_BIN}")
   set_property(GLOBAL PROPERTY userver_clang_format_bin "${CLANG_FORMAT_BIN}")
-  option(USERVER_CHAOTIC_FORMAT "Whether to format generated code" ON)
+  option(USERVER_CHAOTIC_FORMAT "Whether to format generated code" OFF)
 
   if(NOT USERVER_CHAOTIC_SCRIPTS_PATH)
     get_filename_component(USERVER_DIR "${CMAKE_CURRENT_LIST_DIR}" DIRECTORY)
@@ -139,7 +139,7 @@ function(userver_target_generate_chaotic TARGET)
 
   list(APPEND CHAOTIC_ARGS "-o" "${PARSE_OUTPUT_DIR}/${PARSE_OUTPUT_PREFIX}")
   list(APPEND CHAOTIC_ARGS "--relative-to" "${PARSE_RELATIVE_TO}")
-  list(APPEND CHAOTIC_ARGS "--clang-format" "${CLANG_FORMAT}")
+  list(APPEND CHAOTIC_ARGS "--clang-format=${CLANG_FORMAT}")
 
   _userver_initialize_codegen_flag()
   add_custom_command(
