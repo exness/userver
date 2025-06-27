@@ -278,6 +278,11 @@ _userver_install_targets(
 )
 _userver_directory_install(
     COMPONENT core
+    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dynamic_configs/include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/.."
+)
+_userver_directory_install(
+    COMPONENT core
     FILES "${USERVER_ROOT_DIR}/cmake/UserverTestsuite.cmake"
           "${USERVER_ROOT_DIR}/cmake/install/userver-core-config.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver

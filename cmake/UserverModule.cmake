@@ -136,6 +136,14 @@ function(userver_module MODULE)
     if(ARG_GENERATE_DYNAMIC_CONFIGS)
         userver_target_generate_chaotic_dynamic_configs(userver-${MODULE}-dynamic-configs dynamic_configs/*.yaml)
         target_link_libraries(userver-${MODULE} PUBLIC userver-${MODULE}-dynamic-configs)
-        _userver_install_targets(COMPONENT ${MODULE} TARGETS userver-${MODULE}-dynamic-configs)
+        _userver_install_targets(
+	    COMPONENT ${MODULE}
+	    TARGETS userver-${MODULE}-dynamic-configs
+        )
+        _userver_directory_install(
+            COMPONENT ${MODULE}
+            DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dynamic_configs/include
+            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/.."
+        )
     endif()
 endfunction()
