@@ -121,7 +121,6 @@ def generate_cpp_name_func(
     def cpp_name_func(schema_name: str, stem: str) -> str:
         for item in name_map:
             s = erase_prefix + schema_name + '/'
-            print(f'x: {schema_name} {s} {stem}', file=sys.stderr)
             cpp_name = item.match(s, stem=stem)
             if cpp_name:
                 return cpp_name
