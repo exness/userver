@@ -57,7 +57,7 @@ UTEST(HttpServerMock, Ctr) {
         EXPECT_EQ(kRequestBody, request.body);
         return utest::HttpServerMock::HttpResponse{
             287,
-            {std::make_pair(std::string{"x"}, std::string{"y"})},
+            clients::http::Headers{std::make_pair(std::string{"x"}, std::string{"y"})},
             kResponseBody,
         };
     });

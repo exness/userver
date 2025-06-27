@@ -24,6 +24,7 @@
 #include <userver/utils/overloaded.hpp>
 #include <userver/utils/rand.hpp>
 #include <userver/utils/text_light.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -267,7 +268,7 @@ void RequestState::verify(bool verify) {
     easy().set_ssl_verify_peer(verify);
 }
 
-void RequestState::ca_info(const std::string& file_path) { easy().set_ca_info(file_path.c_str()); }
+void RequestState::ca_info(utils::zstring_view file_path) { easy().set_ca_info(file_path.c_str()); }
 
 void RequestState::ca(crypto::Certificate cert) {
     UINVARIANT(cert, "No certificate");
@@ -281,7 +282,7 @@ void RequestState::ca(crypto::Certificate cert) {
     }
 }
 
-void RequestState::crl_file(const std::string& file_path) { easy().set_crl_file(file_path.c_str()); }
+void RequestState::crl_file(utils::zstring_view file_path) { easy().set_crl_file(file_path.c_str()); }
 
 void RequestState::client_key_cert(crypto::PrivateKey pkey, crypto::Certificate cert) {
     UINVARIANT(pkey, "No private key");
@@ -342,7 +343,7 @@ void RequestState::retry(short retries, bool on_fails) {
     retry_.on_fails = on_fails;
 }
 
-void RequestState::unix_socket_path(const std::string& path) { easy().set_unix_socket_path(path); }
+void RequestState::unix_socket_path(utils::zstring_view path) { easy().set_unix_socket_path(path); }
 
 void RequestState::connect_to(const ConnectTo& connect_to) {
     curl::native::curl_slist* ptr = connect_to.GetUnderlying();
@@ -351,7 +352,7 @@ void RequestState::connect_to(const ConnectTo& connect_to) {
     }
 }
 
-void RequestState::proxy(const std::string& value) {
+void RequestState::proxy(utils::zstring_view value) {
     proxy_url_ = value;
     easy().set_proxy(value);
 }
@@ -361,12 +362,12 @@ void RequestState::proxy_auth_type(curl::easy::proxyauth_t value) { easy().set_p
 void RequestState::http_auth_type(
     curl::easy::httpauth_t value,
     bool auth_only,
-    std::string_view user,
-    std::string_view password
+    utils::zstring_view user,
+    utils::zstring_view password
 ) {
     easy().set_http_auth(value, auth_only);
-    easy().set_user(std::string{user}.c_str());
-    easy().set_password(std::string{password}.c_str());
+    easy().set_user(user.c_str());
+    easy().set_password(password.c_str());
 }
 
 void RequestState::Cancel() {
