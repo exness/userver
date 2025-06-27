@@ -47,7 +47,8 @@ TaskProcessorHolder::~TaskProcessorHolder() = default;
 void RunOnTaskProcessorSync(TaskProcessor& tp, utils::function_ref<void()> user_cb) {
     UASSERT(!current_task::IsTaskProcessorThread());
     std::packaged_task<void()> packaged_task([&user_cb] {
-        tracing::Span span("span", tracing::ReferenceType::kChild, logging::Level::kNone);
+        tracing::Span span("span");
+        span.SetLogLevel(logging::Level::kNone);
         user_cb();
     });
     auto future = packaged_task.get_future();

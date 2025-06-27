@@ -28,7 +28,7 @@ std::optional<engine::io::Sockaddr> ParseIpV4Addr(const std::string& ip) {
     // inet_pton accepts formats other than ddd.ddd.ddd.ddd on some systems
     // so additional checks are necessary.
     size_t dots_count = 0;
-    for (char c : ip) {
+    for (const char c : ip) {
         if (c == '.') {
             ++dots_count;
         } else if (!std::isdigit(c)) {
@@ -81,7 +81,7 @@ std::optional<engine::io::Sockaddr> ParseNumericAddr(const std::string& name) {
 
 void CheckValidDomainName(const std::string& name) {
     // Not exhaustive, just quick character set check.
-    for (char c : name) {
+    for (const char c : name) {
         if (c != '.' && c != '-' && !std::isdigit(c) &&
             // not using isalpha/isalnum here as only ASCII is allowed
             !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z')) {
@@ -129,7 +129,7 @@ public:
         AddrVector addrs;
     };
 
-    Impl(engine::TaskProcessor& fs_task_processor, const ResolverConfig& config);
+    Impl(engine::TaskProcessor& fs_task_processor, const ::userver::static_config::DnsClient& config);
     ~Impl();
 
     const LookupSourceCounters& GetLookupSourceCounters() const;
@@ -187,9 +187,13 @@ private:
     utils::impl::WaitTokenStorage wait_token_storage_;
 };
 
-Resolver::Impl::Impl(engine::TaskProcessor& fs_task_processor, const ResolverConfig& config)
-    : file_resolver_{fs_task_processor, config.file_path, config.file_update_interval},
-      net_resolver_{fs_task_processor, config.network_timeout, config.network_attempts, config.network_custom_servers},
+Resolver::Impl::Impl(engine::TaskProcessor& fs_task_processor, const ::userver::static_config::DnsClient& config)
+    : file_resolver_{fs_task_processor, config.hosts_file_path, config.hosts_file_update_interval},
+      net_resolver_{
+          fs_task_processor,
+          config.network_timeout,
+          config.network_attempts,
+          config.network_custom_servers.value_or(std::vector<std::string>{})},
       net_cache_update_margin_{config.network_timeout},
       net_cache_max_reply_ttl_{config.cache_max_reply_ttl},
       net_cache_failure_ttl_{config.cache_failure_ttl},
@@ -351,7 +355,7 @@ void Resolver::Impl::FinishNetUpdate(
     ++source_counters_.network;
 }
 
-Resolver::Resolver(engine::TaskProcessor& fs_task_processor, const ResolverConfig& config)
+Resolver::Resolver(engine::TaskProcessor& fs_task_processor, const ::userver::static_config::DnsClient& config)
     : impl_(fs_task_processor, config) {}
 
 Resolver::~Resolver() = default;

@@ -137,7 +137,7 @@ void NoticeReceiver(void* conn_wrapper_ptr, PGresult const* pg_res) {
 }
 
 struct Openssl {
-    static void Init() noexcept { [[maybe_unused]] static Openssl lock; }
+    static void Init() noexcept { [[maybe_unused]] static const Openssl lock; }
 
 private:
     Openssl() {
@@ -244,12 +244,12 @@ engine::Task PGConnectionWrapper::Close() {
 
             if (tmp_conn != nullptr) {
                 if (is_broken) {
-                    int pq_fd = PQsocket(tmp_conn);
+                    const int pq_fd = PQsocket(tmp_conn);
                     if (fd != -1 && pq_fd != -1 && fd != pq_fd) {
                         LOG_LIMITED_ERROR() << "fd from socket != fd from PQsocket (" << fd << " != " << pq_fd << ')';
                     }
                     if (pq_fd >= 0) {
-                        int res = shutdown(pq_fd, SHUT_RDWR);
+                        const int res = shutdown(pq_fd, SHUT_RDWR);
                         if (res < 0) {
                             auto old_errno = errno;
                             LOG_WARNING() << "error while shutdown() socket (" << old_errno
@@ -705,7 +705,7 @@ ResultSet PGConnectionWrapper::MakeResult(ResultHandle&& handle) {
         case PGRES_BAD_RESPONSE:
             CloseWithError(ConnectionError{"Failed to parse server response"});
         case PGRES_NONFATAL_ERROR: {
-            Message msg{wrapper};
+            const Message msg{wrapper};
             switch (msg.GetSeverity()) {
                 case Message::Severity::kDebug:
                     PGCW_LOG_DEBUG() << "Postgres " << msg.GetSeverityString() << " message: " << msg.GetMessage()
@@ -732,7 +732,7 @@ ResultSet PGConnectionWrapper::MakeResult(ResultHandle&& handle) {
             break;
         }
         case PGRES_FATAL_ERROR: {
-            Message msg{wrapper};
+            const Message msg{wrapper};
             if (!IsWhitelistedState(msg.GetSqlState())) {
                 PGCW_LOG_LIMITED_ERROR() << "Fatal error occurred: " << msg.GetMessage() << msg.GetLogExtra();
             } else {

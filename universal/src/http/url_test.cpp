@@ -78,6 +78,8 @@ TEST(MakeUrl, QueryAndMultiquery) {
     EXPECT_EQ("path?a=b&a=c&k=v", http::MakeUrl("path", {{"k", "v"}}, {{"a", "b"}, {"a", "c"}}));
 }
 
+TEST(MakeUrl, Empty) { EXPECT_EQ("path", http::MakeUrl("path", {})); }
+
 TEST(ExtractMetaTypeFromUrl, Empty) { EXPECT_EQ("", http::ExtractMetaTypeFromUrl("")); }
 
 TEST(ExtractMetaTypeFromUrl, NoQuery) {

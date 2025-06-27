@@ -1,7 +1,9 @@
-#include "middleware.hpp"
+#include <ugrpc/server/middlewares/log/middleware.hpp>
 
 #include <userver/logging/log_extra.hpp>
 #include <userver/tracing/tags.hpp>
+
+#include <userver/ugrpc/status_codes.hpp>
 
 #include <ugrpc/impl/logging.hpp>
 
@@ -22,58 +24,63 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, const
 
 Middleware::Middleware(const Settings& settings) : settings_(settings) {}
 
-void Middleware::CallRequestHook(const MiddlewareCallContext& context, google::protobuf::Message& request) {
-    auto& span = context.GetCall().GetSpan();
-    logging::LogExtra extra{{"grpc_type", "request"}, {"body", GetMessageForLogging(request, settings_)}};
-    if (!context.IsClientStreaming()) {
-        extra.Extend("type", "request");
-    }
-    LOG(span.GetLogLevel()) << "gRPC request message" << std::move(extra);
-}
+void Middleware::OnCallStart(MiddlewareCallContext& context) const {
+    auto& span = context.GetSpan();
+    span.SetLocalLogLevel(settings_.local_log_level);
 
-void Middleware::CallResponseHook(const MiddlewareCallContext& context, google::protobuf::Message& response) {
-    auto& span = context.GetCall().GetSpan();
-    if (!context.IsServerStreaming()) {
-        span.AddTag("grpc_type", "response");
-        span.AddNonInheritableTag("body", GetMessageForLogging(response, settings_));
-    } else {
-        logging::LogExtra extra{{"grpc_type", "response"}, {"body", GetMessageForLogging(response, settings_)}};
-        LOG(span.GetLogLevel()) << "gRPC response message" << std::move(extra);
-    }
-}
-
-void Middleware::Handle(MiddlewareCallContext& context) const {
-    auto& span = context.GetCall().GetSpan();
-    if (settings_.local_log_level) {
-        span.SetLocalLogLevel(settings_.local_log_level);
-    }
-
-    span.AddTag("meta_type", std::string{context.GetCall().GetCallName()});
-    span.AddNonInheritableTag("type", "response");
+    span.AddTag(ugrpc::impl::kComponentTag, "server");
+    span.AddTag("meta_type", std::string{context.GetCallName()});
     span.AddNonInheritableTag(tracing::kSpanKind, tracing::kSpanKindServer);
-    if (context.IsServerStreaming()) {
-        // Just like in HTTP, there must be a single trailing Span log
-        // with type=response and some `body`. We don't have a real single response
-        // (responses are written separately, 1 log per response), so we fake
-        // the required response log.
-        span.AddNonInheritableTag("body", "response stream finished");
-    } else {
-        // Write this dummy `body` in case unary response RPC fails
-        // (with or without status) before receiving the response.
-        // If the RPC finishes with OK status, `body` tag will be overwritten.
-        span.AddNonInheritableTag("body", "error status");
-    }
 
     if (context.IsClientStreaming()) {
-        // Just like in HTTP, there must be a single initial log
-        // with type=request and some body. We don't have a real single request
-        // (requests are written separately, 1 log per request), so we fake
-        // the required request log.
-        LOG(span.GetLogLevel()) << "gRPC request stream"
-                                << logging::LogExtra{{"body", "request stream started"}, {"type", "request"}};
+        LOG_INFO() << "gRPC request stream started" << logging::LogExtra{{"type", "request"}};
     }
+}
 
-    context.Next();
+void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobuf::Message& request) const {
+    logging::LogExtra extra{
+        {ugrpc::impl::kTypeTag, "request"},
+        {"body", GetMessageForLogging(request, settings_)},
+        {"grpc_message_marshalled_len", request.ByteSizeLong()},
+    };
+    if (context.IsClientStreaming()) {
+        LOG_INFO() << "gRPC request stream message" << std::move(extra);
+    } else {
+        extra.Extend("type", "request");
+        LOG_INFO() << "gRPC request" << std::move(extra);
+    }
+}
+
+void Middleware::PreSendMessage(MiddlewareCallContext& context, google::protobuf::Message& response) const {
+    logging::LogExtra extra{
+        {ugrpc::impl::kTypeTag, "response"},                  //
+        {"grpc_code", "OK"},                                  // TODO: revert
+        {"body", GetMessageForLogging(response, settings_)},  //
+    };
+    if (context.IsServerStreaming()) {
+        LOG_INFO() << "gRPC response stream message" << std::move(extra);
+    } else {
+        extra.Extend("type", "response");
+        LOG_INFO() << "gRPC response" << std::move(extra);
+    }
+}
+
+void Middleware::OnCallFinish(MiddlewareCallContext& context, const grpc::Status& status) const {
+    if (status.ok()) {
+        if (context.IsServerStreaming()) {
+            LOG_INFO() << "gRPC response stream finished" << logging::LogExtra{{"type", "response"}};
+        }
+    } else {
+        const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
+        auto error_details = ugrpc::impl::GetErrorDetailsForLogging(status);
+        logging::LogExtra extra{
+            {"type", "response"},
+            {ugrpc::impl::kTypeTag, "error_status"},
+            {"body", std::move(error_details)},
+        };
+
+        LOG(log_level) << "gRPC error" << std::move(extra);
+    }
 }
 
 }  // namespace ugrpc::server::middlewares::log

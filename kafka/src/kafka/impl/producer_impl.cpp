@@ -114,7 +114,7 @@ ProducerImpl::ProducerImpl(Configuration&& configuration)
     /// one.
     rd_kafka_queue_cb_event_enable(producer_.GetQueue(), &EventCallbackProxy, this);
 
-    utils::PeriodicTask::Settings settings{std::chrono::seconds{1}};
+    const utils::PeriodicTask::Settings settings{std::chrono::seconds{1}};
     log_events_handler_.Start("kafka_producer_log_events_handler", settings, [this] {
         HandleEvents("log events handler");
     });

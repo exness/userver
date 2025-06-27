@@ -26,6 +26,11 @@
 #include <userver/utils/enumerate.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 
+#include <storages/postgres/experiments.hpp>
+
+#include <dynamic_config/variables/POSTGRES_CONNECTION_PIPELINE_EXPERIMENT.hpp>
+#include <dynamic_config/variables/POSTGRES_OMIT_DESCRIBE_IN_EXECUTE.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace components {
@@ -38,6 +43,13 @@ storages::postgres::ConnlimitMode ParseConnlimitMode(const std::string& value) {
     if (value == "auto") return storages::postgres::ConnlimitMode::kAuto;
 
     UINVARIANT(false, "Unknown connlimit mode: " + value);
+}
+
+storages::postgres::OmitDescribeInExecuteMode ParseOmitDescribe(const dynamic_config::Snapshot& snapshot) {
+    return snapshot[::dynamic_config::POSTGRES_OMIT_DESCRIBE_IN_EXECUTE] ==
+                   storages::postgres::kOmitDescribeExperimentVersion
+               ? storages::postgres::OmitDescribeInExecuteMode::kEnabled
+               : storages::postgres::OmitDescribeInExecuteMode::kDisabled;
 }
 
 }  // namespace
@@ -89,11 +101,17 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
 
     initial_settings_.pool_settings =
         pg_config.pool_settings.GetOptional(name_).value_or(config.As<storages::postgres::PoolSettings>());
+
     initial_settings_.conn_settings =
         pg_config.connection_settings.GetOptional(name_).value_or(config.As<storages::postgres::ConnectionSettings>());
-    initial_settings_.conn_settings.pipeline_mode = initial_config[storages::postgres::kPipelineModeKey];
-    initial_settings_.conn_settings.omit_describe_mode =
-        initial_config[storages::postgres::kOmitDescribeInExecuteModeKey];
+    initial_settings_.conn_settings.statement_log_mode =
+        config["statement-log-mode"].As<storages::postgres::ConnectionSettings::StatementLogMode>();
+
+    initial_settings_.conn_settings.pipeline_mode =
+        initial_config[::dynamic_config::POSTGRES_CONNECTION_PIPELINE_EXPERIMENT] > 0
+            ? storages::postgres::PipelineMode::kEnabled
+            : storages::postgres::PipelineMode::kDisabled;
+    initial_settings_.conn_settings.omit_describe_mode = ParseOmitDescribe(initial_config);
     initial_settings_.statement_metrics_settings = pg_config.statement_metrics_settings.GetOptional(name_).value_or(
         config.As<storages::postgres::StatementMetricsSettings>()
     );
@@ -117,6 +135,7 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
     auto& testsuite_tasks = testsuite::GetTestsuiteTasks(context);
 
     auto* resolver = clients::dns::GetResolverPtr(config, context);
+    auto metrics = context.FindComponent<components::StatisticsStorage>().GetMetricsStorage();
 
     int shard_number = 0;
     for (auto& dsns : cluster_desc) {
@@ -133,6 +152,7 @@ Postgres::Postgres(const ComponentConfig& config, const ComponentContext& contex
             ei_settings,
             testsuite_tasks,
             config_source_,
+            metrics,
             shard_number++
         );
         database_->clusters_.push_back(cluster);
@@ -179,8 +199,10 @@ void Postgres::OnConfigUpdate(const dynamic_config::Snapshot& cfg) {
         pg_config.topology_settings.GetOptional(name_).value_or(initial_settings_.topology_settings);
     auto connection_settings =
         pg_config.connection_settings.GetOptional(name_).value_or(initial_settings_.conn_settings);
-    connection_settings.pipeline_mode = cfg[storages::postgres::kPipelineModeKey];
-    connection_settings.omit_describe_mode = cfg[storages::postgres::kOmitDescribeInExecuteModeKey];
+    connection_settings.pipeline_mode = cfg[::dynamic_config::POSTGRES_CONNECTION_PIPELINE_EXPERIMENT] > 0
+                                            ? storages::postgres::PipelineMode::kEnabled
+                                            : storages::postgres::PipelineMode::kDisabled;
+    connection_settings.omit_describe_mode = ParseOmitDescribe(cfg);
     const auto statement_metrics_settings =
         pg_config.statement_metrics_settings.GetOptional(name_).value_or(initial_settings_.statement_metrics_settings);
 
@@ -246,6 +268,13 @@ properties:
         type: boolean
         description: cache prepared statements or not
         defaultDescription: true
+    statement-log-mode:
+        type: string
+        enum:
+          - hide
+          - show
+        description: whether to log SQL statements in a span tag
+        defaultDescription: show
     user-types-enabled:
         type: boolean
         description: disabling will disallow use of user-defined types

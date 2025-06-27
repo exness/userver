@@ -1,6 +1,6 @@
 #pragma once
 
-/// @file storages/redis/mock_client_base_test.hpp
+/// @file
 /// @brief @copybrief storages::redis::MockClientBase
 
 #include <userver/utest/utest.hpp>
@@ -21,7 +21,8 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
 
-/// Base class for mocked redis clients in unit tests.
+/// @brief Base class for mocked redis clients in unit tests.
+///
 /// Please create clients with `std::make_shared`.
 /// Otherwise `Multi()` command will not work in mocked client.
 /// You should override methods for redis commands used in test.
@@ -50,10 +51,6 @@ public:
     bool IsInClusterMode() const override;
 
     size_t ShardByKey(const std::string& key) const override;
-
-    const std::string& GetAnyKeyForShard(size_t shard_idx) const override;
-
-    std::shared_ptr<Client> GetClientForShard(size_t shard_idx) override;
 
     // redis commands:
 

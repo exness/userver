@@ -24,6 +24,7 @@
 #include <userver/ugrpc/impl/statistics_storage.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/server/impl/completion_queue_pool.hpp>
+#include <userver/ugrpc/server/impl/service_internals.hpp>
 #include <userver/ugrpc/server/impl/service_worker.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -46,8 +47,12 @@ std::optional<int> ToOptionalInt(const std::string& str) {
     }
 }
 
-void ApplyChannelArgs(grpc::ServerBuilder& builder, const ServerConfig& config) {
-    for (const auto& [key, value] : config.channel_args) {
+void AddChannelArguments(
+    grpc::ServerBuilder& builder,
+    const std::unordered_map<std::string, std::string>& channel_args
+) {
+    LOG_DEBUG() << "Add server ChannelArguments: " << channel_args;
+    for (const auto& [key, value] : channel_args) {
         if (const auto int_value = ToOptionalInt(value)) {
             builder.AddChannelArgument(ugrpc::impl::ToGrpcString(key), *int_value);
         } else {
@@ -103,7 +108,7 @@ private:
 
     static std::shared_ptr<grpc::ServerCredentials> BuildCredentials(const TlsConfig& config);
 
-    impl::ServiceSettings MakeServiceSettings(ServiceConfig&& config);
+    impl::ServiceInternals MakeServiceInternals(ServiceConfig&& config);
 
     void AddListeningPort(int port, const TlsConfig& tls_config);
 
@@ -144,7 +149,7 @@ Server::Impl::Impl(
 #endif
     }
     server_builder_.emplace();
-    ApplyChannelArgs(*server_builder_, config);
+    AddChannelArguments(*server_builder_, config.channel_args);
     completion_queues_.emplace(config.completion_queue_num, *server_builder_);
 
     if (config.unix_socket_path) AddListeningUnixSocket(*config.unix_socket_path, config.tls);
@@ -162,7 +167,7 @@ Server::Impl::~Impl() {
 }
 
 void Server::Impl::AddListeningPort(int port, const TlsConfig& tls_config) {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     UASSERT_MSG(!port_, "As of now, AddListeningPort can be called no more than once");
@@ -174,7 +179,7 @@ void Server::Impl::AddListeningPort(int port, const TlsConfig& tls_config) {
 }
 
 void Server::Impl::AddListeningUnixSocket(std::string_view path, const TlsConfig& tls_config) {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     UASSERT_MSG(!path.empty(), "Empty unix socket path is not allowed");
@@ -188,8 +193,8 @@ void Server::Impl::AddListeningUnixSocket(std::string_view path, const TlsConfig
     server_builder_->AddListeningPort(ugrpc::impl::ToGrpcString(uri), BuildCredentials(tls_config));
 }
 
-impl::ServiceSettings Server::Impl::MakeServiceSettings(ServiceConfig&& config) {
-    return impl::ServiceSettings{
+impl::ServiceInternals Server::Impl::MakeServiceInternals(ServiceConfig&& config) {
+    return impl::ServiceInternals{
         completion_queues_.value(),  //
         config.task_processor,
         statistics_storage_,
@@ -202,19 +207,19 @@ impl::ServiceSettings Server::Impl::MakeServiceSettings(ServiceConfig&& config) 
 void Server::Impl::AddService(ServiceBase& service, ServiceConfig&& config) {
     const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
-    service_workers_.push_back(service.MakeWorker(MakeServiceSettings(std::move(config))));
+    service_workers_.push_back(service.MakeWorker(MakeServiceInternals(std::move(config))));
 }
 
 void Server::Impl::AddService(GenericServiceBase& service, ServiceConfig&& config) {
     const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
-    generic_service_workers_.emplace_back(service, MakeServiceSettings(std::move(config)));
+    generic_service_workers_.emplace_back(service, MakeServiceInternals(std::move(config)));
 }
 
 std::vector<std::string_view> Server::Impl::GetServiceNames() const {
     std::vector<std::string_view> ret;
 
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
 
     ret.reserve(service_workers_.size());
     for (const auto& worker : service_workers_) {
@@ -224,7 +229,7 @@ std::vector<std::string_view> Server::Impl::GetServiceNames() const {
 }
 
 void Server::Impl::WithServerBuilder(SetupHook setup) {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     setup(*server_builder_);
@@ -236,7 +241,7 @@ ugrpc::impl::CompletionQueuePoolBase& Server::Impl::GetCompletionQueues() noexce
 }
 
 void Server::Impl::Start() {
-    std::lock_guard lock(configuration_mutex_);
+    const std::lock_guard lock(configuration_mutex_);
     UASSERT(state_ == State::kConfiguration);
 
     try {
@@ -244,7 +249,8 @@ void Server::Impl::Start() {
         state_ = State::kActive;
     } catch (const std::exception& ex) {
         LOG_ERROR() << "The gRPC server failed to start. " << ex;
-        Stop();
+        // Not Stop, because some gRPC clients might be using completion_queues_.
+        StopServing();
         throw;
     }
 }
@@ -325,7 +331,9 @@ void Server::Impl::DoStart() {
         server_builder_->RegisterAsyncGenericService(&worker.GetService());
     }
 
-    server_ = server_builder_->BuildAndStart();
+    server_ = engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [this] {
+                  return server_builder_->BuildAndStart();
+              }).Get();
     UINVARIANT(server_, "See grpcpp logs for details");
     server_builder_.reset();
 

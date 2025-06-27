@@ -24,7 +24,7 @@ UTEST(WaitTokenStorage, NoTokens) {
 
 UTEST(WaitTokenStorage, NoTokensNoWait) {
     try {
-        utils::impl::WaitTokenStorage wts;
+        const utils::impl::WaitTokenStorage wts;
 
         // Scenario: the constructor of the WTS owner throws, so its destructor (and
         // WaitForAllTokens) is not called.
@@ -67,7 +67,7 @@ UTEST_MT(WaitTokenStorage, MultipleTokens, 4) {
             for (std::size_t j = 0; j < kWorkersPerLauncher; ++j) {
                 // Note: the token is created in one task and moved into another one
                 engine::AsyncNoSpan([&, token = wts.GetToken()] {
-                    std::shared_lock allowed_to_finish_lock(allowed_to_finish);
+                    const std::shared_lock allowed_to_finish_lock(allowed_to_finish);
                     ++workers_completed;
                 }).Detach();
             }

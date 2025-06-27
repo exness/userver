@@ -13,7 +13,7 @@ namespace {
 const std::string_view kSchemaSeparator = "://";
 
 void UrlEncodeTo(std::string_view input_string, std::string& result) {
-    for (char symbol : input_string) {
+    for (const char symbol : input_string) {
         if (isalnum(symbol)) {
             result.append(1, symbol);
             continue;
@@ -93,6 +93,10 @@ std::string DoMakeQuery(T begin, T end) {
 
 template <typename T>
 std::string MakeUrl(std::string_view path, T begin, T end) {
+    if (begin == end) {
+        return std::string{path};
+    }
+
     std::string result;
     result.reserve(path.size() + 1 + GetInitialQueryCapacity(begin, end));
 
@@ -196,8 +200,8 @@ std::string UrlDecode(utils::impl::InternalTag, std::string_view range) {
                 break;
             case '%':
                 if (std::distance(i, end) > 2) {
-                    char f = *(i + 1);
-                    char s = *(i + 2);
+                    const char f = *(i + 1);
+                    const char s = *(i + 2);
                     int digit = (f >= 'A' ? ((f & 0xDF) - 'A') + 10 : (f - '0')) * 16;
                     digit += (s >= 'A') ? ((s & 0xDF) - 'A') + 10 : (s - '0');
                     result.append(1, static_cast<char>(digit));

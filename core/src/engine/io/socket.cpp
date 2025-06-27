@@ -201,13 +201,15 @@ void Socket::Bind(const Sockaddr& addr) {
 
     SetOption(SOL_SOCKET, SO_REUSEADDR, 1);
 
+    if (addr.HasPort()) {
 // MAC_COMPAT: does not support REUSEPORT
 #ifdef SO_REUSEPORT
-    SetOption(SOL_SOCKET, SO_REUSEPORT, 1);
+        SetOption(SOL_SOCKET, SO_REUSEPORT, 1);
 #else
-    LOG_ERROR() << "SO_REUSEPORT is not defined, you may experience problems "
-                   "with multithreaded listeners";
+        LOG_ERROR() << "SO_REUSEPORT is not defined, you may experience problems "
+                       "with multithreaded listeners";
 #endif
+    }
 
     utils::CheckSyscallCustomException<IoSystemError>(
         ::bind(Fd(), addr.Data(), addr.Size()), "binding a socket, fd={}, addr={}", Fd(), addr
@@ -263,7 +265,7 @@ std::optional<size_t> Socket::RecvNoblock(void* buf, size_t len) {
     }
     auto& dir = fd_control_->Read();
     dir.ResetReady();
-    impl::Direction::SingleUserGuard guard(dir);
+    const impl::Direction::SingleUserGuard guard(dir);
     const auto bytesRead = RecvWrapper(fd_control_->Fd(), buf, len);
     if (bytesRead >= 0)
         return {bytesRead};
@@ -388,7 +390,7 @@ Socket Socket::Accept(Deadline deadline) {
     }
     auto& dir = fd_control_->Read();
     dir.ResetReady();
-    impl::Direction::SingleUserGuard guard(dir);
+    const impl::Direction::SingleUserGuard guard(dir);
     for (;;) {
         Sockaddr buf;
         auto len = buf.Capacity();
@@ -397,7 +399,7 @@ Socket Socket::Accept(Deadline deadline) {
 #ifdef HAVE_ACCEPT4
         int fd = ::accept4(dir.Fd(), buf.Data(), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 #else
-        int fd = ::accept(dir.Fd(), buf.Data(), &len);
+        const int fd = ::accept(dir.Fd(), buf.Data(), &len);
 #endif
 
         UASSERT(len <= buf.Capacity());

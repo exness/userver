@@ -28,6 +28,9 @@ StatementMetricsSettings Parse(const formats::json::Value& config, formats::pars
 
 StatementMetricsSettings Parse(const yaml_config::YamlConfig& config, formats::parse::To<StatementMetricsSettings>);
 
+ConnectionSettings::StatementLogMode
+Parse(const yaml_config::YamlConfig& config, formats::parse::To<ConnectionSettings::StatementLogMode>);
+
 struct Config final {
     static Config Parse(const dynamic_config::DocsMap& docs_map);
 
@@ -41,14 +44,6 @@ struct Config final {
 };
 
 extern const dynamic_config::Key<Config> kConfig;
-
-extern const dynamic_config::Key<PipelineMode> kPipelineModeKey;
-
-extern const dynamic_config::Key<bool> kConnlimitModeAutoEnabled;
-
-extern const dynamic_config::Key<int> kDeadlinePropagationVersionConfig;
-
-extern const dynamic_config::Key<OmitDescribeInExecuteMode> kOmitDescribeInExecuteModeKey;
 
 }  // namespace storages::postgres
 

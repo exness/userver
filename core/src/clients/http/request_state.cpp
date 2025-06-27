@@ -16,6 +16,7 @@
 #include <userver/baggage/baggage.hpp>
 #include <userver/clients/dns/resolver.hpp>
 #include <userver/clients/http/connect_to.hpp>
+#include <userver/http/url.hpp>
 #include <userver/server/request/task_inherited_data.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/async.hpp>
@@ -50,7 +51,7 @@ constexpr Status kLeastHttpCodeForDeadlineExpired{400};
 
 constexpr Status kFakeHttpErrorCode{599};
 
-constexpr std::string_view kTracingClientName = "external";
+const std::string kTracingClientName = "external/";
 
 constexpr utils::TrivialBiMap kTestsuiteActions = [](auto selector) {
     return selector()
@@ -78,7 +79,7 @@ std::error_code TestsuiteResponseHook(Status status_code, const Headers& headers
                 return std::error_code{*opt_value};
             }
 
-            utils::impl::AbortWithStacktrace(fmt::format(
+            utils::AbortWithStacktrace(fmt::format(
                 "Unsupported mockserver protocol X-Testsuite-Error header value: {}. "
                 "Try to update submodules and recompile project first. If it does "
                 "not help please contact testsuite support team.",
@@ -952,7 +953,7 @@ void RequestState::ApplyTestsuiteConfig() {
     if (!prefixes.empty()) {
         auto url = easy().get_original_url();
         if (!IsPrefix(url, prefixes) && !IsPrefix(url, allowed_urls_extra_)) {
-            utils::impl::AbortWithStacktrace(fmt::format(
+            utils::AbortWithStacktrace(fmt::format(
                 "{} forbidden by testsuite config, allowed prefixes={}, "
                 "extra prefixes={}",
                 url,
@@ -973,7 +974,9 @@ void RequestState::ApplyTestsuiteConfig() {
 void RequestState::StartNewSpan(utils::impl::SourceLocation location) {
     UINVARIANT(!span_storage_, "Attempt to reuse request while the previous one has not finished");
 
-    span_storage_.emplace(std::string{kTracingClientName}, location);
+    span_storage_.emplace(
+        kTracingClientName + USERVER_NAMESPACE::http::ExtractHostname(easy().get_original_url()), location
+    );
     auto& span = span_storage_->Get();
 
     auto request_editable_instance = GetEditableRequestInstance();

@@ -293,7 +293,7 @@ void NumericData::Parse(const std::string& str) {
         int_part_end = dec_point_pos;
     }
 
-    std::string_view integral_part{str.data() + start_pos, int_part_end - start_pos};
+    const std::string_view integral_part{str.data() + start_pos, int_part_end - start_pos};
     // TODO Check if size is reasonable
     std::int32_t dec_weight = integral_part.size() - 1;
     std::uint16_t dec_scale{0};
@@ -366,7 +366,7 @@ IntegralRepresentation NumericData::ToInt64() const {
     } else {
         for (bin_dig_pos = 0; bin_dig_pos <= weight; ++bin_dig_pos) {
             auto dig = (bin_dig_pos < ndigits) ? digits[bin_dig_pos] : 0;
-            std::uint64_t new_val = (rep.value * kBinEncodingBase) + dig;
+            const std::uint64_t new_val = (rep.value * kBinEncodingBase) + dig;
             if (rep.value > static_cast<std::int64_t>(new_val) || new_val > int64_t_max) {
                 throw NumericOverflow{
                     "PosrgreSQL buffer contains a value that is too big to fit into "
@@ -388,7 +388,7 @@ IntegralRepresentation NumericData::ToInt64() const {
                 power = kBinEncodingBase / kPowersOfTen[truncate_count];
                 dig /= kPowersOfTen[truncate_count];
             }
-            std::uint64_t new_val = (rep.value * power) + dig;
+            const std::uint64_t new_val = (rep.value * power) + dig;
             if (rep.value > static_cast<std::int64_t>(new_val) || new_val > int64_t_max) {
                 throw NumericOverflow{
                     "PosrgreSQL buffer contains a value that is too big to fit into "
@@ -412,8 +412,8 @@ void NumericData::FromInt64(IntegralRepresentation rep) {
     if (rep.value == 0) return;
 
     sign = rep.value < 0 ? kNumericNegative : kNumericPositive;
-    std::uint64_t abs_value = std::abs(rep.value);
-    std::int64_t integral_part = abs_value / kPowersOfTen[rep.fractional_digit_count];
+    const std::uint64_t abs_value = std::abs(rep.value);
+    const std::int64_t integral_part = abs_value / kPowersOfTen[rep.fractional_digit_count];
     std::int64_t fractional_part = abs_value % kPowersOfTen[rep.fractional_digit_count];
 
     auto integral_digits = Log10(integral_part);

@@ -24,6 +24,7 @@ Changelog news also go to the
 * ✔️ Secdist simplification and functionality improvement.
 * ✔️ Improved MacOS build support.
 * ✔️ Improved Conan support.
+* ✔️ SQLite driver
 * 👨‍💻 gRPC simplification and functionality improvement.
 * 👨‍💻 Add retry budget or retry circuit breaker for clients.
 * 👨‍💻 Generate full-blown accessories for OpenAPI:
@@ -33,6 +34,84 @@ Changelog news also go to the
 
 
 ## Changelog
+
+### Release v2.10
+
+* Initial implementation of @ref scripts/docs/en/userver/sqlite/sqlite_driver.md. Many thanks to
+  [Turulin Zakhar](https://github.com/zahartd) for the implementation, tests and for the documentation.
+* GDB pretty printers now can list all the tasks via `utask list` and can apply commands to all or selected
+  tasks. For example `utask apply all bt` prints the backtraces of all the tasks, `utask apply some_task_name bt`
+  prints the backtrace of the task with name `some_task_name`. See
+  @ref scripts/docs/en/userver/gdb_debugging.md for more info. Many thanks to
+  [Maxim Belov](https://github.com/UNEXPECTEDsemicolon) for the brilliant implementation.
+* Merged a foundation for the ODBC driver. Many thanks to [Alexey](https://github.com/Olex1313) for the PR!
+* Redis driver now can ignore ping times to different instances to do a fair round-robin. See `consider_ping` field
+  in storages::redis::CommandControl.
+* Dropped gRPC `[(userver.field).secret = true];`. Use `[debug_redact = true];` instead.
+* Statically assert that a destructor of an object in utils::FastPimpl is `noexcept`. Many thanks to
+  [Шаблов Анатолий Владимирович](https://github.com/AnatoliiShablov) for the PR!
+
+* Optimizations:
+  * Reduced memory allocations while generating strings for ID in tracing::Span. About a 150ns speedup on average on
+    tracing::Span construction.
+  * Removed unused code and class members in Redis internals, reducing runtime memory usage and binary code size.
+  * Multiple optimizations for the gRPC logging. Up to 100 times faster logging in edge cases.
+  * Replaced `std::unique_lock` with `std::lock_guard` where possible to simplify optimization work for the compiler.
+
+
+### Release v2.9
+
+* Logging now supports `fmt` formatting in macro `LOG_INFO("User {} logged in from {}", user_id, ip_address);` and
+  lambda formatting. See @ref scripts/docs/en/userver/logging.md for more info.
+* PostgreSQL driver now can disable all the statements logging via static config option `statement-log-mode` 
+* ClickHouse driver now supports doubles in the queries.
+* YDB now can be used with GCC compiler, not only Clang. YDB still requires C++20 support
+* components::Redis in sentinel mode now supports selection of database index via `database_index` in secdist config.
+  Many thanks to [Tikhon Sergienko](https://github.com/tysion) for the PR!
+* PostgreSQL cache (shadow replicas) traits now support `kOrderBy`. With `DISTINCT ON` expression in `kQuery` it allows
+  to store only slices of data. Many thanks to [Dmitry Kopturov](https://github.com/IsThisLoss) for the PR!
+* Added a `userver-create-service` script for @ref quick_start_for_beginners "creation of a new service". Github
+  service templates are now deprecated.
+* Notify on state change when it actually happens in Redis Standalone. Many thanks to
+  [Nikolay Pervushin](https://github.com/Greenvi4) for the PR!
+* Modernized testsuite code, including removal of `event_loop` usages and usage of asyncio-socket.
+* Hidden `thread_id` and `task_id` for `INFO`+ logger levels to make the logs shorter.
+* Stack usage monitor now could be disabled in test via `USERVER_GTEST_ENABLE_STACK_USAGE_MONITOR=1`
+  environment variable.
+
+* gRPC
+  * Added support for `debug_redact` and added a recommendation to use `[debug_redact = true];` instead
+    of `[(userver.field).secret = true];`
+  * Significant speed up logging of large requests and response messages. Note that request/response logs are by
+    default enabled with global `DEBUG` logging level; the behavior could be overridden by middlewares static configs
+    of ugrpc::client::middlewares::log::Component and ugrpc::server::middlewares::log::Component.
+  * Server and client logging tags are now consistent.
+  * More improvements, docs and samples for middlewares. See @ref scripts/docs/en/userver/grpc/grpc.md for more info.
+
+* Build:
+  * Fixed floating point escaping compilation in ClickHouse driver. Many thanks to
+    [Ksenia-C](https://github.com/Ksenia-C) for the PR!
+  * Fix compilation errors for curl 8.13. Many thanks to [Konstantin Goncharik](https://github.com/botanegg) for the PR!
+  * Fix compilation errors for fmt 11. Many thanks to [Konstantin Goncharik](https://github.com/botanegg) for the PR!
+  * Added `USERVER_ENABLE_DEBUG_INFO_COMPRESSION` build option, that was later changed to
+    `USERVER_DEBUG_INFO_COMPRESSION`. Many thanks to [Konstantin Goncharik](https://github.com/botanegg) for the PRs!
+    Compression detection algorithm was improved to check the linker compression support.
+  * Added Debian-12 dependencies and build instructions.
+  * Export only files that are not ignored by git for Conan sources. Many thanks to
+    [c0rt](https://github.com/c0rt) for the PR!
+
+* Documentation and Diagnostics:
+  * Added @ref scripts/docs/en/userver/codegen_overview.md, @ref scripts/docs/en/userver/sql_files.md,
+    @ref scripts/docs/en/userver/stack.md documentation.
+  * Fixed a typo in MacOS build dependencies. Thanks to [Alexey](https://github.com/Olex1313) for the PR!
+  * Fixed formatting of CancellableSemaphore::GetCapacity(). Thanks to
+    [Sergey Prikhodko](https://github.com/mhth-fn) for the PR!
+  * Fixed uncountable amount of issues with doxygen markup.
+  * Structures and parsers for userver dynamic configs are now generated by chaotic from schemas.
+  * More docs for utest::HttpServerMock.
+  * Reworked Kafka metrics and added @ref scripts/docs/en/userver/kafka.md "docs about them".
+  * Added docs and samples for Eval* functions of Redis driver.
+
 
 ### Release v2.8
 
@@ -48,11 +127,11 @@ Changelog news also go to the
   to [akhoroshev](https://github.com/akhoroshev) for the PR!
 * Deadline Propagation for PostgreSQL is now enabled by default and can be controlled via `deadline-propagation-enabled`
   static option of the components::Postgres.
-* Testsuite now supports @ref uservice_oneshot "`@pytest.mark.uservice_oneshot`".
+* Testsuite now supports @ref uservice_oneshot "`@@pytest.mark.uservice_oneshot`".
 * utils::regex now always uses a faster and safer Re2 instead of boost::regex.
 * Dynamic config `USERVER_HANDLER_STREAM_API_ENABLED` is not used any more.
 * server::handlers::HttpHandlerStatic now has a `expires` static config option.
-* kafka::ProducerComponent and kafka::ConsumerComponent now supprt 'SASL_PLAINTEXT'
+* kafka::ProducerComponent and kafka::ConsumerComponent now support 'SASL_PLAINTEXT'
   security protocol. Many thanks to [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
 * Implemented OneOf discriminator mapping to integer and generation of fmt::formatters for enums in chaotic.
 * Load `kRoundRobin` load distribution in PostgreSQL is now uniform
@@ -255,7 +334,7 @@ Changelog news also go to the
   * Improved schemes validation messages, including config validation messages because no schema is written.
   * Disambiguated diagnostic messages for component system.
   * Better log messages for the dist locks.
-  * Better docs for gRPC middlewares and gRPC logs at @ref scripts/docs/en/userver/grpc.md.
+  * Better docs for gRPC middlewares and gRPC logs at @ref scripts/docs/en/userver/grpc/grpc.md.
   * Added topology and heartbeats logs and metrics for Mongo.
   * Clarified docs on PostgreSQL data types with timezones. See @ref scripts/docs/en/userver/pg_types.md.
   * Added @ref scripts/docs/en/userver/tutorial/kafka_service.md tutorial.
@@ -321,7 +400,7 @@ Changelog news also go to the
   * Started the work to enable builds in directories with whitespace in names.
 
 * Documentation:
-  * More docs for gRPC middlewares at @ref scripts/docs/en/userver/grpc.md
+  * More docs for gRPC middlewares at @ref scripts/docs/en/userver/grpc/grpc.md
     and @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md.
   * More docs for otlp::LoggerComponent. Thanks to
     [TertiumOrganum1](https://github.com/TertiumOrganum1) for the PR!
@@ -869,7 +948,7 @@ Binary Ubuntu 22.04 amd64 package could be found at
   * TESTPOINT() and TESTPOINT_CALLBACK() now produce less instructions and
     guaranteed to not throw it the testpoints are disabled.
 * Documentation:
-  * @ref scripts/docs/en/userver/grpc.md now has a deeper explanation of
+  * @ref scripts/docs/en/userver/grpc/grpc.md now has a deeper explanation of
     middlewares
   * New @ref scripts/docs/en/userver/dynamic_config.md page and related samples.
   * Samples were significantly simplified, more static configuration options
@@ -918,7 +997,7 @@ Binary Ubuntu 22.04 amd64 package could be found at
 * Documentation:
     * Documentation version switch was added to the bottom of the page.
     * gRPC SSL server credentials setup info was added into
-      @ref scripts/docs/en/userver/grpc.md
+      @ref scripts/docs/en/userver/grpc/grpc.md
     * Clarified behavior of server::http::HttpRequest::GetArg()
     * Added @ref scripts/docs/en/userver/tutorial/multipart_service.md
     * More clarifications for the
@@ -1307,11 +1386,11 @@ Detailed descriptions could be found below.
     implementation of the sink does not rely on spdlog implementation.
   * Configuration step was made much faster.
   * Makefile was simplified and only up-to-date targets were left.
-  * Added a script to prepare docker build, see @ref scripts/docker/Readme.md for
+  * Added a script to prepare docker build, see `scripts/docker/Readme.md` for
     more info.
   * Scripts for generating CMakeLists were simplified and cleared from internal
     stuff.
-  * Added missing dependencies to @ref scripts/docs/en/deps/ubuntu-20.04.md and sorted all
+  * Added missing dependencies to Ubuntu-20.04 and sorted all
     the dependencies, thanks to [Anatoly Shirokov](https://github.com/anatoly-spb)
     for the PR.
 * Statistics and metrics now do additional lifetime checks in debug builds to

@@ -22,6 +22,7 @@
 #include <schemas/object_single_field.hpp>
 #include <schemas/one_of.hpp>
 #include <schemas/oneofdiscriminator.hpp>
+#include <schemas/string64.hpp>
 #include <schemas/uuid.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -39,7 +40,7 @@ TEST(Simple, Integer) {
 }
 
 TEST(Simple, DefaultFieldValue) {
-    ns::SimpleObject obj;
+    const ns::SimpleObject obj;
     EXPECT_EQ(obj.int_, 1);
 }
 
@@ -166,12 +167,12 @@ TEST(Simple, IntegerEnum) {
     UEXPECT_THROW_MSG(
         json2["one"].As<ns::IntegerEnum>(),
         chaotic::Error<formats::json::Value>,
-        "Error at path 'one': Invalid enum value (5) for type ns::IntegerEnum"
+        "Error at path 'one': Invalid enum value (5) for type ::ns::IntegerEnum"
     );
 
     EXPECT_EQ(std::size(ns::kIntegerEnumValues), 3);
 
-    ns::IntegerEnum values[] = {ns::IntegerEnum::k1, ns::IntegerEnum::k2, ns::IntegerEnum::k3};
+    const ns::IntegerEnum values[] = {ns::IntegerEnum::k1, ns::IntegerEnum::k2, ns::IntegerEnum::k3};
     std::size_t index = 0;
     for (const auto& value : ns::kIntegerEnumValues) {
         EXPECT_EQ(value, values[index]);
@@ -191,7 +192,7 @@ TEST(Simple, StringEnum) {
     UEXPECT_THROW_MSG(
         json2["one"].As<ns::StringEnum>(),
         chaotic::Error<formats::json::Value>,
-        "Error at path 'one': Invalid enum value (zoo) for type ns::StringEnum"
+        "Error at path 'one': Invalid enum value (zoo) for type ::ns::StringEnum"
     );
 
     EXPECT_EQ("foo", ToString(ns::StringEnum::kFoo));
@@ -202,19 +203,19 @@ TEST(Simple, StringEnum) {
     UEXPECT_THROW_MSG(
         FromString("zoo", formats::parse::To<ns::StringEnum>{}),
         std::runtime_error,
-        "Invalid enum value (zoo) for type ns::StringEnum"
+        "Invalid enum value (zoo) for type ::ns::StringEnum"
     );
 
     EXPECT_EQ(Parse("foo", formats::parse::To<ns::StringEnum>{}), ns::StringEnum::kFoo);
     UEXPECT_THROW_MSG(
         Parse("zoo", formats::parse::To<ns::StringEnum>{}),
         std::runtime_error,
-        "Invalid enum value (zoo) for type ns::StringEnum"
+        "Invalid enum value (zoo) for type ::ns::StringEnum"
     );
 
     EXPECT_EQ(std::size(ns::kStringEnumValues), 3);
 
-    ns::StringEnum values[] = {ns::StringEnum::kFoo, ns::StringEnum::kBar, ns::StringEnum::kSomeThing};
+    const ns::StringEnum values[] = {ns::StringEnum::kFoo, ns::StringEnum::kBar, ns::StringEnum::kSomeThing};
     std::size_t index = 0;
     for (const auto& value : ns::kStringEnumValues) {
         EXPECT_EQ(value, values[index]);
@@ -291,11 +292,11 @@ TEST(Simple, Indirect) {
 }
 
 TEST(Simple, HyphenField) {
-    ns::ObjectWithHyphenField obj;
+    const ns::ObjectWithHyphenField obj;
     EXPECT_EQ(obj.foo_field, std::nullopt);
 }
 
-TEST(Simple, SubSubObjectSmoke) { [[maybe_unused]] ns::Objectx::Objectx_::Objectx__ x; }
+TEST(Simple, SubSubObjectSmoke) { [[maybe_unused]] const ns::Objectx::Objectx_::Objectx__ x; }
 
 TEST(Simple, ExtraType) {
     static_assert(std::is_same_v<
@@ -304,7 +305,7 @@ TEST(Simple, ExtraType) {
 }
 
 TEST(Simple, CppName) {
-    ns::ObjectName obj;
+    const ns::ObjectName obj;
     EXPECT_EQ(obj.bar, std::nullopt);
 }
 
@@ -320,8 +321,8 @@ TEST(Simple, DateTime) {
     auto json = formats::json::MakeObject("updated_at", date);
     auto obj = json.As<ns::ObjectDate>();
 
-    utils::datetime::TimePointTz tp{
-        utils::datetime::Stringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
+    const utils::datetime::TimePointTz tp{
+        utils::datetime::UtcStringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
     EXPECT_EQ(obj.updated_at, tp);
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["updated_at"].As<std::string>();
@@ -333,8 +334,8 @@ TEST(Simple, DateTimeExtra) {
     auto json = formats::json::MakeObject("updated_at_extra", date);
     auto obj = json.As<ns::ObjectDate>();
 
-    utils::datetime::TimePointTz tp{
-        utils::datetime::Stringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
+    const utils::datetime::TimePointTz tp{
+        utils::datetime::UtcStringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
     EXPECT_EQ(obj.updated_at_extra->time_point, tp);
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["updated_at_extra"].As<std::string>();
@@ -346,8 +347,8 @@ TEST(Simple, DateTimeIsoBasic) {
     auto json = formats::json::MakeObject("deleted_at", date);
     auto obj = json.As<ns::ObjectDate>();
 
-    utils::datetime::TimePointTzIsoBasic tp{
-        utils::datetime::Stringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
+    const utils::datetime::TimePointTzIsoBasic tp{
+        utils::datetime::UtcStringtime("2020-10-01T00:00:56Z"), std::chrono::seconds(12 * 60 * 60 + 34 * 60)};
     EXPECT_EQ(obj.deleted_at, tp);
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["deleted_at"].As<std::string>();
@@ -359,12 +360,23 @@ TEST(Simple, Uuid) {
     auto json = formats::json::MakeObject("uuid", uuid);
     auto obj = json.As<ns::ObjectUuid>();
 
-    boost::uuids::string_generator gen;
-    boost::uuids::uuid expected = gen(uuid);
+    const boost::uuids::string_generator gen;
+    const boost::uuids::uuid expected = gen(uuid);
     EXPECT_EQ(obj.uuid, expected);
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["uuid"].As<std::string>();
     EXPECT_EQ(str, uuid);
+}
+
+TEST(SIMPLE, String64) {
+    auto str64 = crypto::base64::String64{"hello, userver!"};
+    auto obj = ns::ObjectString64{str64};
+
+    auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["value"].As<std::string>();
+    EXPECT_EQ(str, "aGVsbG8sIHVzZXJ2ZXIh");
+
+    auto new_obj = formats::json::MakeObject("value", str).As<ns::ObjectString64>();
+    EXPECT_EQ(new_obj.value, str64);
 }
 
 USERVER_NAMESPACE_END

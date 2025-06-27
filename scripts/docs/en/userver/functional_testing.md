@@ -364,6 +364,10 @@ Accessing testpoint userver is not aware of will raise an exception:
 * C++ code: @ref samples/testsuite-support/src/testpoint.cpp
 * Testcase: @ref samples/testsuite-support/tests/test_testpoint.py
 
+#### Dynamic config mock
+
+@see @ref dynamic_config_testsuite
+
 @anchor testsuite_logs_capture
 #### Logs capture
 
@@ -441,7 +445,7 @@ For metrics with labels, they could be retrieved in the following way:
 The @ref pytest_userver.metrics.Metric "Metric" python type is hashable and
 comparable:
 
-@snippet testsuite/tests/test_metrics.py  values set
+@snippet testsuite/tests/metrics/test_metrics.py  values set
 
 * C++ code: @ref samples/testsuite-support/src/metrics.cpp
 * C++ header: @ref samples/testsuite-support/src/metrics.hpp
@@ -513,7 +517,6 @@ For per-daemon fixtures see @ref pytest_userver.plugins.service.daemon_scoped_ma
 @htmlonly </div> @endhtmlonly
 
 @example cmake/UserverTestsuite.cmake
-@example samples/http_caching/tests/conftest.py
 @example samples/testsuite-support/src/logcapture.cpp
 @example samples/testsuite-support/src/metrics.cpp
 @example samples/testsuite-support/src/metrics.hpp
@@ -525,4 +528,3 @@ For per-daemon fixtures see @ref pytest_userver.plugins.service.daemon_scoped_ma
 @example samples/testsuite-support/tests/test_mocked_time.py
 @example samples/testsuite-support/tests/test_tasks.py
 @example samples/testsuite-support/tests/test_testpoint.py
-@example samples/production_service/tests/test_production.py

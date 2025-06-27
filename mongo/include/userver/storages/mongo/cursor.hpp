@@ -32,6 +32,7 @@ public:
         using reference = const value_type&;
         using pointer = const value_type*;
 
+        explicit Iterator() = default;
         explicit Iterator(Cursor*);
 
         class DocHolder {

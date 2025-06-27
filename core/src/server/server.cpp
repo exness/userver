@@ -95,6 +95,11 @@ void PortInfo::Stop() {
 
 bool PortInfo::IsRunning() const noexcept { return request_handler_ && request_handler_->IsAddHandlerDisabled(); }
 
+void WriteRateAndLegacyMetrics(utils::statistics::Writer&& writer, utils::statistics::Rate metric) {
+    writer = metric.value;
+    writer["v2"] = metric;
+}
+
 }  // namespace
 
 class ServerImpl final {
@@ -190,7 +195,7 @@ void ServerImpl::StartPortInfos() {
 
 void ServerImpl::Stop() {
     {
-        std::unique_lock lock{on_stop_mutex_};
+        const std::lock_guard lock{on_stop_mutex_};
         if (is_stopping_) return;
         is_stopping_ = true;
     }
@@ -252,7 +257,7 @@ const http::HttpRequestHandler& ServerImpl::GetHttpRequestHandler(bool is_monito
 net::StatsAggregation ServerImpl::GetServerStats() const {
     net::StatsAggregation summary;
 
-    std::shared_lock lock{on_stop_mutex_};
+    const std::shared_lock lock{on_stop_mutex_};
     if (is_stopping_) return summary;
     for (const auto& listener : main_port_info_.listeners_) {
         summary += listener.GetStats();
@@ -277,7 +282,7 @@ void ServerImpl::WriteTotalHandlerStatistics(utils::statistics::Writer& writer) 
 
     {
         // Protect against main_port_info_.request_handler_.reset() in Stop()
-        std::shared_lock lock{on_stop_mutex_};
+        const std::shared_lock lock{on_stop_mutex_};
         if (is_stopping_) {
             return;
         }
@@ -308,7 +313,7 @@ void ServerImpl::SetRpsRatelimit(std::optional<size_t> rps) {
 
 std::uint64_t ServerImpl::GetTotalRequests() const {
     const auto stats = GetServerStats();
-    return stats.active_request_count + stats.requests_processed_count;
+    return stats.active_request_count + stats.requests_processed_count.value;
 }
 
 Server::Server(
@@ -328,21 +333,23 @@ void Server::WriteMonitorData(utils::statistics::Writer& writer) const {
     const auto server_stats = pimpl->GetServerStats();
     if (auto conn_stats = writer["connections"]) {
         conn_stats["active"] = server_stats.active_connections;
-        conn_stats["opened"] = server_stats.connections_created;
-        conn_stats["closed"] = server_stats.connections_closed;
+        WriteRateAndLegacyMetrics(conn_stats["opened"], server_stats.connections_created);
+        WriteRateAndLegacyMetrics(conn_stats["closed"], server_stats.connections_closed);
     }
 
     if (auto request_stats = writer["requests"]) {
         request_stats["active"] = server_stats.active_request_count;
         request_stats["avg-lifetime-ms"] = pimpl->GetAvgRequestTimeMs().count();
-        request_stats["processed"] = server_stats.requests_processed_count;
+        WriteRateAndLegacyMetrics(request_stats["processed"], server_stats.requests_processed_count);
         request_stats["parsing"] = server_stats.parser_stats.parsing_request_count;
-        auto http2_request_stats = request_stats["http2"];
-        http2_request_stats["streams-count"] = server_stats.parser_stats.streams_count;
-        http2_request_stats["streams-parse-error"] = server_stats.parser_stats.streams_parse_error;
-        http2_request_stats["streams-close"] = server_stats.parser_stats.streams_close;
-        http2_request_stats["reset-streams"] = server_stats.parser_stats.reset_streams;
-        http2_request_stats["goaway"] = server_stats.parser_stats.goaway;
+
+        if (auto http2_request_stats = request_stats["http2"]) {
+            http2_request_stats["streams-count"] = server_stats.parser_stats.streams_count;
+            http2_request_stats["streams-parse-error"] = server_stats.parser_stats.streams_parse_error;
+            http2_request_stats["streams-close"] = server_stats.parser_stats.streams_close;
+            http2_request_stats["reset-streams"] = server_stats.parser_stats.reset_streams;
+            http2_request_stats["goaway"] = server_stats.parser_stats.goaway;
+        }
     }
 }
 

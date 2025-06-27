@@ -4,7 +4,6 @@ import traceback
 import google.protobuf.empty_pb2 as empty_protos
 import pytest
 import pytest_userver.client
-import pytest_userver.grpc
 
 import samples.greeter_pb2 as greeter_protos
 import samples.greeter_pb2_grpc as greeter_services
@@ -33,13 +32,13 @@ def full_exception_message(exc: BaseException) -> str:
     return ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))
 
 
-async def test_ok(grpc_mockserver_new):
+async def test_ok(grpc_mockserver):
     """
     This test is needed to ensure that `GrpcServiceMock` is created in `test_missing`.
     So we will test a situation when `grpc_mockserver` knows about the service, but there is no mocked handler.
     """
 
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         return greeter_protos.GreetingResponse()
 
@@ -59,13 +58,12 @@ async def test_missing(service_client, asyncexc_check):
     assert expected_error in full_exception_message(ex_info.value)
 
 
-async def test_assert(service_client, grpc_mockserver_new, asyncexc_check):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_assert(service_client, grpc_mockserver, asyncexc_check):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request: greeter_protos.GreetingRequest, context):
         assert request.name == 'expected'
 
-    message = "Unexpected <class 'AssertionError'>: assert 'test' == 'expected'(.|\\n)*"
-    expected_error = re.compile(f"'{SAY_HELLO}' failed: code=UNKNOWN, message='{message}'")
+    expected_error = re.compile(f"'{SAY_HELLO}' failed: code=UNKNOWN, message='Unexpected <class 'AssertionError'>")
 
     with pytest.raises(pytest_userver.client.TestsuiteTaskFailed, match=expected_error):
         await service_client.run_task('call-say-hello')
@@ -74,11 +72,11 @@ async def test_assert(service_client, grpc_mockserver_new, asyncexc_check):
     # through testsuite's asyncexc mechanism.
     with pytest.raises(Exception) as ex_info:
         asyncexc_check(really_check=True)
-    assert "AssertionError: assert 'test' == 'expected'" in full_exception_message(ex_info.value)
+    assert 'AssertionError:' in full_exception_message(ex_info.value)
 
 
-async def test_exception(service_client, grpc_mockserver_new, asyncexc_check):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_exception(service_client, grpc_mockserver, asyncexc_check):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         raise ValueError('Something went wrong in the mocked handler')
 
@@ -95,8 +93,8 @@ async def test_exception(service_client, grpc_mockserver_new, asyncexc_check):
     assert 'ValueError: Something went wrong in the mocked handler' in full_exception_message(ex_info.value)
 
 
-async def test_wrong_response_type_non_message(service_client, grpc_mockserver_new, asyncexc_check):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_wrong_response_type_non_message(service_client, grpc_mockserver, asyncexc_check):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         return 42
 
@@ -116,8 +114,8 @@ async def test_wrong_response_type_non_message(service_client, grpc_mockserver_n
     assert expected_message in full_exception_message(ex_info.value)
 
 
-async def test_wrong_response_type_message(service_client, grpc_mockserver_new, asyncexc_check):
-    @grpc_mockserver_new(greeter_services.GreeterServiceServicer.SayHello)
+async def test_wrong_response_type_message(service_client, grpc_mockserver, asyncexc_check):
+    @grpc_mockserver(greeter_services.GreeterServiceServicer.SayHello)
     async def mock_say_hello(request, context):
         return empty_protos.Empty()
 

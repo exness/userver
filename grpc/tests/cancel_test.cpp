@@ -9,7 +9,6 @@
 #include <userver/engine/sleep.hpp>
 #include <userver/utest/log_capture_fixture.hpp>
 
-#include <ugrpc/client/impl/client_configs.hpp>
 #include <userver/ugrpc/client/client_factory.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/client/impl/completion_queue_pool.hpp>
@@ -320,13 +319,14 @@ UTEST_F(GrpcCancelSleep, CancelByTimeoutLogging) {
         ugrpc::client::DeadlineExceededError
     );
 
-    engine::SleepFor(std::chrono::seconds(1));
+    // Make sure server logs are written.
+    GetServer().StopServing();
 
     EXPECT_THAT(
-        GetLogCapture().Filter("Handler task cancelled, error in "
-                               "'sample.ugrpc.UnitTestService/SayHello': "
-                               "'sample.ugrpc.UnitTestService/SayHello' failed: "
-                               "connection error at Finish"),
+        GetLogCapture().Filter(
+            "RPC interrupted in 'sample.ugrpc.UnitTestService/SayHello'. "
+            "The previously logged cancellation or network exception, if any, is likely caused by it."
+        ),
         testing::SizeIs(1)
     ) << GetLogCapture().GetAll();
 }
@@ -351,12 +351,21 @@ UTEST_F(GrpcCancelError, CancelByError) {
         auto call = client.Chat();
     }
 
-    engine::SleepFor(std::chrono::seconds(1));
+    // Make sure server logs are written.
+    GetServer().StopServing();
 
     ASSERT_THAT(
-        GetLogCapture().Filter("Handler task cancelled, error in "
-                               "'sample.ugrpc.UnitTestService/Chat': "
-                               "Some error (std::runtime_error)"),
+        GetLogCapture().Filter(
+            "Uncaught exception in 'sample.ugrpc.UnitTestService/Chat': Some error (std::runtime_error)"
+        ),
+        testing::SizeIs(1)
+    ) << GetLogCapture().GetAll();
+
+    ASSERT_THAT(
+        GetLogCapture().Filter(
+            "RPC interrupted in 'sample.ugrpc.UnitTestService/Chat'. "
+            "The previously logged cancellation or network exception, if any, is likely caused by it."
+        ),
         testing::SizeIs(1)
     ) << GetLogCapture().GetAll();
 }

@@ -48,11 +48,6 @@ def pytest_addoption(parser) -> None:
         dest='service_logs_pretty',
         help='Disable pretty print and colorize service logs',
     )
-    group.addoption(
-        '--service-live-logs-disable',
-        action='store_true',
-        help='Disable service live logs (enabled with -s)',
-    )
 
 
 @pytest.fixture(scope='session')
@@ -190,7 +185,7 @@ def auto_client_deps(request) -> None:
     * `redis_store`
     * `mysql`
     * @ref pytest_userver.plugins.ydb.ydbsupport.ydb "ydb"
-    * @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver_new "grpc_mockserver_new"
+    * @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver"
 
     To add other dependencies prefer overriding the
     @ref pytest_userver.plugins.service.extra_client_deps "extra_client_deps"
@@ -208,7 +203,7 @@ def auto_client_deps(request) -> None:
         'redis_store',
         'mysql',
         'ydb',
-        'grpc_mockserver_new',
+        'grpc_mockserver',
     }
 
     try:

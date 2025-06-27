@@ -220,7 +220,7 @@ bool Connection::ReadSome() {
     if (pending_data_size_ == pending_data_.size()) return true;
 
     try {
-        engine::TaskCancellationBlocker blocker;
+        const engine::TaskCancellationBlocker blocker;
 
         auto count = peer_socket_->ReadSome(
             pending_data_.data() + pending_data_size_,
@@ -364,7 +364,7 @@ void Connection::SendResponse(http::HttpRequest& request) {
     }
     request.SetFinishSendResponseTime();
     stats_->active_request_count.Subtract(1);
-    stats_->requests_processed_count.Add(1);
+    ++stats_->requests_processed_count;
 
     request.WriteAccessLogs(request_handler_.LoggerAccess(), request_handler_.LoggerAccessTskv(), peer_name_);
 }

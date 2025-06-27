@@ -109,7 +109,7 @@ UTEST_F(RedisClientTransactionTest, Unlink) {
 }
 
 UTEST_F(RedisClientTransactionTest, Geosearch) {
-    Version since{6, 2, 0};
+    const Version since{6, 2, 0};
     if (!CheckVersion(since)) GTEST_SKIP() << SkipMsgByVersion("Geosearch", since);
 
     auto& client = GetTransactionClient();
@@ -808,8 +808,8 @@ UTEST_F(RedisClientTransactionTest, NotReadOnlySetSet) {
     transaction->Exec(kDefaultCc).Get();
 
     auto after = sentinel->GetStatistics({});
-    std::uint64_t master_command_count = GetCommandCount(after.masters) - GetCommandCount(before.masters);
-    std::uint64_t slave_command_count = GetCommandCount(after.slaves) - GetCommandCount(before.slaves);
+    const std::uint64_t master_command_count = GetCommandCount(after.masters) - GetCommandCount(before.masters);
+    const std::uint64_t slave_command_count = GetCommandCount(after.slaves) - GetCommandCount(before.slaves);
 
     EXPECT_EQ(master_command_count, 4);
     EXPECT_EQ(slave_command_count, 0);
@@ -835,8 +835,8 @@ UTEST_F(RedisClientTransactionTest, NotReadOnlySetGet) {
     }
 
     auto after = sentinel->GetStatistics({});
-    std::uint64_t master_command_count = GetCommandCount(after.masters) - GetCommandCount(before.masters);
-    std::uint64_t slave_command_count = GetCommandCount(after.slaves) - GetCommandCount(before.slaves);
+    const std::uint64_t master_command_count = GetCommandCount(after.masters) - GetCommandCount(before.masters);
+    const std::uint64_t slave_command_count = GetCommandCount(after.slaves) - GetCommandCount(before.slaves);
 
     EXPECT_EQ(master_command_count, 8);
     EXPECT_EQ(slave_command_count, 0);
@@ -854,11 +854,27 @@ UTEST_F(RedisClientTransactionTest, ReadOnlyGetGet) {
     transaction->Exec(kDefaultCc).Get();
 
     auto after = sentinel->GetStatistics({});
-    std::uint64_t master_command_count = GetCommandCount(after.masters) - GetCommandCount(before.masters);
-    std::uint64_t slave_command_count = GetCommandCount(after.slaves) - GetCommandCount(before.slaves);
+    const std::uint64_t master_command_count = GetCommandCount(after.masters) - GetCommandCount(before.masters);
+    const std::uint64_t slave_command_count = GetCommandCount(after.slaves) - GetCommandCount(before.slaves);
 
     EXPECT_EQ(master_command_count, 0);
     EXPECT_EQ(slave_command_count, 4);
+}
+
+UTEST_F(RedisClientTransactionTest, TransactionSmokeRetriesFailure) {
+    auto client = GetClient();
+    using namespace std::chrono_literals;
+    storages::redis::CommandControl kRetryCc{1ms, 300ms, 100};
+    kRetryCc.allow_reads_from_master = true;
+
+    const size_t kSubseqChanges = 1000;
+    auto transaction = client->Multi();
+    const std::string key = "some_key";
+    for (size_t j = 0; j < kSubseqChanges; ++j) {
+        [[maybe_unused]] auto set = transaction->Set(key, "some value" + std::to_string(j), 500ms);
+        [[maybe_unused]] auto get = transaction->Get(key);
+    }
+    UASSERT_THROW(transaction->Exec(kRetryCc).Get(), storages::redis::RequestFailedException);
 }
 
 USERVER_NAMESPACE_END

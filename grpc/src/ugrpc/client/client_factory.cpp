@@ -7,7 +7,7 @@ namespace ugrpc::client {
 ClientFactory::ClientFactory(
     ClientFactorySettings&& client_factory_settings,
     engine::TaskProcessor& channel_task_processor,
-    impl::MiddlewarePipelineCreator& pipeline_creator,
+    impl::MiddlewarePipelineCreator& middleware_pipeline_creator,
     ugrpc::impl::CompletionQueuePoolBase& completion_queues,
     ugrpc::impl::StatisticsStorage& statistics_storage,
     testsuite::GrpcControl& testsuite_grpc,
@@ -15,19 +15,28 @@ ClientFactory::ClientFactory(
 )
     : client_factory_settings_(std::move(client_factory_settings)),
       channel_task_processor_(channel_task_processor),
-      pipeline_creator_(pipeline_creator),
+      middleware_pipeline_creator_(middleware_pipeline_creator),
       completion_queues_(completion_queues),
       client_statistics_storage_(statistics_storage),
       config_source_(config_source),
       testsuite_grpc_(testsuite_grpc) {}
 
-impl::ClientInternals ClientFactory::MakeClientInternals(ClientSettings&& client_settings) {
+impl::ClientInternals ClientFactory::MakeClientInternals(
+    ClientSettings&& client_settings,
+    std::optional<ugrpc::impl::StaticServiceMetadata> meta
+) {
     UINVARIANT(!client_settings.client_name.empty(), "Client name is empty");
     UINVARIANT(!client_settings.endpoint.empty(), "Client endpoint is empty");
 
-    const ClientInfo info{/*client_name=*/client_settings.client_name};
+    ClientInfo info{
+        /*client_name=*/client_settings.client_name,
+        /*service_full_name=*/std::nullopt,
+    };
+    if (meta.has_value()) {
+        info.service_full_name.emplace(meta.value().service_full_name);
+    }
 
-    auto mws = pipeline_creator_.CreateMiddlewares(info);
+    auto middlewares = middleware_pipeline_creator_.CreateMiddlewares(info);
 
     auto channel_credentials = testsuite_grpc_.IsTlsEnabled()
                                    ? GetClientCredentials(client_factory_settings_, client_settings.client_name)
@@ -38,7 +47,7 @@ impl::ClientInternals ClientFactory::MakeClientInternals(ClientSettings&& client
 
     return impl::ClientInternals{
         std::move(client_settings.client_name),
-        std::move(mws),
+        std::move(middlewares),
         completion_queues_,
         client_statistics_storage_,
         config_source_,

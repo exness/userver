@@ -5,7 +5,7 @@
 USERVER_NAMESPACE_BEGIN
 
 void make_url(benchmark::State& state, std::size_t size) {
-    std::string path = "http://example.com/v1/something";
+    const std::string path = "http://example.com/v1/something";
     std::string spaces(size, ' ');
     std::string latins(size, 'a');
     std::string latins_with_spaces = spaces + latins;
@@ -28,7 +28,7 @@ void make_query(benchmark::State& state) {
     http::Args query_args;
     const auto agrs_count = state.range(0);
     for (int i = 0; i < agrs_count; i++) {
-        std::string str = std::to_string(i);
+        const std::string str = std::to_string(i);
         query_args[str] = str;
     }
     for ([[maybe_unused]] auto _ : state) {

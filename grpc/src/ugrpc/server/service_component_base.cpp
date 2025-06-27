@@ -1,3 +1,5 @@
+#include <string>
+#include <string_view>
 #include <userver/ugrpc/server/service_component_base.hpp>
 
 #include <userver/components/component_config.hpp>
@@ -10,25 +12,37 @@
 #include <userver/yaml_config/yaml_config.hpp>
 
 #include <ugrpc/server/impl/parse_config.hpp>
-#include <userver/ugrpc/server/middlewares/base.hpp>
+#include <userver/ugrpc/server/middlewares/pipeline.hpp>
 #include <userver/ugrpc/server/server_component.hpp>
 #include <userver/ugrpc/server/service_base.hpp>
-#include <userver/yaml_config/impl/validate_static_config.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::server {
+namespace {
 
+std::string GetServerName(const components::ComponentConfig& config) {
+    static constexpr std::string_view kServerNameKey = "server-name";
+    if (config.HasMember(kServerNameKey)) {
+        return config[kServerNameKey].As<std::string>();
+    }
+    return "grpc-server";
+}
+
+}  // namespace
+
+namespace ugrpc::server {
 ServiceComponentBase::ServiceComponentBase(
     const components::ComponentConfig& config,
     const components::ComponentContext& context
 )
-    : impl::MiddlewareRunner(config, context, MiddlewarePipelineComponent::kName),
-      server_(context.FindComponent<ServerComponent>()),
+    : impl::MiddlewareRunnerComponentBase(config, context, MiddlewarePipelineComponent::kName),
+      server_(context.FindComponent<ServerComponent>(GetServerName(config))),
       config_(server_.ParseServiceConfig(config, context)),
-      info_{config.Name()} {
-    config_.middlewares = CreateMiddlewares(info_);
+      info_(ServiceInfo{config.Name()}) {
+    config_.middlewares = CreateMiddlewares(*info_);
 }
+
+ServiceComponentBase::~ServiceComponentBase() = default;
 
 void ServiceComponentBase::RegisterService(ServiceBase& service) {
     UINVARIANT(!registered_.exchange(true), "Register must only be called once");
@@ -42,7 +56,7 @@ void ServiceComponentBase::RegisterService(GenericServiceBase& service) {
 }
 
 yaml_config::Schema ServiceComponentBase::GetStaticConfigSchema() {
-    return yaml_config::MergeSchemas<impl::MiddlewareRunner>(R"(
+    return yaml_config::MergeSchemas<impl::MiddlewareRunnerComponentBase>(R"(
 type: object
 description: base class for all the gRPC service components
 additionalProperties: false
@@ -51,6 +65,10 @@ properties:
         type: string
         description: the task processor to use for responses
         defaultDescription: uses grpc-server.service-defaults.task-processor
+    server-name:
+        type: string
+        description: the name of the server to use
+        defaultDescription: grpc-server
 )");
 }
 

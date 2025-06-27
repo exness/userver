@@ -42,11 +42,20 @@ CommandControl Parse(const formats::json::Value& elem, formats::parse::To<Comman
 namespace {
 
 template <typename ConfigType>
+ConnectionSettings::StatementLogMode ParseStatementLogMode(const ConfigType& config) {
+    auto mode = config.template As<std::string>("show");
+    if (mode == "hide") return ConnectionSettings::kLogSkip;
+    if (mode == "show") return ConnectionSettings::kLog;
+    throw std::runtime_error("Unknown statement log mode: " + mode);
+}
+
+template <typename ConfigType>
 ConnectionSettings ParseConnectionSettings(const ConfigType& config) {
     ConnectionSettings settings{};
     settings.prepared_statements = config["persistent-prepared-statements"].template As<bool>(true)
                                        ? ConnectionSettings::kCachePreparedStatements
                                        : ConnectionSettings::kNoPreparedStatements;
+    settings.statement_log_mode = ParseStatementLogMode(config["statement-log-mode"]);
     settings.user_types = config["user-types-enabled"].template As<bool>(true)
                               ? config["check-user-types"].template As<bool>(false)
                                     ? ConnectionSettings::kUserTypesEnforced
@@ -75,17 +84,12 @@ ConnectionSettings ParseConnectionSettings(const ConfigType& config) {
     return settings;
 }
 
-PipelineMode ParsePipelineMode(const formats::json::Value& value) {
-    return value.As<int>() > 0 ? PipelineMode::kEnabled : PipelineMode::kDisabled;
-}
-
-OmitDescribeInExecuteMode ParseOmitDescribeInExecuteMode(const formats::json::Value& value) {
-    using Mode = OmitDescribeInExecuteMode;
-
-    return value.As<int>() == kOmitDescribeExperimentVersion ? Mode::kEnabled : Mode::kDisabled;
-}
-
 }  // namespace
+
+ConnectionSettings::StatementLogMode
+Parse(const yaml_config::YamlConfig& config, formats::parse::To<ConnectionSettings::StatementLogMode>) {
+    return ParseStatementLogMode(config);
+}
 
 ConnectionSettings Parse(const formats::json::Value& config, formats::parse::To<ConnectionSettings>) {
     return ParseConnectionSettings(config);
@@ -186,20 +190,6 @@ const dynamic_config::Key<Config> kConfig{
         {"POSTGRES_STATEMENT_METRICS_SETTINGS", JsonString{"{}"}},
     },
 };
-
-const dynamic_config::Key<PipelineMode> kPipelineModeKey{
-    "POSTGRES_CONNECTION_PIPELINE_EXPERIMENT",
-    ParsePipelineMode,
-    dynamic_config::DefaultAsJsonString{"0"}};
-
-const dynamic_config::Key<bool> kConnlimitModeAutoEnabled{"POSTGRES_CONNLIMIT_MODE_AUTO_ENABLED", true};
-
-const dynamic_config::Key<int> kDeadlinePropagationVersionConfig{"POSTGRES_DEADLINE_PROPAGATION_VERSION", 0};
-
-const dynamic_config::Key<OmitDescribeInExecuteMode> kOmitDescribeInExecuteModeKey{
-    "POSTGRES_OMIT_DESCRIBE_IN_EXECUTE",
-    ParseOmitDescribeInExecuteMode,
-    dynamic_config::DefaultAsJsonString{"1"}};
 
 }  // namespace storages::postgres
 

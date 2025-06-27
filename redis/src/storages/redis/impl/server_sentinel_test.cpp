@@ -93,7 +93,7 @@ UTEST(Redis, SentinelMastersChangingErrors) {
             master_idx = i;
             std::vector<MockRedisServer::HandlerPtr> masters_handlers;
             for (size_t sentinel_idx = 0; sentinel_idx < sentinel_count; sentinel_idx++) {
-                size_t quorum = sentinel_count / 2 + 1;
+                const size_t quorum = sentinel_count / 2 + 1;
                 if (master_idx == bad_redis_idx && sentinel_idx < quorum) {
                     masters_handlers.push_back(
                         sentinel_test.Sentinel(sentinel_idx)

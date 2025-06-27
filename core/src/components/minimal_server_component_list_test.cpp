@@ -8,6 +8,7 @@
 #include <userver/components/component_base.hpp>
 #include <userver/components/manager_controller_component.hpp>
 #include <userver/components/run.hpp>
+#include <userver/engine/run_standalone.hpp>
 #include <userver/engine/sleep.hpp>
 #include <userver/formats/json/exception.hpp>
 #include <userver/fs/blocking/read.hpp>
@@ -50,7 +51,7 @@ components_manager:
       worker_threads: 4
       task-trace:
         every: 1
-        max-context-switch-count: 50
+        max-context-switch-count: 1000
         logger: tracer
   components:
     logging:

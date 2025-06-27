@@ -19,6 +19,8 @@
 #include <userver/logging/logger.hpp>
 #include <utils/statistics/thread_statistics.hpp>
 
+#include <dynamic_config/variables/USERVER_TASK_PROCESSOR_PROFILER_DEBUG.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace engine {
@@ -60,11 +62,11 @@ public:
 
     std::size_t GetWorkerCount() const { return workers_.size(); }
 
-    void SetSettings(const TaskProcessorSettings& settings);
+    void SetSettings(const TaskProcessorSettings& settings, const TaskProcessorProfilerSettings& profiler_settings);
 
-    std::chrono::microseconds GetProfilerThreshold() const;
+    std::chrono::microseconds GetProfilerThreshold() const noexcept;
 
-    bool ShouldProfilerForceStacktrace() const;
+    bool ShouldProfilerForceStacktrace() const noexcept;
 
     std::size_t GetTaskTraceMaxCswForNewTask() const;
 
@@ -75,6 +77,10 @@ public:
     logging::LoggerPtr GetTaskTraceLogger() const;
 
     std::vector<std::uint8_t> CollectCurrentLoadPct() const;
+
+    TaskProcessor& GetBlockingTaskProcessor();
+
+    void SetBlockingTaskProcessor(TaskProcessor& task_processor);
 
 private:
     // Contains queue size cache when overloaded by length, 0 otherwise.
@@ -97,7 +103,7 @@ private:
 
     void SetTaskQueueWaitTimeOverloaded(bool new_value) noexcept;
 
-    void HandleOverload(impl::TaskContext& context, TaskProcessorSettings::OverloadAction);
+    void HandleOverload(impl::TaskContext& context, TaskProcessorSettingsOverloadAction);
 
     OverloadByLength GetOverloadByLength(std::size_t max_queue_length) noexcept;
 
@@ -126,6 +132,7 @@ private:
     std::atomic<bool> task_trace_logger_set_{false};
 
     std::unique_ptr<utils::statistics::ThreadPoolCpuStatsStorage> cpu_stats_storage_{nullptr};
+    TaskProcessor* fs_task_processor_{nullptr};
 };
 
 /// Register a function that runs on all threads on task processor creation.

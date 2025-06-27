@@ -4,7 +4,6 @@
 
 #include <fmt/format.h>
 
-#include <userver/baggage/baggage_settings.hpp>
 #include <userver/http/parser/http_request_parse_args.hpp>
 #include <userver/http/url.hpp>
 #include <userver/logging/log.hpp>
@@ -305,7 +304,7 @@ std::optional<BaggageEntry> Baggage::TryMakeBaggageEntry(std::string_view entry)
             }
         }
     }
-    return std::make_optional<BaggageEntry>({key, value, properties});
+    return std::make_optional<BaggageEntry>({key, value, std::move(properties)});
 }
 
 std::optional<BaggageEntryProperty> Baggage::TryMakeBaggageEntryProperty(std::string_view property) {

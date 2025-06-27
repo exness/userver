@@ -14,15 +14,6 @@ if(USERVER_CONAN AND "${gRPC_VERSION}" VERSION_GREATER_EQUAL "1.41")
   )
 endif()
 
-if("${gRPC_VERSION}" VERSION_GREATER_EQUAL "1.66")
-  message(
-      FATAL_ERROR
-      "userver currently does not support gRPC >= 1.66 due to a breaking "
-      "change in grpc-core that requires a fix in userver "
-      "https://github.com/grpc/grpc/pull/37321/files"
-  )
-endif()
-
 if(NOT TARGET userver-api-common-protos)
   include(SetupGoogleProtoApis)
 endif()
@@ -55,6 +46,10 @@ if (api-common-proto_USRV_SOURCES)
 endif()
 
 add_library(${PROJECT_NAME}-internal STATIC ${SOURCES})
+
+if("${gRPC_VERSION}" VERSION_LESS "1.66")
+  target_compile_definitions(${PROJECT_NAME}-internal PRIVATE USERVER_IMPL_FEATURE_OLD_GRPC_NATIVE_LOGGING)
+endif()
 
 if (NOT USERVER_GPRC_BUILD_FROM_SOURCE)
   target_compile_definitions(${PROJECT_NAME}-internal PUBLIC GRPC_ASAN_SUPPRESSED GRPC_TSAN_SUPPRESSED)
@@ -158,6 +153,11 @@ if (USERVER_FEATURE_UTEST)
 endif()
 
 if (USERVER_BUILD_TESTS)
+  set(secret_fields_proto)
+  if(Protobuf_VERSION VERSION_GREATER_EQUAL 4.20.0)
+    list(APPEND secret_fields_proto tests/secret_fields.proto)
+  endif()
+
   userver_add_grpc_library(${PROJECT_NAME}-unittest-proto
       PROTOS
       # Absolute paths are allowed
@@ -168,7 +168,8 @@ if (USERVER_BUILD_TESTS)
       tests/same_service_and_method_name.proto
       tests/global_package.proto
       tests/repeating_word_in_package_name.proto
-      tests/secret_fields.proto
+      ${secret_fields_proto}
+      tests/logging.proto
       INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/proto
   )
 
@@ -205,6 +206,13 @@ add_subdirectory(handlers)
 add_library(${PROJECT_NAME} INTERFACE)
 target_link_libraries(${PROJECT_NAME} INTERFACE ${PROJECT_NAME}-handlers)
 target_link_libraries(${PROJECT_NAME} INTERFACE ${PROJECT_NAME}-internal)
+
+userver_target_generate_chaotic_dynamic_configs(
+    ${PROJECT_NAME}-dynamic-configs
+    dynamic_configs/*.yaml
+)
+target_link_libraries(${PROJECT_NAME}-internal PUBLIC ${PROJECT_NAME}-dynamic-configs)
+_userver_install_targets(COMPONENT grpc TARGETS ${PROJECT_NAME}-dynamic-configs)
 
 _userver_install_targets(COMPONENT grpc TARGETS ${PROJECT_NAME})
 

@@ -87,6 +87,9 @@ if (USERVER_FEATURE_POSTGRESQL)
 
   add_subdirectory(postgres-support)
   add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-postgres-support)
+
+  add_subdirectory(postgres_cache_order_by)
+  add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-postgres_cache_order_by)
 endif()
 
 add_subdirectory(production_service)
@@ -123,6 +126,11 @@ endif()
 if (USERVER_FEATURE_YDB AND USERVER_FEATURE_MONGODB)
   add_subdirectory(ydb_service)
   add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-ydb_service)
+endif()
+
+if (USERVER_FEATURE_SQLITE)
+  add_subdirectory(sqlite_service)
+  add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-sqlite_service)
 endif()
 
 if (USERVER_FEATURE_S3API)

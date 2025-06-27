@@ -14,7 +14,7 @@ const storages::secdist::SecdistConfig& GetSecdist(const components::ComponentCo
     auto* component = component_context.FindComponentOptional<components::Secdist>();
     if (component) return component->Get();
 
-    static storages::secdist::SecdistConfig kEmpty;
+    static const storages::secdist::SecdistConfig kEmpty;
     return kEmpty;
 }
 }  // namespace
@@ -191,6 +191,10 @@ properties:
                         defaultDescription: 498
                         minimum: 400
                         maximum: 599
+                    enable_write_statistics:
+                        type: boolean
+                        description: whether to write handler statistics
+                        defaultDescription: true
 
             connection:
                 type: object

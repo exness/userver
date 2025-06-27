@@ -3,6 +3,12 @@
 #include <sys/types.h>
 #include <csignal>
 
+#if __has_include(<util/system/progname.h>)
+#define ARCADIA
+#include <util/system/info.h>
+#include <util/system/progname.h>
+#endif
+
 #include <fmt/format.h>
 
 #include <concurrent/impl/latch.hpp>
@@ -11,6 +17,7 @@
 #include <userver/utils/impl/static_registration.hpp>
 #include <userver/utils/numeric_cast.hpp>
 #include <userver/utils/rand.hpp>
+#include <userver/utils/str_icase.hpp>
 #include <userver/utils/thread_name.hpp>
 #include <userver/utils/threads.hpp>
 #include <utils/statistics/thread_statistics.hpp>
@@ -26,7 +33,7 @@ namespace {
 
 template <class Value>
 struct OverloadActionAndValue final {
-    TaskProcessorSettings::OverloadAction action;
+    TaskProcessorSettingsOverloadAction action;
     Value value;
 };
 
@@ -36,9 +43,9 @@ constexpr OverloadActionAndValue<OverloadBitAndValue> GetOverloadActionAndValue(
 ) {
     const auto value = x.load();
     if (value < OverloadBitAndValue{0}) {
-        return {TaskProcessorSettings::OverloadAction::kIgnore, -value};
+        return {TaskProcessorSettingsOverloadAction::kIgnore, -value};
     } else {
-        return {TaskProcessorSettings::OverloadAction::kCancel, value};
+        return {TaskProcessorSettingsOverloadAction::kCancel, value};
     }
 }
 
@@ -75,7 +82,24 @@ void EmitMagicNanosleep() {
 
 void TaskProcessorThreadStartedHook() {
     utils::impl::AssertStaticRegistrationFinished();
-    utils::WithDefaultRandom([](auto&) {});
+
+    {
+        // The block initializes static/global variables by preheating some in-memory caches.
+        // Subsequent calls should not access filesystem at all.
+
+        // uses /dev/urandom
+        utils::WithDefaultRandom([](auto&) {});
+
+        // uses /dev/urandom
+        const utils::StrCaseHash hash;
+
+#ifdef ARCADIA
+        // caches result in static variables on the first call
+        (void)GetProgramName();
+        (void)NSystemInfo::CachedNumberOfCpus();
+#endif
+    }
+
     for (const auto& func : ThreadStartedHooks()) {
         func();
     }
@@ -178,8 +202,11 @@ std::size_t TaskProcessor::GetTaskQueueSize() const {
     return std::visit([](auto&& arg) { return arg.GetSizeApproximate(); }, task_queue_);
 }
 
-void TaskProcessor::SetSettings(const TaskProcessorSettings& settings) {
-    sensor_task_queue_wait_time_ = settings.sensor_wait_queue_time_limit;
+void TaskProcessor::SetSettings(
+    const TaskProcessorSettings& settings,
+    const TaskProcessorProfilerSettings& profiler_settings
+) {
+    sensor_task_queue_wait_time_ = settings.wait_queue_overload.sensor_time_limit_us;
 
     // We store the overload action and limit in a single atomic, to avoid races
     // on {kIgnore, 10} transitions to {kCancel, 10000}, when the limit is taken
@@ -187,26 +214,28 @@ void TaskProcessor::SetSettings(const TaskProcessorSettings& settings) {
     // we may cancel a task that fits into 10000 limit.
     //
     // see GetOverloadActionAndValue()
-    UASSERT(settings.wait_queue_time_limit >= std::chrono::microseconds{0});
+    UASSERT(settings.wait_queue_overload.time_limit_us >= std::chrono::microseconds{0});
     static_assert(
-        std::is_unsigned_v<decltype(settings.wait_queue_length_limit)>,
+        std::is_unsigned_v<decltype(settings.wait_queue_overload.length_limit)>,
         "Could hold negative values, add a runtime check that the "
         "value is positive"
     );
-    switch (settings.overload_action) {
-        case TaskProcessorSettings::OverloadAction::kCancel:
-            action_bit_and_max_task_queue_wait_time_ = settings.wait_queue_time_limit;
+    switch (settings.wait_queue_overload.action) {
+        case TaskProcessorSettingsOverloadAction::kCancel:
+            action_bit_and_max_task_queue_wait_time_ = settings.wait_queue_overload.time_limit_us;
             action_bit_and_max_task_queue_wait_length_ =
-                utils::numeric_cast<std::int64_t>(settings.wait_queue_length_limit);
+                utils::numeric_cast<std::int64_t>(settings.wait_queue_overload.length_limit);
             break;
-        case TaskProcessorSettings::OverloadAction::kIgnore:
-            action_bit_and_max_task_queue_wait_time_ = -settings.wait_queue_time_limit;
+        case TaskProcessorSettingsOverloadAction::kIgnore:
+            action_bit_and_max_task_queue_wait_time_ = -settings.wait_queue_overload.time_limit_us;
             action_bit_and_max_task_queue_wait_length_ =
-                -utils::numeric_cast<std::int64_t>(settings.wait_queue_length_limit);
+                -utils::numeric_cast<std::int64_t>(settings.wait_queue_overload.length_limit);
             break;
     }
 
-    auto threshold = settings.profiler_execution_slice_threshold;
+    auto threshold = profiler_settings.execution_slice_threshold_us;
+    if (!profiler_settings.enabled) threshold = std::chrono::microseconds{0};
+
     if (threshold.count() > 0) {
         auto old_threshold = task_profiler_threshold_.exchange(threshold);
         if (old_threshold.count() == 0) {
@@ -229,12 +258,14 @@ void TaskProcessor::SetSettings(const TaskProcessorSettings& settings) {
             );
         }
     }
-    profiler_force_stacktrace_.store(settings.profiler_force_stacktrace);
+    profiler_force_stacktrace_.store(profiler_settings.profiler_force_stacktrace.value_or(false));
 }
 
-std::chrono::microseconds TaskProcessor::GetProfilerThreshold() const { return task_profiler_threshold_.load(); }
+std::chrono::microseconds TaskProcessor::GetProfilerThreshold() const noexcept {
+    return task_profiler_threshold_.load();
+}
 
-bool TaskProcessor::ShouldProfilerForceStacktrace() const { return profiler_force_stacktrace_.load(); }
+bool TaskProcessor::ShouldProfilerForceStacktrace() const noexcept { return profiler_force_stacktrace_.load(); }
 
 std::size_t TaskProcessor::GetTaskTraceMaxCswForNewTask() const {
     thread_local std::size_t count = 0;
@@ -266,6 +297,13 @@ std::vector<std::uint8_t> TaskProcessor::CollectCurrentLoadPct() const {
 
     return cpu_stats_storage_->CollectCurrentLoadPct();
 }
+
+TaskProcessor& TaskProcessor::GetBlockingTaskProcessor() {
+    if (fs_task_processor_) return *fs_task_processor_;
+    return *this;
+}
+
+void TaskProcessor::SetBlockingTaskProcessor(TaskProcessor& task_processor) { fs_task_processor_ = &task_processor; }
 
 void RegisterThreadStartedHook(std::function<void()> func) {
     utils::impl::AssertStaticRegistrationAllowed("Calling engine::RegisterThreadStartedHook()");
@@ -308,7 +346,7 @@ void TaskProcessor::ProcessTasks() noexcept {
 
         bool has_failed = false;
         try {
-            impl::TaskCounter::RunningToken token{GetTaskCounter()};
+            const impl::TaskCounter::RunningToken token{GetTaskCounter()};
             context->DoStep();
         } catch (const std::exception& ex) {
             LOG_ERROR() << "uncaught exception from DoStep: " << ex;
@@ -364,10 +402,10 @@ void TaskProcessor::SetTaskQueueWaitTimeOverloaded(bool new_value) noexcept {
     }
 }
 
-void TaskProcessor::HandleOverload(impl::TaskContext& context, TaskProcessorSettings::OverloadAction action) {
+void TaskProcessor::HandleOverload(impl::TaskContext& context, TaskProcessorSettingsOverloadAction action) {
     GetTaskCounter().AccountTaskOverload();
 
-    if (action == TaskProcessorSettings::OverloadAction::kCancel) {
+    if (action == TaskProcessorSettingsOverloadAction::kCancel) {
         if (!context.IsCritical()) {
             LOG_LIMITED_WARNING() << "Task with task_id=" << logging::HexShort(context.GetTaskId())
                                   << " was waiting in queue for too long, cancelling. Make sure that "

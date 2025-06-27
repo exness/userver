@@ -27,7 +27,7 @@ std::set<std::string> SentinelParseFlags(const std::string& flags) {
 
     do {
         r = flags.find(',', l);
-        std::string flag = flags.substr(l, r - l);
+        const std::string flag = flags.substr(l, r - l);
         if (!flag.empty()) res.insert(flag);
         l = r + 1;
     } while (r != std::string::npos);
@@ -96,8 +96,8 @@ void UpdateInstanceStatus(const SentinelInstanceResponse& properties, InstanceSt
     try {
         auto ok = true;
         auto flags = SentinelParseFlags(properties.at("flags"));
-        bool master = flags.find("master") != flags.end();
-        bool slave = flags.find("slave") != flags.end();
+        const bool master = flags.find("master") != flags.end();
+        const bool slave = flags.find("slave") != flags.end();
         if (master || slave) {
             if (flags.find("s_down") != flags.end()) {
                 status.s_down_count++;
@@ -263,7 +263,7 @@ ClusterSlotsResponseStatus ParseClusterSlotsResponse(const ReplyPtr& reply, Clus
             if (!host_info_array[0].IsString() || !host_info_array[1].IsInt()) return ClusterSlotsResponseStatus::kFail;
             ConnectionInfoInt conn_info{
                 {GetIpFromHostInfo(host_info_array), static_cast<int>(host_info_array[1].GetInt()), {}}};
-            SlotInterval slot_interval(array[0].GetInt(), array[1].GetInt());
+            const SlotInterval slot_interval(array[0].GetInt(), array[1].GetInt());
             if (i == 2)
                 res[slot_interval].master = std::move(conn_info);
             else
@@ -295,7 +295,7 @@ std::function<void(const CommandPtr&, const ReplyPtr&)> GetHostsContext::Generat
 void GetHostsContext::OnResponse(const CommandPtr& command, const ReplyPtr& reply) {
     bool need_process_responses = false;
     {
-        std::unique_lock<std::mutex> lock(mutex_);
+        const std::lock_guard<std::mutex> lock(mutex_);
         response_got_++;
 
         SentinelResponse response;
@@ -340,7 +340,7 @@ void GetHostsContext::ProcessResponsesOnce() {
                 ConnectionInfoInt info{{properties.at("ip"), std::stoi(properties.at("port")), password_}};
                 info.SetName(properties.at("name"));
 
-                InstanceUpChecker instance_up_checker(status, expected_responses_cnt_);
+                const InstanceUpChecker instance_up_checker(status, expected_responses_cnt_);
                 if (instance_up_checker.IsInstanceUp()) {
                     res.push_back(std::move(info));
                 } else {
@@ -383,7 +383,9 @@ void ProcessGetClusterHostsRequest(
     );
 
     for (const auto& id : ids) {
-        auto cmd = PrepareCommand(request.command.Clone(), context->GenerateCallback());
+        auto cmd = PrepareCommand(request.command.Clone(), [context](const CommandPtr& command, const ReplyPtr& reply) {
+            context->OnResponse(command, reply);
+        });
         cmd->control.force_server_id = id;
         if (!request.sentinel_shard.AsyncCommand(cmd)) {
             context->OnAsyncCommandFailed();
@@ -402,12 +404,6 @@ GetClusterHostsContext::GetClusterHostsContext(
       callback_(std::move(callback)),
       expected_responses_cnt_(expected_responses_cnt) {}
 
-std::function<void(const CommandPtr&, const ReplyPtr&)> GetClusterHostsContext::GenerateCallback() {
-    return [self = shared_from_this()](const CommandPtr& command, const ReplyPtr& reply) {
-        self->OnResponse(command, reply);
-    };
-}
-
 void GetClusterHostsContext::OnAsyncCommandFailed() {
     --expected_responses_cnt_;
 
@@ -419,7 +415,7 @@ void GetClusterHostsContext::OnResponse(const CommandPtr&, const ReplyPtr& reply
     switch (ParseClusterSlotsResponse(reply, response)) {
         case ClusterSlotsResponseStatus::kOk: {
             {
-                std::unique_lock<std::mutex> lock(mutex_);
+                const std::lock_guard<std::mutex> lock(mutex_);
                 responses_by_id_[reply->server_id] = std::move(response);
             }
             responses_parsed_++;
@@ -474,9 +470,9 @@ void GetClusterHostsContext::ProcessResponsesOnce() {
         };
         std::map<std::set<ConnectionInfoInt>, ShardInfo> shard_infos;
 
-        for (size_t bound : slot_bounds) {
+        for (const size_t bound : slot_bounds) {
             if (bound) {
-                SlotInterval interval{prev, bound - 1};
+                const SlotInterval interval{prev, bound - 1};
                 std::map<std::set<ConnectionInfoInt>, size_t> shard_stats;
                 for (const auto& [_, response] : responses_by_id_) {
                     auto it = response.upper_bound(interval);
@@ -511,7 +507,7 @@ void GetClusterHostsContext::ProcessResponsesOnce() {
             size_t max_count = 0;
             const ConnectionInfoInt* master = nullptr;
             for (const auto& host : shard_info.first) {
-                size_t current = master_count[host];
+                const size_t current = master_count[host];
                 if (current > max_count) {
                     max_count = current;
                     master = &host;
