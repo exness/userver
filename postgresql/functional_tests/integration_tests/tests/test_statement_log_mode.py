@@ -1,19 +1,18 @@
 import pytest
 
-USERVER_CONFIG_HOOKS = ['userver_pg_log_config']
-
 
 @pytest.fixture(scope='session')
-def userver_pg_log_config(testenv):
-    def _hook_config(config_yaml, config_vars):
+def userver_pg_log_config():
+    def patch_config(config_yaml, _config_vars) -> None:
         components = config_yaml['components_manager']['components']
         db = components['key-value-database']
         db['statement-log-mode'] = 'hide'
 
-    return _hook_config
+    return patch_config
 
 
-async def make_request(service_client):
+@pytest.mark.uservice_oneshot(config_hooks=['userver_pg_log_config'])
+async def test_make_request(service_client):
     async with service_client.capture_logs() as capture:
         response = await service_client.post('/v1/key-value?key=foo&value=bar')
         assert response.status in (200, 201)

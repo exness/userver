@@ -16,9 +16,6 @@ USERVER_CONFIG_HOOKS = ['prepare_service_config']
 # port for TcpChaos -> client
 @pytest.fixture(name='grpc_client_port', scope='session')
 def _grpc_client_port(request, get_free_port) -> int:
-    # This fixture might be defined in an outer scope.
-    if 'for_grpc_server_gate_port' in request.fixturenames:
-        return request.getfixturevalue('for_grpc_client_gate_port')
     return get_free_port()
 
 

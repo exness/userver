@@ -2880,7 +2880,6 @@
   "postgresql/functional_tests/secdist-update/static_config.yaml":"taxi/uservices/userver/postgresql/functional_tests/secdist-update/static_config.yaml",
   "postgresql/functional_tests/secdist-update/tests/conftest.py":"taxi/uservices/userver/postgresql/functional_tests/secdist-update/tests/conftest.py",
   "postgresql/functional_tests/secdist-update/tests/test_secdist.py":"taxi/uservices/userver/postgresql/functional_tests/secdist-update/tests/test_secdist.py",
-  "postgresql/functional_tests/secdist-update/utils.py":"taxi/uservices/userver/postgresql/functional_tests/secdist-update/utils.py",
   "postgresql/include/userver/cache/base_postgres_cache.hpp":"taxi/uservices/userver/postgresql/include/userver/cache/base_postgres_cache.hpp",
   "postgresql/include/userver/cache/base_postgres_cache_fwd.hpp":"taxi/uservices/userver/postgresql/include/userver/cache/base_postgres_cache_fwd.hpp",
   "postgresql/include/userver/storages/postgres/cluster.hpp":"taxi/uservices/userver/postgresql/include/userver/storages/postgres/cluster.hpp",
