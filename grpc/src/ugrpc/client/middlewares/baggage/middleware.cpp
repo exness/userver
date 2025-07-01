@@ -14,7 +14,7 @@ void Middleware::PreStartCall(MiddlewareCallContext& context) const {
     const auto* bg = USERVER_NAMESPACE::baggage::BaggageManager::TryGetBaggage();
     if (bg) {
         LOG_DEBUG() << "Send baggage " << bg->ToString();
-        auto& client_context = context.GetContext();
+        auto& client_context = context.GetClientContext();
         client_context.AddMetadata(ugrpc::impl::kXBaggage, ugrpc::impl::ToGrpcString(bg->ToString()));
     }
 }

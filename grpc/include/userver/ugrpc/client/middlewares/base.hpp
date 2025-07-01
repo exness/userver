@@ -54,7 +54,7 @@ public:
     /// @endcond
 
     /// @returns the `ClientContext` used for this RPC
-    grpc::ClientContext& GetContext() noexcept;
+    grpc::ClientContext& GetClientContext() noexcept;
 
     /// @returns client name
     std::string_view GetClientName() const noexcept;

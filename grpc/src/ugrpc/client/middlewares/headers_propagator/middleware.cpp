@@ -10,7 +10,7 @@ namespace ugrpc::client::middlewares::headers_propagator {
 Middleware::Middleware(Settings&& settings) : settings_(std::move(settings)) {}
 
 void Middleware::PreStartCall(MiddlewareCallContext& context) const {
-    auto& client_context = context.GetContext();
+    auto& client_context = context.GetClientContext();
 
     const auto& skip_headers = settings_.skip_headers;
 
