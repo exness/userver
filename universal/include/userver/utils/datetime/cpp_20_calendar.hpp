@@ -20,18 +20,14 @@ namespace utils::datetime {
 
 namespace date = ::date;
 
-#if __cpp_lib_chrono >= 201907L
-using Days = std::chrono::days;
-#else
-using Days = std::chrono::duration<int, std::ratio<24 * 60 * 60> >;
-#endif
+using Days = date::days;
+using DaysTimepoint = date::sys_days;
 
 /// @brief Calculates the number of days between January 1, 00:00 of two years accounting for leap years.
 constexpr Days DaysBetweenYears(int from, int to) {
-    using Timepoint = std::chrono::time_point<std::chrono::system_clock, Days>;
     return std::chrono::duration_cast<Days>(
-        Timepoint(date::year_month_day(date::year(to), date::month(1), date::day(1))) -
-        Timepoint(date::year_month_day(date::year(from), date::month(1), date::day(1)))
+        DaysTimepoint{date::year_month_day(date::year(to), date::month(1), date::day(1))} -
+        DaysTimepoint{date::year_month_day(date::year(from), date::month(1), date::day(1))}
     );
 }
 
