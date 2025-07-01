@@ -41,16 +41,15 @@ public:
 
     [[nodiscard]] bool IsReady() const noexcept;
 
-    [[nodiscard]] engine::FutureStatus WaitUntil(
-        engine::Deadline deadline,
-        ShouldCallMiddlewares call_middlewares = ShouldCallMiddlewares::kCall
-    ) const noexcept;
+    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept;
 
     void Get();
 
     engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
 
 private:
+    void Destroy() noexcept;
+
     CallState* state_{};
     const google::protobuf::Message* response_;
     mutable std::exception_ptr exception_;
@@ -588,20 +587,10 @@ InputStream<Response>& InputStream<Response>::operator=(InputStream<Response>&& 
 }
 
 template <typename Response>
-void InputStream<Response>::Destroy() noexcept try {
-    if (IsValid() && !GetState().IsFinished()) {
-        GetContext().TryCancel();
-        const engine::TaskCancellationBlocker cancel_blocker;
-        impl::Finish(
-            *stream_,
-            GetState(),
-            /*final_response=*/nullptr,
-            /*throw_on_error=*/false,
-            impl::ShouldCallMiddlewares::kNone
-        );
+void InputStream<Response>::Destroy() noexcept {
+    if (IsValid()) {
+        impl::FinishAbandoned(*stream_, GetState());
     }
-} catch (const std::exception& ex) {
-    LOG_WARNING() << "There is a caught exception in 'InputStream::Destroy': " << ex;
 }
 
 template <typename Response>
@@ -662,20 +651,10 @@ OutputStream<Request, Response>& OutputStream<Request, Response>::operator=(Outp
 }
 
 template <typename Request, typename Response>
-void OutputStream<Request, Response>::Destroy() noexcept try {
-    if (IsValid() && !GetState().IsFinished()) {
-        GetContext().TryCancel();
-        const engine::TaskCancellationBlocker cancel_blocker;
-        impl::Finish(
-            *stream_,
-            GetState(),
-            /*final_response=*/nullptr,
-            /*throw_on_error=*/false,
-            impl::ShouldCallMiddlewares::kNone
-        );
+void OutputStream<Request, Response>::Destroy() noexcept {
+    if (IsValid()) {
+        impl::FinishAbandoned(*stream_, GetState());
     }
-} catch (const std::exception& ex) {
-    LOG_WARNING() << "There is a caught exception in 'OutputStream::Destroy': " << ex;
 }
 
 template <typename Request, typename Response>

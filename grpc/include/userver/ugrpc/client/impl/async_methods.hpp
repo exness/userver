@@ -64,16 +64,9 @@ void StartCall(GrpcStream& stream, CallState& state) {
     CheckOk(state, WaitAndTryCancelIfNeeded(start_call, state.GetContext()), "StartCall");
 }
 
-enum class ShouldCallMiddlewares {
-    kNone = 0,
-    kCall = 1,
-};
+void ProcessFinish(CallState& state, const google::protobuf::Message* final_response);
 
-void ProcessFinish(
-    CallState& state,
-    const google::protobuf::Message* final_response,
-    ShouldCallMiddlewares call_middlewares = ShouldCallMiddlewares::kCall
-);
+void ProcessFinishAbandoned(CallState& state) noexcept;
 
 void ProcessFinishCancelled(CallState& state) noexcept;
 
@@ -86,8 +79,7 @@ void Finish(
     GrpcStream& stream,
     CallState& state,
     const google::protobuf::Message* final_response,
-    bool throw_on_error,
-    ShouldCallMiddlewares call_middlewares = ShouldCallMiddlewares::kCall
+    bool throw_on_error
 ) {
     state.SetFinished();
 
@@ -100,7 +92,7 @@ void Finish(
         case impl::AsyncMethodInvocation::WaitStatus::kOk:
             state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
             try {
-                ProcessFinish(state, final_response, call_middlewares);
+                ProcessFinish(state, final_response);
             } catch (const std::exception& ex) {
                 if (throw_on_error) {
                     throw;
@@ -132,6 +124,38 @@ void Finish(
         case impl::AsyncMethodInvocation::WaitStatus::kDeadline:
             UINVARIANT(false, "unreachable");
     }
+}
+
+template <typename GrpcStream>
+void FinishAbandoned(GrpcStream& stream, CallState& state) noexcept try {
+    if (state.IsFinished()) {
+        return;
+    }
+    state.SetFinished();
+
+    state.GetContext().TryCancel();
+
+    FinishAsyncMethodInvocation finish;
+    stream.Finish(&state.GetStatus(), finish.GetCompletionTag());
+
+    const engine::TaskCancellationBlocker cancel_blocker;
+    const auto wait_status = finish.Wait();
+
+    state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
+
+    switch (wait_status) {
+        case impl::AsyncMethodInvocation::WaitStatus::kOk:
+            ProcessFinishAbandoned(state);
+            break;
+        case impl::AsyncMethodInvocation::WaitStatus::kError:
+            ProcessFinishNetworkError(state);
+            break;
+        case impl::AsyncMethodInvocation::WaitStatus::kCancelled:
+        case impl::AsyncMethodInvocation::WaitStatus::kDeadline:
+            UINVARIANT(false, "unreachable");
+    }
+} catch (const std::exception& ex) {
+    LOG_WARNING() << "There is a caught exception in 'FinishAbandoned': " << ex;
 }
 
 template <typename GrpcStream, typename Response>

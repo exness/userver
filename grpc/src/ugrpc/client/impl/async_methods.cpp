@@ -71,25 +71,21 @@ void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::st
     }
 }
 
-void ProcessFinish(
-    CallState& state,
-    const google::protobuf::Message* final_response,
-    ShouldCallMiddlewares call_middlewares
-) {
+void ProcessFinish(CallState& state, const google::protobuf::Message* final_response) {
     ProcessCallStatistics(state);
 
     const auto& status = state.GetStatus();
 
-    if (call_middlewares == ShouldCallMiddlewares::kCall) {
-        if (final_response && status.ok()) {
-            MiddlewarePipeline::PostRecvMessage(state, *final_response);
-        }
-
-        MiddlewarePipeline::PostFinish(state);
+    if (final_response && status.ok()) {
+        MiddlewarePipeline::PostRecvMessage(state, *final_response);
     }
+
+    MiddlewarePipeline::PostFinish(state);
 
     SetStatusAndResetSpan(state, status);
 }
+
+void ProcessFinishAbandoned(CallState& state) noexcept { SetStatusAndResetSpan(state, state.GetStatus()); }
 
 void ProcessFinishCancelled(CallState& state) noexcept {
     state.GetStatsScope().OnCancelled();

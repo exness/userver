@@ -118,6 +118,10 @@ protected:
             return grpc::Status::OK;
         });
     }
+
+    auto GetMetric(std::string_view name, std::vector<utils::statistics::Label> labels = {}) {
+        return GetStatistics("grpc.client.total", labels).SingleMetric(std::string{name}, labels).AsRate();
+    }
 };
 
 }  // namespace
@@ -514,23 +518,6 @@ UTEST_F(ClientMiddlewaresHooksTest, MiddlewareExceptionBidirectionalStreaming) {
     UEXPECT_THROW(auto future = Client().Chat(), std::runtime_error);
 }
 
-UTEST_F(ClientMiddlewaresHooksTest, ThrowInDestructorUnaryCall) {
-    SetHappyPathUnary();
-
-    EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
-    EXPECT_CALL(Middleware(0), PreSendMessage).Times(1);
-    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);
-    EXPECT_CALL(Middleware(0), PostFinish).Times(0);  // We don't call middlewares in a destructor.
-
-    ON_CALL(Middleware(0), PostFinish)
-        .WillByDefault([](const ugrpc::client::MiddlewareCallContext&, const grpc::Status&) {
-            throw std::runtime_error{"mock error"};
-        });
-
-    Request request;
-    UEXPECT_NO_THROW(auto future = Client().AsyncSayHello(request));
-}
-
 UTEST_F(ClientMiddlewaresHooksTest, ExceptionWhenCancelledUnary) {
     EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
     EXPECT_CALL(Middleware(0), PreSendMessage).Times(1);
@@ -593,25 +580,51 @@ UTEST_F(ClientMiddlewaresHooksTest, BadStatusClientStreaming) {
     UEXPECT_THROW(auto response = stream.Finish(), ugrpc::client::InvalidArgumentError);
 }
 
-UTEST_F(ClientMiddlewaresHooksTest, ThrowInDestructorOutputStream) {
+UTEST_F(ClientMiddlewaresHooksTest, Abandoned) {
     SetHappyPathClientStreaming();
+    SetHappyPathServerStreaming();
+    SetHappyPathUnary();
 
-    EXPECT_CALL(Middleware(0), PreStartCall).Times(2);  // Two streams were created.
-    EXPECT_CALL(Middleware(0), PreSendMessage).Times(1);
-    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);  // Skipped, because no response message.
-    EXPECT_CALL(Middleware(0), PostFinish).Times(0);       // We don't call middlewares in a destructor.
+    EXPECT_CALL(Middleware(0), PreStartCall).Times(4);     // Four streams were created.
+    EXPECT_CALL(Middleware(0), PreSendMessage).Times(3);   // WriteAndCheck + ReadMany + AsyncSayHello
+    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);  // Skipped, because no response messages.
+    EXPECT_CALL(Middleware(0), PostFinish).Times(0);       // We don't run middlewares in a destructors of RPC.
 
     ON_CALL(Middleware(0), PostFinish)
         .WillByDefault([](const ugrpc::client::MiddlewareCallContext&, const grpc::Status&) {
             throw std::runtime_error{"mock error"};
         });
 
+    auto check_metrics = [this](std::size_t abandoned) {
+        EXPECT_EQ(GetMetric("abandoned-error"), abandoned);
+        EXPECT_EQ(GetMetric("status", {{"grpc_code", "CANCELLED"}}), abandoned);
+
+        EXPECT_EQ(GetMetric("cancelled"), 0);
+        EXPECT_EQ(GetMetric("status", {{"grpc_code", "OK"}}), 0);
+        EXPECT_EQ(GetMetric("status", {{"grpc_code", "UNKNOWN"}}), 0);
+    };
+
     {
-        auto stream = Client().WriteMany();
-        StreamRequest request;
-        UASSERT_NO_THROW(stream.WriteAndCheck(request));
+        EXPECT_FALSE(GetStatistics("grpc.client.total").SingleMetricOptional("abandoned-error"));
+        EXPECT_FALSE(GetStatistics("grpc.client.total", {{"grpc_code", "CANCELLED"}}).SingleMetricOptional("status"));
+        {
+            auto stream = Client().WriteMany();
+            StreamRequest request;
+            UASSERT_NO_THROW(stream.WriteAndCheck(request));
+        }
+        UASSERT_NO_THROW(const auto stream = Client().WriteMany());
     }
-    UASSERT_NO_THROW(const auto stream = Client().WriteMany());
+    check_metrics(2);
+    {
+        StreamRequest request;
+        UEXPECT_NO_THROW(const auto stream = Client().ReadMany(request));
+    }
+    check_metrics(3);
+    {
+        Request request;
+        UEXPECT_NO_THROW(auto future = Client().AsyncSayHello(request));
+    }
+    check_metrics(4);
 }
 
 UTEST_F(ClientMiddlewaresHooksTest, BadStatusServerStreaming) {

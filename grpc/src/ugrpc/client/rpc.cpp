@@ -33,16 +33,38 @@ UnaryFinishFutureImpl& UnaryFinishFutureImpl::operator=(UnaryFinishFutureImpl&& 
     return *this;
 }
 
-UnaryFinishFutureImpl::~UnaryFinishFutureImpl() {
-    if (state_ && !state_->IsFinishProcessed()) {
-        state_->GetContext().TryCancel();
+UnaryFinishFutureImpl::~UnaryFinishFutureImpl() { Destroy(); }
 
-        const engine::TaskCancellationBlocker cancel_blocker;
-        const auto future_status = WaitUntil(engine::Deadline{}, ShouldCallMiddlewares::kNone);
-        UASSERT(future_status == engine::FutureStatus::kReady);
-
-        UASSERT(state_->IsFinishProcessed());
+void UnaryFinishFutureImpl::Destroy() noexcept try {
+    if (!state_) {
+        return;
     }
+    auto& state = *state_;
+    if (state.IsFinishProcessed()) {
+        return;
+    }
+    state.SetFinishProcessed();
+    state.GetContext().TryCancel();
+    auto& finish = state.GetFinishAsyncMethodInvocation();
+
+    const engine::TaskCancellationBlocker cancel_blocker;
+    const auto wait_status = finish.Wait();
+
+    state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
+
+    switch (wait_status) {
+        case impl::AsyncMethodInvocation::WaitStatus::kOk:
+            ProcessFinishAbandoned(state);
+            break;
+        case impl::AsyncMethodInvocation::WaitStatus::kError:
+            ProcessFinishNetworkError(state);
+            break;
+        case impl::AsyncMethodInvocation::WaitStatus::kCancelled:
+        case impl::AsyncMethodInvocation::WaitStatus::kDeadline:
+            utils::AbortWithStacktrace("unreachable");
+    }
+} catch (const std::exception& ex) {
+    LOG_WARNING() << "There is a caught exception in 'UnaryFinishFutureImpl::Destroy': " << ex;
 }
 
 bool UnaryFinishFutureImpl::IsReady() const noexcept {
@@ -51,8 +73,7 @@ bool UnaryFinishFutureImpl::IsReady() const noexcept {
     return finish.IsReady();
 }
 
-engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline, ShouldCallMiddlewares call_middlewares)
-    const noexcept {
+engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline) const noexcept {
     UASSERT_MSG(state_, "'WaitUntil' called on a moved out future");
     if (!state_) return engine::FutureStatus::kReady;
 
@@ -65,7 +86,7 @@ engine::FutureStatus UnaryFinishFutureImpl::WaitUntil(engine::Deadline deadline,
             state_->SetFinishProcessed();
             state_->GetStatsScope().SetFinishTime(finish.GetFinishTime());
             try {
-                ProcessFinish(*state_, response_, call_middlewares);
+                ProcessFinish(*state_, response_);
             } catch (...) {
                 exception_ = std::current_exception();
             }
