@@ -15,7 +15,7 @@
 #include <userver/logging/level.hpp>
 #include <userver/server/congestion_control/sensor.hpp>
 #include <userver/utils/function_ref.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
+#include <userver/utils/impl/internal_tag_fwd.hpp>
 #include <userver/utils/statistics/fwd.hpp>
 #include <userver/yaml_config/fwd.hpp>
 

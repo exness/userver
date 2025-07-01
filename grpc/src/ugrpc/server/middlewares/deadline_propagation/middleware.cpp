@@ -8,8 +8,8 @@
 #include <userver/engine/task/cancel.hpp>
 #include <userver/server/request/task_inherited_data.hpp>
 #include <userver/utils/algo.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
-#include <ugrpc/impl/internal_tag.hpp>
 #include <ugrpc/impl/rpc_metadata.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
@@ -100,7 +100,7 @@ void Middleware::OnCallStart(MiddlewareCallContext& context) const {
             context.GetServerContext(),
             context.GetServiceName(),
             context.GetMethodName(),
-            context.GetStatistics(ugrpc::impl::InternalTag{}),
+            context.GetStatistics(utils::impl::InternalTag{}),
             context.GetInitialDynamicConfig(),
             context.GetStorageContext()
         )) {

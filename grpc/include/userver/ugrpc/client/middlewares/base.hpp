@@ -14,8 +14,8 @@
 #include <userver/middlewares/groups.hpp>
 #include <userver/middlewares/runner.hpp>
 #include <userver/tracing/span.hpp>
+#include <userver/utils/impl/internal_tag_fwd.hpp>
 
-#include <userver/ugrpc/impl/internal_tag_fwd.hpp>
 #include <userver/ugrpc/time_utils.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -73,7 +73,7 @@ public:
 
     /// @cond
     // For internal use only
-    impl::CallState& GetState(ugrpc::impl::InternalTag);
+    impl::CallState& GetState(utils::impl::InternalTag);
     /// @endcond
 
 private:

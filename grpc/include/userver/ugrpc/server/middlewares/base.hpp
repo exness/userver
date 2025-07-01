@@ -14,7 +14,6 @@
 #include <userver/middlewares/runner.hpp>
 #include <userver/utils/impl/internal_tag_fwd.hpp>
 
-#include <userver/ugrpc/impl/internal_tag_fwd.hpp>
 #include <userver/ugrpc/server/call_context.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -80,7 +79,7 @@ public:
 
     /// @cond
     // For internal use only.
-    ugrpc::impl::RpcStatisticsScope& GetStatistics(ugrpc::impl::InternalTag);
+    ugrpc::impl::RpcStatisticsScope& GetStatistics(utils::impl::InternalTag);
 
     // For internal use only.
     grpc::Status& GetStatus(utils::impl::InternalTag) { return status_; }

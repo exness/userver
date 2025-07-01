@@ -1,8 +1,8 @@
 #include <userver/ugrpc/client/middlewares/base.hpp>
 
-#include <userver/ugrpc/client/impl/call_state.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
-#include <ugrpc/impl/internal_tag.hpp>
+#include <userver/ugrpc/client/impl/call_state.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -36,7 +36,7 @@ bool MiddlewareCallContext::IsClientStreaming() const noexcept { return impl::Is
 
 bool MiddlewareCallContext::IsServerStreaming() const noexcept { return impl::IsServerStreaming(state_.GetCallKind()); }
 
-impl::CallState& MiddlewareCallContext::GetState(ugrpc::impl::InternalTag) { return state_; }
+impl::CallState& MiddlewareCallContext::GetState(utils::impl::InternalTag) { return state_; }
 
 }  // namespace ugrpc::client
 

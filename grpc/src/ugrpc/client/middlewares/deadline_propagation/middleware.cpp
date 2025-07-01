@@ -1,8 +1,9 @@
 #include <userver/ugrpc/client/middlewares/deadline_propagation/middleware.hpp>
 
-#include <ugrpc/impl/internal_tag.hpp>
 #include <userver/server/request/task_inherited_data.hpp>
 #include <userver/tracing/tags.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
+
 #include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/time_utils.hpp>
 
@@ -59,7 +60,7 @@ void UpdateDeadline(impl::CallState& state) {
 }  // namespace
 
 void Middleware::PreStartCall(MiddlewareCallContext& context) const {
-    UpdateDeadline(context.GetState(ugrpc::impl::InternalTag{}));
+    UpdateDeadline(context.GetState(utils::impl::InternalTag{}));
 }
 
 }  // namespace ugrpc::client::middlewares::deadline_propagation

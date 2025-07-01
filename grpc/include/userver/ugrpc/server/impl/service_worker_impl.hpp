@@ -18,7 +18,6 @@
 #include <userver/tracing/span_builder.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
 #include <userver/utils/impl/wait_token_storage.hpp>
 #include <userver/utils/lazy_prvalue.hpp>
 #include <userver/utils/statistics/entry.hpp>

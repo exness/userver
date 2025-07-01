@@ -5,6 +5,7 @@
 #include <google/protobuf/reflection.h>
 
 #include <userver/utils/assert.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
 #include <ugrpc/impl/protobuf_utils.hpp>
 #include <userver/ugrpc/impl/protobuf_collector.hpp>
@@ -245,6 +246,20 @@ bool VisitorCompiler::ContainsSelected(const google::protobuf::Descriptor* descr
            IsSelected(*descriptor);
 }
 
+const VisitorCompiler::Dependencies& VisitorCompiler::GetFieldsWithSelectedChildren(utils::impl::InternalTag) const {
+    return fields_with_selected_children_;
+}
+
+const VisitorCompiler::Dependencies& VisitorCompiler::GetReverseEdges(utils::impl::InternalTag) const {
+    return reverse_edges_;
+}
+
+const VisitorCompiler::DescriptorSet& VisitorCompiler::GetPropagated(utils::impl::InternalTag) const {
+    return propagated_;
+}
+
+const VisitorCompiler::DescriptorSet& VisitorCompiler::GetCompiled(utils::impl::InternalTag) const { return compiled_; }
+
 std::shared_lock<engine::SharedMutex> VisitorCompiler::LockRead() {
     std::shared_lock read_lock(mutex_, std::defer_lock);
     if (lock_behavior_ == LockBehavior::kShared) read_lock.lock();
@@ -321,6 +336,10 @@ FieldsVisitor::FieldsVisitor(Selector selector, const DescriptorList& descriptor
     Compile(descriptors);
 }
 
+const FieldsVisitor::Dependencies& FieldsVisitor::GetSelectedFields(utils::impl::InternalTag) const {
+    return selected_fields_;
+}
+
 void FieldsVisitor::CompileOne(const google::protobuf::Descriptor& descriptor) {
     for (const google::protobuf::FieldDescriptor* field : GetFieldDescriptors(descriptor)) {
         UINVARIANT(field, "field is nullptr");
@@ -370,6 +389,10 @@ MessagesVisitor::MessagesVisitor(Selector selector, LockBehavior lock_behavior)
 MessagesVisitor::MessagesVisitor(Selector selector, const DescriptorList& descriptors, LockBehavior lock_behavior)
     : BaseVisitor<MessageVisitCallback>(lock_behavior), selector_(selector) {
     Compile(descriptors);
+}
+
+const MessagesVisitor::DescriptorSet& MessagesVisitor::GetSelectedMessages(utils::impl::InternalTag) const {
+    return selected_messages_;
 }
 
 void MessagesVisitor::CompileOne(const google::protobuf::Descriptor& descriptor) {
