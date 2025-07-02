@@ -13,6 +13,13 @@ namespace ugrpc::client::middlewares::log {
 
 namespace {
 
+std::string GetMessageForLogging(const google::protobuf::Message& message, const Settings& settings) {
+    if (!logging::ShouldLog(settings.msg_log_level)) {
+        return "";
+    }
+    return ugrpc::impl::GetMessageForLogging(message, settings.max_msg_size);
+}
+
 class SpanLogger {
 public:
     SpanLogger(const tracing::Span& span, logging::Level log_level) : span_{span}, log_level_threshold_(log_level) {}
@@ -53,7 +60,7 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::pr
     const SpanLogger logger{context.GetSpan(), settings_.log_level};
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "request"},
-        {ugrpc::impl::kBodyTag, ugrpc::impl::GetMessageForLogging(message, settings_.max_msg_size)},
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
         {ugrpc::impl::kMessageMarshalledLenTag, message.ByteSizeLong()},
     };
     if (context.IsClientStreaming()) {
@@ -67,7 +74,7 @@ void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::p
     const SpanLogger logger{context.GetSpan(), settings_.log_level};
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "response"},
-        {ugrpc::impl::kBodyTag, ugrpc::impl::GetMessageForLogging(message, settings_.max_msg_size)},
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
     };
     if (context.IsServerStreaming()) {
         logger.Log(settings_.msg_log_level, "gRPC response stream message", std::move(extra));

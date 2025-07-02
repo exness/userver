@@ -13,6 +13,13 @@ namespace ugrpc::server::middlewares::log {
 
 namespace {
 
+std::string GetMessageForLogging(const google::protobuf::Message& message, const Settings& settings) {
+    if (!logging::ShouldLog(settings.msg_log_level)) {
+        return "";
+    }
+    return ugrpc::impl::GetMessageForLogging(message, settings.max_msg_size);
+}
+
 class Logger {
 public:
     explicit Logger(logging::Level log_level) : log_level_threshold_(log_level) {}
@@ -51,7 +58,7 @@ void Middleware::PostRecvMessage(MiddlewareCallContext& context, google::protobu
     const Logger logger{settings_.log_level};
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "request"},
-        {ugrpc::impl::kBodyTag, ugrpc::impl::GetMessageForLogging(request, settings_.max_msg_size)},
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(request, settings_)},
         {ugrpc::impl::kMessageMarshalledLenTag, request.ByteSizeLong()},
     };
     if (context.IsClientStreaming()) {
@@ -67,7 +74,7 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, google::protobuf
     logging::LogExtra extra{
         {ugrpc::impl::kTypeTag, "response"},
         {"grpc_code", "OK"},  // TODO: revert
-        {ugrpc::impl::kBodyTag, ugrpc::impl::GetMessageForLogging(response, settings_.max_msg_size)},
+        {ugrpc::impl::kBodyTag, GetMessageForLogging(response, settings_)},
     };
     if (context.IsServerStreaming()) {
         logger.Log(settings_.msg_log_level, "gRPC response stream message", std::move(extra));
