@@ -37,15 +37,16 @@ class CallState final {
 public:
     CallState(CallParams&&, CallKind);
 
+    ~CallState() noexcept;
+
     CallState(CallState&&) noexcept = delete;
     CallState& operator=(CallState&&) noexcept = delete;
-    ~CallState() noexcept;
 
     StubHandle& GetStub() noexcept;
 
-    const grpc::ClientContext& GetContext() const noexcept;
+    const grpc::ClientContext& GetClientContext() const noexcept;
 
-    grpc::ClientContext& GetContext() noexcept;
+    grpc::ClientContext& GetClientContext() noexcept;
 
     std::string_view GetCallName() const noexcept;
 
@@ -129,7 +130,7 @@ public:
 
 private:
     StubHandle stub_;
-    std::unique_ptr<grpc::ClientContext> context_;
+    std::unique_ptr<grpc::ClientContext> client_context_;
     std::string client_name_;
     ugrpc::impl::MaybeOwnedString call_name_;
     bool writes_finished_{false};

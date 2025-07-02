@@ -1,6 +1,6 @@
 #pragma once
 
-/// @file userver/ugrpc/client/rpc.hpp
+/// @file userver/ugrpc/client/impl/rpc.hpp
 /// @brief Classes representing an outgoing RPC
 
 #include <exception>
@@ -14,8 +14,8 @@
 #include <userver/engine/future_status.hpp>
 #include <userver/utils/assert.hpp>
 
-#include <userver/ugrpc/client/call.hpp>
 #include <userver/ugrpc/client/impl/async_methods.hpp>
+#include <userver/ugrpc/client/impl/call.hpp>
 #include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/client/impl/prepare_call.hpp>
@@ -24,20 +24,17 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace ugrpc::client {
-
-namespace impl {
+namespace ugrpc::client::impl {
 
 // Contains the implementation of UnaryFinishFuture that is not dependent on template parameters.
-class UnaryFinishFutureImpl {
+class UnaryFinishFuture {
 public:
-    UnaryFinishFutureImpl(CallState& state, const google::protobuf::Message* response) noexcept;
+    UnaryFinishFuture(CallState& state, const google::protobuf::Message* response) noexcept;
 
-    UnaryFinishFutureImpl(UnaryFinishFutureImpl&&) noexcept;
-    UnaryFinishFutureImpl& operator=(UnaryFinishFutureImpl&&) noexcept;
-    UnaryFinishFutureImpl(const UnaryFinishFutureImpl&) = delete;
-    UnaryFinishFutureImpl& operator=(const UnaryFinishFutureImpl&) = delete;
-    ~UnaryFinishFutureImpl();
+    ~UnaryFinishFuture();
+
+    UnaryFinishFuture(UnaryFinishFuture&&) = delete;
+    UnaryFinishFuture& operator=(UnaryFinishFuture&&) = delete;
 
     [[nodiscard]] bool IsReady() const noexcept;
 
@@ -50,64 +47,10 @@ public:
 private:
     void Destroy() noexcept;
 
-    CallState* state_{};
+    CallState& state_;
     const google::protobuf::Message* response_;
     mutable std::exception_ptr exception_;
 };
-
-/// @brief UnaryFuture for awaiting a single response RPC
-template <typename Response>
-class [[nodiscard]] UnaryFinishFuture {
-public:
-    /// @cond
-    UnaryFinishFuture(CallState& state, std::unique_ptr<Response>&& response) noexcept
-        : response_(std::move(response)), impl_(state, impl::ToBaseMessage(*response_)) {}
-    /// @endcond
-
-    UnaryFinishFuture(UnaryFinishFuture&&) noexcept = default;
-    UnaryFinishFuture& operator=(UnaryFinishFuture&&) noexcept = default;
-    UnaryFinishFuture(const UnaryFinishFuture&) = delete;
-    UnaryFinishFuture& operator=(const UnaryFinishFuture&) = delete;
-
-    /// @brief Checks if the asynchronous call has completed
-    ///        Note, that once user gets result, IsReady should not be called
-    /// @return true if result ready
-    [[nodiscard]] bool IsReady() const noexcept { return impl_.IsReady(); }
-
-    /// @brief Await response until the deadline is reached or until the task is cancelled.
-    ///
-    /// Upon completion result is available in `response` when initiating the
-    /// asynchronous operation, e.g. FinishAsync.
-    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept {
-        return impl_.WaitUntil(deadline);
-    }
-
-    /// @brief Await response
-    ///
-    /// Upon completion result is available in `response` when initiating the
-    /// asynchronous operation, e.g. FinishAsync.
-    ///
-    /// Invalidates the future: no further methods can be called on it.
-    ///
-    /// @throws ugrpc::client::RpcError on an RPC error
-    /// @throws ugrpc::client::RpcCancelledError on task cancellation
-    Response Get() {
-        UASSERT(response_);
-        impl_.Get();
-        return std::move(*response_);
-    }
-
-    /// @cond
-    // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return impl_.TryGetContextAccessor(); }
-    /// @endcond
-
-private:
-    std::unique_ptr<Response> response_;
-    UnaryFinishFutureImpl impl_;
-};
-
-}  // namespace impl
 
 /// @brief StreamReadFuture for waiting a single read response from stream
 template <typename RPC>
@@ -115,7 +58,7 @@ class [[nodiscard]] StreamReadFuture {
 public:
     /// @cond
     StreamReadFuture(
-        impl::CallState& state,
+        CallState& state,
         typename RPC::RawStream& stream,
         const google::protobuf::Message* recv_message
     ) noexcept;
@@ -145,12 +88,10 @@ public:
     [[nodiscard]] bool IsReady() const noexcept;
 
 private:
-    impl::CallState* state_{};
+    CallState* state_{};
     typename RPC::RawStream* stream_{};
     const google::protobuf::Message* recv_message_;
 };
-
-namespace impl {
 
 /// @brief Controls a single request -> single response RPC
 ///
@@ -167,12 +108,6 @@ class [[nodiscard]] UnaryCall final : public CallAnyBase {
     // to UnaryCall, and UnaryCall should be exposed via ResponseFuture::GetCall.
 
 public:
-    /// @brief Returns the future created earlier using @ref FinishAsync.
-    UnaryFinishFuture<Response>& GetFinishFuture();
-
-    /// @overload
-    const UnaryFinishFuture<Response>& GetFinishFuture() const;
-
     /// @cond
     // For internal use only
     template <typename Stub, typename Request>
@@ -183,9 +118,18 @@ public:
     );
     /// @endcond
 
-    UnaryCall(UnaryCall&&) noexcept = default;
-    UnaryCall& operator=(UnaryCall&&) noexcept = default;
     ~UnaryCall() = default;
+
+    UnaryCall(UnaryCall&&) = delete;
+    UnaryCall& operator=(UnaryCall&&) = delete;
+
+    /// @brief Returns the future created earlier using @ref FinishAsync.
+    UnaryFinishFuture& GetFinishFuture();
+
+    /// @overload
+    const UnaryFinishFuture& GetFinishFuture() const;
+
+    Response Finish();
 
 private:
     // Asynchronously finish the call.
@@ -193,12 +137,10 @@ private:
     // Creates the future inside this `UnaryCall`. It can be retrieved using @ref GetFinishFuture.
     void FinishAsync();
 
-private:
-    RawResponseReader<Response> reader_{};
-    std::optional<UnaryFinishFuture<Response>> finish_future_{};
+    Response response_;
+    RawResponseReader<Response> reader_;
+    std::optional<UnaryFinishFuture> finish_future_;
 };
-
-}  // namespace impl
 
 /// @brief Controls a single request -> response stream RPC
 ///
@@ -228,24 +170,21 @@ public:
 
     template <typename Stub, typename Request>
     InputStream(
-        impl::CallParams&& params,
-        impl::PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
+        CallParams&& params,
+        PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
         const Request& request
     );
     /// @endcond
 
-    InputStream(const InputStream&) = delete;
-    InputStream& operator=(const InputStream&) = delete;
-
-    InputStream(InputStream&&) noexcept = default;
-    InputStream& operator=(InputStream&&) noexcept;
-
     ~InputStream();
+
+    InputStream(InputStream&&) = delete;
+    InputStream& operator=(InputStream&&) = delete;
 
 private:
     void Destroy() noexcept;
 
-    impl::RawReader<Response> stream_;
+    RawReader<Response> stream_;
 };
 
 /// @brief Controls a request stream -> single response RPC
@@ -304,21 +243,19 @@ public:
     using RawStream = grpc::ClientAsyncWriter<Request>;
 
     template <typename Stub>
-    OutputStream(
-        impl::CallParams&& params,
-        impl::PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method
-    );
+    OutputStream(CallParams&& params, PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method);
     /// @endcond
 
-    OutputStream(OutputStream&&) noexcept = default;
-    OutputStream& operator=(OutputStream&&) noexcept;
     ~OutputStream();
+
+    OutputStream(OutputStream&&) = delete;
+    OutputStream& operator=(OutputStream&&) = delete;
 
 private:
     void Destroy() noexcept;
 
-    std::unique_ptr<Response> response_;
-    impl::RawWriter<Request> stream_;
+    Response response_;
+    RawWriter<Request> stream_;
 };
 
 /// @brief Controls a request stream -> response stream RPC
@@ -418,23 +355,21 @@ public:
     using RawStream = grpc::ClientAsyncReaderWriter<Request, Response>;
 
     template <typename Stub>
-    BidirectionalStream(
-        impl::CallParams&& params,
-        impl::PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method
-    );
+    BidirectionalStream(CallParams&& params, PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method);
     /// @endcond
 
-    BidirectionalStream(BidirectionalStream&&) noexcept = default;
-    BidirectionalStream& operator=(BidirectionalStream&&) noexcept = default;
     ~BidirectionalStream() = default;
 
+    BidirectionalStream(BidirectionalStream&&) = delete;
+    BidirectionalStream& operator=(BidirectionalStream&&) = delete;
+
 private:
-    impl::RawReaderWriter<Request, Response> stream_;
+    RawReaderWriter<Request, Response> stream_;
 };
 
 template <typename RPC>
 StreamReadFuture<RPC>::StreamReadFuture(
-    impl::CallState& state,
+    CallState& state,
     typename RPC::RawStream& stream,
     const google::protobuf::Message* recv_message
 ) noexcept
@@ -459,17 +394,17 @@ StreamReadFuture<RPC>& StreamReadFuture<RPC>::operator=(StreamReadFuture<RPC>&& 
 template <typename RPC>
 StreamReadFuture<RPC>::~StreamReadFuture() {
     if (state_) {
-        const impl::CallState::AsyncMethodInvocationGuard guard(*state_);
+        const CallState::AsyncMethodInvocationGuard guard(*state_);
         const auto wait_status =
-            impl::WaitAndTryCancelIfNeeded(state_->GetAsyncMethodInvocation(), state_->GetContext());
-        if (wait_status != impl::AsyncMethodInvocation::WaitStatus::kOk) {
-            if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
+            impl::WaitAndTryCancelIfNeeded(state_->GetAsyncMethodInvocation(), state_->GetClientContext());
+        if (wait_status != AsyncMethodInvocation::WaitStatus::kOk) {
+            if (wait_status == AsyncMethodInvocation::WaitStatus::kCancelled) {
                 state_->GetStatsScope().OnCancelled();
             }
             impl::Finish(*stream_, *state_, /*final_response=*/nullptr, /*throw_on_error=*/false);
         } else {
             if (recv_message_) {
-                impl::MiddlewarePipeline::PostRecvMessage(*state_, *recv_message_);
+                MiddlewarePipeline::PostRecvMessage(*state_, *recv_message_);
             }
         }
     }
@@ -478,22 +413,22 @@ StreamReadFuture<RPC>::~StreamReadFuture() {
 template <typename RPC>
 bool StreamReadFuture<RPC>::Get() {
     UINVARIANT(state_, "'Get' must be called only once");
-    const impl::CallState::AsyncMethodInvocationGuard guard(*state_);
+    const CallState::AsyncMethodInvocationGuard guard(*state_);
     auto* const state = std::exchange(state_, nullptr);
-    const auto result = impl::WaitAndTryCancelIfNeeded(state->GetAsyncMethodInvocation(), state->GetContext());
-    if (result == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
+    const auto result = impl::WaitAndTryCancelIfNeeded(state->GetAsyncMethodInvocation(), state->GetClientContext());
+    if (result == AsyncMethodInvocation::WaitStatus::kCancelled) {
         state->GetStatsScope().OnCancelled();
         state->GetStatsScope().Flush();
-    } else if (result == impl::AsyncMethodInvocation::WaitStatus::kError) {
+    } else if (result == AsyncMethodInvocation::WaitStatus::kError) {
         // Finish can only be called once all the data is read, otherwise the
         // underlying gRPC driver hangs.
         impl::Finish(*stream_, *state, /*final_response=*/nullptr, /*throw_on_error=*/true);
     } else {
         if (recv_message_) {
-            impl::MiddlewarePipeline::PostRecvMessage(*state, *recv_message_);
+            MiddlewarePipeline::PostRecvMessage(*state, *recv_message_);
         }
     }
-    return result == impl::AsyncMethodInvocation::WaitStatus::kOk;
+    return result == AsyncMethodInvocation::WaitStatus::kOk;
 }
 
 template <typename RPC>
@@ -502,8 +437,6 @@ bool StreamReadFuture<RPC>::IsReady() const noexcept {
     auto& method = state_->GetAsyncMethodInvocation();
     return method.IsReady();
 }
-
-namespace impl {
 
 template <typename Response>
 template <typename Stub, typename Request>
@@ -518,8 +451,9 @@ UnaryCall<Response>::UnaryCall(
         MiddlewarePipeline::PreSendMessage(GetState(), request);
     }
 
-    reader_ =
-        prepare_unary_call.PrepareCall(GetState().GetStub(), &GetState().GetContext(), request, &GetState().GetQueue());
+    reader_ = prepare_unary_call.PrepareCall(
+        GetState().GetStub(), &GetState().GetClientContext(), request, &GetState().GetQueue()
+    );
     reader_->StartCall();
 
     GetState().SetWritesFinished();
@@ -530,45 +464,48 @@ UnaryCall<Response>::UnaryCall(
 template <typename Response>
 void UnaryCall<Response>::FinishAsync() {
     UASSERT(reader_);
-    auto response = std::make_unique<Response>();
 
     GetState().SetFinished();
     GetState().EmplaceFinishAsyncMethodInvocation();
     auto& finish = GetState().GetFinishAsyncMethodInvocation();
     auto& status = GetState().GetStatus();
-    reader_->Finish(response.get(), &status, finish.GetCompletionTag());
+    reader_->Finish(&response_, &status, finish.GetCompletionTag());
 
-    finish_future_.emplace(GetState(), std::move(response));
+    finish_future_.emplace(GetState(), ToBaseMessage(&response_));
 }
 
 template <typename Response>
-UnaryFinishFuture<Response>& UnaryCall<Response>::GetFinishFuture() {
+Response UnaryCall<Response>::Finish() {
+    GetFinishFuture().Get();
+    return std::move(response_);
+}
+
+template <typename Response>
+UnaryFinishFuture& UnaryCall<Response>::GetFinishFuture() {
     UASSERT(finish_future_);
     return *finish_future_;
 }
 
 template <typename Response>
-const UnaryFinishFuture<Response>& UnaryCall<Response>::GetFinishFuture() const {
+const UnaryFinishFuture& UnaryCall<Response>::GetFinishFuture() const {
     UASSERT(finish_future_);
     return *finish_future_;
 }
-
-}  // namespace impl
 
 template <typename Response>
 template <typename Stub, typename Request>
 InputStream<Response>::InputStream(
-    impl::CallParams&& params,
-    impl::PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
+    CallParams&& params,
+    PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
     const Request& request
 )
-    : CallAnyBase(std::move(params), impl::CallKind::kInputStream) {
-    impl::MiddlewarePipeline::PreStartCall(GetState());
-    impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
+    : CallAnyBase(std::move(params), CallKind::kInputStream) {
+    MiddlewarePipeline::PreStartCall(GetState());
+    MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
     stream_ = impl::PrepareCall(
-        prepare_async_method, GetState().GetStub(), &GetState().GetContext(), request, &GetState().GetQueue()
+        prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), request, &GetState().GetQueue()
     );
     impl::StartCall(*stream_, GetState());
 
@@ -576,21 +513,8 @@ InputStream<Response>::InputStream(
 }
 
 template <typename Response>
-InputStream<Response>& InputStream<Response>::operator=(InputStream<Response>&& other) noexcept {
-    if (this != &other) {
-        Destroy();
-        // destroy the older stream_ before the older CallAnyBase.
-        stream_ = std::move(other.stream_);
-        CallAnyBase::operator=(std::move(other));
-    }
-    return *this;
-}
-
-template <typename Response>
 void InputStream<Response>::Destroy() noexcept {
-    if (IsValid()) {
-        impl::FinishAbandoned(*stream_, GetState());
-    }
+    impl::FinishAbandoned(*stream_, GetState());
 }
 
 template <typename Response>
@@ -607,7 +531,7 @@ bool InputStream<Response>::Read(Response& response) {
     }
 
     if (impl::Read(*stream_, response, GetState())) {
-        impl::MiddlewarePipeline::PostRecvMessage(GetState(), response);
+        MiddlewarePipeline::PostRecvMessage(GetState(), response);
         return true;
     } else {
         // Finish can only be called once all the data is read, otherwise the
@@ -620,16 +544,16 @@ bool InputStream<Response>::Read(Response& response) {
 template <typename Request, typename Response>
 template <typename Stub>
 OutputStream<Request, Response>::OutputStream(
-    impl::CallParams&& params,
-    impl::PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method
+    CallParams&& params,
+    PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method
 )
-    : CallAnyBase(std::move(params), impl::CallKind::kOutputStream), response_(std::make_unique<Response>()) {
-    impl::MiddlewarePipeline::PreStartCall(GetState());
+    : CallAnyBase(std::move(params), CallKind::kOutputStream) {
+    MiddlewarePipeline::PreStartCall(GetState());
 
     // 'response_' will be filled upon successful 'Finish' async call
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
     stream_ = impl::PrepareCall(
-        prepare_async_method, GetState().GetStub(), &GetState().GetContext(), response_.get(), &GetState().GetQueue()
+        prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), &response_, &GetState().GetQueue()
     );
     impl::StartCall(*stream_, GetState());
 }
@@ -640,21 +564,8 @@ OutputStream<Request, Response>::~OutputStream() {
 }
 
 template <typename Request, typename Response>
-OutputStream<Request, Response>& OutputStream<Request, Response>::operator=(OutputStream&& other) noexcept {
-    if (this != &other) {
-        Destroy();
-        stream_ = std::move(other.stream_);
-        response_ = std::move(other.response_);
-        CallAnyBase::operator=(std::move(other));
-    }
-    return *this;
-}
-
-template <typename Request, typename Response>
 void OutputStream<Request, Response>::Destroy() noexcept {
-    if (IsValid()) {
-        impl::FinishAbandoned(*stream_, GetState());
-    }
+    impl::FinishAbandoned(*stream_, GetState());
 }
 
 template <typename Request, typename Response>
@@ -665,7 +576,7 @@ bool OutputStream<Request, Response>::Write(const Request& request) {
         return false;
     }
 
-    impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered
@@ -681,7 +592,7 @@ void OutputStream<Request, Response>::WriteAndCheck(const Request& request) {
         throw RpcError(GetState().GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
     }
 
-    impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered
@@ -700,24 +611,24 @@ Response OutputStream<Request, Response>::Finish() {
         impl::WritesDone(*stream_, GetState());
     }
 
-    UASSERT(response_);
-    impl::Finish(*stream_, GetState(), impl::ToBaseMessage(*response_), /*throw_on_error=*/true);
+    impl::Finish(*stream_, GetState(), ToBaseMessage(&response_), /*throw_on_error=*/true);
 
-    return std::move(*response_);
+    return std::move(response_);
 }
 
 template <typename Request, typename Response>
 template <typename Stub>
 BidirectionalStream<Request, Response>::BidirectionalStream(
-    impl::CallParams&& params,
-    impl::PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method
+    CallParams&& params,
+    PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method
 )
-    : CallAnyBase(std::move(params), impl::CallKind::kBidirectionalStream) {
-    impl::MiddlewarePipeline::PreStartCall(GetState());
+    : CallAnyBase(std::move(params), CallKind::kBidirectionalStream) {
+    MiddlewarePipeline::PreStartCall(GetState());
 
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    stream_ =
-        impl::PrepareCall(prepare_async_method, GetState().GetStub(), &GetState().GetContext(), &GetState().GetQueue());
+    stream_ = impl::PrepareCall(
+        prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), &GetState().GetQueue()
+    );
     impl::StartCall(*stream_, GetState());
 }
 
@@ -732,8 +643,7 @@ StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Req
     }
 
     impl::ReadAsync(*stream_, response, GetState());
-    return StreamReadFuture<BidirectionalStream<Request, Response>>{
-        GetState(), *stream_, impl::ToBaseMessage(response)};
+    return StreamReadFuture<BidirectionalStream<Request, Response>>{GetState(), *stream_, ToBaseMessage(&response)};
 }
 
 template <typename Request, typename Response>
@@ -754,7 +664,7 @@ bool BidirectionalStream<Request, Response>::Write(const Request& request) {
         return false;
     }
 
-    impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
     const grpc::WriteOptions write_options{};
@@ -769,7 +679,7 @@ void BidirectionalStream<Request, Response>::WriteAndCheck(const Request& reques
         throw RpcError(GetState().GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
     }
 
-    impl::MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(GetState(), request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
     const grpc::WriteOptions write_options{};
@@ -787,6 +697,6 @@ bool BidirectionalStream<Request, Response>::WritesDone() {
     return impl::WritesDone(*stream_, GetState());
 }
 
-}  // namespace ugrpc::client
+}  // namespace ugrpc::client::impl
 
 USERVER_NAMESPACE_END

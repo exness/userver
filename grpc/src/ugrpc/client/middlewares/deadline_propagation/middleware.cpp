@@ -25,7 +25,7 @@ void UpdateDeadline(impl::CallState& state) {
         return;
     }
 
-    auto& context = state.GetContext();
+    auto& context = state.GetClientContext();
 
     const auto context_time_left = ugrpc::TimespecToDuration(context.raw_deadline());
     const engine::Deadline task_deadline = USERVER_NAMESPACE::server::request::GetTaskInheritedDeadline();

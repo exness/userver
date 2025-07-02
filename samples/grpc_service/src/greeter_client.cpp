@@ -48,13 +48,13 @@ std::vector<std::string> GreeterClient::SayHelloResponseStream(std::string name)
     constexpr auto kCountSend = 5;
     for (int i = 0; i < kCountSend; i++) {
         if (!stream.Read(response)) {
-            throw ugrpc::client::RpcError(stream.GetCallName(), "Missing responses");
+            throw ugrpc::client::RpcError(stream.GetContext().GetCallName(), "Missing responses");
         }
         result.push_back(std::move(*response.mutable_greeting()));
     }
 
     if (stream.Read(response)) {
-        throw ugrpc::client::RpcError(stream.GetCallName(), "Extra responses");
+        throw ugrpc::client::RpcError(stream.GetContext().GetCallName(), "Extra responses");
     }
     return result;
 }
@@ -84,14 +84,14 @@ std::vector<std::string> GreeterClient::SayHelloStreams(const std::vector<std::s
         stream.WriteAndCheck(request);
 
         if (!stream.Read(response)) {
-            throw ugrpc::client::RpcError(stream.GetCallName(), "Missing responses before WritesDone");
+            throw ugrpc::client::RpcError(stream.GetContext().GetCallName(), "Missing responses before WritesDone");
         }
         result.push_back(std::move(*response.mutable_greeting()));
     }
     const bool is_success = stream.WritesDone();
     LOG_DEBUG() << "Write task finish: " << is_success;
     if (stream.Read(response)) {
-        throw ugrpc::client::RpcError(stream.GetCallName(), "Extra responses after WritesDone");
+        throw ugrpc::client::RpcError(stream.GetContext().GetCallName(), "Extra responses after WritesDone");
     }
     return result;
 }

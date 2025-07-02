@@ -17,7 +17,7 @@ RpcConfigValues::RpcConfigValues(const dynamic_config::Snapshot& config)
 
 CallState::CallState(CallParams&& params, CallKind call_kind)
     : stub_(std::move(params.stub)),
-      context_(std::move(params.context)),
+      client_context_(std::move(params.context)),
       client_name_(params.client_name),
       call_name_(std::move(params.call_name)),
       stats_scope_(params.statistics),
@@ -25,16 +25,16 @@ CallState::CallState(CallParams&& params, CallKind call_kind)
       config_values_(params.config),
       middlewares_(params.middlewares),
       call_kind_(call_kind) {
-    UASSERT(context_);
+    UASSERT(client_context_);
     UASSERT(!client_name_.empty());
-    SetupSpan(span_, *context_, call_name_.Get());
+    SetupSpan(span_, *client_context_, call_name_.Get());
 }
 
 CallState::~CallState() noexcept {
     invocation_.emplace<std::monostate>();
 
-    if (context_ && !IsFinished()) {
-        context_->TryCancel();
+    if (client_context_ && !IsFinished()) {
+        client_context_->TryCancel();
 
         UASSERT(span_);
         SetErrorForSpan(GetSpan(), "Abandoned");
@@ -44,43 +44,43 @@ CallState::~CallState() noexcept {
 
 StubHandle& CallState::GetStub() noexcept { return stub_; }
 
-const grpc::ClientContext& CallState::GetContext() const noexcept {
-    UASSERT(context_);
-    return *context_;
+const grpc::ClientContext& CallState::GetClientContext() const noexcept {
+    UASSERT(client_context_);
+    return *client_context_;
 }
 
-grpc::ClientContext& CallState::GetContext() noexcept {
-    UASSERT(context_);
-    return *context_;
+grpc::ClientContext& CallState::GetClientContext() noexcept {
+    UASSERT(client_context_);
+    return *client_context_;
 }
 
 grpc::CompletionQueue& CallState::GetQueue() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return queue_;
 }
 
 const RpcConfigValues& CallState::GetConfigValues() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return config_values_;
 }
 
 const Middlewares& CallState::GetMiddlewares() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return middlewares_;
 }
 
 std::string_view CallState::GetCallName() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return call_name_.Get();
 }
 
 std::string_view CallState::GetClientName() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return client_name_;
 }
 
 tracing::Span& CallState::GetSpan() noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     UASSERT(span_);
     return span_->Get();
 }
@@ -88,46 +88,46 @@ tracing::Span& CallState::GetSpan() noexcept {
 CallKind CallState::GetCallKind() const noexcept { return call_kind_; }
 
 void CallState::ResetSpan() noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     UASSERT(span_);
     span_.reset();
 }
 
 ugrpc::impl::RpcStatisticsScope& CallState::GetStatsScope() noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return stats_scope_;
 }
 
 void CallState::SetFinished() noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     UINVARIANT(!is_finished_, "Tried to finish an already finished call");
     is_finished_ = true;
 }
 
 bool CallState::IsFinished() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return is_finished_;
 }
 
 void CallState::SetDeadlinePropagated() noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     stats_scope_.OnDeadlinePropagated();
     is_deadline_propagated_ = true;
 }
 
 bool CallState::IsDeadlinePropagated() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return is_deadline_propagated_;
 }
 
 void CallState::SetWritesFinished() noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     UASSERT(!writes_finished_);
     writes_finished_ = true;
 }
 
 bool CallState::AreWritesFinished() const noexcept {
-    UASSERT(context_);
+    UASSERT(client_context_);
     return writes_finished_;
 }
 

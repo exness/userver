@@ -38,9 +38,9 @@ using RawReaderWriter = std::unique_ptr<grpc::ClientAsyncReaderWriter<Request, R
 /// @}
 
 template <typename Message>
-const google::protobuf::Message* ToBaseMessage(const Message& message) {
+const google::protobuf::Message* ToBaseMessage(const Message* message) {
     if constexpr (std::is_base_of_v<google::protobuf::Message, Message>) {
-        return &message;
+        return message;
     } else {
         return nullptr;
     }
@@ -61,7 +61,7 @@ template <typename GrpcStream>
 void StartCall(GrpcStream& stream, CallState& state) {
     AsyncMethodInvocation start_call;
     stream.StartCall(start_call.GetCompletionTag());
-    CheckOk(state, WaitAndTryCancelIfNeeded(start_call, state.GetContext()), "StartCall");
+    CheckOk(state, WaitAndTryCancelIfNeeded(start_call, state.GetClientContext()), "StartCall");
 }
 
 void ProcessFinish(CallState& state, const google::protobuf::Message* final_response);
@@ -87,7 +87,7 @@ void Finish(
     auto& status = state.GetStatus();
     stream.Finish(&status, finish.GetCompletionTag());
 
-    const auto wait_status = WaitAndTryCancelIfNeeded(finish, state.GetContext());
+    const auto wait_status = WaitAndTryCancelIfNeeded(finish, state.GetClientContext());
     switch (wait_status) {
         case impl::AsyncMethodInvocation::WaitStatus::kOk:
             state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
@@ -133,7 +133,7 @@ void FinishAbandoned(GrpcStream& stream, CallState& state) noexcept try {
     }
     state.SetFinished();
 
-    state.GetContext().TryCancel();
+    state.GetClientContext().TryCancel();
 
     FinishAsyncMethodInvocation finish;
     stream.Finish(&state.GetStatus(), finish.GetCompletionTag());
@@ -163,7 +163,7 @@ template <typename GrpcStream, typename Response>
     UINVARIANT(state.IsReadAvailable(), "'impl::Read' called on a finished call");
     AsyncMethodInvocation read;
     stream.Read(&response, read.GetCompletionTag());
-    const auto wait_status = WaitAndTryCancelIfNeeded(read, state.GetContext());
+    const auto wait_status = WaitAndTryCancelIfNeeded(read, state.GetClientContext());
     if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state.GetStatsScope().OnCancelled();
     }
@@ -183,7 +183,7 @@ bool Write(GrpcStream& stream, const Request& request, grpc::WriteOptions option
     UINVARIANT(state.IsWriteAvailable(), "'impl::Write' called on a stream that is closed for writes");
     AsyncMethodInvocation write;
     stream.Write(request, options, write.GetCompletionTag());
-    const auto result = WaitAndTryCancelIfNeeded(write, state.GetContext());
+    const auto result = WaitAndTryCancelIfNeeded(write, state.GetClientContext());
     if (result == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state.GetStatsScope().OnCancelled();
     }
@@ -198,7 +198,7 @@ void WriteAndCheck(GrpcStream& stream, const Request& request, grpc::WriteOption
     UINVARIANT(state.IsWriteAndCheckAvailable(), "'impl::WriteAndCheck' called on a finished or closed stream");
     AsyncMethodInvocation write;
     stream.Write(request, options, write.GetCompletionTag());
-    CheckOk(state, WaitAndTryCancelIfNeeded(write, state.GetContext()), "WriteAndCheck");
+    CheckOk(state, WaitAndTryCancelIfNeeded(write, state.GetClientContext()), "WriteAndCheck");
 }
 
 template <typename GrpcStream>
@@ -207,7 +207,7 @@ bool WritesDone(GrpcStream& stream, CallState& state) {
     state.SetWritesFinished();
     AsyncMethodInvocation writes_done;
     stream.WritesDone(writes_done.GetCompletionTag());
-    const auto wait_status = WaitAndTryCancelIfNeeded(writes_done, state.GetContext());
+    const auto wait_status = WaitAndTryCancelIfNeeded(writes_done, state.GetClientContext());
     if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state.GetStatsScope().OnCancelled();
     }

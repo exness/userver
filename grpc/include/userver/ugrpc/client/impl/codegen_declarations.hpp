@@ -11,6 +11,6 @@
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
 #include <userver/ugrpc/client/qos.hpp>
 #include <userver/ugrpc/client/response_future.hpp>
-#include <userver/ugrpc/client/rpc.hpp>
+#include <userver/ugrpc/client/stream.hpp>
 #include <userver/ugrpc/impl/static_service_metadata.hpp>
 #include <userver/ugrpc/impl/statistics.hpp>

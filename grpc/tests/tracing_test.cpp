@@ -108,7 +108,7 @@ UTEST_F(GrpcTracing, UnaryRPC) {
     out.set_name("userver");
     auto future = client.AsyncSayHello(out);
     UEXPECT_NO_THROW(future.Get());
-    CheckMetadata(future.GetCall().GetContext());
+    CheckMetadata(future.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcTracing, InputStream) {
@@ -119,14 +119,14 @@ UTEST_F(GrpcTracing, InputStream) {
     sample::ugrpc::StreamGreetingResponse in;
     auto call = client.ReadMany(out);
     EXPECT_FALSE(call.Read(in));
-    CheckMetadata(call.GetContext());
+    CheckMetadata(call.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcTracing, OutputStream) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
     auto call = client.WriteMany();
     UEXPECT_NO_THROW(call.Finish());
-    CheckMetadata(call.GetContext());
+    CheckMetadata(call.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcTracing, BidirectionalStream) {
@@ -134,7 +134,7 @@ UTEST_F(GrpcTracing, BidirectionalStream) {
     sample::ugrpc::StreamGreetingResponse in;
     auto call = client.Chat();
     EXPECT_FALSE(call.Read(in));
-    CheckMetadata(call.GetContext());
+    CheckMetadata(call.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcTracing, SpansInDifferentRPCs) {
@@ -144,11 +144,11 @@ UTEST_F(GrpcTracing, SpansInDifferentRPCs) {
 
     auto future1 = client.AsyncSayHello(out);
     future1.Get();
-    const auto& metadata1 = future1.GetCall().GetContext().GetServerInitialMetadata();
+    const auto& metadata1 = future1.GetContext().GetClientContext().GetServerInitialMetadata();
 
     auto future2 = client.AsyncSayHello(out);
     future2.Get();
-    const auto& metadata2 = future2.GetCall().GetContext().GetServerInitialMetadata();
+    const auto& metadata2 = future2.GetContext().GetClientContext().GetServerInitialMetadata();
 
     EXPECT_EQ(GetMetadata(metadata1, kServerTraceId), GetMetadata(metadata2, kServerTraceId));
     EXPECT_NE(GetMetadata(metadata1, kServerSpanId), GetMetadata(metadata2, kServerSpanId));

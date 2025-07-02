@@ -139,7 +139,7 @@ UTEST_F(GrpcClientTest, AsyncUnaryRPC) {
 
     sample::ugrpc::GreetingResponse in;
     UEXPECT_NO_THROW(in = future.Get());
-    CheckClientContext(future.GetCall().GetContext());
+    CheckClientContext(future.GetContext().GetClientContext());
     EXPECT_EQ("Hello " + out.name(), in.name());
 }
 
@@ -154,7 +154,7 @@ UTEST_F(GrpcClientTest, AsyncUnaryRPCWithTimeout) {
 
     EXPECT_TRUE(future.IsReady());
 
-    CheckClientContext(future.GetCall().GetContext());
+    CheckClientContext(future.GetContext().GetClientContext());
 
     sample::ugrpc::GreetingResponse in;
     UEXPECT_NO_THROW(in = future.Get());
@@ -186,7 +186,7 @@ UTEST_F(GrpcClientTest, InputStream) {
     }
     EXPECT_FALSE(is.Read(in));
 
-    CheckClientContext(is.GetContext());
+    CheckClientContext(is.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, EmptyInputStream) {
@@ -198,7 +198,7 @@ UTEST_F(GrpcClientTest, EmptyInputStream) {
 
     sample::ugrpc::StreamGreetingResponse in;
     EXPECT_FALSE(is.Read(in));
-    CheckClientContext(is.GetContext());
+    CheckClientContext(is.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, OutputStream) {
@@ -216,7 +216,7 @@ UTEST_F(GrpcClientTest, OutputStream) {
     sample::ugrpc::StreamGreetingResponse in;
     UEXPECT_NO_THROW(in = os.Finish());
     EXPECT_EQ(in.number(), kNumber);
-    CheckClientContext(os.GetContext());
+    CheckClientContext(os.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, OutputStreamWriteAndCheck) {
@@ -234,7 +234,7 @@ UTEST_F(GrpcClientTest, OutputStreamWriteAndCheck) {
     sample::ugrpc::StreamGreetingResponse in;
     UEXPECT_NO_THROW(in = os.Finish());
     EXPECT_EQ(in.number(), kNumber);
-    CheckClientContext(os.GetContext());
+    CheckClientContext(os.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, EmptyOutputStream) {
@@ -244,7 +244,7 @@ UTEST_F(GrpcClientTest, EmptyOutputStream) {
     sample::ugrpc::StreamGreetingResponse in;
     UEXPECT_NO_THROW(in = os.Finish());
     EXPECT_EQ(in.number(), 0);
-    CheckClientContext(os.GetContext());
+    CheckClientContext(os.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, BidirectionalStream) {
@@ -264,7 +264,7 @@ UTEST_F(GrpcClientTest, BidirectionalStream) {
     }
     EXPECT_TRUE(bs.WritesDone());
     EXPECT_FALSE(bs.Read(in));
-    CheckClientContext(bs.GetContext());
+    CheckClientContext(bs.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, BidirectionalStreamWriteAndCheck) {
@@ -285,7 +285,7 @@ UTEST_F(GrpcClientTest, BidirectionalStreamWriteAndCheck) {
     }
     EXPECT_TRUE(bs.WritesDone());
     EXPECT_FALSE(bs.Read(in));
-    CheckClientContext(bs.GetContext());
+    CheckClientContext(bs.GetContext().GetClientContext());
 }
 
 UTEST_F(GrpcClientTest, EmptyBidirectionalStream) {
@@ -295,7 +295,7 @@ UTEST_F(GrpcClientTest, EmptyBidirectionalStream) {
     sample::ugrpc::StreamGreetingResponse in;
     EXPECT_TRUE(bs.WritesDone());
     EXPECT_FALSE(bs.Read(in));
-    CheckClientContext(bs.GetContext());
+    CheckClientContext(bs.GetContext().GetClientContext());
 }
 
 using GrpcClientLongAnswerTest = ugrpc::tests::ServiceFixture<UnitTestLongAnswerService>;
@@ -317,7 +317,7 @@ UTEST_F(GrpcClientLongAnswerTest, AsyncUnaryLongAnswerRPC) {
     sample::ugrpc::GreetingResponse in;
     UEXPECT_NO_THROW(in = future.Get());
 
-    CheckClientContext(future.GetCall().GetContext());
+    CheckClientContext(future.GetContext().GetClientContext());
     EXPECT_EQ("Hello " + out.name(), in.name());
 }
 
@@ -337,7 +337,7 @@ UTEST_P_MT(GrpcClientMultichannelTest, MultiThreadedClientTest, 4) {
             while (keep_running) {
                 auto future = client.AsyncSayHello(out, PrepareClientContext());
                 auto in = future.Get();
-                CheckClientContext(future.GetCall().GetContext());
+                CheckClientContext(future.GetContext().GetClientContext());
                 EXPECT_EQ("Hello " + out.name(), in.name());
                 request_finished.Send();
                 engine::Yield();

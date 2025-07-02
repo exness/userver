@@ -3,7 +3,9 @@
 /// @file userver/ugrpc/client/response_future.hpp
 /// @brief @copybrief ugrpc::client::ResponseFuture
 
-#include <userver/ugrpc/client/rpc.hpp>
+#include <memory>
+
+#include <userver/ugrpc/client/impl/rpc.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -27,13 +29,13 @@ public:
     /// @brief Checks if the asynchronous call has completed
     ///        Note, that once user gets result, IsReady should not be called
     /// @return true if result ready
-    [[nodiscard]] bool IsReady() const noexcept { return call_.GetFinishFuture().IsReady(); }
+    [[nodiscard]] bool IsReady() const noexcept { return call_->GetFinishFuture().IsReady(); }
 
     /// @brief Await response until specified timepoint
     ///
     /// @throws ugrpc::client::RpcError on an RPC error
     [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const {
-        return call_.GetFinishFuture().WaitUntil(deadline);
+        return call_->GetFinishFuture().WaitUntil(deadline);
     }
 
     /// @brief Await and read the response
@@ -45,13 +47,13 @@ public:
     /// @returns the response on success
     /// @throws ugrpc::client::RpcError on an RPC error
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
-    Response Get() { return call_.GetFinishFuture().Get(); }
+    Response Get() { return call_->Finish(); }
 
-    /// @brief Get the original gRPC Call, useful e.g. for accessing metadata.
-    CallAnyBase& GetCall() { return call_; }
+    /// @brief Get call context, useful e.g. for accessing metadata.
+    CallContext& GetContext() { return call_->GetContext(); }
 
     /// @overload
-    const CallAnyBase& GetCall() const { return call_; }
+    const CallContext& GetContext() const { return call_->GetContext(); }
 
     /// @cond
     // For internal use only
@@ -61,16 +63,17 @@ public:
         impl::PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
         const Request& request
     )
-        : call_(std::move(params), std::move(prepare_unary_call), request) {}
+        : call_(std::make_unique<impl::UnaryCall<Response>>(std::move(params), std::move(prepare_unary_call), request)
+          ) {}
 
     // For internal use only.
     engine::impl::ContextAccessor* TryGetContextAccessor() noexcept {
-        return call_.GetFinishFuture().TryGetContextAccessor();
+        return call_->GetFinishFuture().TryGetContextAccessor();
     }
     /// @endcond
 
 private:
-    impl::UnaryCall<Response> call_;
+    std::unique_ptr<impl::UnaryCall<Response>> call_;
 };
 
 }  // namespace ugrpc::client

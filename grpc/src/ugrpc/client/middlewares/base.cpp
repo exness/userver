@@ -24,7 +24,7 @@ MiddlewareBase::~MiddlewareBase() = default;
 
 MiddlewareCallContext::MiddlewareCallContext(impl::CallState& state) : state_(state) {}
 
-grpc::ClientContext& MiddlewareCallContext::GetClientContext() noexcept { return state_.GetContext(); }
+grpc::ClientContext& MiddlewareCallContext::GetClientContext() noexcept { return state_.GetClientContext(); }
 
 std::string_view MiddlewareCallContext::GetClientName() const noexcept { return state_.GetClientName(); }
 

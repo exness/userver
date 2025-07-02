@@ -80,7 +80,7 @@ ProxyService::GenericResult ProxyService::Handle(GenericCallContext& context, Ge
         response_bytes = future.Get();
     } catch (const ugrpc::client::ErrorWithStatus& ex) {
         // Proxy the error returned from client.
-        ProxyTrailingResponseMetadata(future.GetCall().GetContext(), context.GetServerContext());
+        ProxyTrailingResponseMetadata(future.GetContext().GetClientContext(), context.GetServerContext());
         return ex.GetStatus();
     } catch (const ugrpc::client::RpcError& ex) {
         // Either the upstream client has cancelled our server RPC, or a network
@@ -91,7 +91,7 @@ ProxyService::GenericResult ProxyService::Handle(GenericCallContext& context, Ge
         return grpc::Status{grpc::StatusCode::UNAVAILABLE, "Failed to proxy the request"};
     }
 
-    ProxyTrailingResponseMetadata(future.GetCall().GetContext(), context.GetServerContext());
+    ProxyTrailingResponseMetadata(future.GetContext().GetClientContext(), context.GetServerContext());
 
     // on success just return response from client
     return response_bytes;
