@@ -28,9 +28,9 @@ namespace {
 #endif
 }
 
-class LimitingOutputStream final : public google::protobuf::io::ZeroCopyOutputStream {
+class [[maybe_unused]] LimitingOutputStream final : public google::protobuf::io::ZeroCopyOutputStream {
 public:
-    class LimitReachedException : public std::exception {};
+    class LimitReachedException final : public std::exception {};
 
     explicit LimitingOutputStream(google::protobuf::io::ArrayOutputStream& output_stream)
         : output_stream_{output_stream} {}
@@ -41,6 +41,8 @@ public:
     bool Next(void** data, int* size) override {
         if (!output_stream_.Next(data, size)) {
             limit_reached_ = true;
+            // This requires TextFormat internals to be exception-safe, see
+            // https://github.com/protocolbuffers/protobuf/commit/be875d0aaf37dbe6948717ea621278e75e89c9c7
             throw LimitReachedException{};
         }
         return true;
@@ -139,7 +141,7 @@ public:
         printer_.SetExpandAny(true);
     }
 
-    void Print(const google::protobuf::Message& message, LimitingOutputStream& stream) const {
+    void Print(const google::protobuf::Message& message, google::protobuf::io::ZeroCopyOutputStream& stream) const {
         printer_.Print(message, &stream);
     }
 
@@ -190,17 +192,24 @@ compiler::ThreadLocal kDebugStringPrinter = [] { return DebugStringPrinter{}; };
 std::string ToLimitedDebugString(const google::protobuf::Message& message, std::size_t limit) {
     boost::container::small_vector<char, 1024> output_buffer{limit, boost::container::default_init};
     google::protobuf::io::ArrayOutputStream output_stream{output_buffer.data(), utils::numeric_cast<int>(limit)};
-    LimitingOutputStream limiting_output_stream{output_stream};
 
     auto printer = kDebugStringPrinter.Use();
     printer->RegisterDebugRedactPrinters(*message.GetDescriptor());
 
-    // Throwing an exception is apparently the only way to terminate message traversal once size limit is reached.
+#if defined(ARCADIA_ROOT) || GOOGLE_PROTOBUF_VERSION >= 6031002
+    // Throw `LimitReachedException` on limit reached to stop printing immediately, otherwise TextFormat will continue
+    // to walk the whole message and apply noop printing.
+    LimitingOutputStream limiting_output_stream{output_stream};
     try {
         printer->Print(message, limiting_output_stream);
     } catch (const LimitingOutputStream::LimitReachedException& /*ex*/) {
         // Buffer limit has been reached.
     }
+#else
+    // For old protobuf, we cannot apply hard limits when printing messages, because its TextFormat is not
+    // exception-safe. https://github.com/protocolbuffers/protobuf/commit/be875d0aaf37dbe6948717ea621278e75e89c9c7
+    printer->Print(message, output_stream);
+#endif
 
     return std::string{output_buffer.data(), static_cast<std::size_t>(output_stream.ByteCount())};
 }
