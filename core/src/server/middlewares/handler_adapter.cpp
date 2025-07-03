@@ -1,5 +1,9 @@
 #include <server/middlewares/handler_adapter.hpp>
 
+#include <algorithm>
+
+#include <boost/container/small_vector.hpp>
+
 #include <server/handlers/http_server_settings.hpp>
 #include <server/middlewares/misc.hpp>
 #include <server/request/internal_request_context.hpp>
@@ -13,6 +17,7 @@
 #include <userver/server/request/request_context.hpp>
 #include <userver/tracing/tags.hpp>
 #include <userver/utils/log.hpp>
+#include <userver/utils/not_null.hpp>
 #include <userver/utils/scope_guard.hpp>
 #include <userver/utils/string_literal.hpp>
 
@@ -34,6 +39,17 @@ std::string GetHeadersLogString(
     const handlers::HeadersWhitelist& headers_whitelist,
     size_t response_data_size_log_limit
 ) {
+    // Sort to prevent flaky headers reordering, appearing and disappearing for different requests.
+    using HeaderRef = utils::NotNull<const http::HttpRequest::HeadersMap::const_iterator::value_type*>;
+    boost::container::small_vector<HeaderRef, 32> sorted_headers;
+    sorted_headers.reserve(request.GetHeaders().size());
+    for (const auto& header : request.GetHeaders()) {
+        sorted_headers.emplace_back(header);
+    }
+    std::sort(sorted_headers.begin(), sorted_headers.end(), [](HeaderRef lhs, HeaderRef rhs) {
+        return lhs->first < rhs->first;
+    });
+
     formats::json::StringBuilder sb{};
     {
         const formats::json::StringBuilder::ObjectGuard guard{sb};
@@ -49,13 +65,15 @@ std::string GetHeadersLogString(
         };
 
         // First, output the visible headers
-        for (const auto& [header_name, header_value] : request.GetHeaders()) {
+        for (const auto header_ref : sorted_headers) {
+            const auto& [header_name, header_value] = *header_ref;
             if (headers_whitelist.find(header_name) != headers_whitelist.end()) {
                 write_header(header_name, header_value);
             }
         }
 
-        for (const auto& [header_name, header_value] : request.GetHeaders()) {
+        for (const auto header_ref : sorted_headers) {
+            const auto& [header_name, header_value] = *header_ref;
             if (headers_whitelist.find(header_name) == headers_whitelist.end()) {
                 write_header(header_name, "***");
             }
