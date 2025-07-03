@@ -7,6 +7,7 @@
 
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/single_consumer_event.hpp>
+#include <userver/kafka/impl/consumer_params.hpp>
 #include <userver/kafka/impl/holders.hpp>
 #include <userver/kafka/message.hpp>
 #include <userver/kafka/offset_range.hpp>
@@ -28,7 +29,13 @@ class ConsumerImpl final {
     using MessageBatch = std::vector<Message>;
 
 public:
-    ConsumerImpl(const std::string& name, const ConfHolder& conf, const std::vector<std::string>& topics, Stats& stats);
+    ConsumerImpl(
+        const std::string& name,
+        const ConfHolder& conf,
+        const std::vector<std::string>& topics,
+        ConsumerExecutionParams execution_params,
+        Stats& stats
+    );
 
     const Stats& GetStats() const;
 
@@ -115,6 +122,7 @@ private:
 
 private:
     const std::string& name_;
+    const ConsumerExecutionParams execution_params_;
     Stats& stats_;
 
     const std::vector<std::string> topics_;
