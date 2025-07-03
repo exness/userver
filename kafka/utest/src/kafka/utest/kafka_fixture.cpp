@@ -165,10 +165,19 @@ std::vector<Message> KafkaCluster::ReceiveMessages(
     bool commit_after_receive,
     std::optional<std::function<void(MessageBatchView)>> user_callback
 ) {
+    auto consumer_scope = consumer.MakeConsumerScope();
+    return ReceiveMessages(consumer_scope, expected_messages_count, commit_after_receive, std::move(user_callback));
+}
+
+std::vector<Message> KafkaCluster::ReceiveMessages(
+    ConsumerScope& consumer_scope,
+    std::size_t expected_messages_count,
+    bool commit_after_receive,
+    std::optional<std::function<void(MessageBatchView)>> user_callback
+) {
     std::vector<Message> received_messages;
 
     engine::SingleUseEvent event;
-    auto consumer_scope = consumer.MakeConsumerScope();
     consumer_scope.Start([&received_messages,
                           expected_messages_count,
                           &event,

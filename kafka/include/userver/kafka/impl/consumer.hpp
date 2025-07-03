@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 
 #include <userver/engine/task/task.hpp>
 #include <userver/engine/task/task_processor_fwd.hpp>
@@ -10,6 +11,7 @@
 #include <userver/kafka/impl/holders.hpp>
 #include <userver/kafka/impl/stats.hpp>
 #include <userver/utils/statistics/writer.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -61,7 +63,7 @@ public:
     /// @brief Retrieves the low and high offsets for the specified topic and partition.
     /// @see ConsumerScope::GetOffsetRange for better commitment process
     OffsetRange GetOffsetRange(
-        const std::string& topic,
+        utils::zstring_view topic,
         std::uint32_t partition,
         std::optional<std::chrono::milliseconds> timeout = std::nullopt
     ) const;
@@ -69,8 +71,34 @@ public:
     /// @brief Retrieves the partition IDs for the specified topic.
     /// @see ConsumerScope::GetPartitionIds for better commitment process
     std::vector<std::uint32_t>
-    GetPartitionIds(const std::string& topic, std::optional<std::chrono::milliseconds> timeout = std::nullopt) const;
+    GetPartitionIds(utils::zstring_view topic, std::optional<std::chrono::milliseconds> timeout = std::nullopt) const;
     /// @endcond
+
+    /// @brief Seeks the \b partition_id for the specified \b topic to a given \b offset .
+    /// @see ConsumerScope::Seek for better commitment process
+    void Seek(
+        utils::zstring_view topic,
+        std::uint32_t partition_id,
+        std::uint64_t offset,
+        std::chrono::milliseconds timeout
+    ) const;
+
+    /// @brief Seeks the \b partition_id for the specified \b topic to the begginning offset .
+    /// @see ConsumerScope::SeekToBeginning for better commitment process
+    void SeekToBeginning(utils::zstring_view topic, std::uint32_t partition_id, std::chrono::milliseconds timeout)
+        const;
+
+    /// @brief Seeks the \b partition_id for the specified \b topic to the end offset .
+    /// @see ConsumerScope::SeekToEnd for better commitment process
+    void SeekToEnd(utils::zstring_view topic, std::uint32_t partition_id, std::chrono::milliseconds timeout) const;
+
+    /// @brief Sets the \b rebalance_callback for consumer .
+    /// @see ConsumerScope::SetRebalanceCallback for better commitment process
+    void SetRebalanceCallback(ConsumerRebalanceCallback rebalance_callback);
+
+    /// @brief Resets the rebalance callback for consumer .
+    /// @see ConsumerScope::ResetRebalanceCallback for better commitment process
+    void ResetRebalanceCallback();
 
 private:
     friend class kafka::ConsumerScope;
@@ -96,10 +124,11 @@ private:
 private:
     std::atomic<bool> processing_{false};
     Stats stats_;
+    std::optional<ConsumerRebalanceCallback> rebalance_callback_;
 
     const std::string name_;
     const std::vector<std::string> topics_;
-    const ConsumerExecutionParams execution_params;
+    const ConsumerExecutionParams execution_params_;
 
     engine::TaskProcessor& consumer_task_processor_;
     engine::TaskProcessor& consumer_blocking_task_processor_;

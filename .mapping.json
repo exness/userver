@@ -2385,6 +2385,7 @@
   "kafka/include/userver/kafka/offset_range.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/offset_range.hpp",
   "kafka/include/userver/kafka/producer.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/producer.hpp",
   "kafka/include/userver/kafka/producer_component.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/producer_component.hpp",
+  "kafka/include/userver/kafka/rebalance_types.hpp":"taxi/uservices/userver/kafka/include/userver/kafka/rebalance_types.hpp",
   "kafka/library.yaml":"taxi/uservices/userver/kafka/library.yaml",
   "kafka/src/kafka/consumer_component.cpp":"taxi/uservices/userver/kafka/src/kafka/consumer_component.cpp",
   "kafka/src/kafka/consumer_scope.cpp":"taxi/uservices/userver/kafka/src/kafka/consumer_scope.cpp",

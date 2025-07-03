@@ -62,12 +62,12 @@ Consumer::Consumer(
 )
     : name_(name),
       topics_(topics),
-      execution_params(params),
+      execution_params_(params),
       consumer_task_processor_(consumer_task_processor),
       consumer_blocking_task_processor_(consumer_blocking_task_processor),
       main_task_processor_(main_task_processor),
       conf_(Configuration{name, configuration, secrets}.Release()),
-      consumer_(std::make_unique<ConsumerImpl>(name_, conf_, topics_, params, stats_)) {
+      consumer_(std::make_unique<ConsumerImpl>(name_, conf_, topics_, params, rebalance_callback_, stats_)) {
     /// To check configuration validity
     [[maybe_unused]] auto _ = ConsumerHolder{conf_};
 }
@@ -94,14 +94,14 @@ void Consumer::RunConsuming(ConsumerScope::Callback callback) {
     // note: Consumer must be recreated after each stop,
     // because stop invalidates some internal consumer state (in librdkafka).
     // Nevertheless, it is possible to use blocking consumer methods after stop.
-    consumer_ = std::make_unique<ConsumerImpl>(name_, conf_, topics_, execution_params, stats_);
+    consumer_ = std::make_unique<ConsumerImpl>(name_, conf_, topics_, execution_params_, rebalance_callback_, stats_);
     consumer_->StartConsuming();
 
     LOG_INFO() << fmt::format("Started messages polling");
 
     while (!engine::current_task::ShouldCancel()) {
         auto polled_messages = consumer_->PollBatch(
-            execution_params.max_batch_size, engine::Deadline::FromDuration(execution_params.poll_timeout)
+            execution_params_.max_batch_size, engine::Deadline::FromDuration(execution_params_.poll_timeout)
         );
 
         if (engine::current_task::ShouldCancel()) {
@@ -120,7 +120,7 @@ void Consumer::RunConsuming(ConsumerScope::Callback callback) {
         auto batch_processing_task =
             utils::Async(main_task_processor_, "messages_processing", callback, utils::span{polled_messages});
         const utils::ScopeGuard callback_duration_notifier{
-            CreateDurationNotifier(execution_params.max_callback_duration)};
+            CreateDurationNotifier(execution_params_.max_callback_duration)};
 
         try {
             batch_processing_task.Get();
@@ -155,9 +155,9 @@ void Consumer::StartMessageProcessing(ConsumerScope::Callback callback) {
                 }
 
                 LOG_WARNING() << fmt::format(
-                    "Restarting consumer after {}ms...", execution_params.restart_after_failure_delay.count()
+                    "Restarting consumer after {}ms...", execution_params_.restart_after_failure_delay.count()
                 );
-                engine::InterruptibleSleepFor(execution_params.restart_after_failure_delay);
+                engine::InterruptibleSleepFor(execution_params_.restart_after_failure_delay);
             }
         });
 }
@@ -175,14 +175,14 @@ void Consumer::AsyncCommit() {
 }
 
 OffsetRange Consumer::GetOffsetRange(
-    const std::string& topic,
+    utils::zstring_view topic,
     std::uint32_t partition,
     std::optional<std::chrono::milliseconds> timeout
 ) const {
     return utils::Async(
                consumer_blocking_task_processor_,
                "consumer_getting_offset",
-               [this, &topic, partition, &timeout] {
+               [this, topic, partition, timeout] {
                    ExtendCurrentSpan();
 
                    return consumer_->GetOffsetRange(topic, partition, timeout);
@@ -191,16 +191,85 @@ OffsetRange Consumer::GetOffsetRange(
 }
 
 std::vector<std::uint32_t>
-Consumer::GetPartitionIds(const std::string& topic, std::optional<std::chrono::milliseconds> timeout) const {
+Consumer::GetPartitionIds(utils::zstring_view topic, std::optional<std::chrono::milliseconds> timeout) const {
     return utils::Async(
                consumer_blocking_task_processor_,
                "consumer_getting_partition_ids",
-               [this, &topic, &timeout] {
+               [this, topic, timeout] {
                    ExtendCurrentSpan();
 
                    return consumer_->GetPartitionIds(topic, timeout);
                }
     ).Get();
+}
+
+void Consumer::Seek(
+    utils::zstring_view topic,
+    std::uint32_t partition_id,
+    std::uint64_t offset,
+    std::chrono::milliseconds timeout
+) const {
+    UINVARIANT(processing_.load(), "Message processing is not currently started");
+
+    return utils::Async(
+               consumer_task_processor_,
+               "consumer_seek",
+               [this, topic, partition_id, offset, timeout] {
+                   ExtendCurrentSpan();
+
+                   return consumer_->Seek(topic, partition_id, offset, timeout);
+               }
+    ).Get();
+}
+
+void Consumer::SeekToBeginning(utils::zstring_view topic, std::uint32_t partition_id, std::chrono::milliseconds timeout)
+    const {
+    UINVARIANT(processing_.load(), "Message processing is not currently started");
+
+    return utils::Async(
+               consumer_task_processor_,
+               "consumer_seek_to_beginning",
+               [this, topic, partition_id, timeout] {
+                   ExtendCurrentSpan();
+
+                   return consumer_->SeekToBeginning(topic, partition_id, timeout);
+               }
+    ).Get();
+}
+
+void Consumer::SeekToEnd(utils::zstring_view topic, std::uint32_t partition_id, std::chrono::milliseconds timeout)
+    const {
+    UINVARIANT(processing_.load(), "Message processing is not currently started");
+
+    return utils::Async(
+               consumer_task_processor_,
+               "consumer_seek_to_end",
+               [this, topic, partition_id, timeout] {
+                   ExtendCurrentSpan();
+
+                   return consumer_->SeekToEnd(topic, partition_id, timeout);
+               }
+    ).Get();
+}
+
+void Consumer::SetRebalanceCallback(ConsumerRebalanceCallback rebalance_callback) {
+    UINVARIANT(
+        !processing_.load(),
+        "Message processing is already started. Rebalance callback should be set before Start() call or after Stop() "
+        "call ."
+    );
+
+    rebalance_callback_ = std::move(rebalance_callback);
+}
+
+void Consumer::ResetRebalanceCallback() {
+    UINVARIANT(
+        !processing_.load(),
+        "Message processing is already started. Rebalance callback should be set before Start() call or after Stop() "
+        "call ."
+    );
+
+    rebalance_callback_.reset();
 }
 
 void Consumer::Stop() noexcept {
