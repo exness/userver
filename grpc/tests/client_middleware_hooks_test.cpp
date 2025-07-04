@@ -581,14 +581,19 @@ UTEST_F(ClientMiddlewaresHooksTest, BadStatusClientStreaming) {
 }
 
 UTEST_F(ClientMiddlewaresHooksTest, Abandoned) {
+    SetHappyPathBidirectionalStreaming();
     SetHappyPathClientStreaming();
     SetHappyPathServerStreaming();
     SetHappyPathUnary();
 
-    EXPECT_CALL(Middleware(0), PreStartCall).Times(4);     // Four streams were created.
-    EXPECT_CALL(Middleware(0), PreSendMessage).Times(3);   // WriteAndCheck + ReadMany + AsyncSayHello
-    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);  // Skipped, because no response messages.
-    EXPECT_CALL(Middleware(0), PostFinish).Times(0);       // We don't run middlewares in a destructors of RPC.
+    // Five streams were created.
+    EXPECT_CALL(Middleware(0), PreStartCall).Times(5);
+    // WriteAndCheck + ReadMany + AsyncSayHello
+    EXPECT_CALL(Middleware(0), PreSendMessage).Times(3);
+    // Skipped, because no response messages.
+    EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);
+    // We don't run middlewares in a destructors of RPC.
+    EXPECT_CALL(Middleware(0), PostFinish).Times(0);
 
     ON_CALL(Middleware(0), PostFinish)
         .WillByDefault([](const ugrpc::client::MiddlewareCallContext&, const grpc::Status&) {
@@ -625,6 +630,12 @@ UTEST_F(ClientMiddlewaresHooksTest, Abandoned) {
         UEXPECT_NO_THROW(auto future = Client().AsyncSayHello(request));
     }
     check_metrics(4);
+    {
+        auto stream = Client().Chat();
+        StreamResponse response;
+        UEXPECT_NO_THROW(const auto future = stream.ReadAsync(response));
+    }
+    check_metrics(5);
 }
 
 UTEST_F(ClientMiddlewaresHooksTest, BadStatusServerStreaming) {
@@ -703,7 +714,8 @@ UTEST_F(ClientMiddlewaresHooksTest, ThrowInDestructorBidirectional) {
     EXPECT_CALL(Middleware(0), PreStartCall).Times(1);
     EXPECT_CALL(Middleware(0), PreSendMessage).Times(0);
     EXPECT_CALL(Middleware(0), PostRecvMessage).Times(0);
-    EXPECT_CALL(Middleware(0), PostFinish).Times(1);
+    // We don't run middlewares in a destructors of RPC.
+    EXPECT_CALL(Middleware(0), PostFinish).Times(0);
 
     ON_CALL(Middleware(0), PostFinish)
         .WillByDefault([](const ugrpc::client::MiddlewareCallContext&, const grpc::Status&) {

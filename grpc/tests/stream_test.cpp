@@ -21,6 +21,7 @@ public:
         sample::ugrpc::StreamGreetingRequest request;
         sample::ugrpc::StreamGreetingResponse response{};
         while (stream.Read(request)) {
+            response.set_number(request.number());
             stream.Write(response);
         }
         return grpc::Status::OK;
@@ -195,6 +196,52 @@ UTEST_F(GrpcBidirectionalStream, BidirectionalStreamReadRemainingAfterWritesDone
     sample::ugrpc::StreamGreetingResponse response;
     ASSERT_FALSE(stream.Read(response));
     ASSERT_THROW([[maybe_unused]] auto _ = stream.ReadAsync(response), ugrpc::client::RpcError);
+}
+
+UTEST_F(GrpcBidirectionalStream, BidirectionalStreamDestroy) {
+    auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
+    auto stream1 = client.Chat();
+    auto stream2 = client.Chat();
+
+    constexpr std::string_view kAbandoned = "abandoned-error";
+    constexpr std::string_view kStatus = "status";
+    const auto get_metric = [this](std::string_view name, std::vector<utils::statistics::Label> labels = {}) {
+        const auto stats = GetStatistics("grpc.client.total", labels);
+        return stats.SingleMetric(std::string{name}, labels).AsRate();
+    };
+
+    EXPECT_EQ(get_metric(kStatus, {{"grpc_code", "OK"}}), 0);
+    EXPECT_FALSE(
+        GetStatistics("grpc.client.total", {{"grpc_code", "CANCELLED"}}).SingleMetricOptional(std::string{kStatus})
+    );
+    EXPECT_EQ(get_metric(kAbandoned), 0);
+
+    sample::ugrpc::StreamGreetingRequest request;
+
+    request.set_number(1);
+    ASSERT_TRUE(stream1.Write(request));
+
+    request.set_number(42);
+    ASSERT_TRUE(stream2.Write(request));
+
+    UASSERT_NO_THROW(stream1 = std::move(stream2));
+
+    ASSERT_TRUE(stream1.WritesDone());
+
+    sample::ugrpc::StreamGreetingResponse response;
+    ASSERT_TRUE(stream1.Read(response));
+    ASSERT_EQ(response.number(), 42);  // number from stream2.
+    ASSERT_FALSE(stream1.Read(response));
+
+    // Stream was read while Read() == false => OK
+    EXPECT_EQ(get_metric(kStatus, {{"grpc_code", "OK"}}), 1);
+
+    // Moved stream was cancelled in a destructor.
+    EXPECT_EQ(get_metric(kStatus, {{"grpc_code", "CANCELLED"}}), 1);
+    EXPECT_EQ(get_metric(kAbandoned), 1);
+
+    EXPECT_EQ(get_metric("cancelled"), 0);
+    EXPECT_EQ(get_metric(kStatus, {{"grpc_code", "UNKNOWN"}}), 0);
 }
 
 UTEST_F(GrpcInputStream, InputStreamDestroy) {

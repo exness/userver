@@ -182,8 +182,6 @@ public:
     InputStream& operator=(InputStream&&) = delete;
 
 private:
-    void Destroy() noexcept;
-
     RawReader<Response> stream_;
 };
 
@@ -252,8 +250,6 @@ public:
     OutputStream& operator=(OutputStream&&) = delete;
 
 private:
-    void Destroy() noexcept;
-
     Response response_;
     RawWriter<Request> stream_;
 };
@@ -358,7 +354,7 @@ public:
     BidirectionalStream(CallParams&& params, PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method);
     /// @endcond
 
-    ~BidirectionalStream() = default;
+    ~BidirectionalStream();
 
     BidirectionalStream(BidirectionalStream&&) = delete;
     BidirectionalStream& operator=(BidirectionalStream&&) = delete;
@@ -394,19 +390,8 @@ StreamReadFuture<RPC>& StreamReadFuture<RPC>::operator=(StreamReadFuture<RPC>&& 
 template <typename RPC>
 StreamReadFuture<RPC>::~StreamReadFuture() {
     if (state_) {
-        const CallState::AsyncMethodInvocationGuard guard(*state_);
-        const auto wait_status =
-            impl::WaitAndTryCancelIfNeeded(state_->GetAsyncMethodInvocation(), state_->GetClientContext());
-        if (wait_status != AsyncMethodInvocation::WaitStatus::kOk) {
-            if (wait_status == AsyncMethodInvocation::WaitStatus::kCancelled) {
-                state_->GetStatsScope().OnCancelled();
-            }
-            impl::Finish(*stream_, *state_, /*final_response=*/nullptr, /*throw_on_error=*/false);
-        } else {
-            if (recv_message_) {
-                MiddlewarePipeline::PostRecvMessage(*state_, *recv_message_);
-            }
-        }
+        // StreamReadFuture::Get wasn't called => finish RPC.
+        impl::FinishAbandoned(*stream_, *state_);
     }
 }
 
@@ -513,13 +498,8 @@ InputStream<Response>::InputStream(
 }
 
 template <typename Response>
-void InputStream<Response>::Destroy() noexcept {
-    impl::FinishAbandoned(*stream_, GetState());
-}
-
-template <typename Response>
 InputStream<Response>::~InputStream() {
-    Destroy();
+    impl::FinishAbandoned(*stream_, GetState());
 }
 
 template <typename Response>
@@ -560,11 +540,6 @@ OutputStream<Request, Response>::OutputStream(
 
 template <typename Request, typename Response>
 OutputStream<Request, Response>::~OutputStream() {
-    Destroy();
-}
-
-template <typename Request, typename Response>
-void OutputStream<Request, Response>::Destroy() noexcept {
     impl::FinishAbandoned(*stream_, GetState());
 }
 
@@ -630,6 +605,11 @@ BidirectionalStream<Request, Response>::BidirectionalStream(
         prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), &GetState().GetQueue()
     );
     impl::StartCall(*stream_, GetState());
+}
+
+template <typename Request, typename Response>
+BidirectionalStream<Request, Response>::~BidirectionalStream() {
+    impl::FinishAbandoned(*stream_, GetState());
 }
 
 template <typename Request, typename Response>
