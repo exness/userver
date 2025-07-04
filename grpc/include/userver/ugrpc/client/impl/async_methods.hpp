@@ -1,18 +1,12 @@
 #pragma once
 
-#include <memory>
-#include <optional>
 #include <string_view>
+#include <type_traits>
 
 #include <google/protobuf/message.h>
 #include <grpcpp/support/async_stream.h>
 #include <grpcpp/support/async_unary_call.h>
-#include <grpcpp/support/status.h>
 
-#include <userver/utils/assert.hpp>
-
-#include <userver/ugrpc/client/exceptions.hpp>
-#include <userver/ugrpc/client/impl/async_method_invocation.hpp>
 #include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/impl/async_method_invocation.hpp>
 
@@ -55,164 +49,15 @@ ugrpc::impl::AsyncMethodInvocation::WaitStatus WaitAndTryCancelIfNeeded(
 ugrpc::impl::AsyncMethodInvocation::WaitStatus
 WaitAndTryCancelIfNeeded(ugrpc::impl::AsyncMethodInvocation& invocation, grpc::ClientContext& context) noexcept;
 
-void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::string_view stage);
-
-template <typename GrpcStream>
-void StartCall(GrpcStream& stream, CallState& state) {
-    AsyncMethodInvocation start_call;
-    stream.StartCall(start_call.GetCompletionTag());
-    CheckOk(state, WaitAndTryCancelIfNeeded(start_call, state.GetClientContext()), "StartCall");
-}
-
 void ProcessFinish(CallState& state, const google::protobuf::Message* final_response);
 
 void ProcessFinishAbandoned(CallState& state) noexcept;
 
-void ProcessFinishCancelled(CallState& state) noexcept;
-
-void ProcessFinishNetworkError(CallState& state) noexcept;
-
 void CheckFinishStatus(CallState& state);
 
-template <typename GrpcStream>
-void Finish(
-    GrpcStream& stream,
-    CallState& state,
-    const google::protobuf::Message* final_response,
-    bool throw_on_error
-) {
-    state.SetFinished();
+void ProcessCancelled(CallState& state, std::string_view stage) noexcept;
 
-    FinishAsyncMethodInvocation finish;
-    auto& status = state.GetStatus();
-    stream.Finish(&status, finish.GetCompletionTag());
-
-    const auto wait_status = WaitAndTryCancelIfNeeded(finish, state.GetClientContext());
-    switch (wait_status) {
-        case impl::AsyncMethodInvocation::WaitStatus::kOk:
-            state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
-            try {
-                ProcessFinish(state, final_response);
-            } catch (const std::exception& ex) {
-                if (throw_on_error) {
-                    throw;
-                } else {
-                    LOG_WARNING() << "There is a caught exception in 'impl::Finish': " << ex;
-                }
-            }
-            if (throw_on_error) {
-                CheckFinishStatus(state);
-            }
-            break;
-
-        case impl::AsyncMethodInvocation::WaitStatus::kError:
-            state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
-            ProcessFinishNetworkError(state);
-            if (throw_on_error) {
-                throw RpcInterruptedError(state.GetCallName(), "Finish");
-            }
-            break;
-
-        case impl::AsyncMethodInvocation::WaitStatus::kCancelled:
-            ProcessFinishCancelled(state);
-            // Finish AsyncMethodInvocation will be awaited in its destructor.
-            if (throw_on_error) {
-                throw RpcCancelledError(state.GetCallName(), "Finish");
-            }
-            break;
-
-        case impl::AsyncMethodInvocation::WaitStatus::kDeadline:
-            UINVARIANT(false, "unreachable");
-    }
-}
-
-template <typename GrpcStream>
-void FinishAbandoned(GrpcStream& stream, CallState& state) noexcept try {
-    if (state.IsFinished()) {
-        return;
-    }
-    state.SetFinished();
-
-    state.GetClientContext().TryCancel();
-
-    FinishAsyncMethodInvocation finish;
-    stream.Finish(&state.GetStatus(), finish.GetCompletionTag());
-
-    const engine::TaskCancellationBlocker cancel_blocker;
-    const auto wait_status = finish.Wait();
-
-    state.GetStatsScope().SetFinishTime(finish.GetFinishTime());
-
-    switch (wait_status) {
-        case impl::AsyncMethodInvocation::WaitStatus::kOk:
-            ProcessFinishAbandoned(state);
-            break;
-        case impl::AsyncMethodInvocation::WaitStatus::kError:
-            ProcessFinishNetworkError(state);
-            break;
-        case impl::AsyncMethodInvocation::WaitStatus::kCancelled:
-        case impl::AsyncMethodInvocation::WaitStatus::kDeadline:
-            UINVARIANT(false, "unreachable");
-    }
-} catch (const std::exception& ex) {
-    LOG_WARNING() << "There is a caught exception in 'FinishAbandoned': " << ex;
-}
-
-template <typename GrpcStream, typename Response>
-[[nodiscard]] bool Read(GrpcStream& stream, Response& response, CallState& state) {
-    UINVARIANT(state.IsReadAvailable(), "'impl::Read' called on a finished call");
-    AsyncMethodInvocation read;
-    stream.Read(&response, read.GetCompletionTag());
-    const auto wait_status = WaitAndTryCancelIfNeeded(read, state.GetClientContext());
-    if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state.GetStatsScope().OnCancelled();
-    }
-    return wait_status == impl::AsyncMethodInvocation::WaitStatus::kOk;
-}
-
-template <typename GrpcStream, typename Response>
-void ReadAsync(GrpcStream& stream, Response& response, CallState& state) {
-    UINVARIANT(state.IsReadAvailable(), "'impl::Read' called on a finished call");
-    state.EmplaceAsyncMethodInvocation();
-    auto& read = state.GetAsyncMethodInvocation();
-    stream.Read(&response, read.GetCompletionTag());
-}
-
-template <typename GrpcStream, typename Request>
-bool Write(GrpcStream& stream, const Request& request, grpc::WriteOptions options, CallState& state) {
-    UINVARIANT(state.IsWriteAvailable(), "'impl::Write' called on a stream that is closed for writes");
-    AsyncMethodInvocation write;
-    stream.Write(request, options, write.GetCompletionTag());
-    const auto result = WaitAndTryCancelIfNeeded(write, state.GetClientContext());
-    if (result == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state.GetStatsScope().OnCancelled();
-    }
-    if (result != impl::AsyncMethodInvocation::WaitStatus::kOk) {
-        state.SetWritesFinished();
-    }
-    return result == impl::AsyncMethodInvocation::WaitStatus::kOk;
-}
-
-template <typename GrpcStream, typename Request>
-void WriteAndCheck(GrpcStream& stream, const Request& request, grpc::WriteOptions options, CallState& state) {
-    UINVARIANT(state.IsWriteAndCheckAvailable(), "'impl::WriteAndCheck' called on a finished or closed stream");
-    AsyncMethodInvocation write;
-    stream.Write(request, options, write.GetCompletionTag());
-    CheckOk(state, WaitAndTryCancelIfNeeded(write, state.GetClientContext()), "WriteAndCheck");
-}
-
-template <typename GrpcStream>
-bool WritesDone(GrpcStream& stream, CallState& state) {
-    UINVARIANT(state.IsWriteAvailable(), "'impl::WritesDone' called on a stream that is closed for writes");
-    state.SetWritesFinished();
-    AsyncMethodInvocation writes_done;
-    stream.WritesDone(writes_done.GetCompletionTag());
-    const auto wait_status = WaitAndTryCancelIfNeeded(writes_done, state.GetClientContext());
-    if (wait_status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state.GetStatsScope().OnCancelled();
-    }
-    return wait_status == impl::AsyncMethodInvocation::WaitStatus::kOk;
-}
+void ProcessNetworkError(CallState& state, std::string_view stage) noexcept;
 
 }  // namespace ugrpc::client::impl
 

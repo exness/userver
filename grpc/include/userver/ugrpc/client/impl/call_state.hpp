@@ -1,9 +1,7 @@
 #pragma once
 
-#include <memory>
 #include <optional>
 #include <string_view>
-#include <variant>
 
 #include <grpcpp/client_context.h>
 #include <grpcpp/completion_queue.h>
@@ -25,7 +23,6 @@ USERVER_NAMESPACE_BEGIN
 namespace ugrpc::client::impl {
 
 struct CallParams;
-using ugrpc::impl::AsyncMethodInvocation;
 
 struct RpcConfigValues final {
     explicit RpcConfigValues(const dynamic_config::Snapshot& config);
@@ -33,11 +30,11 @@ struct RpcConfigValues final {
     bool enforce_task_deadline;
 };
 
-class CallState final {
+class CallState {
 public:
     CallState(CallParams&&, CallKind);
 
-    ~CallState() noexcept;
+    ~CallState() noexcept = default;
 
     CallState(CallState&&) noexcept = delete;
     CallState& operator=(CallState&&) noexcept = delete;
@@ -66,6 +63,77 @@ public:
 
     ugrpc::impl::RpcStatisticsScope& GetStatsScope() noexcept;
 
+    bool IsDeadlinePropagated() const noexcept;
+
+    void SetDeadlinePropagated() noexcept;
+
+    grpc::Status& GetStatus() noexcept;
+
+private:
+    StubHandle stub_;
+
+    std::unique_ptr<grpc::ClientContext> client_context_;
+
+    std::string client_name_;
+    ugrpc::impl::MaybeOwnedString call_name_;
+
+    bool is_deadline_propagated_{false};
+
+    std::optional<tracing::InPlaceSpan> span_;
+
+    ugrpc::impl::RpcStatisticsScope stats_scope_;
+
+    grpc::CompletionQueue& queue_;
+
+    RpcConfigValues config_values_;
+
+    const Middlewares& middlewares_;
+
+    CallKind call_kind_{};
+
+    grpc::Status status_;
+};
+
+class UnaryCallState final : public CallState {
+public:
+    explicit UnaryCallState(CallParams&& params) : CallState(std::move(params), CallKind::kUnaryCall) {}
+
+    ~UnaryCallState() noexcept;
+
+    UnaryCallState(UnaryCallState&&) noexcept = delete;
+    UnaryCallState& operator=(UnaryCallState&&) noexcept = delete;
+
+    bool IsFinishProcessed() const noexcept;
+    void SetFinishProcessed() noexcept;
+
+    bool IsStatusExtracted() const noexcept;
+    void SetStatusExtracted() noexcept;
+
+    void EmplaceFinishAsyncMethodInvocation();
+
+    FinishAsyncMethodInvocation& GetFinishAsyncMethodInvocation() noexcept;
+
+private:
+    bool finish_processed_{false};
+
+    bool status_extracted_{false};
+
+    // In unary call the call is finished as soon as grpc core
+    // gives us back a response - so for unary call
+    // We use FinishAsyncMethodInvocation that will correctly close all our
+    // tracing::Span objects and account everything in statistics.
+    std::optional<FinishAsyncMethodInvocation> invocation_;
+};
+
+class StreamingCallState final : public CallState {
+public:
+    StreamingCallState(CallParams&& params, CallKind call_kind) : CallState(std::move(params), call_kind) {}
+
+    ~StreamingCallState() noexcept;
+
+    StreamingCallState(StreamingCallState&&) noexcept = delete;
+    StreamingCallState& operator=(StreamingCallState&&) noexcept = delete;
+
     void SetWritesFinished() noexcept;
 
     bool AreWritesFinished() const noexcept;
@@ -74,93 +142,50 @@ public:
 
     bool IsFinished() const noexcept;
 
-    bool IsDeadlinePropagated() const noexcept;
-
-    void SetDeadlinePropagated() noexcept;
-
-    bool IsReadAvailable() const noexcept;
-
-    bool IsWriteAvailable() const noexcept;
-
-    bool IsWriteAndCheckAvailable() const noexcept;
-
     // please read comments for 'invocation_' private member on why
     // we use different invocation types
     void EmplaceAsyncMethodInvocation();
 
     // please read comments for 'invocation_' private member on why
     // we use different invocation types
-    void EmplaceFinishAsyncMethodInvocation();
-
-    // please read comments for 'invocation_' private member on why
-    // we use different invocation types
-    AsyncMethodInvocation& GetAsyncMethodInvocation() noexcept;
-
-    // please read comments for 'invocation_' private member on why
-    // we use different invocation types
-    FinishAsyncMethodInvocation& GetFinishAsyncMethodInvocation() noexcept;
-
-    // These are for asserts and invariants. Do NOT branch actual code
-    // based on these two functions. Branching based on these two functions
-    // is considered UB, no diagnostics required.
-    bool HoldsAsyncMethodInvocationDebug() noexcept;
-    bool HoldsFinishAsyncMethodInvocationDebug() noexcept;
-
-    bool IsFinishProcessed() const noexcept;
-    void SetFinishProcessed() noexcept;
-
-    bool IsStatusExtracted() const noexcept;
-    void SetStatusExtracted() noexcept;
-
-    grpc::Status& GetStatus() noexcept;
+    ugrpc::impl::AsyncMethodInvocation& GetAsyncMethodInvocation() noexcept;
 
     class AsyncMethodInvocationGuard {
     public:
-        AsyncMethodInvocationGuard(CallState& state) noexcept;
+        AsyncMethodInvocationGuard(StreamingCallState& state) noexcept;
+
+        ~AsyncMethodInvocationGuard() noexcept;
+
         AsyncMethodInvocationGuard(const AsyncMethodInvocationGuard&) = delete;
         AsyncMethodInvocationGuard(AsyncMethodInvocationGuard&&) = delete;
-        ~AsyncMethodInvocationGuard() noexcept;
 
         void Disarm() noexcept { disarm_ = true; }
 
     private:
-        CallState& state_;
+        StreamingCallState& state_;
         bool disarm_{false};
     };
 
 private:
-    StubHandle stub_;
-    std::unique_ptr<grpc::ClientContext> client_context_;
-    std::string client_name_;
-    ugrpc::impl::MaybeOwnedString call_name_;
     bool writes_finished_{false};
+
     bool is_finished_{false};
-    bool is_deadline_propagated_{false};
 
-    std::optional<tracing::InPlaceSpan> span_;
-    ugrpc::impl::RpcStatisticsScope stats_scope_;
-    grpc::CompletionQueue& queue_;
-    RpcConfigValues config_values_;
-    const Middlewares& middlewares_;
-
-    CallKind call_kind_{};
-
-    grpc::Status status_;
-    bool finish_processed_{false};
-    bool status_extracted_{false};
-
-    // This data is common for all types of grpc calls - unary and streaming
-    // However, in unary call the call is finished as soon as grpc core
-    // gives us back a response - so for unary call we use
-    // FinishAsyncMethodInvocation that will correctly close all our
+    // We use FinishAsyncMethodInvocation that will correctly close all our
     // tracing::Span objects and account everything in statistics.
-    // In stream response, we use AsyncMethodInvocation for every intermediate
+    // and AsyncMethodInvocation for every intermediate
     // Read* call, because we don't need to close span and/or account stats
     // when finishing Read* call.
     //
     // This field must go after other fields to be destroyed first!
-    std::variant<std::monostate, AsyncMethodInvocation, FinishAsyncMethodInvocation> invocation_;
+    std::optional<ugrpc::impl::AsyncMethodInvocation> invocation_;
 };
+
+bool IsReadAvailable(const StreamingCallState&) noexcept;
+
+bool IsWriteAvailable(const StreamingCallState&) noexcept;
+
+bool IsWriteAndCheckAvailable(const StreamingCallState&) noexcept;
 
 }  // namespace ugrpc::client::impl
 

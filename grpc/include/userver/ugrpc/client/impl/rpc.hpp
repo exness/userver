@@ -13,9 +13,11 @@
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/future_status.hpp>
 #include <userver/utils/assert.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
+#include <userver/ugrpc/client/call_context.hpp>
 #include <userver/ugrpc/client/impl/async_methods.hpp>
-#include <userver/ugrpc/client/impl/call.hpp>
+#include <userver/ugrpc/client/impl/async_stream_methods.hpp>
 #include <userver/ugrpc/client/impl/call_state.hpp>
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/client/impl/prepare_call.hpp>
@@ -29,7 +31,7 @@ namespace ugrpc::client::impl {
 // Contains the implementation of UnaryFinishFuture that is not dependent on template parameters.
 class UnaryFinishFuture {
 public:
-    UnaryFinishFuture(CallState& state, const google::protobuf::Message* response) noexcept;
+    UnaryFinishFuture(UnaryCallState& state, const google::protobuf::Message* response) noexcept;
 
     ~UnaryFinishFuture();
 
@@ -47,7 +49,7 @@ public:
 private:
     void Destroy() noexcept;
 
-    CallState& state_;
+    UnaryCallState& state_;
     const google::protobuf::Message* response_;
     mutable std::exception_ptr exception_;
 };
@@ -58,7 +60,7 @@ class [[nodiscard]] StreamReadFuture {
 public:
     /// @cond
     StreamReadFuture(
-        CallState& state,
+        StreamingCallState& state,
         typename RPC::RawStream& stream,
         const google::protobuf::Message* recv_message
     ) noexcept;
@@ -88,7 +90,7 @@ public:
     [[nodiscard]] bool IsReady() const noexcept;
 
 private:
-    CallState* state_{};
+    StreamingCallState* state_{};
     typename RPC::RawStream* stream_{};
     const google::protobuf::Message* recv_message_;
 };
@@ -101,32 +103,30 @@ private:
 /// that case the connection is not closed (it will be reused for new RPCs), and
 /// the server receives `RpcInterruptedError` immediately.
 template <typename Response>
-class [[nodiscard]] UnaryCall final : public CallAnyBase {
+class [[nodiscard]] UnaryCall final {
     // Implementation note. For consistency with other RPC objects, UnaryCall should have been exposed to the user
     // directly. However, in 90-99% use cases it's more intuitive to treat the RPC as a future (see ResponseFuture).
     // If we decide to expose more controls, like lazy Finish or ReadInitialMetadata, then they should be added
     // to UnaryCall, and UnaryCall should be exposed via ResponseFuture::GetCall.
 
 public:
-    /// @cond
-    // For internal use only
     template <typename Stub, typename Request>
     UnaryCall(
         CallParams&& params,
         PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
         const Request& request
     );
-    /// @endcond
 
     ~UnaryCall() = default;
 
     UnaryCall(UnaryCall&&) = delete;
     UnaryCall& operator=(UnaryCall&&) = delete;
 
+    CallContext& GetContext() noexcept { return context_; }
+    const CallContext& GetContext() const noexcept { return context_; }
+
     /// @brief Returns the future created earlier using @ref FinishAsync.
     UnaryFinishFuture& GetFinishFuture();
-
-    /// @overload
     const UnaryFinishFuture& GetFinishFuture() const;
 
     Response Finish();
@@ -137,6 +137,8 @@ private:
     // Creates the future inside this `UnaryCall`. It can be retrieved using @ref GetFinishFuture.
     void FinishAsync();
 
+    UnaryCallState state_;
+    CallContext context_;
     Response response_;
     RawResponseReader<Response> reader_;
     std::optional<UnaryFinishFuture> finish_future_;
@@ -152,8 +154,25 @@ private:
 /// immediately. gRPC provides no way to early-close a server-streaming RPC
 /// gracefully.
 template <typename Response>
-class [[nodiscard]] InputStream final : public CallAnyBase {
+class [[nodiscard]] InputStream final {
 public:
+    using RawStream = grpc::ClientAsyncReader<Response>;
+
+    template <typename Stub, typename Request>
+    InputStream(
+        CallParams&& params,
+        PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
+        const Request& request
+    );
+
+    ~InputStream();
+
+    InputStream(InputStream&&) = delete;
+    InputStream& operator=(InputStream&&) = delete;
+
+    CallContext& GetContext() noexcept { return context_; }
+    const CallContext& GetContext() const noexcept { return context_; }
+
     /// @brief Await and read the next incoming message
     ///
     /// On end-of-input, `Finish` is called automatically.
@@ -164,24 +183,9 @@ public:
     /// @throws ugrpc::client::RpcError on an RPC error
     [[nodiscard]] bool Read(Response& response);
 
-    /// @cond
-    // For internal use only
-    using RawStream = grpc::ClientAsyncReader<Response>;
-
-    template <typename Stub, typename Request>
-    InputStream(
-        CallParams&& params,
-        PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
-        const Request& request
-    );
-    /// @endcond
-
-    ~InputStream();
-
-    InputStream(InputStream&&) = delete;
-    InputStream& operator=(InputStream&&) = delete;
-
 private:
+    StreamingCallState state_;
+    CallContext context_;
     RawReader<Response> stream_;
 };
 
@@ -193,8 +197,21 @@ private:
 /// case the connection is not closed (it will be reused for new RPCs), and the
 /// server receives `RpcInterruptedError` immediately.
 template <typename Request, typename Response>
-class [[nodiscard]] OutputStream final : public CallAnyBase {
+class [[nodiscard]] OutputStream final {
 public:
+    using RawStream = grpc::ClientAsyncWriter<Request>;
+
+    template <typename Stub>
+    OutputStream(CallParams&& params, PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method);
+
+    ~OutputStream();
+
+    OutputStream(OutputStream&&) = delete;
+    OutputStream& operator=(OutputStream&&) = delete;
+
+    CallContext& GetContext() noexcept { return context_; }
+    const CallContext& GetContext() const noexcept { return context_; }
+
     /// @brief Write the next outgoing message
     ///
     /// `Write` doesn't store any references to `request`, so it can be
@@ -236,20 +253,9 @@ public:
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
     Response Finish();
 
-    /// @cond
-    // For internal use only
-    using RawStream = grpc::ClientAsyncWriter<Request>;
-
-    template <typename Stub>
-    OutputStream(CallParams&& params, PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method);
-    /// @endcond
-
-    ~OutputStream();
-
-    OutputStream(OutputStream&&) = delete;
-    OutputStream& operator=(OutputStream&&) = delete;
-
 private:
+    StreamingCallState state_;
+    CallContext context_;
     Response response_;
     RawWriter<Request> stream_;
 };
@@ -290,8 +296,21 @@ private:
 /// @snippet grpc/tests/stream_test.cpp concurrent bidirectional stream
 ///
 template <typename Request, typename Response>
-class [[nodiscard]] BidirectionalStream final : public CallAnyBase {
+class [[nodiscard]] BidirectionalStream final {
 public:
+    using RawStream = grpc::ClientAsyncReaderWriter<Request, Response>;
+
+    template <typename Stub>
+    BidirectionalStream(CallParams&& params, PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method);
+
+    ~BidirectionalStream();
+
+    BidirectionalStream(BidirectionalStream&&) = delete;
+    BidirectionalStream& operator=(BidirectionalStream&&) = delete;
+
+    CallContext& GetContext() noexcept { return context_; }
+    const CallContext& GetContext() const noexcept { return context_; }
+
     /// @brief Await and read the next incoming message
     ///
     /// On end-of-input, `Finish` is called automatically.
@@ -346,26 +365,15 @@ public:
     ///         but Read may still have some data and status code available
     [[nodiscard]] bool WritesDone();
 
-    /// @cond
-    // For internal use only
-    using RawStream = grpc::ClientAsyncReaderWriter<Request, Response>;
-
-    template <typename Stub>
-    BidirectionalStream(CallParams&& params, PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method);
-    /// @endcond
-
-    ~BidirectionalStream();
-
-    BidirectionalStream(BidirectionalStream&&) = delete;
-    BidirectionalStream& operator=(BidirectionalStream&&) = delete;
-
 private:
+    StreamingCallState state_;
+    CallContext context_;
     RawReaderWriter<Request, Response> stream_;
 };
 
 template <typename RPC>
 StreamReadFuture<RPC>::StreamReadFuture(
-    CallState& state,
+    StreamingCallState& state,
     typename RPC::RawStream& stream,
     const google::protobuf::Message* recv_message
 ) noexcept
@@ -398,13 +406,13 @@ StreamReadFuture<RPC>::~StreamReadFuture() {
 template <typename RPC>
 bool StreamReadFuture<RPC>::Get() {
     UINVARIANT(state_, "'Get' must be called only once");
-    const CallState::AsyncMethodInvocationGuard guard(*state_);
+    const StreamingCallState::AsyncMethodInvocationGuard guard(*state_);
     auto* const state = std::exchange(state_, nullptr);
     const auto result = impl::WaitAndTryCancelIfNeeded(state->GetAsyncMethodInvocation(), state->GetClientContext());
-    if (result == AsyncMethodInvocation::WaitStatus::kCancelled) {
+    if (result == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state->GetStatsScope().OnCancelled();
         state->GetStatsScope().Flush();
-    } else if (result == AsyncMethodInvocation::WaitStatus::kError) {
+    } else if (result == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kError) {
         // Finish can only be called once all the data is read, otherwise the
         // underlying gRPC driver hangs.
         impl::Finish(*stream_, *state, /*final_response=*/nullptr, /*throw_on_error=*/true);
@@ -413,7 +421,7 @@ bool StreamReadFuture<RPC>::Get() {
             MiddlewarePipeline::PostRecvMessage(*state, *recv_message_);
         }
     }
-    return result == AsyncMethodInvocation::WaitStatus::kOk;
+    return result == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kOk;
 }
 
 template <typename RPC>
@@ -430,39 +438,16 @@ UnaryCall<Response>::UnaryCall(
     PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
     const Request& request
 )
-    : CallAnyBase(std::move(params), CallKind::kUnaryCall) {
-    MiddlewarePipeline::PreStartCall(GetState());
+    : state_(std::move(params)), context_{utils::impl::InternalTag{}, state_} {
+    MiddlewarePipeline::PreStartCall(state_);
     if constexpr (std::is_base_of_v<google::protobuf::Message, Request>) {
-        MiddlewarePipeline::PreSendMessage(GetState(), request);
+        MiddlewarePipeline::PreSendMessage(state_, request);
     }
 
-    reader_ = prepare_unary_call.PrepareCall(
-        GetState().GetStub(), &GetState().GetClientContext(), request, &GetState().GetQueue()
-    );
+    reader_ = prepare_unary_call.PrepareCall(state_.GetStub(), &state_.GetClientContext(), request, &state_.GetQueue());
     reader_->StartCall();
 
-    GetState().SetWritesFinished();
-
     FinishAsync();
-}
-
-template <typename Response>
-void UnaryCall<Response>::FinishAsync() {
-    UASSERT(reader_);
-
-    GetState().SetFinished();
-    GetState().EmplaceFinishAsyncMethodInvocation();
-    auto& finish = GetState().GetFinishAsyncMethodInvocation();
-    auto& status = GetState().GetStatus();
-    reader_->Finish(&response_, &status, finish.GetCompletionTag());
-
-    finish_future_.emplace(GetState(), ToBaseMessage(&response_));
-}
-
-template <typename Response>
-Response UnaryCall<Response>::Finish() {
-    GetFinishFuture().Get();
-    return std::move(response_);
 }
 
 template <typename Response>
@@ -478,45 +463,61 @@ const UnaryFinishFuture& UnaryCall<Response>::GetFinishFuture() const {
 }
 
 template <typename Response>
+Response UnaryCall<Response>::Finish() {
+    GetFinishFuture().Get();
+    return std::move(response_);
+}
+
+template <typename Response>
+void UnaryCall<Response>::FinishAsync() {
+    state_.EmplaceFinishAsyncMethodInvocation();
+    auto& status = state_.GetStatus();
+    auto& finish = state_.GetFinishAsyncMethodInvocation();
+    UASSERT(reader_);
+    reader_->Finish(&response_, &status, finish.GetCompletionTag());
+    finish_future_.emplace(state_, ToBaseMessage(&response_));
+}
+
+template <typename Response>
 template <typename Stub, typename Request>
 InputStream<Response>::InputStream(
     CallParams&& params,
     PrepareServerStreamingCall<Stub, Request, Response> prepare_async_method,
     const Request& request
 )
-    : CallAnyBase(std::move(params), CallKind::kInputStream) {
-    MiddlewarePipeline::PreStartCall(GetState());
-    MiddlewarePipeline::PreSendMessage(GetState(), request);
+    : state_{std::move(params), CallKind::kInputStream}, context_{utils::impl::InternalTag{}, state_} {
+    MiddlewarePipeline::PreStartCall(state_);
+    MiddlewarePipeline::PreSendMessage(state_, request);
 
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
     stream_ = impl::PrepareCall(
-        prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), request, &GetState().GetQueue()
+        prepare_async_method, state_.GetStub(), &state_.GetClientContext(), request, &state_.GetQueue()
     );
-    impl::StartCall(*stream_, GetState());
+    impl::StartCall(*stream_, state_);
 
-    GetState().SetWritesFinished();
+    state_.SetWritesFinished();
 }
 
 template <typename Response>
 InputStream<Response>::~InputStream() {
-    impl::FinishAbandoned(*stream_, GetState());
+    impl::FinishAbandoned(*stream_, state_);
 }
 
 template <typename Response>
 bool InputStream<Response>::Read(Response& response) {
-    if (!GetState().IsReadAvailable()) {
+    if (!IsReadAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
         return false;
     }
 
-    if (impl::Read(*stream_, response, GetState())) {
-        MiddlewarePipeline::PostRecvMessage(GetState(), response);
+    if (impl::Read(*stream_, response, state_)) {
+        MiddlewarePipeline::PostRecvMessage(state_, response);
         return true;
     } else {
         // Finish can only be called once all the data is read, otherwise the
         // underlying gRPC driver hangs.
-        impl::Finish(*stream_, GetState(), /*final_response=*/nullptr, /*throw_on_error=*/true);
+        impl::Finish(*stream_, state_, /*final_response=*/nullptr, /*throw_on_error=*/true);
         return false;
     }
 }
@@ -527,54 +528,54 @@ OutputStream<Request, Response>::OutputStream(
     CallParams&& params,
     PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method
 )
-    : CallAnyBase(std::move(params), CallKind::kOutputStream) {
-    MiddlewarePipeline::PreStartCall(GetState());
+    : state_{std::move(params), CallKind::kOutputStream}, context_{utils::impl::InternalTag{}, state_} {
+    MiddlewarePipeline::PreStartCall(state_);
 
     // 'response_' will be filled upon successful 'Finish' async call
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
     stream_ = impl::PrepareCall(
-        prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), &response_, &GetState().GetQueue()
+        prepare_async_method, state_.GetStub(), &state_.GetClientContext(), &response_, &state_.GetQueue()
     );
-    impl::StartCall(*stream_, GetState());
+    impl::StartCall(*stream_, state_);
 }
 
 template <typename Request, typename Response>
 OutputStream<Request, Response>::~OutputStream() {
-    impl::FinishAbandoned(*stream_, GetState());
+    impl::FinishAbandoned(*stream_, state_);
 }
 
 template <typename Request, typename Response>
 bool OutputStream<Request, Response>::Write(const Request& request) {
-    if (!GetState().IsWriteAvailable()) {
+    if (!IsWriteAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
         return false;
     }
 
-    MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(state_, request);
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered
     const grpc::WriteOptions write_options{};
-    return impl::Write(*stream_, request, write_options, GetState());
+    return impl::Write(*stream_, request, write_options, state_);
 }
 
 template <typename Request, typename Response>
 void OutputStream<Request, Response>::WriteAndCheck(const Request& request) {
-    if (!GetState().IsWriteAndCheckAvailable()) {
+    if (!IsWriteAndCheckAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
-        throw RpcError(GetState().GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
+        throw RpcError(state_.GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
     }
 
-    MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(state_, request);
 
     // Don't buffer writes, otherwise in an event subscription scenario, events
     // may never actually be delivered
     const grpc::WriteOptions write_options{};
-    if (!impl::Write(*stream_, request, write_options, GetState())) {
+    if (!impl::Write(*stream_, request, write_options, state_)) {
         // We don't need final_response here, because the RPC is broken anyway.
-        impl::Finish(*stream_, GetState(), /*final_response=*/nullptr, /*throw_on_error=*/true);
+        impl::Finish(*stream_, state_, /*final_response=*/nullptr, /*throw_on_error=*/true);
     }
 }
 
@@ -582,11 +583,11 @@ template <typename Request, typename Response>
 Response OutputStream<Request, Response>::Finish() {
     // gRPC does not implicitly call `WritesDone` in `Finish`,
     // contrary to the documentation
-    if (GetState().IsWriteAvailable()) {
-        impl::WritesDone(*stream_, GetState());
+    if (IsWriteAvailable(state_)) {
+        impl::WritesDone(*stream_, state_);
     }
 
-    impl::Finish(*stream_, GetState(), ToBaseMessage(&response_), /*throw_on_error=*/true);
+    impl::Finish(*stream_, state_, ToBaseMessage(&response_), /*throw_on_error=*/true);
 
     return std::move(response_);
 }
@@ -597,38 +598,36 @@ BidirectionalStream<Request, Response>::BidirectionalStream(
     CallParams&& params,
     PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method
 )
-    : CallAnyBase(std::move(params), CallKind::kBidirectionalStream) {
-    MiddlewarePipeline::PreStartCall(GetState());
+    : state_{std::move(params), CallKind::kBidirectionalStream}, context_{utils::impl::InternalTag{}, state_} {
+    MiddlewarePipeline::PreStartCall(state_);
 
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    stream_ = impl::PrepareCall(
-        prepare_async_method, GetState().GetStub(), &GetState().GetClientContext(), &GetState().GetQueue()
-    );
-    impl::StartCall(*stream_, GetState());
+    stream_ = impl::PrepareCall(prepare_async_method, state_.GetStub(), &state_.GetClientContext(), &state_.GetQueue());
+    impl::StartCall(*stream_, state_);
 }
 
 template <typename Request, typename Response>
 BidirectionalStream<Request, Response>::~BidirectionalStream() {
-    impl::FinishAbandoned(*stream_, GetState());
+    impl::FinishAbandoned(*stream_, state_);
 }
 
 template <typename Request, typename Response>
 StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Request, Response>::ReadAsync(
     Response& response
 ) {
-    if (!GetState().IsReadAvailable()) {
+    if (!IsReadAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
-        throw RpcError(GetState().GetCallName(), "'ReadAsync' called on a finished call");
+        throw RpcError(state_.GetCallName(), "'ReadAsync' called on a finished call");
     }
 
-    impl::ReadAsync(*stream_, response, GetState());
-    return StreamReadFuture<BidirectionalStream<Request, Response>>{GetState(), *stream_, ToBaseMessage(&response)};
+    impl::ReadAsync(*stream_, response, state_);
+    return StreamReadFuture<BidirectionalStream<Request, Response>>{state_, *stream_, ToBaseMessage(&response)};
 }
 
 template <typename Request, typename Response>
 bool BidirectionalStream<Request, Response>::Read(Response& response) {
-    if (!GetState().IsReadAvailable()) {
+    if (!IsReadAvailable(state_)) {
         return false;
     }
 
@@ -638,43 +637,43 @@ bool BidirectionalStream<Request, Response>::Read(Response& response) {
 
 template <typename Request, typename Response>
 bool BidirectionalStream<Request, Response>::Write(const Request& request) {
-    if (!GetState().IsWriteAvailable()) {
+    if (!IsWriteAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
         return false;
     }
 
-    MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(state_, request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
     const grpc::WriteOptions write_options{};
-    return impl::Write(*stream_, request, write_options, GetState());
+    return impl::Write(*stream_, request, write_options, state_);
 }
 
 template <typename Request, typename Response>
 void BidirectionalStream<Request, Response>::WriteAndCheck(const Request& request) {
-    if (!GetState().IsWriteAndCheckAvailable()) {
+    if (!IsWriteAndCheckAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
-        throw RpcError(GetState().GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
+        throw RpcError(state_.GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
     }
 
-    MiddlewarePipeline::PreSendMessage(GetState(), request);
+    MiddlewarePipeline::PreSendMessage(state_, request);
 
     // Don't buffer writes, optimize for ping-pong-style interaction
     const grpc::WriteOptions write_options{};
-    impl::WriteAndCheck(*stream_, request, write_options, GetState());
+    impl::WriteAndCheck(*stream_, request, write_options, state_);
 }
 
 template <typename Request, typename Response>
 bool BidirectionalStream<Request, Response>::WritesDone() {
-    if (!GetState().IsWriteAvailable()) {
+    if (!IsWriteAvailable(state_)) {
         // If the stream is already finished, we must exit immediately.
         // If not, even the middlewares may access something that is already dead.
         return false;
     }
 
-    return impl::WritesDone(*stream_, GetState());
+    return impl::WritesDone(*stream_, state_);
 }
 
 }  // namespace ugrpc::client::impl

@@ -9,12 +9,8 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
 
-UnaryFinishFuture::UnaryFinishFuture(CallState& state, const google::protobuf::Message* response) noexcept
-    : state_(state), response_(response) {
-    // We expect that FinishAsyncMethodInvocation was already emplaced
-    // For unary future it is done in UnaryCall::FinishAsync
-    UASSERT(state_.HoldsFinishAsyncMethodInvocationDebug());
-}
+UnaryFinishFuture::UnaryFinishFuture(UnaryCallState& state, const google::protobuf::Message* response) noexcept
+    : state_(state), response_(response) {}
 
 UnaryFinishFuture::~UnaryFinishFuture() { Destroy(); }
 
@@ -32,14 +28,14 @@ void UnaryFinishFuture::Destroy() noexcept try {
     state_.GetStatsScope().SetFinishTime(finish.GetFinishTime());
 
     switch (wait_status) {
-        case AsyncMethodInvocation::WaitStatus::kOk:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kOk:
             ProcessFinishAbandoned(state_);
             break;
-        case AsyncMethodInvocation::WaitStatus::kError:
-            ProcessFinishNetworkError(state_);
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kError:
+            ProcessNetworkError(state_, "Finish");
             break;
-        case AsyncMethodInvocation::WaitStatus::kCancelled:
-        case AsyncMethodInvocation::WaitStatus::kDeadline:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kCancelled:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kDeadline:
             utils::AbortWithStacktrace("unreachable");
     }
 } catch (const std::exception& ex) {
@@ -57,7 +53,7 @@ engine::FutureStatus UnaryFinishFuture::WaitUntil(engine::Deadline deadline) con
     auto& finish = state_.GetFinishAsyncMethodInvocation();
     const auto wait_status = impl::WaitAndTryCancelIfNeeded(finish, deadline, state_.GetClientContext());
     switch (wait_status) {
-        case AsyncMethodInvocation::WaitStatus::kOk:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kOk:
             state_.SetFinishProcessed();
             state_.GetStatsScope().SetFinishTime(finish.GetFinishTime());
             try {
@@ -67,18 +63,18 @@ engine::FutureStatus UnaryFinishFuture::WaitUntil(engine::Deadline deadline) con
             }
             return engine::FutureStatus::kReady;
 
-        case AsyncMethodInvocation::WaitStatus::kError:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kError:
             state_.SetFinishProcessed();
             state_.GetStatsScope().SetFinishTime(finish.GetFinishTime());
-            ProcessFinishNetworkError(state_);
+            ProcessNetworkError(state_, "Finish");
             exception_ = std::make_exception_ptr(RpcInterruptedError(state_.GetCallName(), "Finish"));
             return engine::FutureStatus::kReady;
 
-        case AsyncMethodInvocation::WaitStatus::kCancelled:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kCancelled:
             state_.GetStatsScope().OnCancelled();
             return engine::FutureStatus::kCancelled;
 
-        case AsyncMethodInvocation::WaitStatus::kDeadline:
+        case ugrpc::impl::AsyncMethodInvocation::WaitStatus::kDeadline:
             return engine::FutureStatus::kTimeout;
     }
 

@@ -2,13 +2,9 @@
 
 #include <fmt/format.h>
 
-#include <userver/tracing/tags.hpp>
-#include <userver/utils/algo.hpp>
-
 #include <ugrpc/client/impl/tracing.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
-#include <userver/ugrpc/impl/statistics_scope.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -55,22 +51,6 @@ WaitAndTryCancelIfNeeded(ugrpc::impl::AsyncMethodInvocation& invocation, grpc::C
     return WaitAndTryCancelIfNeeded(invocation, engine::Deadline{}, context);
 }
 
-void CheckOk(CallState& state, AsyncMethodInvocation::WaitStatus status, std::string_view stage) {
-    if (status == impl::AsyncMethodInvocation::WaitStatus::kError) {
-        state.SetFinished();
-        state.GetStatsScope().OnNetworkError();
-        state.GetStatsScope().Flush();
-        SetErrorAndResetSpan(state, fmt::format("Network error at '{}'", stage));
-        throw RpcInterruptedError(state.GetCallName(), stage);
-    } else if (status == impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state.SetFinished();
-        state.GetStatsScope().OnCancelled();
-        state.GetStatsScope().Flush();
-        SetErrorAndResetSpan(state, fmt::format("Task cancellation at '{}'", stage));
-        throw RpcCancelledError(state.GetCallName(), stage);
-    }
-}
-
 void ProcessFinish(CallState& state, const google::protobuf::Message* final_response) {
     ProcessCallStatistics(state);
 
@@ -87,16 +67,16 @@ void ProcessFinish(CallState& state, const google::protobuf::Message* final_resp
 
 void ProcessFinishAbandoned(CallState& state) noexcept { SetStatusAndResetSpan(state, state.GetStatus()); }
 
-void ProcessFinishCancelled(CallState& state) noexcept {
+void ProcessCancelled(CallState& state, std::string_view stage) noexcept {
     state.GetStatsScope().OnCancelled();
     state.GetStatsScope().Flush();
-    SetErrorAndResetSpan(state, "Task cancellation at 'Finish'");
+    SetErrorAndResetSpan(state, fmt::format("Task cancellation at '{}'", stage));
 }
 
-void ProcessFinishNetworkError(CallState& state) noexcept {
+void ProcessNetworkError(CallState& state, std::string_view stage) noexcept {
     state.GetStatsScope().OnNetworkError();
     state.GetStatsScope().Flush();
-    SetErrorAndResetSpan(state, "Network error at 'Finish'");
+    SetErrorAndResetSpan(state, fmt::format("Network error at '{}'", stage));
 }
 
 void CheckFinishStatus(CallState& state) {
