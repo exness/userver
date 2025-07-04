@@ -10,6 +10,7 @@
 #include <fmt/ranges.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
+#include <boost/range/adaptor/map.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 
 #include <curl-ev/error_code.hpp>
@@ -612,7 +613,9 @@ void RequestState::parse_header(char* ptr, size_t size) try {
     const char* col_pos = static_cast<const char*>(memchr(ptr, ':', size));
     if (col_pos == nullptr) {
         if (IsHttpStatusLineStart(ptr, size)) {
-            for (auto& [k, v] : response_->headers()) LOG_INFO() << "drop header " << k << "=" << v;
+            if (!response()->headers().empty()) {
+                LOG_INFO() << "Drop headers: " << (response_->headers() | boost::adaptors::map_keys);
+            }
             // In case of redirect drop 1st response headers
             response_->headers().clear();
         }
