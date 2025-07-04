@@ -17,6 +17,10 @@ import google.protobuf.descriptor_pb2 as descriptor_pb2
 import jinja2
 
 
+def strip_ext(path: str) -> str:
+    return path.removesuffix('.proto')
+
+
 class _CodeGenerator:
     def __init__(
         self,
@@ -36,7 +40,10 @@ class _CodeGenerator:
         return self.proto_file.name.replace('.proto', '')
 
     def _generate_code(self) -> None:
-        data: Dict[str, Any] = {}
+        data: Dict[str, Any] = {
+            'name_wo_ext': strip_ext(self.proto_file.name),
+            'dependency': list(map(strip_ext, self.proto_file.dependency)),
+        }
 
         for file_ext in ['cpp', 'hpp']:
             template_name = f'structs.usrv.{file_ext}.jinja'
@@ -44,7 +51,7 @@ class _CodeGenerator:
 
             file = self.response.file.add()
             file.name = f'{self._proto_file_stem}.structs.usrv.pb.{file_ext}'
-            file.content = template.render(proto=data)
+            file.content = template.render(**data)
 
 
 def generate(
