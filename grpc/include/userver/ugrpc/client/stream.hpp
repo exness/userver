@@ -169,7 +169,8 @@ private:
 template <typename Request, typename Response>
 class [[nodiscard]] ReaderWriter final {
 public:
-    using StreamReadFuture = impl::StreamReadFuture<impl::BidirectionalStream<Request, Response>>;
+    using StreamReadFuture =
+        ugrpc::client::StreamReadFuture<typename impl::BidirectionalStream<Request, Response>::RawStream>;
 
     /// @cond
     // For internal use only

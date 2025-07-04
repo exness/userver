@@ -4,7 +4,6 @@
 /// @brief Classes representing an outgoing RPC
 
 #include <exception>
-#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -22,6 +21,7 @@
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/client/impl/prepare_call.hpp>
 #include <userver/ugrpc/client/middlewares/fwd.hpp>
+#include <userver/ugrpc/client/stream_read_future.hpp>
 #include <userver/ugrpc/time_utils.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -52,47 +52,6 @@ private:
     UnaryCallState& state_;
     const google::protobuf::Message* response_;
     mutable std::exception_ptr exception_;
-};
-
-/// @brief StreamReadFuture for waiting a single read response from stream
-template <typename RPC>
-class [[nodiscard]] StreamReadFuture {
-public:
-    /// @cond
-    StreamReadFuture(
-        StreamingCallState& state,
-        typename RPC::RawStream& stream,
-        const google::protobuf::Message* recv_message
-    ) noexcept;
-    /// @endcond
-
-    StreamReadFuture(StreamReadFuture&& other) noexcept;
-    StreamReadFuture& operator=(StreamReadFuture&& other) noexcept;
-    StreamReadFuture(const StreamReadFuture&) = delete;
-    StreamReadFuture& operator=(const StreamReadFuture&) = delete;
-
-    ~StreamReadFuture();
-
-    /// @brief Await response
-    ///
-    /// Upon completion the result is available in `response` that was
-    /// specified when initiating the asynchronous read
-    ///
-    /// `Get` should not be called multiple times for the same StreamReadFuture.
-    ///
-    /// @throws ugrpc::client::RpcError on an RPC error
-    /// @throws ugrpc::client::RpcCancelledError on task cancellation
-    bool Get();
-
-    /// @brief Checks if the asynchronous call has completed
-    ///        Note, that once user gets result, IsReady should not be called
-    /// @return true if result ready
-    [[nodiscard]] bool IsReady() const noexcept;
-
-private:
-    StreamingCallState* state_{};
-    typename RPC::RawStream* stream_{};
-    const google::protobuf::Message* recv_message_;
 };
 
 /// @brief Controls a single request -> single response RPC
@@ -156,8 +115,6 @@ private:
 template <typename Response>
 class [[nodiscard]] InputStream final {
 public:
-    using RawStream = grpc::ClientAsyncReader<Response>;
-
     template <typename Stub, typename Request>
     InputStream(
         CallParams&& params,
@@ -199,8 +156,6 @@ private:
 template <typename Request, typename Response>
 class [[nodiscard]] OutputStream final {
 public:
-    using RawStream = grpc::ClientAsyncWriter<Request>;
-
     template <typename Stub>
     OutputStream(CallParams&& params, PrepareClientStreamingCall<Stub, Request, Response> prepare_async_method);
 
@@ -299,6 +254,7 @@ template <typename Request, typename Response>
 class [[nodiscard]] BidirectionalStream final {
 public:
     using RawStream = grpc::ClientAsyncReaderWriter<Request, Response>;
+    using StreamReadFuture = ugrpc::client::StreamReadFuture<RawStream>;
 
     template <typename Stub>
     BidirectionalStream(CallParams&& params, PrepareBidiStreamingCall<Stub, Request, Response> prepare_async_method);
@@ -327,7 +283,7 @@ public:
     /// @return StreamReadFuture future
     /// @throws ugrpc::client::RpcError on an RPC error
     /// @throws ugrpc::client::RpcError if the stream is already closed for reads
-    StreamReadFuture<BidirectionalStream> ReadAsync(Response& response);
+    StreamReadFuture ReadAsync(Response& response);
 
     /// @brief Write the next outgoing message
     ///
@@ -371,66 +327,6 @@ private:
     RawReaderWriter<Request, Response> stream_;
 };
 
-template <typename RPC>
-StreamReadFuture<RPC>::StreamReadFuture(
-    StreamingCallState& state,
-    typename RPC::RawStream& stream,
-    const google::protobuf::Message* recv_message
-) noexcept
-    : state_(&state), stream_(&stream), recv_message_(recv_message) {}
-
-template <typename RPC>
-StreamReadFuture<RPC>::StreamReadFuture(StreamReadFuture&& other) noexcept
-    // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
-    : state_{std::exchange(other.state_, nullptr)}, stream_(other.stream_), recv_message_{other.recv_message_} {}
-
-template <typename RPC>
-StreamReadFuture<RPC>& StreamReadFuture<RPC>::operator=(StreamReadFuture<RPC>&& other) noexcept {
-    if (this == &other) return *this;
-    [[maybe_unused]] auto for_destruction = std::move(*this);
-    // state_ == nullptr signals that *this is empty. Other fields may remain garbage in `other`.
-    state_ = std::exchange(other.state_, nullptr);
-    stream_ = other.stream_;
-    recv_message_ = other.recv_message_;
-    return *this;
-}
-
-template <typename RPC>
-StreamReadFuture<RPC>::~StreamReadFuture() {
-    if (state_) {
-        // StreamReadFuture::Get wasn't called => finish RPC.
-        impl::FinishAbandoned(*stream_, *state_);
-    }
-}
-
-template <typename RPC>
-bool StreamReadFuture<RPC>::Get() {
-    UINVARIANT(state_, "'Get' must be called only once");
-    const StreamingCallState::AsyncMethodInvocationGuard guard(*state_);
-    auto* const state = std::exchange(state_, nullptr);
-    const auto result = impl::WaitAndTryCancelIfNeeded(state->GetAsyncMethodInvocation(), state->GetClientContext());
-    if (result == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
-        state->GetStatsScope().OnCancelled();
-        state->GetStatsScope().Flush();
-    } else if (result == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kError) {
-        // Finish can only be called once all the data is read, otherwise the
-        // underlying gRPC driver hangs.
-        impl::Finish(*stream_, *state, /*final_response=*/nullptr, /*throw_on_error=*/true);
-    } else {
-        if (recv_message_) {
-            MiddlewarePipeline::PostRecvMessage(*state, *recv_message_);
-        }
-    }
-    return result == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kOk;
-}
-
-template <typename RPC>
-bool StreamReadFuture<RPC>::IsReady() const noexcept {
-    UINVARIANT(state_, "IsReady should be called only before 'Get'");
-    auto& method = state_->GetAsyncMethodInvocation();
-    return method.IsReady();
-}
-
 template <typename Response>
 template <typename Stub, typename Request>
 UnaryCall<Response>::UnaryCall(
@@ -438,7 +334,7 @@ UnaryCall<Response>::UnaryCall(
     PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
     const Request& request
 )
-    : state_(std::move(params)), context_{utils::impl::InternalTag{}, state_} {
+    : state_{std::move(params)}, context_{utils::impl::InternalTag{}, state_} {
     MiddlewarePipeline::PreStartCall(state_);
     if constexpr (std::is_base_of_v<google::protobuf::Message, Request>) {
         MiddlewarePipeline::PreSendMessage(state_, request);
@@ -612,7 +508,7 @@ BidirectionalStream<Request, Response>::~BidirectionalStream() {
 }
 
 template <typename Request, typename Response>
-StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Request, Response>::ReadAsync(
+typename BidirectionalStream<Request, Response>::StreamReadFuture BidirectionalStream<Request, Response>::ReadAsync(
     Response& response
 ) {
     if (!IsReadAvailable(state_)) {
@@ -622,7 +518,7 @@ StreamReadFuture<BidirectionalStream<Request, Response>> BidirectionalStream<Req
     }
 
     impl::ReadAsync(*stream_, response, state_);
-    return StreamReadFuture<BidirectionalStream<Request, Response>>{state_, *stream_, ToBaseMessage(&response)};
+    return StreamReadFuture{state_, *stream_, ToBaseMessage(&response)};
 }
 
 template <typename Request, typename Response>

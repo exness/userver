@@ -10,7 +10,7 @@ USERVER_NAMESPACE_BEGIN
 namespace ugrpc::client::impl {
 
 UnaryFinishFuture::UnaryFinishFuture(UnaryCallState& state, const google::protobuf::Message* response) noexcept
-    : state_(state), response_(response) {}
+    : state_{state}, response_{response} {}
 
 UnaryFinishFuture::~UnaryFinishFuture() { Destroy(); }
 

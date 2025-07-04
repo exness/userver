@@ -2112,6 +2112,7 @@
   "grpc/include/userver/ugrpc/client/response_future.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/response_future.hpp",
   "grpc/include/userver/ugrpc/client/simple_client_component.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/simple_client_component.hpp",
   "grpc/include/userver/ugrpc/client/stream.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/stream.hpp",
+  "grpc/include/userver/ugrpc/client/stream_read_future.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/client/stream_read_future.hpp",
   "grpc/include/userver/ugrpc/datetime_utils.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/datetime_utils.hpp",
   "grpc/include/userver/ugrpc/impl/async_method_invocation.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/async_method_invocation.hpp",
   "grpc/include/userver/ugrpc/impl/code_statistics.hpp":"taxi/uservices/userver/grpc/include/userver/ugrpc/impl/code_statistics.hpp",
