@@ -539,7 +539,10 @@ bool BidirectionalStream<Request, Response>::Write(const Request& request) {
         return false;
     }
 
-    MiddlewarePipeline::PreSendMessage(state_, request);
+    {
+        const auto lock = state_.TakeMutexIfBidirectional();
+        MiddlewarePipeline::PreSendMessage(state_, request);
+    }
 
     // Don't buffer writes, optimize for ping-pong-style interaction
     const grpc::WriteOptions write_options{};
@@ -554,7 +557,10 @@ void BidirectionalStream<Request, Response>::WriteAndCheck(const Request& reques
         throw RpcError(state_.GetCallName(), "'WriteAndCheck' called on a finished or closed stream");
     }
 
-    MiddlewarePipeline::PreSendMessage(state_, request);
+    {
+        const auto lock = state_.TakeMutexIfBidirectional();
+        MiddlewarePipeline::PreSendMessage(state_, request);
+    }
 
     // Don't buffer writes, optimize for ping-pong-style interaction
     const grpc::WriteOptions write_options{};

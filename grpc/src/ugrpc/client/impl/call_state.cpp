@@ -130,6 +130,14 @@ ugrpc::impl::AsyncMethodInvocation& StreamingCallState::GetAsyncMethodInvocation
     return *invocation_;
 }
 
+std::unique_lock<engine::SingleWaitingTaskMutex> StreamingCallState::TakeMutexIfBidirectional() noexcept {
+    if (GetCallKind() == impl::CallKind::kBidirectionalStream) {
+        // Analogy as 'ugrpc::server::impl::ResponseBase::TakeMutexIfBidirectional'
+        return std::unique_lock(bidirectional_mutex_);
+    }
+    return {};
+}
+
 StreamingCallState::AsyncMethodInvocationGuard::AsyncMethodInvocationGuard(StreamingCallState& state) noexcept
     : state_(state) {
     UASSERT(state_.invocation_.has_value());

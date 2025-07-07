@@ -28,6 +28,8 @@ void Finish(
     const google::protobuf::Message* final_response,
     bool throw_on_error
 ) {
+    const auto lock = state.TakeMutexIfBidirectional();
+
     state.SetFinished();
 
     FinishAsyncMethodInvocation finish;
@@ -127,7 +129,14 @@ void ReadAsync(GrpcStream& stream, Response& response, StreamingCallState& state
 
 template <typename GrpcStream, typename Request>
 bool Write(GrpcStream& stream, const Request& request, grpc::WriteOptions options, StreamingCallState& state) {
+    const auto lock = state.TakeMutexIfBidirectional();
+    if (state.IsFinished()) {
+        // It't forbidden to work with a stream after Finish.
+        throw ugrpc::client::RpcInterruptedError{state.GetCallName(), "Write"};
+    }
+
     UINVARIANT(IsWriteAvailable(state), "'impl::Write' called on a stream that is closed for writes");
+
     ugrpc::impl::AsyncMethodInvocation write;
     stream.Write(request, options, write.GetCompletionTag());
     const auto result = WaitAndTryCancelIfNeeded(write, state.GetClientContext());
@@ -142,7 +151,14 @@ bool Write(GrpcStream& stream, const Request& request, grpc::WriteOptions option
 
 template <typename GrpcStream, typename Request>
 void WriteAndCheck(GrpcStream& stream, const Request& request, grpc::WriteOptions options, StreamingCallState& state) {
+    const auto lock = state.TakeMutexIfBidirectional();
+    if (state.IsFinished()) {
+        // It't forbidden to work with a stream after Finish.
+        throw ugrpc::client::RpcInterruptedError{state.GetCallName(), "WriteAndCheck"};
+    }
+
     UINVARIANT(IsWriteAndCheckAvailable(state), "'impl::WriteAndCheck' called on a finished or closed stream");
+
     ugrpc::impl::AsyncMethodInvocation write;
     stream.Write(request, options, write.GetCompletionTag());
     CheckOk(state, WaitAndTryCancelIfNeeded(write, state.GetClientContext()), "WriteAndCheck");
@@ -150,6 +166,12 @@ void WriteAndCheck(GrpcStream& stream, const Request& request, grpc::WriteOption
 
 template <typename GrpcStream>
 bool WritesDone(GrpcStream& stream, StreamingCallState& state) {
+    const auto lock = state.TakeMutexIfBidirectional();
+    if (state.IsFinished()) {
+        // It't forbidden to work with a stream after Finish.
+        throw ugrpc::client::RpcInterruptedError{state.GetCallName(), "WritesDone"};
+    }
+
     UINVARIANT(IsWriteAvailable(state), "'impl::WritesDone' called on a stream that is closed for writes");
     state.SetWritesFinished();
     ugrpc::impl::AsyncMethodInvocation writes_done;

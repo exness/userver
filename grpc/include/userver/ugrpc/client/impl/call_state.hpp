@@ -8,6 +8,7 @@
 #include <grpcpp/support/status.h>
 
 #include <userver/dynamic_config/fwd.hpp>
+#include <userver/engine/single_waiting_task_mutex.hpp>
 #include <userver/tracing/in_place_span.hpp>
 
 #include <userver/ugrpc/client/impl/async_method_invocation.hpp>
@@ -150,6 +151,8 @@ public:
     // we use different invocation types
     ugrpc::impl::AsyncMethodInvocation& GetAsyncMethodInvocation() noexcept;
 
+    [[nodiscard]] std::unique_lock<engine::SingleWaitingTaskMutex> TakeMutexIfBidirectional() noexcept;
+
     class AsyncMethodInvocationGuard {
     public:
         AsyncMethodInvocationGuard(StreamingCallState& state) noexcept;
@@ -170,6 +173,8 @@ private:
     bool writes_finished_{false};
 
     bool is_finished_{false};
+
+    engine::SingleWaitingTaskMutex bidirectional_mutex_;
 
     // We use FinishAsyncMethodInvocation that will correctly close all our
     // tracing::Span objects and account everything in statistics.
