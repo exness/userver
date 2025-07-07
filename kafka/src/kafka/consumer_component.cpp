@@ -6,6 +6,7 @@
 #include <userver/kafka/impl/broker_secrets.hpp>
 #include <userver/kafka/impl/configuration.hpp>
 #include <userver/kafka/impl/consumer.hpp>
+#include <userver/logging/level_serialization.hpp>
 #include <userver/storages/secdist/component.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 
@@ -38,6 +39,9 @@ ConsumerComponent::ConsumerComponent(
                   config["restart_after_failure_delay"].As<std::chrono::milliseconds>(params.restart_after_failure_delay
                   );
               params.message_key_log_format = config["message_key_log_format"].As<impl::MessageKeyLogFormat>();
+              params.debug_info_log_level =
+                  config["debug_info_log_level"].As<logging::Level>(params.debug_info_log_level);
+              params.operation_log_level = config["operation_log_level"].As<logging::Level>(params.operation_log_level);
 
               return params;
           }()
@@ -183,6 +187,16 @@ properties:
             type: string
             description: librdkafka option value
         defaultDescription: '{}'
+    debug_info_log_level:
+        type: string
+        description: |
+            log level for everything debug information
+        defaultDescription: debug
+    operation_log_level:
+        type: string
+        description: |
+            log level for infos about ordinary actions
+        defaultDescription: debug
 )");
 }
 

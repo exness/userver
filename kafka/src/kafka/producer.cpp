@@ -86,7 +86,11 @@ Producer::Producer(
 )
     : name_(name),
       producer_task_processor_(producer_task_processor),
-      producer_(impl::Configuration{name, configuration, secrets}) {}
+      producer_(
+          impl::Configuration{name, configuration, secrets},
+          configuration.debug_info_log_level,
+          configuration.operation_log_level
+      ) {}
 
 Producer::~Producer() {
     utils::Async(producer_task_processor_, "producer_shutdown", [this] {

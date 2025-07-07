@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+#include <userver/logging/level.hpp>
 #include <userver/yaml_config/fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -42,6 +43,14 @@ struct ConsumerExecutionParams final {
     /// @brief Specifies the logging format for the message key.
     /// 'plaintext' - logs the message key as-is, 'hex' - logs in hex.
     MessageKeyLogFormat message_key_log_format{MessageKeyLogFormat::kPlainText};
+
+    /// @brief Log level for everything debug information.
+    /// Acceptable values - 'trace', 'debug', 'info', 'warning', 'error', 'critical'
+    logging::Level debug_info_log_level{logging::Level::kDebug};
+
+    /// @brief Log level for infos about ordinary actions.
+    /// Acceptable values - 'trace', 'debug', 'info', 'warning', 'error', 'critical'
+    logging::Level operation_log_level{logging::Level::kInfo};
 };
 
 MessageKeyLogFormat Parse(const yaml_config::YamlConfig& config, formats::parse::To<MessageKeyLogFormat>);

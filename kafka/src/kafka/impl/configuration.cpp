@@ -9,6 +9,7 @@
 #include <librdkafka/rdkafka.h>
 
 #include <userver/engine/subprocess/environment_variables.hpp>
+#include <userver/logging/level_serialization.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/logging/log_extra.hpp>
 #include <userver/utils/algo.hpp>
@@ -180,6 +181,8 @@ ProducerConfiguration Parse(const yaml_config::YamlConfig& config, formats::pars
         config["message_send_max_retries"].As<std::uint32_t>(producer.message_send_max_retries);
     producer.retry_backoff = config["retry_backoff"].As<std::chrono::milliseconds>(producer.retry_backoff);
     producer.retry_backoff_max = config["retry_backoff_max"].As<std::chrono::milliseconds>(producer.retry_backoff_max);
+    producer.debug_info_log_level = config["debug_info_log_level"].As<logging::Level>(producer.debug_info_log_level);
+    producer.operation_log_level = config["operation_log_level"].As<logging::Level>(producer.operation_log_level);
 
     return producer;
 }

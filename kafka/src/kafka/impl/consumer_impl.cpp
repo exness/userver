@@ -151,6 +151,7 @@ void EventCallbackProxy([[maybe_unused]] rd_kafka_t* kafka_client, void* opaque_
 void PrintTopicPartitionsList(
     const rd_kafka_topic_partition_list_t* list,
     std::function<std::string(const rd_kafka_topic_partition_t&)> log,
+    const logging::Level log_level = logging::Level::kInfo,
     bool skip_invalid_offsets = false
 ) {
     if (list == nullptr || list->cnt <= 0) {
@@ -167,7 +168,7 @@ void PrintTopicPartitionsList(
             continue;
         }
 
-        LOG_INFO() << log(topic_partition);
+        LOG(log_level) << log(topic_partition);
     }
 }
 
@@ -200,10 +201,14 @@ std::string GetMessageKeyForLogging(MessageKeyLogFormat log_format, const Messag
 }  // namespace
 
 bool ConsumerImpl::AssignPartitions(const rd_kafka_topic_partition_list_t* partitions) {
-    LOG_INFO() << "Assigning new partitions to consumer";
-    PrintTopicPartitionsList(partitions, [](const rd_kafka_topic_partition_t& partition) {
-        return fmt::format("Partition {} for topic '{}' assigning", partition.partition, partition.topic);
-    });
+    LOG(execution_params_.debug_info_log_level) << "Assigning new partitions to consumer";
+    PrintTopicPartitionsList(
+        partitions,
+        [](const rd_kafka_topic_partition_t& partition) {
+            return fmt::format("Partition {} for topic '{}' assigning", partition.partition, partition.topic);
+        },
+        /*log_level=*/execution_params_.operation_log_level
+    );
 
     const auto assign_err = rd_kafka_assign(consumer_.GetHandle(), partitions);
     if (assign_err != RD_KAFKA_RESP_ERR_NO_ERROR) {
@@ -211,16 +216,20 @@ bool ConsumerImpl::AssignPartitions(const rd_kafka_topic_partition_list_t* parti
         return false;
     }
 
-    LOG_INFO() << "Successfully assigned partitions";
+    LOG(execution_params_.debug_info_log_level) << "Successfully assigned partitions";
     return true;
 }
 
 bool ConsumerImpl::RevokePartitions(const rd_kafka_topic_partition_list_t* partitions) {
-    LOG_INFO() << "Revoking existing partitions from consumer";
+    LOG(execution_params_.debug_info_log_level) << "Revoking existing partitions from consumer";
 
-    PrintTopicPartitionsList(partitions, [](const rd_kafka_topic_partition_t& partition) {
-        return fmt::format("Partition {} of '{}' topic revoking", partition.partition, partition.topic);
-    });
+    PrintTopicPartitionsList(
+        partitions,
+        [](const rd_kafka_topic_partition_t& partition) {
+            return fmt::format("Partition {} of '{}' topic revoking", partition.partition, partition.topic);
+        },
+        /*log_level=*/execution_params_.operation_log_level
+    );
 
     const auto revocation_err = rd_kafka_assign(consumer_.GetHandle(), nullptr);
     if (revocation_err != RD_KAFKA_RESP_ERR_NO_ERROR) {
@@ -228,7 +237,7 @@ bool ConsumerImpl::RevokePartitions(const rd_kafka_topic_partition_list_t* parti
         return false;
     }
 
-    LOG_INFO() << "Successfully revoked partitions";
+    LOG(execution_params_.debug_info_log_level) << "Successfully revoked partitions";
     return true;
 }
 
@@ -254,7 +263,9 @@ void ConsumerImpl::RebalanceCallback(rd_kafka_resp_err_t err, const rd_kafka_top
     tracing::Span span{"rebalance_callback"};
     span.AddTag("kafka_callback", "rebalance_callback");
 
-    LOG_INFO("Consumer group rebalanced ('{}' protocol)", rd_kafka_rebalance_protocol(consumer_.GetHandle()));
+    LOG(execution_params_.operation_log_level,
+        "Consumer group rebalanced ('{}' protocol)",
+        rd_kafka_rebalance_protocol(consumer_.GetHandle()));
 
     switch (err) {
         case RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS: {
@@ -336,7 +347,7 @@ void ConsumerImpl::OffsetCommitCallback(
         return;
     }
 
-    LOG_INFO() << "Successfully committed offsets";
+    LOG(execution_params_.debug_info_log_level) << "Successfully committed offsets";
     PrintTopicPartitionsList(
         committed_offsets,
         [](const rd_kafka_topic_partition_t& offset) {
@@ -348,6 +359,7 @@ void ConsumerImpl::OffsetCommitCallback(
                 offset.partition
             );
         },
+        /*log_level=*/execution_params_.debug_info_log_level,
         /*skip_invalid_offsets=*/true
     );
 }
@@ -377,7 +389,8 @@ void ConsumerImpl::StartConsuming() {
         rd_kafka_topic_partition_list_add(topic_partitions_list.GetHandle(), topic.c_str(), RD_KAFKA_PARTITION_UA);
     }
 
-    LOG_INFO() << fmt::format("Consumer is subscribing to topics: [{}]", fmt::join(topics_, ", "));
+    LOG(execution_params_.operation_log_level)
+        << fmt::format("Consumer is subscribing to topics: [{}]", fmt::join(topics_, ", "));
 
     // Only initiates subscribe process
     auto err = rd_kafka_subscribe(consumer_.GetHandle(), topic_partitions_list.GetHandle());
@@ -524,7 +537,7 @@ void ConsumerImpl::EventCallback() {
     /// coroutine environment, therefore not all synchronization
     /// primitives can be used in the callback body.
 
-    LOG_INFO() << "Consumer events queue became non-empty. Waking up message poller";
+    LOG(execution_params_.debug_info_log_level) << "Consumer events queue became non-empty. Waking up message poller";
     queue_became_non_empty_event_.Send();
 }
 
@@ -542,7 +555,7 @@ std::optional<Message> ConsumerImpl::TakeEventMessage(EventHolder&& event_holder
 
     AccountPolledMessageStat(polled_message);
 
-    LOG_DEBUG() << fmt::format(
+    LOG(execution_params_.operation_log_level) << fmt::format(
         "Message from kafka topic '{}' received by key '{}' with "
         "partition {} by offset {}",
         polled_message.GetTopic(),
@@ -559,10 +572,11 @@ std::optional<Message> ConsumerImpl::PollMessage(engine::Deadline deadline) {
 
     while (!deadline.IsReached() || std::exchange(just_waked_up, false)) {
         const auto time_left_ms = ToRdKafkaTimeout(deadline);
-        LOG_DEBUG() << fmt::format("Polling message for {}ms", time_left_ms);
+        LOG(execution_params_.debug_info_log_level) << fmt::format("Polling message for {}ms", time_left_ms);
 
         if (EventHolder event = PollEvent()) {
-            LOG_DEBUG() << fmt::format("Polled {} event", ToString(rd_kafka_event_type(event.GetHandle())));
+            LOG(execution_params_.debug_info_log_level)
+                << fmt::format("Polled {} event", ToString(rd_kafka_event_type(event.GetHandle())));
 
             if (IsMessageEvent(event)) {
                 return TakeEventMessage(std::move(event));
@@ -570,22 +584,17 @@ std::optional<Message> ConsumerImpl::PollMessage(engine::Deadline deadline) {
                 DispatchEvent(event);
             }
         } else {
-            LOG_DEBUG() << fmt::format(
-                "No sufficient messages are available, suspending consumer execution "
-                "for at most {}ms",
-                time_left_ms
+            LOG(execution_params_.debug_info_log_level) << fmt::format(
+                "No sufficient messages are available, suspending consumer execution for at most {}ms", time_left_ms
             );
 
             if (!queue_became_non_empty_event_.WaitForEventUntil(deadline)) {
-                LOG_DEBUG() << fmt::format(
-                    "No messages still available after {}ms (or polling task was "
-                    "canceled)",
-                    time_left_ms
-                );
+                LOG(execution_params_.debug_info_log_level
+                ) << fmt::format("No messages still available after {}ms (or polling task was canceled)", time_left_ms);
 
                 return std::nullopt;
             }
-            LOG_DEBUG() << "New events are available, poll them immediately";
+            LOG(execution_params_.debug_info_log_level) << "New events are available, poll them immediately";
             just_waked_up = true;
         }
     }
@@ -604,7 +613,7 @@ ConsumerImpl::MessageBatch ConsumerImpl::PollBatch(std::size_t max_batch_size, e
     }
 
     if (!batch.empty()) {
-        LOG_INFO() << fmt::format("Polled batch of {} messages", batch.size());
+        LOG(execution_params_.debug_info_log_level) << fmt::format("Polled batch of {} messages", batch.size());
     }
 
     return batch;
