@@ -51,7 +51,7 @@ void SetDeadline(grpc::ClientContext& client_context, const Qos& qos, const test
 
     const auto total_timeout = GetTotalTimeout(qos);
     UASSERT(total_timeout.has_value());
-    client_context.set_deadline(engine::Deadline::FromDuration(testsuite_control.MakeTimeout(*total_timeout)));
+    client_context.set_deadline(ugrpc::DurationToTimespec(testsuite_control.MakeTimeout(*total_timeout)));
 }
 
 // Order of timeout application, from highest to lowest priority:

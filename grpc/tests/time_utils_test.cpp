@@ -15,68 +15,90 @@ constexpr auto kBaseTimeout = std::chrono::milliseconds{200};
 
 }  // namespace
 
+UTEST(DeadlineToTimespec, Base) {
+    const auto duration = std::chrono::milliseconds{500};
+    const auto lo = engine::Deadline::FromDuration(duration);
+    gpr_timespec t = ugrpc::DeadlineToTimespec(engine::Deadline::FromDuration(duration));
+    const auto deadline = ugrpc::TimespecToDeadline(t);
+    const auto hi = engine::Deadline::FromDuration(duration);
+    EXPECT_TRUE(deadline.IsReachable());
+    EXPECT_LT(lo, deadline);
+    EXPECT_LT(deadline, hi);
+}
+
+UTEST(DeadlineToTimespec, FromUnreachableDeadline) {
+    gpr_timespec t = ugrpc::DeadlineToTimespec(engine::Deadline{});
+    EXPECT_EQ(t.tv_sec, gpr_inf_future(GPR_CLOCK_MONOTONIC).tv_sec);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_CLOCK_MONOTONIC);
+}
+
+UTEST(DeadlineToTimespec, FromPassedDeadline) {
+    gpr_timespec t = ugrpc::DeadlineToTimespec(engine::Deadline::Passed());
+    EXPECT_EQ(t.tv_sec, gpr_inf_past(GPR_CLOCK_MONOTONIC).tv_sec);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_CLOCK_MONOTONIC);
+}
+
+UTEST(DeadlineToTimespec, PassedAfterSleep) {
+    const auto duration = std::chrono::milliseconds{500};
+    gpr_timespec t = ugrpc::DeadlineToTimespec(engine::Deadline::FromDuration(duration));
+    engine::InterruptibleSleepFor(duration);
+    EXPECT_EQ(ugrpc::TimespecToDeadline(t), engine::Deadline::Passed());
+}
+
 UTEST(DurationToTimespec, FromDurationMax) {
-    EXPECT_EQ(
-        ugrpc::DurationToTimespec(engine::Deadline::Duration::max()).tv_sec, gpr_inf_future(GPR_CLOCK_MONOTONIC).tv_sec
-    );
+    gpr_timespec t = ugrpc::DurationToTimespec(engine::Deadline::Duration::max());
+    EXPECT_EQ(t.tv_sec, gpr_inf_future(GPR_TIMESPAN).tv_sec);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
 }
 
 UTEST(DurationToTimespec, FromNegativeDuration) {
-    EXPECT_EQ(
-        ugrpc::DurationToTimespec(engine::Deadline::Duration{-1}).tv_sec, gpr_inf_past(GPR_CLOCK_MONOTONIC).tv_sec
-    );
+    gpr_timespec t = ugrpc::DurationToTimespec(engine::Deadline::Duration{-1});
+    EXPECT_EQ(t.tv_sec, gpr_inf_past(GPR_TIMESPAN).tv_sec);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
 }
 
 UTEST(DurationToTimespec, FromZeroDuration) {
-    gpr_timespec low = gpr_now(GPR_CLOCK_MONOTONIC);
     gpr_timespec t = ugrpc::DurationToTimespec(engine::Deadline::Duration::zero());
-    gpr_timespec high = gpr_now(GPR_CLOCK_MONOTONIC);
-    EXPECT_LE(low.tv_sec, t.tv_sec);
-    EXPECT_LE(t.tv_sec, high.tv_sec);
+    EXPECT_EQ(t.tv_sec, 0);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
 }
 
 UTEST(DurationToTimespec, FromBaseTimeout) {
     const auto duration = kBaseTimeout;
-    const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(kBaseTimeout);
-    gpr_timespec low = gpr_now(GPR_CLOCK_MONOTONIC);
-    low.tv_sec += (low.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
     gpr_timespec t = ugrpc::DurationToTimespec(duration);
-    gpr_timespec high = gpr_now(GPR_CLOCK_MONOTONIC);
-    high.tv_sec += (high.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
-    EXPECT_LE(low.tv_sec, t.tv_sec);
-    EXPECT_LE(t.tv_sec, high.tv_sec);
+    EXPECT_EQ(t.tv_sec, 0);
+    EXPECT_EQ(t.tv_nsec, std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count());
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
 }
 
 UTEST(DurationToTimespec, FromLongTimeout) {
     const auto duration = engine::Deadline::Clock::now().time_since_epoch();
     const auto secs = std::chrono::floor<std::chrono::seconds>(duration);
     const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - secs);
-    gpr_timespec low = gpr_now(GPR_CLOCK_MONOTONIC);
-    low.tv_sec += secs.count();
-    low.tv_sec += (low.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
     gpr_timespec t = ugrpc::DurationToTimespec(duration);
-    gpr_timespec high = gpr_now(GPR_CLOCK_MONOTONIC);
-    high.tv_sec += secs.count();
-    high.tv_sec += (high.tv_nsec + nsecs.count()) / GPR_NS_PER_SEC;
-    EXPECT_LE(low.tv_sec, t.tv_sec);
-    EXPECT_LE(t.tv_sec, high.tv_sec);
+    EXPECT_EQ(t.tv_sec, secs.count());
+    EXPECT_EQ(t.tv_nsec, nsecs.count());
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
 }
 
 UTEST(TimespecToDuration, FromInfFuture) {
     EXPECT_EQ(ugrpc::TimespecToDuration(gpr_inf_future(GPR_CLOCK_MONOTONIC)), engine::Deadline::Duration::max());
 }
 
-UTEST(TimespecToDuration, FromInfinity) {
-    EXPECT_EQ(ugrpc::TimespecToDuration(gpr_inf_future(GPR_CLOCK_MONOTONIC)), engine::Deadline::Duration::max());
+UTEST(TimespecToDuration, FromInfPast) {
+    EXPECT_EQ(ugrpc::TimespecToDuration(gpr_inf_past(GPR_CLOCK_MONOTONIC)), engine::Deadline::Duration::min());
 }
 
 UTEST(TimespecToDuration, FromNegative) {
-    gpr_timespec t = gpr_now(GPR_CLOCK_MONOTONIC);
-    --t.tv_nsec;
-    if (t.tv_nsec < 0) {
-        t.tv_nsec += GPR_NS_PER_SEC;
-        t.tv_sec--;
-    }
+    gpr_timespec t;
+    t.tv_sec = -1;
+    t.tv_nsec = GPR_NS_PER_SEC - 1;
+    t.clock_type = GPR_TIMESPAN;
     EXPECT_EQ(ugrpc::TimespecToDuration(t), engine::Deadline::Duration::min());
 }
 
@@ -84,33 +106,12 @@ UTEST(TimespecToDuration, FromBaseTimespec) {
     const auto duration = kBaseTimeout;
     const auto secs = std::chrono::floor<std::chrono::seconds>(duration);
     const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - secs);
-    gpr_timespec t = gpr_now(GPR_CLOCK_MONOTONIC);
-    t.tv_sec += secs.count();
-    t.tv_nsec += nsecs.count();
-    if (t.tv_nsec >= GPR_NS_PER_SEC) {
-        t.tv_nsec -= GPR_NS_PER_SEC;
-        t.tv_sec++;
-    }
-    EXPECT_THAT(
-        ugrpc::TimespecToDuration(t),
-        testing::AllOf(testing::Ge(engine::Deadline::Duration::zero()), testing::Le(duration))
-    );
-}
-
-UTEST(TimeUtils, BaseTimeout) {
-    const auto duration = kBaseTimeout;
-    gpr_timespec t = ugrpc::DurationToTimespec(duration);
-    EXPECT_THAT(
-        ugrpc::TimespecToDuration(t),
-        testing::AllOf(testing::Ge(engine::Deadline::Duration::zero()), testing::Le(duration))
-    );
-}
-
-UTEST(TimeUtils, Passed) {
-    const auto duration = kBaseTimeout;
-    gpr_timespec t = ugrpc::DurationToTimespec(duration);
-    engine::InterruptibleSleepFor(duration);
-    EXPECT_EQ(ugrpc::TimespecToDuration(t), engine::Deadline::Duration::min());
+    gpr_timespec t;
+    t.tv_sec = secs.count();
+    t.tv_nsec = nsecs.count();
+    ASSERT_LT(t.tv_nsec, GPR_NS_PER_SEC);
+    t.clock_type = GPR_TIMESPAN;
+    EXPECT_EQ(ugrpc::TimespecToDuration(t), duration);
 }
 
 USERVER_NAMESPACE_END
