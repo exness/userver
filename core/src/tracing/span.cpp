@@ -121,7 +121,7 @@ Span::Impl::Impl(
 )
     : name_(std::move(name)),
       is_no_log_span_(IsNoLogSpan(name_)),
-      log_level_(is_no_log_span_ ? logging::Level::kNone : logging::Level::kInfo),
+      log_level_(is_no_log_span_ ? logging::Level::kNone : logging::Level::kTrace),
       reference_type_(reference_type),
       source_location_(source_location),
       trace_id_(parent ? utils::SmallString<kTypicalTraceIdSize>(parent->GetTraceId()) : GenerateTraceId()),
