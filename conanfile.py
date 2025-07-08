@@ -112,6 +112,11 @@ class UserverConan(ConanFile):
     def layout(self):
         cmake_layout(self)
 
+    def configure(self):
+        # Control dependencies of our dependencies based on current options
+        if self.options.with_jemalloc:
+            self.options['jemalloc'].enable_prof = True
+
     def requirements(self):
         self.requires('boost/1.85.0', transitive_headers=True)
         self.requires('c-ares/1.33.1')
