@@ -11,7 +11,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc {
 
-gpr_timespec DurationToTimespec(engine::Deadline::Duration duration) noexcept {
+gpr_timespec DurationToTimespec(const engine::Deadline::Duration& duration) noexcept {
     const auto secs = std::chrono::floor<std::chrono::seconds>(duration);
     if (duration == engine::Deadline::Duration::max() || secs.count() >= gpr_inf_future(GPR_CLOCK_MONOTONIC).tv_sec) {
         return gpr_inf_future(GPR_TIMESPAN);

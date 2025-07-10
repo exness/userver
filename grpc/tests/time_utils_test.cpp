@@ -54,8 +54,22 @@ UTEST(DurationToTimespec, FromDurationMax) {
     EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
 }
 
+UTEST(DurationToTimespec, FromMillisecondsMax) {
+    gpr_timespec t = ugrpc::DurationToTimespec(std::chrono::milliseconds::max());
+    EXPECT_EQ(t.tv_sec, gpr_inf_future(GPR_TIMESPAN).tv_sec);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
+}
+
 UTEST(DurationToTimespec, FromNegativeDuration) {
     gpr_timespec t = ugrpc::DurationToTimespec(engine::Deadline::Duration{-1});
+    EXPECT_EQ(t.tv_sec, gpr_inf_past(GPR_TIMESPAN).tv_sec);
+    EXPECT_EQ(t.tv_nsec, 0);
+    EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
+}
+
+UTEST(DurationToTimespec, FromMillisecondsMin) {
+    gpr_timespec t = ugrpc::DurationToTimespec(std::chrono::milliseconds::min());
     EXPECT_EQ(t.tv_sec, gpr_inf_past(GPR_TIMESPAN).tv_sec);
     EXPECT_EQ(t.tv_nsec, 0);
     EXPECT_EQ(t.clock_type, GPR_TIMESPAN);
