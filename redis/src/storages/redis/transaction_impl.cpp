@@ -436,6 +436,19 @@ RequestSetIfNotExist TransactionImpl::SetIfNotExist(std::string key, std::string
     return AddCmd<RequestSetIfNotExist>("set", true, std::move(key), std::move(value), "PX", ttl.count(), "NX");
 }
 
+RequestSetIfNotExistOrGet TransactionImpl::SetIfNotExistOrGet(std::string key, std::string value) {
+    UpdateShard(key);
+    return AddCmd<RequestSetIfNotExistOrGet>("set", true, std::move(key), std::move(value), "NX", "GET");
+}
+
+RequestSetIfNotExistOrGet
+TransactionImpl::SetIfNotExistOrGet(std::string key, std::string value, std::chrono::milliseconds ttl) {
+    UpdateShard(key);
+    return AddCmd<RequestSetIfNotExistOrGet>(
+        "set", true, std::move(key), std::move(value), "PX", ttl.count(), "NX", "GET"
+    );
+}
+
 RequestSetex TransactionImpl::Setex(std::string key, std::chrono::seconds seconds, std::string value) {
     UpdateShard(key);
     return AddCmd<RequestSetex>("setex", true, std::move(key), seconds.count(), std::move(value));

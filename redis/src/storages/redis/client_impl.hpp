@@ -285,6 +285,16 @@ public:
         const CommandControl& command_control
     ) override;
 
+    RequestSetIfNotExistOrGet
+    SetIfNotExistOrGet(std::string key, std::string value, const CommandControl& command_control) override;
+
+    RequestSetIfNotExistOrGet SetIfNotExistOrGet(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl,
+        const CommandControl& command_control
+    ) override;
+
     RequestSetex Setex(
         std::string key,
         std::chrono::seconds seconds,

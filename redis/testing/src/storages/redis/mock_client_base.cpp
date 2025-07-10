@@ -444,6 +444,20 @@ RequestSetIfNotExist MockClientBase::SetIfNotExist(
     AbortWithStacktrace("Redis method not mocked");
 }
 
+RequestSetIfNotExistOrGet MockClientBase::
+    SetIfNotExistOrGet(std::string /*key*/, std::string /*value*/, const CommandControl& /*command_control*/) {
+    AbortWithStacktrace("Redis method not mocked");
+}
+
+RequestSetIfNotExistOrGet MockClientBase::SetIfNotExistOrGet(
+    std::string /*key*/,
+    std::string /*value*/,
+    std::chrono::milliseconds /*ttl*/,
+    const CommandControl& /*command_control*/
+) {
+    AbortWithStacktrace("Redis method not mocked");
+}
+
 RequestSetex MockClientBase::Setex(
     std::string /*key*/,
     std::chrono::seconds /*seconds*/,

@@ -765,7 +765,7 @@ RequestSetIfExist ClientImpl::SetIfExist(
 RequestSetIfNotExist
 ClientImpl::SetIfNotExist(std::string key, std::string value, const CommandControl& command_control) {
     auto shard = ShardByKey(key, command_control);
-    return CreateRequest<RequestSetIfExist>(MakeRequest(
+    return CreateRequest<RequestSetIfNotExist>(MakeRequest(
         CmdArgs{"set", std::move(key), std::move(value), "NX"}, shard, true, GetCommandControl(command_control)
     ));
 }
@@ -777,8 +777,31 @@ RequestSetIfNotExist ClientImpl::SetIfNotExist(
     const CommandControl& command_control
 ) {
     auto shard = ShardByKey(key, command_control);
-    return CreateRequest<RequestSetIfExist>(MakeRequest(
+    return CreateRequest<RequestSetIfNotExist>(MakeRequest(
         CmdArgs{"set", std::move(key), std::move(value), "PX", ttl.count(), "NX"},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestSetIfNotExistOrGet
+ClientImpl::SetIfNotExistOrGet(std::string key, std::string value, const CommandControl& command_control) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestSetIfNotExistOrGet>(MakeRequest(
+        CmdArgs{"set", std::move(key), std::move(value), "NX", "GET"}, shard, true, GetCommandControl(command_control)
+    ));
+}
+
+RequestSetIfNotExistOrGet ClientImpl::SetIfNotExistOrGet(
+    std::string key,
+    std::string value,
+    std::chrono::milliseconds ttl,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestSetIfNotExistOrGet>(MakeRequest(
+        CmdArgs{"set", std::move(key), std::move(value), "PX", ttl.count(), "NX", "GET"},
         shard,
         true,
         GetCommandControl(command_control)

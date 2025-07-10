@@ -334,6 +334,16 @@ public:
         const CommandControl& command_control
     ) = 0;
 
+    virtual RequestSetIfNotExistOrGet
+    SetIfNotExistOrGet(std::string key, std::string value, const CommandControl& command_control) = 0;
+
+    virtual RequestSetIfNotExistOrGet SetIfNotExistOrGet(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl,
+        const CommandControl& command_control
+    ) = 0;
+
     virtual RequestSetex
     Setex(std::string key, std::chrono::seconds seconds, std::string value, const CommandControl& command_control) = 0;
 
