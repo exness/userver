@@ -52,6 +52,7 @@ function(userver_add_sql_library TARGET)
             ${USERVER_SQL_PYTHON_BINARY} ${USERVER_SQL_SCRIPTS_PATH}/generator.py --namespace ${ARG_NAMESPACE}
             --output-dir ${ARG_OUTPUT_DIR} --query-log-mode ${ARG_QUERY_LOG_MODE} --testsuite-output-dir
             ${TESTSUITE_OUTPUT_DIR} ${SQL_FILES} ${CODEGEN}
+        DEPENDS ${SQL_FILES}
     )
     _userver_codegen_register_files("${output_files}")
 
