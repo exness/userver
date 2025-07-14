@@ -53,19 +53,19 @@ public:
     // TODO Consider splitting these methods into a separate class
     std::string GetErrorMessage() const;
     std::string GetPrimaryErrorMessage() const;
-    std::string GetDetailErrorMessage() const;
+    std::optional<std::string> GetDetailErrorMessage() const;
     std::string GetMessageSeverityString() const;
     Message::Severity GetMessageSeverity() const;
     std::string GetSqlCode() const;
     SqlState GetSqlState() const;
 
-    std::string GetMessageSchema() const;
-    std::string GetMessageTable() const;
-    std::string GetMessageColumn() const;
-    std::string GetMessageDatatype() const;
-    std::string GetMessageConstraint() const;
+    std::optional<std::string> GetMessageSchema() const;
+    std::optional<std::string> GetMessageTable() const;
+    std::optional<std::string> GetMessageColumn() const;
+    std::optional<std::string> GetMessageDatatype() const;
+    std::optional<std::string> GetMessageConstraint() const;
 
-    std::string GetMessageField(int fieldcode) const;
+    std::optional<std::string> GetMessageField(int fieldcode) const;
 
     logging::LogExtra GetMessageLogExtra() const;
     //@}

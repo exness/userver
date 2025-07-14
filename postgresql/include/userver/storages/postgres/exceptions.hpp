@@ -350,8 +350,8 @@ class IntegrityConstraintViolation : public ServerRuntimeError {
 public:
     using ServerRuntimeError::ServerRuntimeError;
 
-    std::string GetSchema() const;
-    std::string GetTable() const;
+    std::optional<std::string> GetSchema() const;
+    std::optional<std::string> GetTable() const;
     std::string GetConstraint() const;
 };
 
