@@ -192,10 +192,10 @@ See native [docs about compression](https://github.com/grpc/grpc/blob/master/doc
 
 ### Key notes from the native gRPC documentation
 
-1) When a compression level is not specified for either the channel or the message, the default channel level none is considered: data MUST NOT be compressed.
-2) You can set a compression **algorithm** and a compression **level** on the server side. 
-3) On client side, one can set a compression **algorithm**.
-4) `GRPC_COMPRESS_LEVEL_LOW` mapping to "gzip -3" and `GRPC_COMPRESS_LEVEL_HIGH` mapping to "gzip -9".
+  1. When a compression level is not specified for either the channel or the message, the default channel level none is considered: data MUST NOT be compressed.
+  2. You can set a compression **algorithm** and a compression **level** on the server side. 
+  3. On client side, one can set a compression **algorithm**.
+  4. `GRPC_COMPRESS_LEVEL_LOW` mapping to "gzip -3" and `GRPC_COMPRESS_LEVEL_HIGH` mapping to "gzip -9".
 
 @note If you enable compress on the server side and a client doesn't support a compression, the server won't compress messages.
 See docs for more information https://grpc.io/docs/guides/compression.
