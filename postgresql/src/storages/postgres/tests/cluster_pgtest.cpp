@@ -18,6 +18,13 @@ namespace pg = storages::postgres;
 
 namespace {
 
+struct IdAndValue final {
+    int id{};
+    std::string value;
+
+    bool operator==(const IdAndValue& other) const { return std::tie(id, value) == std::tie(other.id, other.value); }
+};
+
 enum class CheckTxnType { kRw, kRo };
 
 void CheckTransaction(pg::Transaction trx, CheckTxnType txn_type) {
@@ -398,6 +405,20 @@ UTEST_F(PostgreCluster, ListenNotify) {
     UEXPECT_THROW(
         scope.WaitNotify(engine::Deadline::FromDuration(std::chrono::milliseconds{50})), pg::ConnectionTimeoutError
     );
+}
+
+UTEST_F(PostgreCluster, DecomposeSingleQuery) {
+    testsuite::TestsuiteTasks testsuite_tasks{true};
+    auto cluster = CreateCluster(GetDsnListFromEnv(), GetTaskProcessor(), 1, testsuite_tasks);
+
+    const auto rows = std::vector<IdAndValue>{{1, "foo"}, {2, "bar"}};
+
+    pg::ResultSet res{nullptr};
+    UEXPECT_NO_THROW(
+        res = cluster.ExecuteDecompose(pg::ClusterHostType::kMaster, "select * from unnest($1, $2)", rows)
+    );
+
+    EXPECT_EQ(rows, res.AsContainer<std::vector<IdAndValue>>(pg::kRowTag));
 }
 
 USERVER_NAMESPACE_END
