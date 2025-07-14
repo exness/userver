@@ -7,7 +7,6 @@
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
-#include <boost/algorithm/hex.hpp>
 
 #include <userver/kafka/exceptions.hpp>
 #include <userver/kafka/impl/configuration.hpp>
@@ -15,6 +14,7 @@
 #include <userver/logging/log.hpp>
 #include <userver/testsuite/testpoint.hpp>
 #include <userver/tracing/span.hpp>
+#include <userver/utils/encoding/hex.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
 #include <userver/utils/span.hpp>
 
@@ -184,14 +184,10 @@ void CallTestpoints(const rd_kafka_topic_partition_list_t* list, const std::stri
 
 std::string GetMessageKeyForLogging(MessageKeyLogFormat log_format, const Message& message) {
     switch (log_format) {
-        case MessageKeyLogFormat::kHex: {
-            std::string ret;
-            boost::algorithm::hex(message.GetKey().begin(), message.GetKey().end(), std::back_inserter(ret));
-            return ret;
-        }
-        case MessageKeyLogFormat::kPlainText: {
+        case MessageKeyLogFormat::kHex:
+            return utils::encoding::ToHex(message.GetKey());
+        case MessageKeyLogFormat::kPlainText:
             return std::string(message.GetKey());
-        }
         default:
             UINVARIANT(false, "Unsupported message key log format");
             return {};
@@ -368,7 +364,7 @@ ConsumerImpl::ConsumerImpl(
     const std::string& name,
     const ConfHolder& conf,
     const std::vector<std::string>& topics,
-    ConsumerExecutionParams execution_params,
+    const ConsumerExecutionParams& execution_params,
     const std::optional<ConsumerRebalanceCallback>& rebalance_callback_opt,
     Stats& stats
 )
