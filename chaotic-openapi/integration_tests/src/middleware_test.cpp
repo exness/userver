@@ -23,36 +23,6 @@ constexpr http::headers::PredefinedHeader kLocation("Location");
 
 }
 
-UTEST(TestMiddleware, QosMiddleware) {
-    int request_count = 0;
-
-    const utest::HttpServerMock http_server([&request_count](const utest::HttpServerMock::HttpRequest&) {
-        request_count++;
-
-        if (request_count <= 2) {
-            engine::SleepFor(std::chrono::milliseconds(200));
-        }
-
-        auto response = utest::HttpServerMock::HttpResponse{200};
-        response.body = R"({"status":"ok"})";
-        return response;
-    });
-
-    auto http_client_ptr = utest::CreateHttpClient();
-    auto request = http_client_ptr->CreateRequest();
-
-    request.url(http_server.GetBaseUrl() + "/test");
-
-    chaotic::openapi::QosMiddleware timeout_retry_middleware(std::chrono::milliseconds(100), 3);
-    timeout_retry_middleware.OnRequest(request);
-
-    auto response = request.perform();
-
-    EXPECT_GE(request_count, 2);
-    EXPECT_EQ(response->status_code(), 200);
-    EXPECT_EQ(response->body(), R"({"status":"ok"})");
-}
-
 UTEST(TestMiddleware, FollowRedirectsMiddleware) {
     bool redirect_visited = false;
 

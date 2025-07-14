@@ -37,8 +37,9 @@ def do_main():
     # translate
     spec = translator.Translator(
         parser.service(),
-        args.namespace or f'clients::{args.name}',
-        [],
+        dynamic_config=args.dynamic_config,
+        cpp_namespace=(args.namespace or f'clients::{args.name}'),
+        include_dirs=[],
     ).spec()
 
     # render
@@ -56,6 +57,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--name', required=True, help='Client name')
     parser.add_argument('-o', '--output-dir', required=True)
     parser.add_argument('--namespace', required=False)
+    parser.add_argument('--dynamic-config', default='')
     parser.add_argument(
         '--clang-format',
         default='clang-format',

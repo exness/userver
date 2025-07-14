@@ -14,11 +14,19 @@ from chaotic_openapi.front import model
 
 
 class Translator:
-    def __init__(self, service: model.Service, cpp_namespace: str, include_dirs: List[str]) -> None:
+    def __init__(
+        self,
+        service: model.Service,
+        *,
+        cpp_namespace: str,
+        dynamic_config: str,
+        include_dirs: List[str],
+    ) -> None:
         self._spec = types.ClientSpec(
             client_name=service.name,
             description=service.description,
             cpp_namespace=cpp_namespace,
+            dynamic_config=dynamic_config,
             operations=[],
             schemas={},
         )

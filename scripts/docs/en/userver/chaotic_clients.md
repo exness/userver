@@ -64,6 +64,25 @@ If you want to log every in/out client body, use `logging` middleware in static 
           body_limit: 10000  # trim body to max size
 ```
 
+## Dynamic Quality-of-service configs (QOS)
+
+Clients may fetch attempts and retries from dynamic config.
+Use `qos-{client_name}` middleware in static config (change "test-client" to your client name):
+
+```yaml
+    test-client:
+      middlewares:
+        qos-test-client: {}
+```
+
+And register it in `main.cpp`:
+
+```cpp
+auto component_list =
+  userver::components::ComponentList()
+  .Append<userver::chaotic::openapi::QosMiddleware<clients::test_client::kQosConfig>>("chaotic-client-middleware-qos-test-client")
+```
+
 ## Proxy
 
 HTTP proxy may be enabled using `proxy` middleware in static config:

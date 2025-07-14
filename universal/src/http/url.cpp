@@ -259,6 +259,16 @@ std::string_view ExtractPathView(std::string_view url) {
 
 std::string ExtractPath(std::string_view url) { return std::string{ExtractPathView(url)}; }
 
+std::string ExtractPathOnly(std::string_view url) {
+    auto path = ExtractPathView(url);
+    auto pos = path.find('?');
+    if (pos != std::string::npos) {
+        return std::string{path.substr(0, pos)};
+    } else {
+        return std::string{path};
+    }
+}
+
 std::string_view ExtractHostnameView(std::string_view url) {
     // Drop "schema://"
     const auto pos = url.find(kSchemaSeparator);

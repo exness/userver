@@ -211,17 +211,29 @@ std::optional<std::string> MakeUrlWithPathArgs(
 std::string ExtractMetaTypeFromUrl(std::string_view url);
 std::string_view ExtractMetaTypeFromUrlView(std::string_view url);
 
+// TODO: rename to ExtractPathAndQuery()
 /// @brief Returns HTTP path part of a URL
 /// @param url Full URL to extract from
 /// @returns Path component of the URL
 /// @code
 ///   auto path = ExtractPath("https://example.com/api/users");
 ///   // Returns: "/api/users"
-///   auto path2 = ExtractPath("example.com/api/users");
-///   // Returns: "/api/users"
+///   auto path2 = ExtractPath("example.com/api/users?a=b");
+///   // Returns: "/api/users?a=b"
 /// @endcode
 std::string ExtractPath(std::string_view url);
 std::string_view ExtractPathView(std::string_view url);
+
+/// @brief Returns HTTP path part of a URL
+/// @param url Full URL to extract from
+/// @returns Path component of the URL
+/// @code
+///   auto path = ExtractPath("https://example.com/api/users");
+///   // Returns: "/api/users"
+///   auto path2 = ExtractPath("example.com/api/users?a=b");
+///   // Returns: "/api/users"
+/// @endcode
+std::string ExtractPathOnly(std::string_view url);
 
 /// @brief Returns hostname part of a URL
 /// @param url Full URL to extract from

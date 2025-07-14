@@ -43,6 +43,9 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
             'userver/components/component_config.hpp',
             'userver/yaml_config/schema.hpp',
         ],
+        'qos.hpp': [
+            'userver/chaotic/openapi/client/command_control.hpp',
+        ],
         'exceptions.cpp': [
             f'clients/{client_name}/exceptions.hpp',
             'userver/clients/http/error_kind.hpp',

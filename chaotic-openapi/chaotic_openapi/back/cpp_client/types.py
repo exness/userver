@@ -153,6 +153,7 @@ class Operation:
 class ClientSpec:
     client_name: str
     cpp_namespace: str
+    dynamic_config: str
     description: str = ''
     operations: List[Operation] = dataclasses.field(default_factory=list)
 

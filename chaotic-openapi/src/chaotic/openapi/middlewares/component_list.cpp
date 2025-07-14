@@ -14,8 +14,7 @@ void AppendDefaultMiddlewares(components::ComponentList& component_list) {
     component_list.Append<chaotic::openapi::LoggingMiddlewareFactory>()
         .Append<chaotic::openapi::SslMiddlewareFactory>()
         .Append<chaotic::openapi::ProxyMiddlewareFactory>()
-        .Append<chaotic::openapi::FollowRedirectsMiddlewareFactory>()
-        .Append<chaotic::openapi::QosMiddlewareFactory>();
+        .Append<chaotic::openapi::FollowRedirectsMiddlewareFactory>();
 }
 
 }  // namespace chaotic::openapi::middlewares

@@ -18,6 +18,7 @@ TEMPLATE_NAMES = [
     'client.cpp',
     'client_impl.hpp',
     'client_impl.cpp',
+    'qos.hpp',
     'component.hpp',
     'component.cpp',
     'requests.hpp',
@@ -86,6 +87,7 @@ def render(spec: types.ClientSpec, context: Context) -> List[CppOutput]:
         'spec': spec,
         'namespace': spec.cpp_namespace,
         'name': spec.client_name,
+        'config': spec.dynamic_config,
         'base_url': 'http://example.com',  # TODO
         'operations': spec.operations,
         'tvm_hack': context.uservices_library_tvm_guard_hack,

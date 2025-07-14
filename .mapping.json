@@ -47,6 +47,7 @@
   "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/component.hpp.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/component.hpp.jinja",
   "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/exceptions.cpp.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/exceptions.cpp.jinja",
   "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/exceptions.hpp.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/exceptions.hpp.jinja",
+  "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/qos.hpp.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/qos.hpp.jinja",
   "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/requests.application.json.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/requests.application.json.jinja",
   "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/requests.application.multipart.formdata.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/requests.application.multipart.formdata.jinja",
   "chaotic-openapi/chaotic_openapi/back/cpp_client/templates/requests.application.octet.stream.jinja":"taxi/uservices/userver/chaotic-openapi/chaotic_openapi/back/cpp_client/templates/requests.application.octet.stream.jinja",
