@@ -159,9 +159,9 @@ public:
 
     /// Read fields into variables in order of their names in the first argument
     template <typename... T>
-    void To(const std::initializer_list<std::string>& names, T&&... val) const;
+    void To(const std::initializer_list<USERVER_NAMESPACE::utils::zstring_view>& names, T&&... val) const;
     template <typename... T>
-    std::tuple<T...> As(const std::initializer_list<std::string>& names) const;
+    std::tuple<T...> As(const std::initializer_list<USERVER_NAMESPACE::utils::zstring_view>& names) const;
 
     /// Read fields into variables in order of their indexes in the first
     /// argument
@@ -278,10 +278,18 @@ struct RowDataExtractorBase<std::index_sequence<Indexes...>, T...> {
         (perform(std::get<Indexes>(val)), ...);
     }
 
-    static void ExtractValues(const Row& row, const std::initializer_list<std::string>& names, T&&... val) {
+    static void ExtractValues(
+        const Row& row,
+        const std::initializer_list<USERVER_NAMESPACE::utils::zstring_view>& names,
+        T&&... val
+    ) {
         (row[*(names.begin() + Indexes)].To(std::forward<T>(val)), ...);
     }
-    static void ExtractTuple(const Row& row, const std::initializer_list<std::string>& names, std::tuple<T...>& val) {
+    static void ExtractTuple(
+        const Row& row,
+        const std::initializer_list<USERVER_NAMESPACE::utils::zstring_view>& names,
+        std::tuple<T...>& val
+    ) {
         std::tuple<T...> tmp{row[*(names.begin() + Indexes)].template As<T>()...};
         tmp.swap(val);
     }
@@ -383,7 +391,7 @@ auto Row::As() const {
 }
 
 template <typename... T>
-void Row::To(const std::initializer_list<std::string>& names, T&&... val) const {
+void Row::To(const std::initializer_list<USERVER_NAMESPACE::utils::zstring_view>& names, T&&... val) const {
     detail::AssertSaneTypeToDeserialize<T...>();
     if (sizeof...(T) != names.size()) {
         throw FieldTupleMismatch(names.size(), sizeof...(T));
@@ -392,7 +400,7 @@ void Row::To(const std::initializer_list<std::string>& names, T&&... val) const 
 }
 
 template <typename... T>
-std::tuple<T...> Row::As(const std::initializer_list<std::string>& names) const {
+std::tuple<T...> Row::As(const std::initializer_list<USERVER_NAMESPACE::utils::zstring_view>& names) const {
     if (sizeof...(T) != names.size()) {
         throw FieldTupleMismatch(names.size(), sizeof...(T));
     }
