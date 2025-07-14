@@ -57,7 +57,7 @@ public:
     HeaderMap();
     /// Constructor from initializer list: `HeaderMap({{"a", "b"}, {"c", "d"}})`.
     /// Its unspecified which pair is inserted in case of names not being unique.
-    /*TODO: make explicit*/ HeaderMap(std::initializer_list<std::pair<std::string_view, std::string_view>> headers);
+    /*implicit*/ HeaderMap(std::initializer_list<std::pair<std::string_view, std::string_view>> headers);
     /// Constructor with capacity: preallocates `capacity` elements for internal
     /// storage.
     explicit HeaderMap(std::size_t capacity);
