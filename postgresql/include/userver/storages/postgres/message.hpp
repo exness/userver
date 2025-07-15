@@ -3,6 +3,7 @@
 /// @file userver/storages/postgres/message.hpp
 /// @brief Database messages
 
+#include <optional>
 #include <string>
 #include <string_view>
 
