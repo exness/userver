@@ -377,9 +377,9 @@ UTEST_F(GrpcCancelError, CancelByError) {
     // Make sure server logs are written.
     GetServer().StopServing();
 
-    // implicit finish is a abandoned-error + grpc_code=CANCELLED.
+    // implicit finish is a abandoned-error.
     EXPECT_EQ(get_metric(kAbandoned), 1);
-    EXPECT_EQ(get_metric("status", {{"grpc_code", "CANCELLED"}}), 1);
+    EXPECT_FALSE(GetStatistics("grpc.client.total", {{"grpc_code", "CANCELLED"}}).SingleMetricOptional("status"));
 
     EXPECT_EQ(get_metric(kCancelled), 0);
     EXPECT_EQ(get_metric("status", {{"grpc_code", "OK"}}), 0);

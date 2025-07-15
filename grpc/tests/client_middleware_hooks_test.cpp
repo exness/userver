@@ -602,7 +602,7 @@ UTEST_F(ClientMiddlewaresHooksTest, Abandoned) {
 
     auto check_metrics = [this](std::size_t abandoned) {
         EXPECT_EQ(GetMetric("abandoned-error"), abandoned);
-        EXPECT_EQ(GetMetric("status", {{"grpc_code", "CANCELLED"}}), abandoned);
+        EXPECT_FALSE(GetStatistics("grpc.client.total", {{"grpc_code", "CANCELLED"}}).SingleMetricOptional("status"));
 
         EXPECT_EQ(GetMetric("cancelled"), 0);
         EXPECT_EQ(GetMetric("status", {{"grpc_code", "OK"}}), 0);

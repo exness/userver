@@ -46,7 +46,6 @@ void RpcStatisticsScope::Flush() noexcept {
     AccountTiming();
     switch (finish_kind_) {
         case FinishKind::kAutomatic:
-            statistics_->AccountStatus(grpc::StatusCode::CANCELLED);
             statistics_->AccountInternalError();
             return;
         case FinishKind::kExplicit:

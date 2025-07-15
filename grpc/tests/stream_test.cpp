@@ -237,7 +237,7 @@ UTEST_F(GrpcBidirectionalStream, BidirectionalStreamDestroy) {
     EXPECT_EQ(get_metric(kStatus, {{"grpc_code", "OK"}}), 1);
 
     // Moved stream was cancelled in a destructor.
-    EXPECT_EQ(get_metric(kStatus, {{"grpc_code", "CANCELLED"}}), 1);
+    EXPECT_FALSE(GetStatistics("grpc.client.total", {{"grpc_code", "CANCELLED"}}).SingleMetricOptional("status"));
     EXPECT_EQ(get_metric(kAbandoned), 1);
 
     EXPECT_EQ(get_metric("cancelled"), 0);
