@@ -10,6 +10,12 @@
 [![Build and publish ubuntu-24.04-userver images](https://github.com/userver-framework/userver/actions/workflows/publish-ubuntu-24.04-images.yaml/badge.svg)](https://github.com/userver-framework/userver/actions/workflows/publish-ubuntu-24.04-images.yaml)
 [![Build and publish ubuntu-22.04-userver images](https://github.com/userver-framework/userver/actions/workflows/publish-ubuntu-22.04-images.yaml/badge.svg)](https://github.com/userver-framework/userver/actions/workflows/publish-ubuntu-22.04-images.yaml)
 
+[![uservice-dynconf CI](https://github.com/userver-framework/uservice-dynconf/actions/workflows/ci.yml/badge.svg)](https://github.com/userver-framework/uservice-dynconf/actions/workflows/ci.yml)
+[![uservice-dynconf Docker build](https://github.com/userver-framework/uservice-dynconf/actions/workflows/docker.yaml/badge.svg?branch=develop)](https://github.com/userver-framework/uservice-dynconf/actions/workflows/docker.yaml)
+[![urealmedium CI](https://github.com/userver-framework/realmedium_sample/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/userver-framework/realmedium_sample/actions/workflows/ci.yml)
+[![urealmedium Docker build](https://github.com/userver-framework/realmedium_sample/actions/workflows/docker.yaml/badge.svg?branch=develop)](https://github.com/userver-framework/realmedium_sample/actions/workflows/docker.yaml)
+
+
 **userver** is an open source asynchronous framework with a rich set of abstractions
 for fast and comfortable creation of C++ microservices, services and utilities.
 

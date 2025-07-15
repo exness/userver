@@ -25,22 +25,90 @@ Changelog news also go to the
 * ✔️ Improved MacOS build support.
 * ✔️ Improved Conan support.
 * ✔️ SQLite driver
+* ✔️ Web interface for the [uservice-dynconf](https://github.com/userver-framework/uservice-dynconf)
+* ✔️ Retry budget plugin for HTTP clients clients::http::plugins::retry_budget::Component.
 * 👨‍💻 gRPC simplification and functionality improvement.
-* 👨‍💻 Add retry budget or retry circuit breaker for clients.
 * 👨‍💻 Generate full-blown accessories for OpenAPI:
   * clients
   * handlers
-* Add web interface to the [uservice-dynconf](https://github.com/userver-framework/uservice-dynconf)
 
 
 ## Changelog
 
 ### Release v2.11
 
-WIP
+* Added support for TLS in RedisCluster mode. Many thanks to [Danilkormilin](https://github.com/Danilkormilin) for the PR!
+* Added ascetic web interface for the [uservice-dynconf](https://github.com/userver-framework/uservice-dynconf).
+* @ref server::handlers::HttpHandlerStatic now can serve static files from non-root URL paths. Many thanks to
+  [Konstantin Goncharik](https://github.com/botanegg) for the PR!
+* Added retry budget plugin for HTTP clients @ref clients::http::plugins::retry_budget::Component.
+* @ref server::handlers::HttpHandlerStatic now has `directory-file` static config option that returns file in directory
+  requests. It is set to "index.html" by default, so that `http://localhost/` requests return the `index.html`. Option
+  `not-found-file` allows customizing 404 pages.
+* Added @ref utils::move_only_function.
+* Added seek functionality to @ref kafka::ConsumerScope. Many thanks to
+  [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
+* Add a static config option `message_key_log_format` to @ref kafka::ConsumerComponent to log message key in hex.
+  Many thanks to [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
+* @ref utils::statistics::HistogramView now provides total sum to comply with Prometheus format. Many thanks to
+  [DmitriyH](https://github.com/DmitriyH) for the PR!
+* Added @ref UTEST_P_DEATH and @ref UEXPECT_DEBUG_DEATH macro to `userver::utest`.
+* Renamed `utils::NullTerminatedView` to @ref utils::zstring_view to match C++29 targeted proposal P3655R1.
+* Added Get/Set batch size for @ref storages::mongo::Cursor. Many thanks to
+  [Konstantin Goncharik](https://github.com/botanegg) for the PR!
+* Added @ref engine::GetQueueSize(). Many thanks to [Emil Rakhimov](https://github.com/RakhimovEmil) for the PR!
+* Fixed `std::int64_t` narrowing to `std::int32_t` in Kafka. Many thanks to
+  [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
+* Chaotic now validates array type before parsing to `chaotic::Array`. Many thanks to
+  [Konstantin Goncharik](https://github.com/botanegg) for the PR!
+* Allow dynamic selection of response streaming. Many thanks to [Sergei Fedorov](https://github.com/zmij)
+  for the PR!
+* Added support for @ref mongo::options::Hint for @ref storages::mongo::operations::Delete,
+  @ref storages::mongo::bulk_ops::Update and @ref  storages::mongo::bulk_ops::Delete.
 
-* Optimizations:
-  * Multiple optimizations for the gRPC logging. Up to 100 times faster logging in edge cases.
+* gRPC:
+  * gRPC clients now have @ref ugrpc::client::Reader, @ref ugrpc::client::Writer and @ref ugrpc::client::ReaderWriter
+    names to match `ugrpc::server` names.
+  * Fixed data race in bidirectional stream client.
+  * Optimized clients and server for cases when logging for handler or client is disabled.
+  * Multiple optimizations for the gRPC logging. Up to 150 times faster logging in edge cases.
+  
+* Other Optimizations:
+  * @ref utils::zstring_view is now used throughout the userver to avoid temporary `std::string` constructions. Affected
+    components include PostgreSQL driver, HTTP clients, Chaotic, universal and Kafka.
+  * URL utils for schema, query and fragment extraction now have overloads that return `std::string_view` and avoid
+    dynamic memory allocations.
+  * Properly make date header for @ref scripts/docs/en/userver/libraries/s3api.md. This avoids rare cases of
+    CPU-intensive thread blocking. Many thanks to [Daniil Shvalov](https://github.com/danilshvalov) for the PR.
+  * Size of @ref storages::redis::ReplyData dropped down to 32 bytes from 64 bytes, leading to less memory usage for
+    responses with long arrays.
+  * Optimized hex logging in Kafka. Many thanks to [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
+
+* Documentation and Diagnostics:
+  * [RealMedium sample](https://github.com/userver-framework/realmedium_sample) was modernized and cleaned up. Now it
+    can be used as a sample. Many thanks to [Liiizak](https://github.com/Liiizak) for multiple PRs!
+  * Updated build instructions. Many thanks to [h1laryz](https://github.com/h1laryz) for the PR!
+  * Clarified @ref http::ContentType parsing errors.
+  * More clarifications on @ref engine::Task interruptions for @ref userver_concurrency "concurrency primitives".
+  * `tools/*` became samples and were moved into `samples/`. Tests were added.
+  * "task_processor" and "fs_task_processor" static options now have proper defaults.
+    See @ref scripts/docs/en/userver/task_processors_guide.md
+  * Documented log sinks and formats more thoroughly. See @ref scripts/docs/en/userver/logging.md.
+  * Simplified @ref storages::redis::Client `*scan` commands usage, added samples and more descriptions.
+  * More docs and samples (and functions) for the userver/http/url.hpp.
+  * ODBC driver foundation gained an improved error handling and connection pool. Many thanks to
+    [Alexey](https://github.com/Olex1313) for the PR!
+  * Added @ref scripts/docs/en/userver/grpc/server_middleware_implementation.md and
+    @ref scripts/docs/en/userver/grpc/client_middleware_implementation.md documentation pages.
+
+* Build:
+  * `CMAKE_CXX_STANDARD` was set to to `20` by default. C++17 still supported.
+  * Added preliminary CMake configure support on Windows. Many thanks to [Alex](https://github.com/leha-bot) for
+    the PR.
+  * Added cmake-format config and formated the CMake files. Many thanks to [Dzmitry Ivaniuk](https://github.com/idzm)
+    for the PR!
+  * Added `with_redis_tls` flag for support Redis TLS in Conan. Many thanks to
+    [Mikhail Romaneev](https://github.com/melonaerial) for the PR!
 
 
 ### Release v2.10
