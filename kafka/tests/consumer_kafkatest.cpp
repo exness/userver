@@ -359,20 +359,18 @@ UTEST_F(ConsumerTest, SeekToBeginning) {
 
         engine::SingleUseEvent event;
         auto consumer_scope = consumer.MakeConsumerScope();
-        const auto poll_timeout = kafka::impl::ConsumerExecutionParams{}.poll_timeout;
-        auto rebalance_callback = [&consumer_scope, &event, poll_timeout](
-                                      kafka::TopicPartitionBatchView partitions, kafka::RebalanceEventType event_type
-                                  ) {
-            if (event_type == kafka::RebalanceEventType::kAssigned) {
-                for (const auto& topic_partitions : partitions) {
-                    UEXPECT_NO_THROW(consumer_scope.SeekToBeginning(
-                        topic_partitions.topic, topic_partitions.partition_id, poll_timeout
-                    ));
-                }
+        auto rebalance_callback =
+            [&consumer_scope, &event](kafka::TopicPartitionBatchView partitions, kafka::RebalanceEventType event_type) {
+                if (event_type == kafka::RebalanceEventType::kAssigned) {
+                    for (const auto& topic_partitions : partitions) {
+                        UEXPECT_NO_THROW(consumer_scope.SeekToBeginning(
+                            topic_partitions.topic, topic_partitions.partition_id, utest::kMaxTestWaitTime
+                        ));
+                    }
 
-                event.Send();
-            }
-        };
+                    event.Send();
+                }
+            };
         consumer_scope.SetRebalanceCallback(std::move(rebalance_callback));
 
         const auto received_messages = ReceiveMessages(
@@ -399,28 +397,27 @@ UTEST_F(ConsumerTest, SeekToOffset) {
 
     engine::SingleUseEvent event;
     auto consumer_scope = consumer.MakeConsumerScope();
-    const auto poll_timeout = kafka::impl::ConsumerExecutionParams{}.poll_timeout;
 
     // On partitions assign shift offset by `kMessagesToSkip`
     // After that, one excepts that consumer receives messages with offset greater of equal than `kMessagesToSkip`
     constexpr std::uint64_t kMessagesToSkip{7};
-    auto rebalance_callback = [&consumer_scope, &event, poll_timeout](
-                                  kafka::TopicPartitionBatchView partitions, kafka::RebalanceEventType event_type
-                              ) {
-        if (event_type == kafka::RebalanceEventType::kAssigned) {
-            for (const auto& topic_partitions : partitions) {
-                const auto offset_range =
-                    consumer_scope.GetOffsetRange(topic_partitions.topic, topic_partitions.partition_id, poll_timeout);
-                const auto offset_to_seek = offset_range.low + kMessagesToSkip;
+    auto rebalance_callback =
+        [&consumer_scope, &event](kafka::TopicPartitionBatchView partitions, kafka::RebalanceEventType event_type) {
+            if (event_type == kafka::RebalanceEventType::kAssigned) {
+                for (const auto& topic_partitions : partitions) {
+                    const auto offset_range = consumer_scope.GetOffsetRange(
+                        topic_partitions.topic, topic_partitions.partition_id, utest::kMaxTestWaitTime
+                    );
+                    const auto offset_to_seek = offset_range.low + kMessagesToSkip;
 
-                UEXPECT_NO_THROW(consumer_scope.Seek(
-                    topic_partitions.topic, topic_partitions.partition_id, offset_to_seek, poll_timeout
-                ));
+                    UEXPECT_NO_THROW(consumer_scope.Seek(
+                        topic_partitions.topic, topic_partitions.partition_id, offset_to_seek, utest::kMaxTestWaitTime
+                    ));
+                }
+
+                event.Send();
             }
-
-            event.Send();
-        }
-    };
+        };
     consumer_scope.SetRebalanceCallback(std::move(rebalance_callback));
 
     const auto received_messages = ReceiveMessages(
@@ -453,27 +450,26 @@ UTEST_F(ConsumerTest, SeekToEnd) {
     // When rebalance called, send one more batch of messages to topic
     // Expect that only that messages are read by consumer
     engine::SingleUseEvent seek_completed;
-    const auto poll_timeout = kafka::impl::ConsumerExecutionParams{}.poll_timeout;
     auto task_send_after_seek =
-        utils::Async("send_messages_after_seek", [this, &seek_completed, &kAfterSeekMessages, poll_timeout]() mutable {
+        utils::Async("send_messages_after_seek", [this, &seek_completed, &kAfterSeekMessages]() mutable {
             // wait until seek occurs.
             seek_completed.Wait();
 
             // We need also to sleep for >= poll_timeout after seek, to send message only after seek occurs.
-            engine::SleepFor(poll_timeout * 2);
+            engine::SleepFor(3 * kafka::impl::ConsumerExecutionParams{}.poll_timeout);
             SendMessages(kAfterSeekMessages);
         });
 
     auto consumer = MakeConsumer("kafka-consumer", {topic});
     auto consumer_scope = consumer.MakeConsumerScope();
-    auto rebalance_callback = [&consumer_scope, &seek_completed, poll_timeout](
+    auto rebalance_callback = [&consumer_scope, &seek_completed](
                                   kafka::TopicPartitionBatchView partitions, kafka::RebalanceEventType event_type
                               ) {
         if (event_type == kafka::RebalanceEventType::kAssigned) {
             for (const auto& topic_partitions : partitions) {
-                UEXPECT_NO_THROW(
-                    consumer_scope.SeekToEnd(topic_partitions.topic, topic_partitions.partition_id, poll_timeout)
-                );
+                UEXPECT_NO_THROW(consumer_scope.SeekToEnd(
+                    topic_partitions.topic, topic_partitions.partition_id, utest::kMaxTestWaitTime
+                ));
             }
 
             // signals that seek have already occured.
