@@ -97,8 +97,7 @@ void ProducerImpl::DeliveryReportCallback(const rd_kafka_message_t* message) con
     } else {
         ++topic_stats->messages_counts.messages_error;
 
-        LOG_WARNING(
-        ) << fmt::format("Failed to delivery message to topic '{}': {}", topic_name, rd_kafka_err2str(message->err));
+        LOG_WARNING("Failed to delivery message to topic '{}': {}", topic_name, rd_kafka_err2str(message->err));
     }
 
     complete_handle->SetDeliveryResult(std::move(delivery_result));
@@ -205,8 +204,7 @@ engine::Future<DeliveryResult> ProducerImpl::ScheduleMessageDelivery(
         [[maybe_unused]] const auto _headers_holder = headers_holder.release();
         [[maybe_unused]] const auto _waiter = waiter.release();
     } else {
-        LOG_WARNING(
-        ) << fmt::format("Failed to enqueue message to Kafka local queue: {}", rd_kafka_err2str(enqueue_error));
+        LOG_WARNING("Failed to enqueue message to Kafka local queue: {}", rd_kafka_err2str(enqueue_error));
         waiter->SetDeliveryResult(DeliveryResult{enqueue_error});
     }
 
@@ -315,7 +313,7 @@ void ProducerImpl::WaitUntilDeliveryReported(engine::Future<DeliveryResult>& del
         if (HandleEvents("after waiter created, before sleep")) {
             waiters_.PopWaiter(waiter);
             if (waiter.event.IsReady()) {  // (N)
-                LOG_DEBUG() << "Waiter were signaled before sleeping!";
+                LOG_DEBUG("Waiter were signaled before sleeping!");
                 HandleEvents("after waiter popped, before sleep");
             }
             continue;
@@ -352,9 +350,11 @@ void ProducerImpl::WaitUntilDeliveryReported(engine::Future<DeliveryResult>& del
             /// waitAny is canceled, but delivery reports are handled in another tasks
             /// or/and in producer's dctor.
 
-            LOG_WARNING() << "Delivery waiting loop is canceled before the message "
-                             "is delivered. Ensure to call a producer destructor to "
-                             "guarantee that all messages are delivered";
+            LOG_WARNING(
+                "Delivery waiting loop is canceled before the message "
+                "is delivered. Ensure to call a producer destructor to "
+                "guarantee that all messages are delivered"
+            );
             break;
         }
     }
@@ -391,9 +391,12 @@ void ProducerImpl::WaitUntilAllMessagesDelivered() && {
 
         if (step < kFlushSteps) {
             LOG_WARNING(
-            ) << fmt::format("[retry {}] Producer flushing timeouted on producer destroy. Waiting more..", step);
+                "[retry {}] Producer flushing timeouted on producer destroy. Waiting "
+                "more..",
+                step
+            );
         } else {
-            LOG_ERROR() << fmt::format("Some producer messages are probably not delivered :(");
+            LOG_ERROR("Some producer messages are probably not delivered :(");
         }
     }
 }

@@ -2,8 +2,6 @@
 
 #include <string_view>
 
-#include <fmt/format.h>
-
 #include <userver/engine/sleep.hpp>
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/kafka/impl/configuration.hpp>
@@ -36,7 +34,7 @@ std::function<void()> CreateDurationNotifier(std::chrono::milliseconds max_callb
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_time);
 
         if (callback_duration > max_callback_duration / 2) {
-            LOG_WARNING() << fmt::format(
+            LOG_WARNING(
                 "Your callback duration is {}ms. If callback duration "
                 "exceeds the {}ms your consumer will be kicked from the "
                 "group. If it is okey to have such a long callbacks, "
@@ -97,7 +95,7 @@ void Consumer::RunConsuming(ConsumerScope::Callback callback) {
     consumer_ = std::make_unique<ConsumerImpl>(name_, conf_, topics_, execution_params_, rebalance_callback_, stats_);
     consumer_->StartConsuming();
 
-    LOG_INFO() << fmt::format("Started messages polling");
+    LOG_INFO("Started messages polling");
 
     while (!engine::current_task::ShouldCancel()) {
         auto polled_messages = consumer_->PollBatch(
@@ -107,7 +105,7 @@ void Consumer::RunConsuming(ConsumerScope::Callback callback) {
         if (engine::current_task::ShouldCancel()) {
             // Message batch may be not empty. The messages will be polled by
             // another consumer in future, because they are not committed
-            LOG_DEBUG() << "Stopping consuming because of cancel";
+            LOG_DEBUG("Stopping consuming because of cancel");
             break;
         }
         if (polled_messages.empty()) {
@@ -145,7 +143,7 @@ void Consumer::StartMessageProcessing(ConsumerScope::Callback callback) {
                 try {
                     RunConsuming(callback);
                 } catch (const std::exception& e) {
-                    LOG_ERROR() << fmt::format("Messages processing failed in consumer: {}", e.what());
+                    LOG_ERROR("Messages processing failed in consumer: {}", e.what());
 
                     CallErrorTestpoint(fmt::format("tp_error_{}", name_), e.what());
                 }
@@ -154,9 +152,7 @@ void Consumer::StartMessageProcessing(ConsumerScope::Callback callback) {
                     break;
                 }
 
-                LOG_WARNING() << fmt::format(
-                    "Restarting consumer after {}ms...", execution_params_.restart_after_failure_delay.count()
-                );
+                LOG_WARNING("Restarting consumer after {}ms...", execution_params_.restart_after_failure_delay.count());
                 engine::InterruptibleSleepFor(execution_params_.restart_after_failure_delay);
             }
         });
@@ -274,17 +270,17 @@ void Consumer::ResetRebalanceCallback() {
 
 void Consumer::Stop() noexcept {
     if (processing_.exchange(false) && poll_task_.IsValid()) {
-        LOG_INFO() << "Stopping consumer poll task";
+        LOG_INFO("Stopping consumer poll task");
         poll_task_.SyncCancel();
 
-        LOG_INFO() << "Stopping consumer";
+        LOG_INFO("Stopping consumer");
         utils::Async(consumer_task_processor_, "consumer_stopping", [this] {
             // 1. This is blocking.
             // 2. This calls testpoints
             consumer_->StopConsuming();
         }).Get();
         TESTPOINT(fmt::format("tp_{}_stopped", name_), {});
-        LOG_INFO() << "Consumer stopped";
+        LOG_INFO("Consumer stopped");
     }
 }
 
