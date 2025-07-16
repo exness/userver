@@ -208,7 +208,7 @@ void Consumer::Seek(
     UINVARIANT(processing_.load(), "Message processing is not currently started");
 
     return utils::Async(
-               consumer_task_processor_,
+               consumer_blocking_task_processor_,
                "consumer_seek",
                [this, topic, partition_id, offset, timeout] {
                    ExtendCurrentSpan();
@@ -223,7 +223,7 @@ void Consumer::SeekToBeginning(utils::zstring_view topic, std::uint32_t partitio
     UINVARIANT(processing_.load(), "Message processing is not currently started");
 
     return utils::Async(
-               consumer_task_processor_,
+               consumer_blocking_task_processor_,
                "consumer_seek_to_beginning",
                [this, topic, partition_id, timeout] {
                    ExtendCurrentSpan();
@@ -238,7 +238,7 @@ void Consumer::SeekToEnd(utils::zstring_view topic, std::uint32_t partition_id, 
     UINVARIANT(processing_.load(), "Message processing is not currently started");
 
     return utils::Async(
-               consumer_task_processor_,
+               consumer_blocking_task_processor_,
                "consumer_seek_to_end",
                [this, topic, partition_id, timeout] {
                    ExtendCurrentSpan();
