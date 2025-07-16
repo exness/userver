@@ -196,7 +196,7 @@ UTEST_F(DeadlineStatsTests, ClientDeadlineCancelled) {
     // Server will wait for deadline before answer
     BeSlow();
 
-    // TaskInheritedData has set up, but DP disabled
+    // TaskInheritedData has set up
     tests::InitTaskInheritedDeadline();
 
     // Requests with deadline
