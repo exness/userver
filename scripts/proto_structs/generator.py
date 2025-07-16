@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# pylint: disable=invalid-name
 
 """
 What am I? Bro, you have to add description.
@@ -12,8 +11,8 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from google.protobuf.compiler import plugin_pb2
-import google.protobuf.descriptor_pb2 as descriptor_pb2
+from google.protobuf.compiler import plugin_pb2  # pyright: ignore
+import google.protobuf.descriptor_pb2 as descriptor_pb2  # pyright: ignore
 import jinja2
 
 
