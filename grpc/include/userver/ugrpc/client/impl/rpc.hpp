@@ -340,7 +340,7 @@ UnaryCall<Response>::UnaryCall(
         MiddlewarePipeline::PreSendMessage(state_, request);
     }
 
-    reader_ = prepare_unary_call.PrepareCall(state_.GetStub(), &state_.GetClientContext(), request, &state_.GetQueue());
+    reader_ = prepare_unary_call(state_.GetStub(), &state_.GetClientContext(), request, &state_.GetQueue());
     reader_->StartCall();
 
     FinishAsync();

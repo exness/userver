@@ -1,6 +1,11 @@
 #pragma once
 
+#include <functional>
+#include <utility>
+
 #include <grpcpp/generic/generic_stub.h>
+#include <grpcpp/support/async_stream.h>
+#include <grpcpp/support/async_unary_call.h>
 
 #include <userver/ugrpc/client/impl/stub_handle.hpp>
 
@@ -37,7 +42,7 @@ public:
         : prepare_async_method_{prepare_async_method} {}
 
     template <typename... Args>
-    decltype(auto) PrepareCall(Args&&... args) {
+    decltype(auto) operator()(Args&&... args) const {
         return impl::PrepareCall(prepare_async_method_, std::forward<Args>(args)...);
     }
 
@@ -59,12 +64,12 @@ public:
     PrepareUnaryCallProxy(GenericPrepareUnaryCall prepare_async_method, grpc::string method_name)
         : prepare_async_method_{prepare_async_method}, method_name_{std::move(method_name)} {}
 
-    decltype(auto) PrepareCall(
+    decltype(auto) operator()(
         StubHandle& stub_handle,
         grpc::ClientContext* context,
         const grpc::ByteBuffer& request,
         grpc::CompletionQueue* cq
-    ) {
+    ) const {
         return impl::PrepareCall(prepare_async_method_, stub_handle, context, method_name_, request, cq);
     }
 
