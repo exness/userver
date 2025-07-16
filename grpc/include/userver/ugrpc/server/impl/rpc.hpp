@@ -77,9 +77,10 @@ public:
 
     /// @brief Write the next outgoing message. Only makes sense for server-streaming RPCs.
     /// @param response the next message to write
+    /// @param options the write options
     /// @throws ugrpc::server::RpcError on an RPC error
     /// @throws ugrpc::server::impl::MiddlewareRpcInterruptionError on error from middlewares
-    void DoWrite(Response& response);
+    void DoWrite(Response& response, const grpc::WriteOptions& options);
 
     /// @brief Complete the RPC with an error
     ///
@@ -139,7 +140,7 @@ bool Responder<CallTraits>::DoRead(Request& request) {
 }
 
 template <typename CallTraits>
-void Responder<CallTraits>::DoWrite(Response& response) {
+void Responder<CallTraits>::DoWrite(Response& response, const grpc::WriteOptions& options) {
     static_assert(impl::IsServerStreaming(kCallKind));
     UINVARIANT(!is_finished_, "'Write' called on a finished stream");
 
@@ -160,12 +161,8 @@ void Responder<CallTraits>::DoWrite(Response& response) {
         }
     }
 
-    // Don't buffer writes, otherwise in an event subscription scenario, events
-    // may never actually be delivered.
-    const grpc::WriteOptions write_options{};
-
     try {
-        impl::Write(raw_responder_, response, write_options, GetCallName());
+        impl::Write(raw_responder_, response, options, GetCallName());
     } catch (const RpcInterruptedError&) {
         is_finished_ = true;
         throw;
