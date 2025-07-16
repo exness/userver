@@ -2355,6 +2355,7 @@
   "kafka/functional_tests/balanced_consumer_groups/tests/common.py":"taxi/uservices/userver/kafka/functional_tests/balanced_consumer_groups/tests/common.py",
   "kafka/functional_tests/balanced_consumer_groups/tests/conftest.py":"taxi/uservices/userver/kafka/functional_tests/balanced_consumer_groups/tests/conftest.py",
   "kafka/functional_tests/balanced_consumer_groups/tests/test_consumer_groups.py":"taxi/uservices/userver/kafka/functional_tests/balanced_consumer_groups/tests/test_consumer_groups.py",
+  "kafka/functional_tests/balanced_consumer_groups/tests/test_cooperative_consumers.py":"taxi/uservices/userver/kafka/functional_tests/balanced_consumer_groups/tests/test_cooperative_consumers.py",
   "kafka/functional_tests/balanced_consumer_groups/tests/test_faulty_consumer.py":"taxi/uservices/userver/kafka/functional_tests/balanced_consumer_groups/tests/test_faulty_consumer.py",
   "kafka/functional_tests/integrational_tests/CMakeLists.txt":"taxi/uservices/userver/kafka/functional_tests/integrational_tests/CMakeLists.txt",
   "kafka/functional_tests/integrational_tests/kafka_service.cpp":"taxi/uservices/userver/kafka/functional_tests/integrational_tests/kafka_service.cpp",

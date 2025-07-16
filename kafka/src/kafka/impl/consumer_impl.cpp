@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <iostream>
 #include <limits>
 
 #include <fmt/ranges.h>
@@ -140,6 +139,19 @@ namespace impl {
 
 namespace {
 
+enum class RebalanceProtocol {
+    kCooperative,
+    kEager,
+};
+
+RebalanceProtocol GetProtocol(const ConsumerHolder& consumer) {
+    constexpr utils::zstring_view kCooperative{"COOPERATIVE"};
+    if (rd_kafka_rebalance_protocol(consumer.GetHandle()) == kCooperative) {
+        return RebalanceProtocol::kCooperative;
+    }
+    return RebalanceProtocol::kEager;
+}
+
 void EventCallbackProxy([[maybe_unused]] rd_kafka_t* kafka_client, void* opaque_ptr) {
     UASSERT(kafka_client);
     UASSERT(opaque_ptr);
@@ -196,7 +208,11 @@ std::string GetMessageKeyForLogging(MessageKeyLogFormat log_format, const Messag
 }  // namespace
 
 bool ConsumerImpl::AssignPartitions(const rd_kafka_topic_partition_list_t* partitions) {
-    LOG(execution_params_.debug_info_log_level) << "Assigning new partitions to consumer";
+    const auto rebalance_protocol = GetProtocol(consumer_);
+
+    LOG(execution_params_.debug_info_log_level,
+        "Assigning new partitions to consumer ('{}' protocol)",
+        rd_kafka_rebalance_protocol(consumer_.GetHandle()));
     PrintTopicPartitionsList(
         partitions,
         [](const rd_kafka_topic_partition_t& partition) {
@@ -205,10 +221,23 @@ bool ConsumerImpl::AssignPartitions(const rd_kafka_topic_partition_list_t* parti
         /*log_level=*/execution_params_.operation_log_level
     );
 
-    const auto assign_err = rd_kafka_assign(consumer_.GetHandle(), partitions);
-    if (assign_err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-        LOG_ERROR("Failed to assign partitions: {}", rd_kafka_err2str(assign_err));
-        return false;
+    switch (rebalance_protocol) {
+        case RebalanceProtocol::kCooperative: {
+            const ErrorHolder assign_err{rd_kafka_incremental_assign(consumer_.GetHandle(), partitions)};
+            if (assign_err) {
+                LOG_ERROR(
+                    "Failed to incrementally assign partitions: {}", rd_kafka_error_string(assign_err.GetHandle())
+                );
+                return false;
+            }
+        } break;
+        case RebalanceProtocol::kEager: {
+            const auto assign_err = rd_kafka_assign(consumer_.GetHandle(), partitions);
+            if (assign_err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                LOG_ERROR("Failed to assign partitions: {}", rd_kafka_err2str(assign_err));
+                return false;
+            }
+        } break;
     }
 
     LOG(execution_params_.debug_info_log_level) << "Successfully assigned partitions";
@@ -216,7 +245,11 @@ bool ConsumerImpl::AssignPartitions(const rd_kafka_topic_partition_list_t* parti
 }
 
 bool ConsumerImpl::RevokePartitions(const rd_kafka_topic_partition_list_t* partitions) {
-    LOG(execution_params_.debug_info_log_level) << "Revoking existing partitions from consumer";
+    const auto rebalance_protocol = GetProtocol(consumer_);
+
+    LOG(execution_params_.debug_info_log_level,
+        "Revoking existing partitions from consumer ('{}' protocol)",
+        rd_kafka_rebalance_protocol(consumer_.GetHandle()));
 
     PrintTopicPartitionsList(
         partitions,
@@ -226,10 +259,23 @@ bool ConsumerImpl::RevokePartitions(const rd_kafka_topic_partition_list_t* parti
         /*log_level=*/execution_params_.operation_log_level
     );
 
-    const auto revocation_err = rd_kafka_assign(consumer_.GetHandle(), nullptr);
-    if (revocation_err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-        LOG_ERROR("Failed to revoke partitions: {}", rd_kafka_err2str(revocation_err));
-        return false;
+    switch (rebalance_protocol) {
+        case RebalanceProtocol::kCooperative: {
+            const ErrorHolder revocation_err{rd_kafka_incremental_unassign(consumer_.GetHandle(), partitions)};
+            if (revocation_err) {
+                LOG_ERROR(
+                    "Failed to incrementally revoke partitions: {}", rd_kafka_error_string(revocation_err.GetHandle())
+                );
+                return false;
+            }
+        } break;
+        case RebalanceProtocol::kEager: {
+            const auto revocation_err = rd_kafka_assign(consumer_.GetHandle(), nullptr);
+            if (revocation_err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                LOG_ERROR("Failed to revoke partitions: {}", rd_kafka_err2str(revocation_err));
+                return false;
+            }
+        } break;
     }
 
     LOG(execution_params_.debug_info_log_level) << "Successfully revoked partitions";

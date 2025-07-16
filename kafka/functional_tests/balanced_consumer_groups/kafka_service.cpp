@@ -238,6 +238,8 @@ int main(int argc, char* argv[]) {
     const auto components_list = components::MinimalServerComponentList()
                                      .Append<kafka::ConsumerComponent>("kafka-consumer-first")
                                      .Append<kafka::ConsumerComponent>("kafka-consumer-second")
+                                     .Append<kafka::ConsumerComponent>("kafka-consumer-cooperative-first")
+                                     .Append<kafka::ConsumerComponent>("kafka-consumer-cooperative-second")
                                      .Append<components::TestsuiteSupport>()
                                      .Append<components::Secdist>()
                                      .Append<components::DefaultSecdistProvider>()
