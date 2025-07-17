@@ -32,7 +32,7 @@ tracing::Span MakeSpan(
     if (query.GetName()) {
         span.AddTag("query_name", std::string{*query.GetName()});
     } else {
-        span.AddTag("yql_query", query.Statement());
+        span.AddTag("yql_query", std::string{query.Statement()});
     }
     UASSERT(settings.retries.has_value());
     span.AddTag("max_retries", *settings.retries);
@@ -43,7 +43,7 @@ tracing::Span MakeSpan(
 
     if (query.GetName()) {
         try {
-            TESTPOINT("sql_statement", formats::json::MakeObject("name", query.GetName()->GetUnderlying()));
+            TESTPOINT("sql_statement", formats::json::MakeObject("name", *query.GetNameView()));
         } catch (const std::exception& e) {
             LOG_WARNING() << e;
         }
@@ -95,8 +95,8 @@ void PrepareSettings(
 
     const auto& cc_map = config_snapshot[::dynamic_config::YDB_QUERIES_COMMAND_CONTROL];
 
-    if (!query.GetName()) return;
-    auto it = cc_map.extra.find(query.GetName()->GetUnderlying());
+    if (!query.GetNameView()) return;
+    auto it = cc_map.extra.find(std::string{*query.GetNameView()});  // TODO: avoid tmp string construction
     if (it == cc_map.extra.end()) return;
 
     auto& cc = it->second;

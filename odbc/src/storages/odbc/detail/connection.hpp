@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 #include <sql.h>
 #include <sqlext.h>
@@ -28,7 +29,7 @@ public:
     /// @brief Executes a SQL query and returns the result set
     /// @param query SQL query to execute
     /// @return ResultSet containing the query results
-    ResultSet Query(const std::string& query);
+    ResultSet Query(std::string_view query);
 
     // required by ConnectionPool
     bool IsBroken() const;

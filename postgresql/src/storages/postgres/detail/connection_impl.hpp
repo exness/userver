@@ -75,7 +75,7 @@ public:
     void UpdateDefaultCommandControl();
 
     const OptionalCommandControl& GetTransactionCommandControl() const;
-    OptionalCommandControl GetNamedQueryCommandControl(const std::optional<Query::Name>& query_name) const;
+    OptionalCommandControl GetNamedQueryCommandControl(std::optional<Query::NameView> query_name) const;
 
     Connection::Statistics GetStatsAndReset();
 
@@ -105,7 +105,7 @@ public:
     void Finish();
 
     Connection::StatementId PortalBind(
-        const std::string& statement,
+        USERVER_NAMESPACE::utils::zstring_view statement,
         const std::string& portal_name,
         const detail::QueryParameters& params,
         OptionalCommandControl statement_cmd_ctl
@@ -158,7 +158,7 @@ private:
     void SetStatementTimeout(OptionalCommandControl cmd_ctl);
 
     const PreparedStatementInfo& DoPrepareStatement(
-        const std::string& statement,
+        USERVER_NAMESPACE::utils::zstring_view statement,
         const detail::QueryParameters& params,
         engine::Deadline deadline,
         tracing::Span& span,
@@ -191,7 +191,7 @@ private:
 
     template <typename Counter>
     ResultSet WaitResult(
-        const std::string& statement,
+        USERVER_NAMESPACE::utils::zstring_view statement,
         engine::Deadline deadline,
         TimeoutDuration network_timeout,
         Counter& counter,
@@ -202,7 +202,7 @@ private:
 
     void Cancel();
 
-    void ReportStatement(const std::string& name);
+    void ReportStatement(std::string_view name);
 
     bool IsOmitDescribeInExecuteEnabled() const;
 
@@ -226,7 +226,7 @@ private:
     const error_injection::Settings ei_settings_;
     USERVER_NAMESPACE::utils::statistics::MetricsStoragePtr metrics_;
 
-    std::unordered_set<std::string> statements_reported_;
+    USERVER_NAMESPACE::utils::impl::TransparentSet<std::string> statements_reported_;
     engine::Mutex statements_mutex_;
     // Flag to check a correct order of calling Begin.
     bool in_transaction_{false};

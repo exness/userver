@@ -250,7 +250,7 @@ public:
     ResultSet Execute(CommandControl statement_cmd_ctl, const Query& query, const ParameterStore& store);
 
     StatementId PortalBind(
-        const std::string& statement,
+        USERVER_NAMESPACE::utils::zstring_view statement,
         const std::string& portal_name,
         const detail::QueryParameters& params,
         OptionalCommandControl
@@ -296,7 +296,7 @@ public:
 
     void MarkAsBroken();
 
-    OptionalCommandControl GetQueryCmdCtl(const std::optional<Query::Name>& query_name) const;
+    OptionalCommandControl GetQueryCmdCtl(std::optional<Query::NameView> query_name) const;
 
     /// Used in tests.
     const OptionalCommandControl& GetTransactionCommandControl() const;

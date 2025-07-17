@@ -60,3 +60,10 @@ USERVER_NAMESPACE_END
 
 template <>
 struct fmt::formatter<USERVER_NAMESPACE::utils::zstring_view, char> : fmt::formatter<std::string_view> {};
+
+namespace fmt {
+
+// Allow fmt::runtime() to work with utils::zstring_view
+inline auto runtime(USERVER_NAMESPACE::utils::zstring_view s) -> basic_runtime<char> { return {std::string_view{s}}; }
+
+}  // namespace fmt

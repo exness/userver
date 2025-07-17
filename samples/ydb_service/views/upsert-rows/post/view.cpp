@@ -37,7 +37,7 @@ DECLARE $items AS List<Struct<'id': String, 'name': Utf8, 'service':
 UPSERT INTO events (id, name, service, channel, created)
 SELECT id, name, service, channel, CurrentUtcTimestamp() FROM AS_TABLE($items);
       )",
-        ydb::Query::Name{"upsert-rows"},
+        ydb::Query::NameLiteral{"upsert-rows"},
     };
 
     const auto upsert_rows = request_json["items"].As<std::vector<UpsertRowsRequest>>();

@@ -7,24 +7,21 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages {
 
-Query::Query(const char* statement, std::optional<Name> name, LogMode log_mode)
-    : statement_(statement), name_(std::move(name)), log_mode_(log_mode) {}
+std::optional<Query::NameView> Query::GetNameView() const noexcept {
+    return dynamic_.name_ ? std::optional<Query::NameView>{dynamic_.name_->GetUnderlying()} : std::nullopt;
+}
 
-Query::Query(std::string statement, std::optional<Name> name, LogMode log_mode)
-    : statement_(std::move(statement)), name_(std::move(name)), log_mode_(log_mode) {}
-
-const std::optional<Query::Name>& Query::GetName() const { return name_; }
-
-const std::string& Query::Statement() const { return statement_; }
+utils::zstring_view Query::GetStatementView() const noexcept { return utils::zstring_view{dynamic_.statement_}; }
 
 void Query::FillSpanTags(tracing::Span& span) const {
     switch (log_mode_) {
         case LogMode::kFull:
-            span.AddTag(tracing::kDatabaseStatement, statement_);
+            span.AddTag(tracing::kDatabaseStatement, std::string{GetStatementView()});
             [[fallthrough]];
         case LogMode::kNameOnly:
-            if (name_) {
-                span.AddTag(tracing::kDatabaseStatementName, name_->GetUnderlying());
+            const auto name = GetNameView();
+            if (name) {
+                span.AddTag(tracing::kDatabaseStatementName, std::string{*name});
             }
     }
 }

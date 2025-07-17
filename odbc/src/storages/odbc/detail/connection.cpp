@@ -94,7 +94,7 @@ Connection::Connection(const std::string& dsn)
     }
 }
 
-ResultSet Connection::Query(const std::string& query) {
+ResultSet Connection::Query(std::string_view query) {
     auto stmt = detail::MakeResultHandle(handle_.get());
 
     std::vector<SQLCHAR> query_buffer(query.begin(), query.end());

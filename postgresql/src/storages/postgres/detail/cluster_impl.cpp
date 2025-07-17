@@ -429,7 +429,7 @@ void ClusterImpl::SetStatementMetricsSettings(const StatementMetricsSettings& se
     }
 }
 
-OptionalCommandControl ClusterImpl::GetQueryCmdCtl(const std::string& query_name) const {
+OptionalCommandControl ClusterImpl::GetQueryCmdCtl(std::string_view query_name) const {
     return default_cmd_ctls_.GetQueryCmdCtl(query_name);
 }
 

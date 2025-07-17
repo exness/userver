@@ -132,13 +132,12 @@ using OptionalCommandControl = std::optional<CommandControl>;
 using CommandControlByMethodMap = USERVER_NAMESPACE::utils::impl::TransparentMap<std::string, CommandControl>;
 using CommandControlByHandlerMap =
     USERVER_NAMESPACE::utils::impl::TransparentMap<std::string, CommandControlByMethodMap>;
-using CommandControlByQueryMap = std::unordered_map<std::string, CommandControl>;
+using CommandControlByQueryMap = USERVER_NAMESPACE::utils::impl::TransparentMap<std::string, CommandControl>;
 
 OptionalCommandControl
 GetHandlerOptionalCommandControl(const CommandControlByHandlerMap& map, std::string_view path, std::string_view method);
 
-OptionalCommandControl
-GetQueryOptionalCommandControl(const CommandControlByQueryMap& map, const std::string& query_name);
+OptionalCommandControl GetQueryOptionalCommandControl(const CommandControlByQueryMap& map, std::string_view query_name);
 
 /// Default initial pool connection count
 inline constexpr std::size_t kDefaultPoolMinSize = 4;

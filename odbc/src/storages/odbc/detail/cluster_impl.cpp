@@ -18,12 +18,12 @@ ClusterImpl::ClusterImpl(const settings::ODBCClusterSettings& settings) {
 ResultSet ClusterImpl::Execute([[maybe_unused]] ClusterHostTypeFlags flags, const Query& query) {
     if (flags & ClusterHostType::kMaster || flags & ClusterHostType::kNone || pools_.size() == 1) {
         auto conn = pools_[0]->Acquire();
-        return conn->Query(query.Statement());
+        return conn->Query(query.GetStatementView());
     }
 
     UINVARIANT(pools_.size() > 1, "Cluster should have at least 2 connections for ClusterHostType::kSlave");
     auto conn = pools_[1]->Acquire();
-    return conn->Query(query.Statement());
+    return conn->Query(query.GetStatementView());
 }
 
 }  // namespace storages::odbc::detail

@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 
+#include <userver/utils/string_literal.hpp>
 #include <userver/utils/strong_typedef.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -16,31 +17,61 @@ class Span;
 
 namespace storages {
 
-/// @brief Holds a query, its name and logging mode
+/// @brief Holds a query, its name and logging mode.
+///
+/// Prefer using via @ref scripts/docs/en/userver/sql_files.md or use a const variable with `name` specified.
+///
 /// @note You may write a query in `.sql` file and generate a header file with Query from it.
 ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
 class Query {
 public:
-    using Name = USERVER_NAMESPACE::utils::StrongTypedef<struct NameTag, std::string>;
+    /// String with query name
+    using Name = utils::StrongTypedef<struct NameTag, std::string>;
 
-    enum class LogMode { kFull, kNameOnly };
+    /// Zero terminated view to the query name
+    using NameView = utils::zstring_view;
+
+    /// Compile time literal with query name
+    struct NameLiteral : utils::StrongTypedef<NameLiteral, utils::StringLiteral> {
+        using StrongTypedef::StrongTypedef;
+        NameLiteral() = delete;
+    };
+
+    enum class LogMode : unsigned char { kFull, kNameOnly };
 
     Query() = default;
+    ~Query() = default;
 
-    Query(const char* statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull);
+    Query(const Query& other) = default;
+    Query(Query&& other) = default;
+    Query& operator=(const Query& other) = default;
+    Query& operator=(Query&& other) = default;
 
-    Query(std::string statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull);
+    /*TODO: constexpr*/ Query(utils::StringLiteral statement, NameLiteral name, LogMode log_mode = LogMode::kFull)
+        : Query(std::string{statement}, Name{std::string{name.GetUnderlying()}}, log_mode) {}
 
-    const std::optional<Name>& GetName() const;
+    Query(const char* statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
+        : Query(std::string{statement}, std::move(name), log_mode) {}
+    Query(std::string statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
+        : dynamic_{statement, std::move(name)}, log_mode_(log_mode) {}
 
-    const std::string& Statement() const;
+    std::optional<NameView> GetNameView() const noexcept;
+    const std::optional<Name>& GetName() const { return dynamic_.name_; }
+
+    utils::zstring_view GetStatementView() const noexcept;
+    const std::string& Statement() const { return dynamic_.statement_; }
 
     /// @brief Fills provided span with connection info
     void FillSpanTags(tracing::Span&) const;
 
 private:
-    std::string statement_{};
-    std::optional<Name> name_{};
+    struct DynamicStrings {
+        std::string statement_{};
+        std::optional<Name> name_{};
+    };
+
+    DynamicStrings dynamic_{};
+
     LogMode log_mode_ = LogMode::kFull;
 };
 
