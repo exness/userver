@@ -66,6 +66,7 @@ and make sure that it builds and passes tests.
 * @ref scripts/docs/en/userver/tutorial/auth_postgres.md
 * @ref scripts/docs/en/userver/tutorial/digest_auth_postgres.md
 * @ref scripts/docs/en/userver/tutorial/websocket_service.md
+* @ref scripts/docs/en/userver/tutorial/static_content.md
 * @ref scripts/docs/en/userver/tutorial/multipart_service.md
 * @ref scripts/docs/en/userver/tutorial/s3api.md
 * @ref scripts/docs/en/userver/tutorial/json_to_yaml.md

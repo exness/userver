@@ -1,4 +1,3 @@
-# yaml
 components_manager:
     task_processors:                  # Task processor is an executor for coroutine tasks
 
@@ -23,18 +22,13 @@ components_manager:
                     level: debug
                     overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
 
-        # /// [static config]
-        # yaml
-        handler-messages:
-            path: /v1/messages
-            method: GET,POST
-
         fs-cache-main:
             dir: /var/www/           # Path to the directory with files
-            update-period: 10s       # Update cache each N seconds.
+            update-period: 10s        # update cache each N seconds
+            fs-task-processor: fs-task-processor  # Run it on blocking task processor
 
-        handler-static:              # Static Content handler.
+        handler-static:             # Finally! Static handler.
             fs-cache-component: fs-cache-main
-            path: /*                 # Registering handlers '/*' find files.
+            path: /*                  # Registering handlers '/*' find files.
             method: GET              # Handle only GET requests.
-        # /// [static config]
+            task_processor: main-task-processor  # Run it on CPU bound task processor
