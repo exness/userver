@@ -659,7 +659,15 @@ tracing::Span ConnectionImpl::MakeQuerySpan(const Query& query, const CommandCon
     tracing::Span span{FindQueryShortInfo(scopes::kQuery, query.GetStatementView())};
     conn_wrapper_.FillSpanTags(span, cc, "left_network_timeout_ms");
     if (settings_.statement_log_mode == ConnectionSettings::kLog) {
-        query.FillSpanTags(span);
+        switch (query.GetLogMode()) {
+            case Query::LogMode::kFull:
+                span.AddTag(tracing::kDatabaseStatement, std::string{query.GetStatementView()});
+                [[fallthrough]];
+            case Query::LogMode::kNameOnly:
+                if (const auto name = query.GetOptionalNameView(); name) {
+                    span.AddTag(tracing::kDatabaseStatementName, std::string{*name});
+                }
+        }
     }
     return span;
 }
@@ -863,8 +871,8 @@ ResultSet ConnectionImpl::ExecuteCommand(const Query& query, const QueryParamete
     CheckDeadlineReached(deadline);
     const auto network_timeout = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.TimeLeft());
     auto span = MakeQuerySpan(query, {network_timeout, GetStatementTimeout()});
-    if (testsuite::AreTestpointsAvailable() && query.GetNameView()) {
-        ReportStatement(*query.GetNameView());
+    if (testsuite::AreTestpointsAvailable() && query.GetOptionalNameView()) {
+        ReportStatement(*query.GetOptionalNameView());
     }
 
     auto scope = span.CreateScopeTime();

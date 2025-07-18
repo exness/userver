@@ -47,7 +47,10 @@ public:
         }
     };
 
-    enum class LogMode : unsigned char { kFull, kNameOnly };
+    enum class LogMode : unsigned char {
+        kFull,      ///< Output name and optionally statement
+        kNameOnly,  ///< Ouput only name
+    };
 
     Query() = default;
     ~Query() = default;
@@ -57,7 +60,7 @@ public:
     Query& operator=(const Query& other) = default;
     Query& operator=(Query&& other) = default;
 
-    /*TODO: constexpr*/ Query(utils::StringLiteral statement, NameLiteral name, LogMode log_mode = LogMode::kFull)
+    /*TODO: constexpr*/ Query(utils::StringLiteral statement, NameLiteral name, LogMode log_mode)
         : Query(std::string{statement}, Name{std::string{name}}, log_mode) {}
 
     Query(const char* statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
@@ -65,14 +68,23 @@ public:
     Query(std::string statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
         : dynamic_{statement, std::move(name)}, log_mode_(log_mode) {}
 
-    std::optional<NameView> GetNameView() const noexcept;
+    /// @returns view to the query name that is alive as long as *this is alive
+    std::optional<NameView> GetOptionalNameView() const noexcept;
+
+    /// @returns optional queury name suitable for construction of a new Query
+    std::optional<Name> GetOptionalName() const { return std::optional<Name>{GetOptionalNameView()}; }
+
+    /// @deprecated Use GetOptionalName() or GetOptionalNameView()
     const std::optional<Name>& GetName() const { return dynamic_.name_; }
 
+    /// @returns zero terminated view to the statement that is alive as long as *this is alive
     utils::zstring_view GetStatementView() const noexcept;
+
+    /// @deprecated Use GetStatementView()
     const std::string& Statement() const { return dynamic_.statement_; }
 
-    /// @brief Fills provided span with connection info
-    void FillSpanTags(tracing::Span&) const;
+    /// @returns logging mode
+    LogMode GetLogMode() const noexcept { return log_mode_; }
 
 private:
     struct DynamicStrings {

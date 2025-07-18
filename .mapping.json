@@ -438,7 +438,6 @@
   "clickhouse/src/storages/clickhouse/io/columns/uint8_column.cpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/io/columns/uint8_column.cpp",
   "clickhouse/src/storages/clickhouse/io/columns/uuid_column.cpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/io/columns/uuid_column.cpp",
   "clickhouse/src/storages/clickhouse/io/impl/escape.cpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/io/impl/escape.cpp",
-  "clickhouse/src/storages/clickhouse/query.cpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/query.cpp",
   "clickhouse/src/storages/clickhouse/stats/pool_statistics.cpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/stats/pool_statistics.cpp",
   "clickhouse/src/storages/clickhouse/stats/pool_statistics.hpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/stats/pool_statistics.hpp",
   "clickhouse/src/storages/clickhouse/stats/statement_timer.cpp":"taxi/uservices/userver/clickhouse/src/storages/clickhouse/stats/statement_timer.cpp",

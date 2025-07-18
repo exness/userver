@@ -192,7 +192,7 @@ ExecutionResult Cluster::Execute(const Query& query, const Args&... args) const 
 
 template <typename... Args>
 ExecutionResult Cluster::Execute(OptionalCommandControl optional_cc, const Query& query, const Args&... args) const {
-    const auto formatted_query = query.WithArgs(args...);
+    const auto formatted_query = impl::WithArgs(query, args...);
     return DoExecute(optional_cc, formatted_query);
 }
 

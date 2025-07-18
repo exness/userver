@@ -26,7 +26,7 @@ struct Portal::Impl {
         : conn_{conn}, cmd_ctl_{std::move(cmd_ctl)}, name_{name} {
         if (conn_) {
             if (!cmd_ctl_) {
-                cmd_ctl_ = conn_->GetQueryCmdCtl(query.GetNameView());
+                cmd_ctl_ = conn_->GetQueryCmdCtl(query.GetOptionalNameView());
             }
             Bind(query.GetStatementView(), params);
         }

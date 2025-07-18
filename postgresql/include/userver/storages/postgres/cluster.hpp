@@ -324,8 +324,8 @@ ResultSet Cluster::Execute(
     const Query& query,
     const Args&... args
 ) {
-    if (!statement_cmd_ctl && query.GetNameView()) {
-        statement_cmd_ctl = GetQueryCmdCtl(*query.GetNameView());
+    if (!statement_cmd_ctl && query.GetOptionalNameView()) {
+        statement_cmd_ctl = GetQueryCmdCtl(*query.GetOptionalNameView());
     }
     statement_cmd_ctl = GetHandlersCmdCtl(statement_cmd_ctl);
     auto ntrx = Start(flags, statement_cmd_ctl);
@@ -344,8 +344,8 @@ ResultSet Cluster::ExecuteDecompose(
     const Query& query,
     const Container& args
 ) {
-    if (!statement_cmd_ctl && query.GetNameView()) {
-        statement_cmd_ctl = GetQueryCmdCtl(*query.GetNameView());
+    if (!statement_cmd_ctl && query.GetOptionalNameView()) {
+        statement_cmd_ctl = GetQueryCmdCtl(*query.GetOptionalNameView());
     }
     statement_cmd_ctl = GetHandlersCmdCtl(statement_cmd_ctl);
     auto ntrx = Start(flags, statement_cmd_ctl);

@@ -31,9 +31,9 @@ ResultSet NonTransaction::DoExecute(
     const detail::QueryParameters& params,
     OptionalCommandControl statement_cmd_ctl
 ) {
-    if (query.GetNameView().has_value()) {
+    if (query.GetOptionalNameView().has_value()) {
         TESTPOINT_CALLBACK(
-            fmt::format("pg_ntrx_execute::{}", query.GetNameView().value()),
+            fmt::format("pg_ntrx_execute::{}", query.GetOptionalNameView().value()),
             formats::json::Value(),
             [](const formats::json::Value& data) {
                 if (data["inject_failure"].As<bool>()) {

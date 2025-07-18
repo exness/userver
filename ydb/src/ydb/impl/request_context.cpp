@@ -29,11 +29,22 @@ tracing::Span MakeSpan(
 
     settings.trace_id = span.GetTraceId();
 
-    if (query.GetName()) {
-        span.AddTag("query_name", std::string{*query.GetName()});
-    } else {
-        span.AddTag("yql_query", std::string{query.Statement()});
+    const auto optional_name_view = query.GetOptionalNameView();
+    switch (query.GetLogMode()) {
+        case Query::LogMode::kFull:
+            if (optional_name_view) {
+                span.AddTag("query_name", std::string{*optional_name_view});
+            } else {
+                span.AddTag("yql_query", std::string{query.GetStatementView()});
+            }
+            break;
+        case Query::LogMode::kNameOnly:
+            if (optional_name_view) {
+                span.AddTag("query_name", std::string{*optional_name_view});
+            }
+            break;
     }
+
     UASSERT(settings.retries.has_value());
     span.AddTag("max_retries", *settings.retries);
     span.AddTag("get_session_timeout_ms", settings.get_session_timeout_ms.count());
@@ -41,9 +52,9 @@ tracing::Span MakeSpan(
     span.AddTag("cancel_after_ms", settings.cancel_after_ms.count());
     span.AddTag("client_timeout_ms", settings.client_timeout_ms.count());
 
-    if (query.GetName()) {
+    if (optional_name_view) {
         try {
-            TESTPOINT("sql_statement", formats::json::MakeObject("name", *query.GetNameView()));
+            TESTPOINT("sql_statement", formats::json::MakeObject("name", *optional_name_view));
         } catch (const std::exception& e) {
             LOG_WARNING() << e;
         }
@@ -95,8 +106,8 @@ void PrepareSettings(
 
     const auto& cc_map = config_snapshot[::dynamic_config::YDB_QUERIES_COMMAND_CONTROL];
 
-    if (!query.GetNameView()) return;
-    auto it = cc_map.extra.find(std::string{*query.GetNameView()});  // TODO: avoid tmp string construction
+    if (!query.GetOptionalNameView()) return;
+    auto it = cc_map.extra.find(std::string{*query.GetOptionalNameView()});  // TODO: avoid tmp string construction
     if (it == cc_map.extra.end()) return;
 
     auto& cc = it->second;
