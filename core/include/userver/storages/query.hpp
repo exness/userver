@@ -32,9 +32,19 @@ public:
     using NameView = utils::zstring_view;
 
     /// Compile time literal with query name
-    struct NameLiteral : utils::StrongTypedef<NameLiteral, utils::StringLiteral> {
-        using StrongTypedef::StrongTypedef;
+    class NameLiteral : public utils::zstring_view {
+    public:
         NameLiteral() = delete;
+
+#if defined(__clang__) && __clang_major__ < 18
+        // clang-16 and below lose (optimize out) the pointer to `literal` with consteval. Clang-18 is know to work
+        constexpr
+#else
+        USERVER_IMPL_CONSTEVAL
+#endif
+            NameLiteral(const char* literal) noexcept
+            : zstring_view{literal} {
+        }
     };
 
     enum class LogMode : unsigned char { kFull, kNameOnly };
@@ -48,7 +58,7 @@ public:
     Query& operator=(Query&& other) = default;
 
     /*TODO: constexpr*/ Query(utils::StringLiteral statement, NameLiteral name, LogMode log_mode = LogMode::kFull)
-        : Query(std::string{statement}, Name{std::string{name.GetUnderlying()}}, log_mode) {}
+        : Query(std::string{statement}, Name{std::string{name}}, log_mode) {}
 
     Query(const char* statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
         : Query(std::string{statement}, std::move(name), log_mode) {}
