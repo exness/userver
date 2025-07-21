@@ -45,23 +45,15 @@ public:
 
     /// Converts duration to a Deadline
     template <typename Rep, typename Period>
-    static Deadline FromDuration(const std::chrono::duration<Rep, Period>& incoming_duration) noexcept {
-        using IncomingDuration = std::chrono::duration<Rep, Period>;
+    static Deadline FromDuration(const std::chrono::duration<Rep, Period>& duration) noexcept {
+        return FromDuration(ToDurationSaturating(duration));
+    }
 
-        // Require resolution 'IncomingDuration' <= 'Duration',
-        // so it is safe casting 'Duration::max' to 'IncomingDuration'
-
-        static_assert(std::is_constructible_v<Duration, IncomingDuration>);
-
-        if (std::chrono::duration_cast<IncomingDuration>(Duration::max()) <= incoming_duration) {
-            return Deadline{};
-        }
-
-        if (incoming_duration < IncomingDuration::zero()) {
+    static Deadline FromDuration(const Duration& duration) noexcept {
+        if (duration < Duration::zero()) {
             return Deadline::Passed();
         }
-
-        return Deadline{SumWithSaturation(Clock::now(), std::chrono::duration_cast<Duration>(incoming_duration))};
+        return Deadline{SumWithSaturation(Clock::now(), duration)};
     }
 
     /// @brief Converts time point to a Deadline
@@ -88,6 +80,28 @@ public:
         if (!IsReachable()) return false;
         if (!r.IsReachable()) return true;
         return value_ < r.value_;
+    }
+
+    /// Converts 'std::chrono::duration<>' to 'Deadline::Duration'
+    template <typename Rep, typename Period>
+    static Duration ToDurationSaturating(const std::chrono::duration<Rep, Period>& from) noexcept {
+        using FromDuration = std::chrono::duration<Rep, Period>;
+
+        // Require resolution of 'FromDuration' higher than 'Duration',
+        // to safely cast 'Duration::max' value to 'FromDuration'
+        static_assert(std::is_constructible_v<Duration, FromDuration>);
+
+        if (std::chrono::duration_cast<FromDuration>(Duration::max()) < from) {
+            return Duration::max();
+        }
+
+        if constexpr (std::is_signed_v<Rep>) {
+            if (from < std::chrono::duration_cast<FromDuration>(Duration::min())) {
+                return Duration::min();
+            }
+        }
+
+        return std::chrono::duration_cast<Duration>(from);
     }
 
 private:
