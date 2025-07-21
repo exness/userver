@@ -41,6 +41,8 @@ public:
     InPlaceSpan& operator=(InPlaceSpan&&) = delete;
     ~InPlaceSpan();
 
+    const tracing::Span& Get() const noexcept;
+
     tracing::Span& Get() noexcept;
 
 private:

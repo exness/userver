@@ -40,6 +40,8 @@ InPlaceSpan::InPlaceSpan(std::string&& name, DetachedTag, const utils::impl::Sou
 
 InPlaceSpan::~InPlaceSpan() = default;
 
+const tracing::Span& InPlaceSpan::Get() const noexcept { return impl_->span; }
+
 tracing::Span& InPlaceSpan::Get() noexcept { return impl_->span; }
 
 }  // namespace tracing
