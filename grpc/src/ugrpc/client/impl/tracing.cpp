@@ -21,21 +21,18 @@ constexpr std::string_view kDefaultOtelTraceFlags = "01";
 
 }  // namespace
 
-void SetupSpan(
-    std::optional<tracing::InPlaceSpan>& span_holder,
-    grpc::ClientContext& context,
-    std::string_view call_name
-) {
+void SetupSpan(std::optional<tracing::InPlaceSpan>& span_holder, std::string_view call_name) {
     UASSERT(!span_holder);
     span_holder.emplace(utils::StrCat("external_grpc/", call_name), utils::impl::SourceLocation::Current());
     auto& span = span_holder->Get();
-
     span.DetachFromCoroStack();
+}
 
+void AddTracingMetadata(grpc::ClientContext& client_context, tracing::Span& span) {
     if (const auto span_id = span.GetSpanIdForChildLogs()) {
-        context.AddMetadata(ugrpc::impl::kXYaTraceId, ugrpc::impl::ToGrpcString(span.GetTraceId()));
-        context.AddMetadata(ugrpc::impl::kXYaSpanId, grpc::string{*span_id});
-        context.AddMetadata(ugrpc::impl::kXYaRequestId, ugrpc::impl::ToGrpcString(span.GetLink()));
+        client_context.AddMetadata(ugrpc::impl::kXYaTraceId, ugrpc::impl::ToGrpcString(span.GetTraceId()));
+        client_context.AddMetadata(ugrpc::impl::kXYaSpanId, ugrpc::impl::ToGrpcString(*span_id));
+        client_context.AddMetadata(ugrpc::impl::kXYaRequestId, ugrpc::impl::ToGrpcString(span.GetLink()));
 
         auto traceparent =
             tracing::opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, kDefaultOtelTraceFlags);
@@ -45,7 +42,7 @@ void SetupSpan(
             ) << fmt::format("Cannot build opentelemetry traceparent header ({})", traceparent.error());
             return;
         }
-        context.AddMetadata(ugrpc::impl::kTraceParent, ugrpc::impl::ToGrpcString(traceparent.value()));
+        client_context.AddMetadata(ugrpc::impl::kTraceParent, ugrpc::impl::ToGrpcString(traceparent.value()));
     }
 }
 

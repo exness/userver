@@ -13,11 +13,9 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::client::impl {
 
-void SetupSpan(
-    std::optional<tracing::InPlaceSpan>& span_holder,
-    grpc::ClientContext& context,
-    std::string_view call_name
-);
+void SetupSpan(std::optional<tracing::InPlaceSpan>& span_holder, std::string_view call_name);
+
+void AddTracingMetadata(grpc::ClientContext& client_context, tracing::Span& span);
 
 void SetStatusForSpan(tracing::Span& span, const grpc::Status& status) noexcept;
 

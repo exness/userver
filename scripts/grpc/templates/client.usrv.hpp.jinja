@@ -26,8 +26,7 @@ public:
             {{ method.output_type | grpc_to_cpp_name }}>;
 
     {{method.name}}ReaderWriter {{method.name}}(
-        std::unique_ptr<::grpc::ClientContext> context = std::make_unique<::grpc::ClientContext>(),
-        const USERVER_NAMESPACE::ugrpc::client::Qos& qos = {}
+        USERVER_NAMESPACE::ugrpc::client::CallOptions call_options = {}
     ) const;
 {% elif method.client_streaming %}
     using {{method.name}}Writer =
@@ -35,8 +34,7 @@ public:
             {{ method.input_type | grpc_to_cpp_name }},
             {{ method.output_type | grpc_to_cpp_name }}>;
     {{method.name}}Writer {{method.name}}(
-        std::unique_ptr<::grpc::ClientContext> context = std::make_unique<::grpc::ClientContext>(),
-        const USERVER_NAMESPACE::ugrpc::client::Qos& qos = {}
+        USERVER_NAMESPACE::ugrpc::client::CallOptions call_options = {}
     ) const;
 {% elif method.server_streaming %}
     using {{method.name}}Reader =
@@ -45,14 +43,12 @@ public:
 
     {{method.name}}Reader {{method.name}}(
         const {{ method.input_type | grpc_to_cpp_name }}& request,
-        std::unique_ptr<::grpc::ClientContext> context = std::make_unique<::grpc::ClientContext>(),
-        const USERVER_NAMESPACE::ugrpc::client::Qos& qos = {}
+        USERVER_NAMESPACE::ugrpc::client::CallOptions call_options = {}
     ) const;
 {% else %}
     {{ method.output_type | grpc_to_cpp_name }} {{method.name}}(
         const {{ method.input_type | grpc_to_cpp_name }}& request,
-        std::unique_ptr<::grpc::ClientContext> context = std::make_unique<::grpc::ClientContext>(),
-        const USERVER_NAMESPACE::ugrpc::client::Qos& qos = {}
+        USERVER_NAMESPACE::ugrpc::client::CallOptions call_options = {}
     ) const;
 
     using {{method.name}}ResponseFuture =
@@ -61,8 +57,7 @@ public:
 
     {{method.name}}ResponseFuture Async{{method.name}}(
         const {{ method.input_type | grpc_to_cpp_name }}& request,
-        std::unique_ptr<::grpc::ClientContext> context = std::make_unique<::grpc::ClientContext>(),
-        const USERVER_NAMESPACE::ugrpc::client::Qos& qos = {}
+        USERVER_NAMESPACE::ugrpc::client::CallOptions call_options = {}
     ) const;
 {% endif %}
 {% endfor %}

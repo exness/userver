@@ -22,18 +22,18 @@ std::string GreeterClient::SayHello(std::string name) const {
     request.set_name(std::move(name));
 
     // Perform RPC by sending the request and receiving the response.
-    api::GreetingResponse response = raw_client_.SayHello(request, MakeClientContext());
+    api::GreetingResponse response = raw_client_.SayHello(request, MakeCallOptions());
     return std::move(*response.mutable_greeting());
 }
 
-std::unique_ptr<grpc::ClientContext> GreeterClient::MakeClientContext() {
+ugrpc::client::CallOptions GreeterClient::MakeCallOptions() {
     // Deadline must be set manually for each RPC
     // Note that here in all tests the deadline equals 20 sec which works for an
     // example. However, generally speaking the deadline must be set manually for
     // each RPC
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(std::chrono::seconds{20}));
-    return context;
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(std::chrono::seconds{20});
+    return call_options;
 }
 /// [client]
 
@@ -41,7 +41,7 @@ std::unique_ptr<grpc::ClientContext> GreeterClient::MakeClientContext() {
 std::vector<std::string> GreeterClient::SayHelloResponseStream(std::string name) const {
     api::GreetingRequest request;
     request.set_name(std::move(name));
-    auto stream = raw_client_.SayHelloResponseStream(request, MakeClientContext());
+    auto stream = raw_client_.SayHelloResponseStream(request, MakeCallOptions());
 
     api::GreetingResponse response;
     std::vector<std::string> result;
@@ -62,7 +62,7 @@ std::vector<std::string> GreeterClient::SayHelloResponseStream(std::string name)
 
 /// [client_request_stream]
 std::string GreeterClient::SayHelloRequestStream(const std::vector<std::string_view>& names) const {
-    auto stream = raw_client_.SayHelloRequestStream(MakeClientContext());
+    auto stream = raw_client_.SayHelloRequestStream(MakeCallOptions());
     for (const auto& name : names) {
         api::GreetingRequest request;
         request.set_name(grpc::string(name));
@@ -75,7 +75,7 @@ std::string GreeterClient::SayHelloRequestStream(const std::vector<std::string_v
 
 /// [client_streams]
 std::vector<std::string> GreeterClient::SayHelloStreams(const std::vector<std::string_view>& names) const {
-    auto stream = raw_client_.SayHelloStreams(MakeClientContext());
+    auto stream = raw_client_.SayHelloStreams(MakeCallOptions());
     std::vector<std::string> result;
     api::GreetingResponse response;
     for (const auto& name : names) {

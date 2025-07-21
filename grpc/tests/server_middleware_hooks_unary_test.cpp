@@ -326,13 +326,13 @@ UTEST_P(ServerMiddlewareHooksUnaryTest, DeadlinePropagation) {
     // OnCallStart of M2 is successfully => OnCallFinish must be called.
     EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    const std::chrono::milliseconds deadline_ms{100};
-    auto deadline = engine::Deadline::FromDuration(deadline_ms);
-    context->set_deadline(deadline);
+    ugrpc::client::CallOptions call_options;
+    const std::chrono::milliseconds timeout_ms{100};
+    call_options.SetTimeout(timeout_ms);
 
     UEXPECT_THROW(
-        Client().SayHello(sample::ugrpc::GreetingRequest(), std::move(context)), ugrpc::client::DeadlineExceededError
+        Client().SayHello(sample::ugrpc::GreetingRequest(), std::move(call_options)),
+        ugrpc::client::DeadlineExceededError
     );
 }
 

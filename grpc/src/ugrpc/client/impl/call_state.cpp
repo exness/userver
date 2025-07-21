@@ -6,6 +6,7 @@
 
 #include <userver/ugrpc/client/impl/call_params.hpp>
 
+#include <ugrpc/client/impl/call_options_accessor.hpp>
 #include <ugrpc/client/impl/tracing.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -17,7 +18,6 @@ RpcConfigValues::RpcConfigValues(const dynamic_config::Snapshot& config)
 
 CallState::CallState(CallParams&& params, CallKind call_kind)
     : stub_(std::move(params.stub)),
-      client_context_(std::move(params.context)),
       client_name_(params.client_name),
       call_name_(std::move(params.call_name)),
       stats_scope_(params.statistics),
@@ -25,9 +25,11 @@ CallState::CallState(CallParams&& params, CallKind call_kind)
       config_values_(params.config),
       middlewares_(params.middlewares),
       call_kind_(call_kind) {
-    UINVARIANT(client_context_, "client context should not be empty");
     UINVARIANT(!client_name_.empty(), "client name should not be empty");
-    SetupSpan(span_, *client_context_, call_name_.Get());
+    SetupSpan(span_, call_name_.Get());
+
+    client_context_ = CallOptionsAccessor::CreateClientContext(params.call_options);
+    AddTracingMetadata(*client_context_, GetSpan());
 }
 
 StubHandle& CallState::GetStub() noexcept { return stub_; }

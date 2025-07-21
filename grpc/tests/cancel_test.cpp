@@ -87,10 +87,10 @@ using GrpcCancelDeadline = ugrpc::tests::ServiceFixture<UnitTestServiceCancelEch
 UTEST_F_MT(GrpcCancelDeadline, TryCancel, 2) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(500ms));
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(500ms);
     try {
-        auto call = client.Chat(std::move(context));
+        auto call = client.Chat(std::move(call_options));
         for (;;) {
             if (!call.Write({})) return;
             sample::ugrpc::StreamGreetingResponse response;
@@ -128,9 +128,9 @@ using GrpcCancelWritesDone = ugrpc::tests::ServiceFixture<UnitTestServiceCancelE
 UTEST_F_MT(GrpcCancelWritesDone, TryCancel, 2) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(500ms));
-    auto call = client.Chat(std::move(context));
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(500ms);
+    auto call = client.Chat(std::move(call_options));
     const auto is_written = call.Write({});
     if (!is_written) {
         // The call of Write() is failed, so we have to finish the test
@@ -170,9 +170,9 @@ using GrpcCancelAfterRead = ugrpc::tests::ServiceFixture<UnitTestServiceCancelEc
 UTEST_F_MT(GrpcCancelAfterRead, TryCancel, 2) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(1000ms));
-    auto call = client.Chat(std::move(context));
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(1000ms);
+    auto call = client.Chat(std::move(call_options));
     EXPECT_TRUE(call.Write({}));
 
     sample::ugrpc::StreamGreetingResponse response;
@@ -231,12 +231,16 @@ UTEST(GrpcServer, DeadlineAffectsWaitForReady) {
         ugrpc::tests::MakeIpv6Endpoint(ugrpc::tests::GetFreeIpv6Port())
     );
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(100ms));
-    context->set_wait_for_ready(true);
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(100ms);
+    call_options.SetClientContextFactory([] {
+        auto client_context = std::make_unique<grpc::ClientContext>();
+        client_context->set_wait_for_ready(true);
+        return client_context;
+    });
 
     auto long_deadline = engine::Deadline::FromDuration(100ms + 1s);
-    UEXPECT_THROW(client.SayHello({}, std::move(context)), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW(client.SayHello({}, std::move(call_options)), ugrpc::client::DeadlineExceededError);
     EXPECT_FALSE(long_deadline.IsReached());
 }
 
@@ -274,10 +278,15 @@ using GrpcCancelByClient = ugrpc::tests::ServiceFixture<UnitTestServiceCancelHel
 UTEST_F_MT(GrpcCancelByClient, CancelByClient, 3) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(500ms));
-    context->set_wait_for_ready(true);
-    UEXPECT_THROW(client.SayHello({}, std::move(context)), ugrpc::client::BaseError);
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(500ms);
+    call_options.SetClientContextFactory([] {
+        auto client_context = std::make_unique<grpc::ClientContext>();
+        client_context->set_wait_for_ready(true);
+        return client_context;
+    });
+
+    UEXPECT_THROW(client.SayHello({}, std::move(call_options)), ugrpc::client::BaseError);
 
     ASSERT_TRUE(GetService().GetFinishEvent().WaitForEventFor(std::chrono::seconds{5}));
 }
@@ -285,9 +294,9 @@ UTEST_F_MT(GrpcCancelByClient, CancelByClient, 3) {
 UTEST_F_MT(GrpcCancelByClient, CancelByClientNoReadyWait, 3) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
 
-    auto context = std::make_unique<grpc::ClientContext>();
-    context->set_deadline(engine::Deadline::FromDuration(500ms));
-    UEXPECT_THROW(client.SayHello({}, std::move(context)), ugrpc::client::BaseError);
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(500ms);
+    UEXPECT_THROW(client.SayHello({}, std::move(call_options)), ugrpc::client::BaseError);
 
     ASSERT_TRUE(GetService().GetFinishEvent().WaitForEventFor(std::chrono::seconds{5}));
 }
@@ -310,14 +319,9 @@ using GrpcCancelSleep = utest::LogCaptureFixture<ugrpc::tests::ServiceFixture<Un
 UTEST_F(GrpcCancelSleep, CancelByTimeoutLogging) {
     auto client = MakeClient<sample::ugrpc::UnitTestServiceClient>();
 
-    UEXPECT_THROW(
-        client.SayHello(
-            {},
-            std::make_unique<::grpc::ClientContext>(),
-            ugrpc::client::Qos{std::nullopt, std::chrono::milliseconds(500)}
-        ),
-        ugrpc::client::DeadlineExceededError
-    );
+    ugrpc::client::CallOptions call_options;
+    call_options.SetTimeout(std::chrono::milliseconds(500));
+    UEXPECT_THROW(client.SayHello({}, std::move(call_options)), ugrpc::client::DeadlineExceededError);
 
     // Make sure server logs are written.
     GetServer().StopServing();

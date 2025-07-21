@@ -64,11 +64,11 @@ UTEST_F(GenericClientTest, MetricsRealUnsafe) {
     sample::ugrpc::GreetingRequest request;
     request.set_name("generic");
 
-    ugrpc::client::GenericOptions options;
-    options.metrics_call_name = std::nullopt;
+    ugrpc::client::GenericOptions generic_options;
+    generic_options.metrics_call_name = std::nullopt;
 
     auto future = client.AsyncUnaryCall(
-        kSayHelloCallName, ugrpc::SerializeToByteBuffer(request), std::make_unique<grpc::ClientContext>(), options
+        kSayHelloCallName, ugrpc::SerializeToByteBuffer(request), ugrpc::client::CallOptions{}, generic_options
     );
     EXPECT_EQ(future.GetContext().GetCallName(), kSayHelloCallName);
     future.Get();

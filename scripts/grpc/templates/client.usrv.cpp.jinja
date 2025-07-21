@@ -39,24 +39,22 @@ inline const bool k{{service.name}}TypesRegistration =
 
 {% if method.client_streaming and method.server_streaming %}
 {{service.name}}Client::{{method.name}}ReaderWriter {{service.name}}Client::{{method.name}}(
-    std::unique_ptr<::grpc::ClientContext> context,
-    const USERVER_NAMESPACE::ugrpc::client::Qos& qos
+    USERVER_NAMESPACE::ugrpc::client::CallOptions call_options
 ) const {
     return {
         USERVER_NAMESPACE::ugrpc::client::impl::CreateCallParams(
-            impl_, {{method_id}}, std::move(context), qos
+            impl_, {{method_id}}, std::move(call_options)
         ),
         &{{service.name}}::Stub::PrepareAsync{{method.name}},
     };
 }
 {% elif method.client_streaming %}
 {{service.name}}Client::{{method.name}}Writer {{service.name}}Client::{{method.name}}(
-    std::unique_ptr<::grpc::ClientContext> context,
-    const USERVER_NAMESPACE::ugrpc::client::Qos& qos
+    USERVER_NAMESPACE::ugrpc::client::CallOptions call_options
 ) const {
     return {
         USERVER_NAMESPACE::ugrpc::client::impl::CreateCallParams(
-            impl_, {{method_id}}, std::move(context), qos
+            impl_, {{method_id}}, std::move(call_options)
         ),
         &{{service.name}}::Stub::PrepareAsync{{method.name}},
     };
@@ -64,12 +62,11 @@ inline const bool k{{service.name}}TypesRegistration =
 {% elif method.server_streaming %}
 {{service.name}}Client::{{method.name}}Reader {{service.name}}Client::{{method.name}}(
     const {{ method.input_type | grpc_to_cpp_name }}& request,
-    std::unique_ptr<::grpc::ClientContext> context,
-    const USERVER_NAMESPACE::ugrpc::client::Qos& qos
+    USERVER_NAMESPACE::ugrpc::client::CallOptions call_options
 ) const {
     return {
         USERVER_NAMESPACE::ugrpc::client::impl::CreateCallParams(
-            impl_, {{method_id}}, std::move(context), qos
+            impl_, {{method_id}}, std::move(call_options)
         ),
         &{{service.name}}::Stub::PrepareAsync{{method.name}},
         request,
@@ -78,20 +75,18 @@ inline const bool k{{service.name}}TypesRegistration =
 {% else %}
 {{ method.output_type | grpc_to_cpp_name }} {{service.name}}Client::{{method.name}}(
     const {{ method.input_type | grpc_to_cpp_name }}& request,
-    std::unique_ptr<::grpc::ClientContext> context,
-    const USERVER_NAMESPACE::ugrpc::client::Qos& qos
+    USERVER_NAMESPACE::ugrpc::client::CallOptions call_options
 ) const {
-    return Async{{method.name}}(request, std::move(context), qos).Get();
+    return Async{{method.name}}(request, std::move(call_options)).Get();
 }
 
 {{service.name}}Client::{{method.name}}ResponseFuture {{service.name}}Client::Async{{method.name}}(
     const {{ method.input_type | grpc_to_cpp_name }}& request,
-    std::unique_ptr<::grpc::ClientContext> context,
-    const USERVER_NAMESPACE::ugrpc::client::Qos& qos
+    USERVER_NAMESPACE::ugrpc::client::CallOptions call_options
 ) const {
     return {
         USERVER_NAMESPACE::ugrpc::client::impl::CreateCallParams(
-            impl_, {{method_id}}, std::move(context), qos
+            impl_, {{method_id}}, std::move(call_options)
         ),
         USERVER_NAMESPACE::ugrpc::client::impl::PrepareUnaryCallProxy(
             &{{service.name}}::Stub::PrepareAsync{{method.name}}
