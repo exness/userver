@@ -9,8 +9,9 @@
 
 #include <server/pph_config.hpp>
 
-USERVER_NAMESPACE_BEGIN
+#include "userver/engine/io.hpp"
 
+USERVER_NAMESPACE_BEGIN
 namespace server::net {
 
 namespace {
@@ -62,6 +63,11 @@ PortConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<PortCo
         config.tls_certificate_authorities.push_back(crypto::Certificate::LoadFromString(contents));
     }
 
+    if (config.tls)
+    {
+        config.InitSslCtx();
+    }
+
     return config;
 }
 
@@ -101,6 +107,13 @@ void PortConfig::ReadTlsSettings(const storages::secdist::SecdistConfig& secdist
         }
     }
 }
+
+void PortConfig::InitSslCtx() {
+    if (tls) {
+        ssl_ctx = crypto::SslCtx::CreateServerTlsContext(tls_cert_chain, tls_private_key, tls_certificate_authorities);
+    }
+}
+
 
 }  // namespace server::net
 
