@@ -93,12 +93,13 @@ constexpr auto kDeadlineMaxTime = std::chrono::seconds{60};
         auto [server, client] = tcp_listener.MakeSocketPair(deadline);
 
         std::atomic<bool> reading{true};
+        crypto::SslCtx ssl_ctx = crypto::SslCtx::CreateServerTlsContext(crypto::LoadCertificatesChainFromString(cert),
+            crypto::PrivateKey::LoadFromString(key));
         auto server_task = engine::AsyncNoSpan(
-            [&reading, deadline](auto&& server) {
+            [&reading, deadline, &ssl_ctx](auto&& server) {
                 auto tls_server = io::TlsWrapper::StartTlsServer(
                     std::forward<decltype(server)>(server),
-                    crypto::LoadCertificatesChainFromString(cert),
-                    crypto::PrivateKey::LoadFromString(key),
+                    ssl_ctx,
                     deadline
                 );
 
@@ -137,12 +138,13 @@ BENCHMARK(tls_write_all_buffered)->RangeMultiplier(2)->Range(1 << 6, 1 << 12)->U
         auto [server, client] = tcp_listener.MakeSocketPair(deadline);
 
         std::atomic<bool> reading{true};
+        crypto::SslCtx ssl_ctx = crypto::SslCtx::CreateServerTlsContext(crypto::LoadCertificatesChainFromString(cert),
+            crypto::PrivateKey::LoadFromString(key));
         auto server_task = engine::AsyncNoSpan(
-            [&reading, deadline](auto&& server) {
+            [&reading, deadline, &ssl_ctx](auto&& server) {
                 auto tls_server = io::TlsWrapper::StartTlsServer(
                     std::forward<decltype(server)>(server),
-                    crypto::LoadCertificatesChainFromString(cert),
-                    crypto::PrivateKey::LoadFromString(key),
+                    ssl_ctx,
                     deadline
                 );
 
