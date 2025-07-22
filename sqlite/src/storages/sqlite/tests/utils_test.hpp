@@ -52,18 +52,24 @@ public:
 
     void SetUp() override { SQLiteFixture::SetUp(); }
 
-    void TearDown() override { SQLiteFixture::TearDown(); }
+    void TearDown() override {
+        CleanUp(client_);
+        SQLiteFixture::TearDown();
+    }
 
     ClientPtr CreateClient(settings::SQLiteSettings settings = {}) {
-        auto client = connection_provider_->CreateClient(settings);
-        PreInitialize(client);
-        return client;
+        client_ = connection_provider_->CreateClient(settings);
+        PreInitialize(client_);
+        return client_;
     }
 
 private:
     virtual void PreInitialize(const ClientPtr&) {}
 
+    virtual void CleanUp(const ClientPtr&) {}
+
     std::unique_ptr<ConnectionProvider> connection_provider_;
+    ClientPtr client_;
 };
 
 // Create sqlite client (set of connection pools) with custom settings

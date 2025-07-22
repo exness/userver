@@ -1,6 +1,3 @@
-import pytest
-
-
 # Executing simple queries pipeline (POST, GET, UPDATE, DELETE)
 async def test_basic_crud(service_client):
     # Checking that deleting a row with a certain key, even if there is no such key, the request will be processed correctly

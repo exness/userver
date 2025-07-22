@@ -19,10 +19,10 @@ components_manager:
             task_processor: main-task-processor
 
         key-value-database:
-            db-path: "/tmp/kv.db"
+            db-path: "kv.db"
 
         batch-database:
-            db-path: "/tmp/batch.db"
+            db-path: "batch.db"
 
         server:
             listener:

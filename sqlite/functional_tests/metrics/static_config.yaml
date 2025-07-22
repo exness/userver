@@ -7,7 +7,7 @@ components_manager:
             method: GET,DELETE,POST
 
         key-value-database:
-            db-path: "/tmp/kv.db"
+            db-path: "kv.db"
 
         testsuite-support:
         tests-control:

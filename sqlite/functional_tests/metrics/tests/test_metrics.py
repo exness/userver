@@ -1,7 +1,5 @@
 import re
 
-import pytest
-
 
 def _normalize_metrics(metrics: str) -> str:
     result = []

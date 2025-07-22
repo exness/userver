@@ -29,6 +29,13 @@ class SQLiteCommonResultSetTest : public SQLiteCompositeFixture<SQLiteInMemoryCo
         UEXPECT_NO_THROW(client->Execute(OperationType::kReadWrite, "INSERT INTO test VALUES (1, 'first')"));
         UEXPECT_NO_THROW(client->Execute(OperationType::kReadWrite, "INSERT INTO test VALUES (2, 'second')"));
     }
+
+    void CleanUp(const ClientPtr& client) final {
+        try {
+            client->Execute(OperationType::kReadWrite, "DROP TABLE test");
+        } catch (...) {
+        }
+    }
 };
 
 }  // namespace
