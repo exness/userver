@@ -24,12 +24,22 @@ async def test_send(service_binary):
         client.close()
 
 
+def _get_free_port() -> int:
+    with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as sock:
+        sock.bind(('::', 0))
+        return sock.getsockname()[1]
+
+
 async def test_listen(service_binary):
-    subprocess = await asyncio.create_subprocess_exec(service_binary, '-l', stdout=asyncio.subprocess.PIPE)
+    port = _get_free_port()
+
+    subprocess = await asyncio.create_subprocess_exec(
+        service_binary, '-l', '--port', str(port), stdout=asyncio.subprocess.PIPE
+    )
     await asyncio.sleep(0.3)  # give time to open listening socket
 
     with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as client:
-        client.connect(('localhost', 3333))
+        client.connect(('localhost', port))
         client.setblocking(False)
 
         loop = asyncio.get_event_loop()
