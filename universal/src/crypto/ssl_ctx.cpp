@@ -175,6 +175,9 @@ SslCtx SslCtx::CreateServerTlsContext(
     if (!extra_cert_authorities.empty()) {
         ssl_ctx.AddCertAuthorities(extra_cert_authorities);
         ssl_ctx.EnableVerifyClientCertificate();
+        LOG_INFO() << "Client SSL cert will be verified";
+    } else {
+        LOG_INFO() << "Client SSL cert will not be verified";
     }
 
     ssl_ctx.SetCertificates(cert_chain);
