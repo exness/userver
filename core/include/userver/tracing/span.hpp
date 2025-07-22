@@ -23,7 +23,8 @@ struct SpanEvent;
 /// @brief Measures the execution time of the current code block, links it with
 /// the parent tracing::Spans and stores that info in the log.
 ///
-/// Logging of spans can be controlled at runtime via @ref USERVER_NO_LOG_SPANS.
+/// Logging of spans can be controlled at runtime via @ref USERVER_NO_LOG_SPANS, provided that you
+/// `Append` @ref components::LoggingConfigurator component or use @ref components::CommonComponentList.
 ///
 /// See @ref scripts/docs/en/userver/logging.md for usage examples and more
 /// descriptions.

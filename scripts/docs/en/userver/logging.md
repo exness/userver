@@ -89,7 +89,8 @@ yaml
         log-level: WARNING
 ```
 
-Logging per line and file can be overridden at runtime using @ref USERVER_LOG_DYNAMIC_DEBUG dynamic config.
+Logging per line and file can be overridden at runtime using @ref USERVER_LOG_DYNAMIC_DEBUG dynamic config,
+see also @ref USERVER_LOG_DYNAMIC_DEBUG_details.
 
 
 ### Dynamic change of the logging level
@@ -411,6 +412,9 @@ X-YaTraceId
 Using the server dynamic config @ref USERVER_NO_LOG_SPANS, you can set names and prefixes of Span names that do not need
 to be logged. If the span is not logged, then the tracing::ScopeTime of this span and any custom tags attached to the
 span via the methods of the `Add*Tag*()` are not put into the logs.
+
+@note In order for `USERVER_NO_LOG_SPANS` to work, you should `Append` @ref components::LoggingConfigurator
+component or use @ref components::CommonComponentList.
 
 For example, this is how you can disable logging of all Span for MongoDB (that is, all Span with `stopwatch_name`
 starting with `mongo`) and `Span` with `stopwatch_name=test`:
