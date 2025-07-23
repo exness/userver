@@ -10,24 +10,20 @@ namespace components {
 
 namespace {
 
-engine::TaskProcessor& GetTaskProcessorOrDefault(
-    const std::optional<std::string>& task_processor_name,
-    const ComponentContext& context) {
-  return task_processor_name ? context.GetTaskProcessor(*task_processor_name)
-                             : engine::current_task::GetTaskProcessor();
+engine::TaskProcessor&
+GetTaskProcessorOrDefault(const std::optional<std::string>& task_processor_name, const ComponentContext& context) {
+    return task_processor_name ? context.GetTaskProcessor(*task_processor_name)
+                               : engine::current_task::GetTaskProcessor();
 }
 
 }  // namespace
 
-ProcessStarter::ProcessStarter(const ComponentConfig& config,
-                               const ComponentContext& context)
+ProcessStarter::ProcessStarter(const ComponentConfig& config, const ComponentContext& context)
     : ComponentBase(config, context),
-      process_starter_(GetTaskProcessorOrDefault(
-          config["task_processor"].As<std::optional<std::string>>(), context)) {
-}
+      process_starter_(GetTaskProcessorOrDefault(config["task_processor"].As<std::optional<std::string>>(), context)) {}
 
 yaml_config::Schema ProcessStarter::GetStaticConfigSchema() {
-  return yaml_config::MergeSchemas<ComponentBase>(R"(
+    return yaml_config::MergeSchemas<ComponentBase>(R"(
 type: object
 description: process-starter
 additionalProperties: false
@@ -35,6 +31,7 @@ properties:
     task_processor:
         type: string
         description: the name of the TaskProcessor for process starting
+        defaultDescription: the 'default_task_processor' value from components::ManagerControllerComponent
 )");
 }
 

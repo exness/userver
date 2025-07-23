@@ -88,7 +88,7 @@ equivalents with proper diagnostics are available in `<userver/utest/assert_macr
 
 Example usage:
 
-@snippet universal/src/utest/assert_macros_test.cpp  Sample assert macros usage
+@snippet universal/utest/src/utest/assert_macros_test.cpp  Sample assert macros usage
 
 ### Exception assertions
 
@@ -141,6 +141,25 @@ It can be used for testing that a certain piece of code produces logs
 with the given text (which is brittle, but sometimes needs to be done).
 It can also be used for testing @ref logging::LogHelper serialization functions.
 
+### Outputting logs in unit test run
+
+Log level in the unit tests can be controlled via `log-level` parameter. For example, the following command outputs
+the debug logs for all the `*Log*` tests for the CMake built binary:
+
+```shell
+./core/userver-core-unittest --log-level=debug --gtest_filter=*Log*
+```
+
+### Ignoring signals in debugger
+
+Userver uses signals for internal matters to identify coroutine stack usage @ref scripts/docs/en/userver/stack.md.
+If you see too much "caught signal X" in debugger, you may disable stack usage monitor via environment variable:
+
+```
+USERVER_GTEST_ENABLE_STACK_USAGE_MONITOR=0
+```
+
+Now you should not be annoyed by extra "caught signal X" events.
 
 ## Benchmarks (google-benchmark)
 

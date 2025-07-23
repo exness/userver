@@ -1,3 +1,4 @@
+from chaotic.back.cpp import type_name
 from chaotic.back.cpp import types as cpp_types
 from chaotic.back.cpp.translator import Generator
 from chaotic.back.cpp.translator import GeneratorConfig
@@ -6,45 +7,45 @@ from chaotic.front import ref_resolver
 from chaotic.front import types
 
 
-def parse(path, input_, external_schemas, external_types):
+def parse(path, input_, external_schemas, external_types, cpp_name_func):
     config = parser.ParserConfig(erase_prefix='')
     schema_parser = parser.SchemaParser(
-        config=config, full_filepath='full', full_vfilepath='vfull',
+        config=config,
+        full_filepath='full',
+        full_vfilepath='vfull',
     )
     schema_parser.parse_schema(path, input_)
     schemas = schema_parser.parsed_schemas()
     rr = ref_resolver.RefResolver()
     resolved_schemas = rr.sort_schemas(
-        schemas, external_schemas=external_schemas,
+        schemas,
+        external_schemas=external_schemas,
     )
     gen = Generator(
-        config=GeneratorConfig(namespaces={'vfull': ''}, include_dirs=None),
+        config=GeneratorConfig(namespaces={'vfull': ''}, include_dirs=None, infile_to_name_func=cpp_name_func),
     )
     types = gen.generate_types(
-        resolved_schemas, external_schemas=external_types,
+        resolved_schemas,
+        external_schemas=external_types,
     )
 
     return resolved_schemas, types
 
 
-def test_import(simple_gen):
-    ext_schemas, ext_types = parse(
-        '/type1', {'type': 'string'}, types.ResolvedSchemas(schemas={}), {},
-    )
+def test_import(cpp_name_func):
+    ext_schemas, ext_types = parse('/type1', {'type': 'string'}, types.ResolvedSchemas(schemas={}), {}, cpp_name_func)
     assert ext_schemas.schemas == {'vfull#/type1': types.String(type='string')}
     assert ext_types == {
-        '/type1': cpp_types.CppPrimitiveType(
-            raw_cpp_type='std::string',
+        '::type1': cpp_types.CppPrimitiveType(
+            raw_cpp_type=type_name.TypeName('std::string'),
             nullable=False,
             user_cpp_type=None,
             json_schema=types.String(type='string'),
-            validators=cpp_types.CppPrimitiveValidator(prefix='/type1'),
+            validators=cpp_types.CppPrimitiveValidator(prefix='type1'),
         ),
     }
 
-    new_schemas, new_types = parse(
-        '/type2', {'$ref': 'vfull#/type1'}, ext_schemas, ext_types,
-    )
+    new_schemas, new_types = parse('/type2', {'$ref': 'vfull#/type1'}, ext_schemas, ext_types, cpp_name_func)
     assert new_schemas.schemas == {
         'vfull#/type2': types.Ref(
             ref='vfull#/type1',
@@ -54,11 +55,11 @@ def test_import(simple_gen):
         ),
     }
     assert new_types == {
-        '/type2': cpp_types.CppRef(
-            orig_cpp_type=ext_types['/type1'],
+        '::type2': cpp_types.CppRef(
+            orig_cpp_type=ext_types['::type1'],
             indirect=False,
             self_ref=False,
-            raw_cpp_type='',
+            raw_cpp_type=type_name.TypeName('::type2'),
             nullable=False,
             user_cpp_type=None,
             json_schema=new_schemas.schemas['vfull#/type2'],

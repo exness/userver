@@ -14,10 +14,10 @@ If you are trying to build the framework on Windows OS, you should use WSL
 as the platform native API
 [is not supported at the moment](https://github.com/userver-framework/userver/issues/228).
 
-Try disabling modules that you do not use, see @ref scripts/docs/en/userver/tutorial/build.md
+Try disabling modules that you do not use, see @ref scripts/docs/en/userver/build/build.md
 for a list of supported CMake options.
 
-If you have problems with PostgreSQL build, see @ref POSTGRES_LIBS "PostgreSQL versions".
+If you have problems with PostgreSQL build, see @ref postgres_deps_versions "PostgreSQL versions".
 
 
 ### Service Terminated/Aborted/SIGSEGV. What to do?
@@ -84,7 +84,9 @@ This could be handy in detecting infinite loops or CPU intensive computations.
 #### Hint: Grab a stacktrace from a running service
 
 Command like `gdb -batch -ex 'thread apply all bt full' -p PID_OF_THE_SERVICE`
-should output a detailed information on each thread. Search for
+should output a detailed information on each thread. Search for `futex_wait` for hints.
+
+Also see @ref scripts/docs/en/userver/gdb_debugging.md for more info.
 
 
 #### Hint: Take a look at the metrics
@@ -204,5 +206,5 @@ storages::postgres::TimePointTz.
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/roadmap_and_changelog.md | @ref scripts/docs/en/userver/tutorial/hello_service.md ⇨
+⇦ @ref scripts/docs/en/userver/roadmap_and_changelog.md | @ref scripts/docs/en/userver/build/build.md ⇨
 @htmlonly </div> @endhtmlonly

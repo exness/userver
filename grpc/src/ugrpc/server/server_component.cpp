@@ -12,15 +12,16 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server {
 
-ServerComponent::ServerComponent(const components::ComponentConfig& config,
-                                 const components::ComponentContext& context)
+ServerComponent::ServerComponent(const components::ComponentConfig& config, const components::ComponentContext& context)
     : ComponentBase(config, context),
       server_(
-          impl::ParseServerConfig(config, context),
+          impl::ParseServerConfig(config),
           context.FindComponent<components::StatisticsStorage>().GetStorage(),
-          context.FindComponent<components::DynamicConfig>().GetSource()),
-      service_defaults_(std::make_unique<impl::ServiceDefaults>(
-          impl::ParseServiceDefaults(config["service-defaults"], context))) {}
+          context.FindComponent<components::DynamicConfig>().GetSource()
+      ),
+      service_defaults_(
+          std::make_unique<impl::ServiceDefaults>(impl::ParseServiceDefaults(config["service-defaults"], context))
+      ) {}
 
 ServerComponent::~ServerComponent() { server_.Stop(); }
 
@@ -28,8 +29,9 @@ Server& ServerComponent::GetServer() noexcept { return server_; }
 
 ServiceConfig ServerComponent::ParseServiceConfig(
     const components::ComponentConfig& config,
-    const components::ComponentContext& context) {
-  return impl::ParseServiceConfig(config, context, *service_defaults_);
+    const components::ComponentContext& context
+) {
+    return impl::ParseServiceConfig(config, context, *service_defaults_);
 }
 
 void ServerComponent::OnAllComponentsLoaded() { server_.Start(); }
@@ -37,7 +39,7 @@ void ServerComponent::OnAllComponentsLoaded() { server_.Start(); }
 void ServerComponent::OnAllComponentsAreStopping() { server_.StopServing(); }
 
 yaml_config::Schema ServerComponent::GetStaticConfigSchema() {
-  return yaml_config::MergeSchemas<ComponentBase>(R"(
+    return yaml_config::MergeSchemas<ComponentBase>(R"(
 type: object
 description: Component that configures and manages the gRPC server.
 additionalProperties: false
@@ -62,9 +64,6 @@ properties:
             type: string
             description: value of channel argument, must be string or integer
         properties: {}
-    access-tskv-logger:
-        type: string
-        description: name of 'access-tskv.log' logger
     native-log-level:
         type: string
         description: min log level for the native gRPC library
@@ -80,6 +79,20 @@ properties:
     enable-channelz:
         type: boolean
         description: enable channelz
+    tls:
+        type: object
+        additionalProperties: false
+        description: TLS settings
+        properties:
+            ca:
+                type: string
+                description: path to TLS client CA certificate
+            key:
+                type: string
+                description: path to TLS certificate key
+            cert:
+                type: string
+                description: path to TLS certificate
     service-defaults:
         type: object
         description: omitted options for service components will default to the corresponding option from here
@@ -88,12 +101,6 @@ properties:
             task-processor:
                 type: string
                 description: the task processor to use for responses
-            middlewares:
-                type: array
-                description: middlewares names to use
-                items:
-                    type: string
-                    description: middleware component name
 )");
 }
 

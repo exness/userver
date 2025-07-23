@@ -5,8 +5,11 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <userver/concurrent/variable.hpp>
 #include <userver/engine/shared_mutex.hpp>
+#include <userver/utils/impl/transparent_hash.hpp>
 #include <userver/utils/statistics/entry.hpp>
+#include <userver/utils/statistics/striped_rate_counter.hpp>
 
 #include <userver/ugrpc/impl/statistics.hpp>
 
@@ -14,54 +17,80 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::impl {
 
-/// Clients are created on-the-fly, so we must use a separate stable container
-/// for storing their statistics.
+/// Allows to create ServiceStatistics and generic MethodStatistics on the fly.
 class StatisticsStorage final {
- public:
-  explicit StatisticsStorage(utils::statistics::Storage& statistics_storage,
-                             StatisticsDomain domain);
+public:
+    explicit StatisticsStorage(utils::statistics::Storage& statistics_storage, StatisticsDomain domain);
 
-  StatisticsStorage(const StatisticsStorage&) = delete;
-  StatisticsStorage& operator=(const StatisticsStorage&) = delete;
+    StatisticsStorage(const StatisticsStorage&) = delete;
+    StatisticsStorage& operator=(const StatisticsStorage&) = delete;
+    ~StatisticsStorage();
 
-  ~StatisticsStorage();
+    ServiceStatistics&
+    GetServiceStatistics(const StaticServiceMetadata& metadata, std::optional<std::string> client_name);
 
-  ugrpc::impl::ServiceStatistics& GetServiceStatistics(
-      const ugrpc::impl::StaticServiceMetadata& metadata,
-      std::optional<std::string> endpoint);
+    MethodStatistics& GetGenericStatistics(std::string_view call_name, std::optional<std::string_view> client_name);
 
-  // Can only be called on StatisticsStorage for gRPC services (not clients).
-  // Can only be called strictly after all the components are loaded.
-  // gRPC services must not be [un]registered during GetStartedRequests().
-  std::uint64_t GetStartedRequests() const;
+    std::uint64_t GetStartedRequests() const;
 
- private:
-  // Pointer to service name from its metadata is used as a unique service ID
-  using ServiceId = const char*;
+private:
+    // Pointer to service name from its metadata is used as a unique service ID
+    using ServiceId = const char*;
 
-  struct ServiceKey {
-    ServiceId service_id;
-    std::optional<std::string> endpoint;
-  };
+    struct ServiceKey {
+        ServiceId service_id{};
+        std::optional<std::string> client_name;
+    };
 
-  void ExtendStatistics(utils::statistics::Writer& writer);
+    struct GenericKey {
+        std::string call_name;
+        std::optional<std::string> client_name;
+    };
 
-  struct ServiceKeyComparer final {
-    bool operator()(ServiceKey lhs, ServiceKey rhs) const;
-  };
+    struct GenericKeyView {
+        GenericKey Dereference() const;
 
-  struct ServiceKeyHasher final {
-    std::size_t operator()(const ServiceKey& key) const;
-  };
+        std::string_view call_name;
+        std::optional<std::string_view> client_name;
+    };
 
-  const StatisticsDomain domain_;
+    struct ServiceKeyComparer {
+        bool operator()(ServiceKey lhs, ServiceKey rhs) const;
+    };
 
-  std::unordered_map<ServiceKey, ugrpc::impl::ServiceStatistics,
-                     ServiceKeyHasher, ServiceKeyComparer>
-      service_statistics_;
-  engine::SharedMutex mutex_;
+    struct ServiceKeyHasher {
+        std::size_t operator()(const ServiceKey& key) const noexcept;
+    };
 
-  utils::statistics::Entry statistics_holder_;
+    struct GenericKeyComparer {
+        using is_transparent [[maybe_unused]] = void;
+
+        bool operator()(const GenericKey& lhs, const GenericKey& rhs) const;
+        bool operator()(const GenericKeyView& lhs, const GenericKey& rhs) const;
+        bool operator()(const GenericKey& lhs, const GenericKeyView& rhs) const;
+    };
+
+    struct GenericKeyHasher {
+        using is_transparent [[maybe_unused]] = void;
+
+        std::size_t operator()(const GenericKey& key) const noexcept;
+        std::size_t operator()(const GenericKeyView& key) const noexcept;
+    };
+
+    void ExtendStatistics(utils::statistics::Writer& writer);
+
+    const StatisticsDomain domain_;
+    utils::statistics::StripedRateCounter global_started_;
+    concurrent::Variable<
+        std::unordered_map<ServiceKey, ServiceStatistics, ServiceKeyHasher, ServiceKeyComparer>,
+        engine::SharedMutex>
+        service_statistics_map_;
+    concurrent::Variable<
+        utils::impl::TransparentMap<GenericKey, MethodStatistics, GenericKeyHasher, GenericKeyComparer>,
+        engine::SharedMutex>
+        generic_statistics_map_;
+    // statistics_holder_ must be the last field.
+    utils::statistics::Entry statistics_holder_;
 };
 
 }  // namespace ugrpc::impl

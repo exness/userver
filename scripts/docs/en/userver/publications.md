@@ -5,6 +5,8 @@
 
 ## Introductions
 * 🎥 [Microservices on C++, or why we made our own framework](https://youtu.be/WkcmNOmwAH8)
+* 📖 Implementing pastebin using only userver (ru):
+  [Пишем свой pastebin, используя только userver](https://habr.com/ru/companies/yandex/articles/894294/)
 * 🎥 Writing a new service with database and cache from scratch (ru):
   [Эффективные и высоконагруженные сервисы на C++](https://youtu.be/qrGZARf2Wno?t=2034)
 * 🎥 Writing a new gRPC server and client with userver (ru):
@@ -37,13 +39,16 @@
 ## Technologies overview
 * 📖 Generic async engine implementation (ru): [Анатомия асинхронных фреймворков в С++ и других языках](https://habr.com/ru/company/yandex/blog/647853/)
 * 🎥 Generic async engine implementation (ru): [Анатомия асинхронных движков](https://youtu.be/MiE22pTvnPs)
+* 🎥 Mutex implementation in userver (ru): [Реализация мьютекса в userver](https://www.youtube.com/watch?v=myaEpjYyx3I)
 * 🎥 Description of utils::FastPimpl, formats::parse::To and logging implementation (ru): [C++ трюки из Такси](https://youtu.be/_AkF8SpUV3k)
 * 🎥 Description of utils::LazyPrvalue, utils::FixedArray, utils::TrivialBiMap, ODR-detection in PostgreSQL [C++ трюки из userver](https://www.youtube.com/watch?v=FcQC19CX-AY)
 * 🎥 Description of cache::LruSet implementation and optimizations (ru): [Ещё чуть быстрее делаем свой контейнер](https://youtu.be/60XhYzkXu1M)
-* 🎥 Monolyth vs. Microservices architecture and how userver works around their issues (ru):
+* 🎥 Monolithic vs. Microservices architecture and how userver works around their issues (ru):
   [Монолит vs Микросервисы, и Как эффективно работать с последними в C++](https://youtu.be/5QtAFKgS938)
 * 📖 Retries, exponential backoff, jitter, rate limits, circuit breakers, deadline propagations and other
   important features for stability (ru): [Хороший ретрай, плохой ретрай, или История одного падения](https://habr.com/ru/companies/yandex/articles/762678/)
+* 📖 Kafka driver implementation (ru): [Реализация драйвера для брокера сообщений Kafka в фреймворке userver](https://www.hse.ru/edu/vkr/925074491)  
+* 📖 Dirty C++ tricks from userver and Boost (ru): [Грязные трюки C++ из userver и Boost](https://habr.com/ru/companies/yandex/articles/852244/)
 * 📖 [Story of website design at Behance](https://www.behance.net/gallery/185906583/Userver-C)
 
 
@@ -53,5 +58,5 @@
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/tutorial/build_userver.md |
+⇦ @ref scripts/docs/en/userver/driver_guide.md |
 @htmlonly </div> @endhtmlonly

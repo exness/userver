@@ -57,10 +57,7 @@ components_manager:
             pool-statistics-disable: true
             thread-name-prefix: stats
             user-agent: $server-name
-        dns-client:
-            fs-task-processor: fs-task-processor
         logging:
-            fs-task-processor: fs-task-processor
             loggers:
                 access:
                     file_path: $access-log-path
@@ -82,7 +79,6 @@ components_manager:
             limited-logging-enable: true
             limited-logging-interval: 1s
 
-        secdist: {}
         default-secdist-provider: {}
 
         server:

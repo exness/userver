@@ -6,14 +6,17 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::mongo {
 
-Cursor::Cursor(std::unique_ptr<impl::CursorImpl>&& impl)
-    : impl_(std::move(impl)) {}
+Cursor::Cursor(std::unique_ptr<impl::CursorImpl>&& impl) : impl_(std::move(impl)) {}
 
 Cursor::~Cursor() = default;
 Cursor::Cursor(Cursor&&) noexcept = default;
 Cursor& Cursor::operator=(Cursor&&) noexcept = default;
 
 bool Cursor::HasMore() const { return impl_->IsValid(); }
+
+std::uint32_t Cursor::GetBatchSize() const { return impl_->GetBatchSize(); }
+
+void Cursor::SetBatchSize(std::uint32_t size) { impl_->SetBatchSize(size); }
 
 Cursor::Iterator Cursor::begin() { return Iterator(this); }
 
@@ -22,36 +25,28 @@ Cursor::Iterator Cursor::begin() { return Iterator(this); }
 Cursor::Iterator Cursor::end() { return Iterator(nullptr); }
 
 Cursor::Iterator::Iterator(Cursor* cursor) : cursor_(cursor) {
-  if (cursor_ && !cursor_->impl_->IsValid()) cursor_ = nullptr;
+    if (cursor_ && !cursor_->impl_->IsValid()) cursor_ = nullptr;
 }
 
 Cursor::Iterator::DocHolder Cursor::Iterator::operator++(int) {
-  DocHolder old_value(**this);
-  ++*this;
-  return old_value;
+    DocHolder old_value(**this);
+    ++*this;
+    return old_value;
 }
 
 Cursor::Iterator& Cursor::Iterator::operator++() {
-  cursor_->impl_->Next();
-  if (!cursor_->impl_->IsValid()) cursor_ = nullptr;
-  return *this;
+    cursor_->impl_->Next();
+    if (!cursor_->impl_->IsValid()) cursor_ = nullptr;
+    return *this;
 }
 
-const formats::bson::Document& Cursor::Iterator::operator*() const {
-  return cursor_->impl_->Current();
-}
+const formats::bson::Document& Cursor::Iterator::operator*() const { return cursor_->impl_->Current(); }
 
-const formats::bson::Document* Cursor::Iterator::operator->() const {
-  return &cursor_->impl_->Current();
-}
+const formats::bson::Document* Cursor::Iterator::operator->() const { return &cursor_->impl_->Current(); }
 
-bool Cursor::Iterator::operator==(const Iterator& rhs) const {
-  return cursor_ == rhs.cursor_;
-}
+bool Cursor::Iterator::operator==(const Iterator& rhs) const { return cursor_ == rhs.cursor_; }
 
-bool Cursor::Iterator::operator!=(const Iterator& rhs) const {
-  return !(*this == rhs);
-}
+bool Cursor::Iterator::operator!=(const Iterator& rhs) const { return !(*this == rhs); }
 
 }  // namespace storages::mongo
 

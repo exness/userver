@@ -15,54 +15,54 @@ namespace chaotic {
 
 template <typename ItemType, typename UserType, typename... Validators>
 struct Array final {
-  const UserType& value;
+    const UserType& value;
 };
 
-template <typename Value, typename ItemType, typename UserType,
-          typename... Validators>
-UserType Parse(const Value& value,
-               formats::parse::To<Array<ItemType, UserType, Validators...>>) {
-  UserType arr;
-  auto inserter = std::inserter(arr, arr.end());
-  if constexpr (meta::kIsReservable<UserType>) {
-    arr.reserve(value.GetSize());
-  }
-  for (const auto& item : value) {
-    *inserter = item.template As<ItemType>();
-    ++inserter;
-  }
+template <typename Value, typename ItemType, typename UserType, typename... Validators>
+UserType Parse(const Value& value, formats::parse::To<Array<ItemType, UserType, Validators...>>) {
+    value.CheckNotMissing();
+    value.CheckArrayOrNull();
 
-  chaotic::Validate<Validators...>(arr, value);
+    UserType arr;
+    if constexpr (meta::kIsReservable<UserType>) {
+        arr.reserve(value.GetSize());
+    }
+    // Note: call arr.end() *after* reserve() as the latter may invalidate end()
+    auto inserter = std::inserter(arr, arr.end());
+    for (const auto& item : value) {
+        *inserter = item.template As<ItemType>();
+        ++inserter;
+    }
 
-  return arr;
+    chaotic::Validate<Validators...>(arr, value);
+
+    return arr;
 }
 
 template <typename Value, typename ItemType, typename... Validators>
-std::vector<formats::common::ParseType<Value, ItemType>> Parse(
-    const Value& value,
-    formats::parse::To<Array<
-        ItemType, std::vector<formats::common::ParseType<Value, ItemType>>,
-        Validators...>>) {
-  std::vector<formats::common::ParseType<Value, ItemType>> arr;
-  arr.reserve(value.GetSize());
-  for (const auto& item : value) {
-    arr.emplace_back(item.template As<ItemType>());
-  }
+std::vector<formats::common::ParseType<Value, ItemType>>
+Parse(const Value& value, formats::parse::To<Array<ItemType, std::vector<formats::common::ParseType<Value, ItemType>>, Validators...>>) {
+    value.CheckNotMissing();
+    value.CheckArrayOrNull();
 
-  chaotic::Validate<Validators...>(arr, value);
+    std::vector<formats::common::ParseType<Value, ItemType>> arr;
+    arr.reserve(value.GetSize());
+    for (const auto& item : value) {
+        arr.emplace_back(item.template As<ItemType>());
+    }
 
-  return arr;
+    chaotic::Validate<Validators...>(arr, value);
+
+    return arr;
 }
 
-template <typename Value, typename ItemType, typename UserType,
-          typename... Validators>
-Value Serialize(const Array<ItemType, UserType, Validators...>& ps,
-                formats::serialize::To<Value>) {
-  typename Value::Builder vb{formats::common::Type::kArray};
-  for (const auto& item : ps.value) {
-    vb.PushBack(ItemType{item});
-  }
-  return vb.ExtractValue();
+template <typename Value, typename ItemType, typename UserType, typename... Validators>
+Value Serialize(const Array<ItemType, UserType, Validators...>& ps, formats::serialize::To<Value>) {
+    typename Value::Builder vb{formats::common::Type::kArray};
+    for (const auto& item : ps.value) {
+        vb.PushBack(ItemType{item});
+    }
+    return vb.ExtractValue();
 }
 
 }  // namespace chaotic

@@ -5,9 +5,11 @@ from chaotic.front.types import SchemaObject
 
 
 def test_empty(simple_parse):
-    simple_parse(
-        {'type': 'object', 'properties': {}, 'additionalProperties': False},
-    )
+    simple_parse({
+        'type': 'object',
+        'properties': {},
+        'additionalProperties': False,
+    })
 
 
 def test_very_empty(simple_parse):
@@ -16,32 +18,26 @@ def test_very_empty(simple_parse):
 
 def test_unknown_required(simple_parse):
     try:
-        simple_parse(
-            {
-                'type': 'object',
-                'properties': {},
-                'additionalProperties': False,
-                'required': ['unknown'],
-            },
-        )
+        simple_parse({
+            'type': 'object',
+            'properties': {},
+            'additionalProperties': False,
+            'required': ['unknown'],
+        })
         assert False
     except ParserError as exc:
         assert exc.infile_path == '/definitions/type/required'
-        assert exc.msg == (
-            'Field "unknown" is set in "required", but missing in "properties"'
-        )
+        assert exc.msg == ('Field "unknown" is set in "required", but missing in "properties"')
 
 
 def test_unknown_fields(simple_parse):
     try:
-        simple_parse(
-            {
-                'type': 'object',
-                'unknown_field': 'x',
-                'properties': {},
-                'additionalProperties': False,
-            },
-        )
+        simple_parse({
+            'type': 'object',
+            'unknown_field': 'x',
+            'properties': {},
+            'additionalProperties': False,
+        })
         assert False
     except ParserError as exc:
         assert exc.infile_path == '/definitions/type/unknown_field'
@@ -50,13 +46,11 @@ def test_unknown_fields(simple_parse):
 
 def test_error_in_property(simple_parse):
     try:
-        simple_parse(
-            {
-                'type': 'object',
-                'properties': {'field': {'type': 'xxxx'}},
-                'additionalProperties': False,
-            },
-        )
+        simple_parse({
+            'type': 'object',
+            'properties': {'field': {'type': 'xxxx'}},
+            'additionalProperties': False,
+        })
         assert False
     except ParserError as exc:
         assert exc.infile_path == '/definitions/type/properties/field/type'
@@ -65,13 +59,11 @@ def test_error_in_property(simple_parse):
 
 def test_error_in_extra(simple_parse):
     try:
-        simple_parse(
-            {
-                'type': 'object',
-                'properties': {},
-                'additionalProperties': {'type': 'xxx'},
-            },
-        )
+        simple_parse({
+            'type': 'object',
+            'properties': {},
+            'additionalProperties': {'type': 'xxx'},
+        })
         assert False
     except ParserError as exc:
         assert exc.infile_path == '/definitions/type/additionalProperties/type'
@@ -79,15 +71,14 @@ def test_error_in_extra(simple_parse):
 
 
 def test_property_and_additional(simple_parse):
-    data = simple_parse(
-        {
-            'type': 'object',
-            'properties': {'field': {'type': 'integer'}},
-            'additionalProperties': {'type': 'boolean'},
-        },
-    )
+    data = simple_parse({
+        'type': 'object',
+        'properties': {'field': {'type': 'integer'}},
+        'additionalProperties': {'type': 'boolean'},
+    })
     assert data.schemas == {
         'vfull#/definitions/type': SchemaObject(
-            properties={'field': Integer()}, additionalProperties=Boolean(),
+            properties={'field': Integer()},
+            additionalProperties=Boolean(),
         ),
     }

@@ -1,14 +1,15 @@
 include_guard(GLOBAL)
 
 if(userver_kafka_FOUND)
-  return()
+    return()
 endif()
 
-find_package(userver REQUIRED COMPONENTS
-    core
-)
+find_package(userver REQUIRED COMPONENTS core)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/..")
-include("${USERVER_CMAKE_DIR}/FindRdKafka.cmake")
+if(USERVER_CONAN)
+    find_package(RdKafka REQUIRED)
+else()
+    include("${USERVER_CMAKE_DIR}/SetupRdKafka.cmake")
+endif()
 
 set(userver_kafka_FOUND TRUE)

@@ -40,11 +40,11 @@ def sort_dfs(nodes: Set[str], edges: Dict[str, List[str]]) -> List[str]:
 
 class RefResolver:
     def sort_schemas(
-            self,
-            schemas: types.ParsedSchemas,
-            external_schemas: types.ResolvedSchemas = types.ResolvedSchemas(
-                schemas={},
-            ),
+        self,
+        schemas: types.ParsedSchemas,
+        external_schemas: types.ResolvedSchemas = types.ResolvedSchemas(
+            schemas={},
+        ),
     ) -> types.ResolvedSchemas:
         """
         Sorts already parsed schemas. It is required for e.g. C++ translator.
@@ -54,7 +54,8 @@ class RefResolver:
         name = ''
 
         def visitor(
-                local_schema: types.Schema, parent: Optional[types.Schema],
+            local_schema: types.Schema,
+            parent: Optional[types.Schema],
         ) -> None:
             if not isinstance(local_schema, types.Ref):
                 return
@@ -73,18 +74,11 @@ class RefResolver:
                         cur_node = ref
                         is_external = True
                     else:
-                        known = '\n'.join(
-                            [f'- {v}' for v in schemas.schemas.keys()],
-                        )
-                        known += '\n'.join(
-                            [
-                                f'- {v}'
-                                for v in external_schemas.schemas.keys()
-                            ],
-                        )
+                        known = '\n'.join([f'- {v}' for v in schemas.schemas.keys()])
+                        if external_schemas.schemas:
+                            known += '\n' + '\n'.join([f'- {v}' for v in external_schemas.schemas.keys()])
                         raise Exception(
-                            f'$ref to unknown type "{cur_node.ref}", '
-                            f'known refs:\n{known}',
+                            f'$ref to unknown type "{cur_node.ref}", known refs:\n{known}',
                         )
                 else:
                     cur_node = schemas.schemas[cur_node.ref]
@@ -118,7 +112,6 @@ class RefResolver:
             )
             if not indirect:
                 if not is_external:
-                    # print(f'add {name} -> {local_schema.ref}')
                     edges[name].append(local_schema.ref)
             else:
                 # skip indirect link
@@ -145,19 +138,22 @@ class RefResolver:
         elif isinstance(data, dict):
             ref = data.get('$ref')
             if (
-                    ref is not None
-                    and 'x-usrv-cpp-indirect' not in data
-                    and 'x-taxi-cpp-indirect' not in data
-                    and not inside_items
+                ref is not None
+                and 'x-usrv-cpp-indirect' not in data
+                and 'x-taxi-cpp-indirect' not in data
+                and not inside_items
             ):
                 yield ref
             for key, value in data.items():
                 yield from cls._search_refs(
-                    value, inside_items=(key == 'items'),
+                    value,
+                    inside_items=(key == 'items'),
                 )
 
     def sort_json_types(
-            self, types: Dict[str, Any], erase_path_prefix: str = '',
+        self,
+        types: Dict[str, Any],
+        erase_path_prefix: str = '',
     ) -> Dict[str, Any]:
         """
         Sorts not-yet-parsed schemas. Required for correct allOf/oneOf parsing.

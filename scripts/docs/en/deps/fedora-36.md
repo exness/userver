@@ -2,11 +2,13 @@ boost-devel
 c-ares-devel
 ccache
 cctz-devel
+clang-tools-extra
 cmake
 cryptopp-devel
 curl-devel
 fmt-devel
 g++
+gdb
 google-benchmark-devel
 grpc-devel
 grpc-plugins
@@ -24,10 +26,13 @@ ninja
 openldap-devel
 openssl-devel
 postgresql-server
+pugixml
 python3-devel
 python3-jinja2
 python3-protobuf
 python3-voluptuous
+re2
 redis
+unixODBC-devel
 yaml-cpp-devel
 zlib-devel

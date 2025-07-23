@@ -11,32 +11,6 @@
 
 #include <userver/chaotic/type_bundle_hpp.hpp>
 
-{% macro generate_impl(name, type) %}
-    {# handle subtypes #}
-    {%- for schema in type.subtypes() -%}
-        {{ generate_impl(
-                schema.cpp_global_name(),
-                schema
-           )
-        }}
-    {% endfor %}
-
-    {% if type.get_py_type() == 'CppVariantWithDiscriminator' %}
-        [[maybe_unused]] static constexpr {{ userver }}::chaotic::OneOfSettings k{{ type.cpp_global_struct_field_name() }}_Settings = {
-            "{{ type.property_name }}",
-            {{ userver }}::utils::TrivialSet(
-                [](auto selector) {
-		    return selector().template Type<std::string>()
-                        {%- for var_name in type.variants -%}
-                            .Case("{{ var_name }}")
-                        {%- endfor -%}
-                        ;
-                }
-            )
-        };
-    {% endif %}
-{% endmacro %}
-
 {% macro generate_type(name, type) %}
     {% if type.get_py_type() == 'CppStruct' %}
         {{ type.cpp_comment() }}
@@ -70,14 +44,14 @@
     {% elif type.get_py_type() == 'CppIntEnum' %}
         enum class {{ type.cpp_local_name() }} {
         {%- for item in type.enums %}
-            k{{ item }} = {{ item }},
-        {%- endfor -%}
+            k{{ item.cpp_name }} = {{ item.value }}, // {{ item.raw_name }}
+        {%- endfor %}
         };
 
         static constexpr {{ type.cpp_local_name() }} k{{ type.cpp_local_name() }}Values [] = {
         {%- for item in type.enums %}
-            {{ type.cpp_local_name() }}::k{{ item }},
-        {%- endfor -%}
+            {{ type.cpp_local_name() }}::k{{ item.cpp_name }},
+        {%- endfor %}
         };
     {% elif type.get_py_type() == 'CppStringEnum' %}
         enum class {{ type.cpp_local_name() }} {
@@ -115,7 +89,7 @@
                     {%- if not loop.last %} , {% endif -%}
                 {%- endfor -%}
                 ) :
-                    {%- for num, parent in enumerate(type.parents) -%}
+                    {% for num, parent in enumerate(type.parents) -%}
                         {{ parent.cpp_global_name() }}(
                             std::move(a{{ num }})
                         )
@@ -137,6 +111,34 @@
             {%- endfor -%}
         >;
     {% elif type.get_py_type() == 'CppVariantWithDiscriminator' %}
+        {% if type.is_str_discriminator() %}
+            [[maybe_unused]] static constexpr {{ userver }}::chaotic::OneOfStringSettings k{{ type.cpp_local_name() }}_Settings = {
+                "{{ type.property_name }}",
+                {{ userver }}::utils::TrivialSet(
+                    [](auto selector) {
+                return selector().template Type<std::string_view>()
+                            {%- for var_name in type.variants -%}
+                                .Case("{{ var_name }}")
+                            {%- endfor -%}
+                            ;
+                    }
+                )
+            };
+        {% elif type.is_int_discriminator() %}
+            [[maybe_unused]] static constexpr {{ userver }}::chaotic::OneOfIntegerSettings k{{ type.cpp_local_name() }}_Settings = {
+                "{{ type.property_name }}",
+                {{ userver }}::utils::TrivialSet(
+                    [](auto selector) {
+                return selector().template Type<int64_t>()
+                            {%- for var_name in type.variants -%}
+                                .Case({{ var_name }})
+                            {%- endfor -%}
+                            ;
+                    }
+                )
+            };
+        {% endif %}
+
         using {{ type.cpp_local_name() }} = std::variant<
             {%- for variant in type.variants.values() -%}
                 {{ variant.cpp_global_name() }}
@@ -224,7 +226,7 @@
     {% endfor %}
 
     {% if type.need_dom_parser() %}
-        {{ type.cpp_name_wo_namespace() }} Parse({{ format }}::Value json,
+        {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} Parse({{ format }}::Value json,
                          {{ userver }}::formats::parse::To<{{ name }}>);
     {% endif %}
 {% endmacro %}
@@ -241,11 +243,11 @@
 
     {% if type.need_dom_parser() %}
         {% if type.get_py_type() == 'CppStringEnum' %}
-            {{ type.cpp_name_wo_namespace() }} FromString(std::string_view value,
+            {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} FromString(std::string_view value,
                             {{ userver }}::formats::parse::To<{{ name }}>);
 
             {# backward compatibility #}
-            {{ type.cpp_name_wo_namespace() }} Parse(std::string_view value,
+            {{ type.raw_cpp_type.in_scope(get_current_namespace()) }} Parse(std::string_view value,
                             {{ userver }}::formats::parse::To<{{ name }}>);
         {% endif %}
     {% endif %}
@@ -279,18 +281,36 @@
         }}
     {% endfor %}
 
-    {% if type.get_py_type() == 'CppStringEnum' %}
+    {% if type.get_py_type() in ['CppIntEnum', 'CppStringEnum'] %}
         std::string ToString({{ name }} value);
     {% endif %}
 {% endmacro %}
 
+{% macro generate_fmt_formatter_declaration(name, type)%}
+    {# handle subtypes #}
+    {%- for schema in type.subtypes() -%}
+        {{ generate_fmt_formatter_declaration(
+                schema.cpp_global_name(),
+                schema
+           )
+        }}
+    {% endfor %}
+
+    {% if type.get_py_type() in ('CppIntEnum', 'CppStringEnum') %}
+        template<>
+        struct fmt::formatter<{{name}}> {
+            fmt::format_context::iterator format(const {{name}}&, fmt::format_context&) const;
+
+            constexpr fmt::format_parse_context::iterator parse(fmt::format_parse_context& ctx) {
+                return ctx.begin();
+            }
+        };
+    {% endif %}
+{%endmacro%} 
+
 {% import 'templates/common.jinja' as common %}
 
 {% for name, type in types.items() %}
-    {{ common.switch_namespace(cpp_namespace(name) + '::impl') }}
-
-    {{ generate_impl(name, type) }}
-
     {{ common.switch_namespace(cpp_namespace(name)) }}
 
     {{ generate_type(name, type) }}
@@ -318,3 +338,7 @@
 {% endfor %}
 
 {{ common.switch_namespace('') }}
+
+{% for name, type in types.items() %}
+    {{generate_fmt_formatter_declaration(name, type)}}
+{% endfor %}
