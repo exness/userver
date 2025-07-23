@@ -101,9 +101,12 @@ void SslCtx::SetServerName(std::string_view server_name) {
 }
 
 void SslCtx::SetCertificate(const crypto::Certificate& cert) {
-    if (cert && 1 != SSL_CTX_use_certificate(impl_->Get(), cert.GetNative())) {
+    if (1 != SSL_CTX_use_certificate(impl_->Get(), cert.GetNative()))
+    {
         throw CryptoException(crypto::FormatSslError("SSL_CTX_use_certificate failed"));
     }
+
+    LOG_INFO() << "Loaded server cert: subject=" << cert.GetSubject();
 }
 
 void SslCtx::SetCertificates(const crypto::CertificatesChain& cert_chain) {
@@ -123,6 +126,8 @@ void SslCtx::SetCertificates(const crypto::CertificatesChain& cert_chain) {
                 throw CryptoException(crypto::FormatSslError("SSL_CTX_add_extra_chain_cert failed"));
             }
 
+            LOG_INFO() << "Loaded extra chain cert: subject=" << it->GetSubject();
+
             // After SSL_CTX_add_extra_chain_cert we should not free the cert
             const auto ret = X509_up_ref(it->GetNative());
             UASSERT(ret == 1);
@@ -131,10 +136,14 @@ void SslCtx::SetCertificates(const crypto::CertificatesChain& cert_chain) {
 }
 
 void SslCtx::SetPrivateKey(const crypto::PrivateKey& key) {
-    if (key) {
-        if (1 != SSL_CTX_use_PrivateKey(impl_->Get(), key.GetNative())) {
-            throw CryptoException(crypto::FormatSslError("SSL_CTX_use_PrivateKey failed"));
-        }
+    if (1 != SSL_CTX_use_PrivateKey(impl_->Get(), key.GetNative())) {
+        throw CryptoException(crypto::FormatSslError("SSL_CTX_use_PrivateKey failed"));
+    }
+
+    LOG_INFO() << "Loaded server private key";
+
+    if (1 != SSL_CTX_check_private_key(impl_->Get())) {
+        throw CryptoException("Private key does not match the certificate public key");
     }
 }
 
