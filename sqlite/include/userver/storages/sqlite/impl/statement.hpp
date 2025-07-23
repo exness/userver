@@ -15,7 +15,7 @@ namespace storages::sqlite::impl {
 
 class Statement final : public StatementBase {
 public:
-    Statement(const NativeHandler& db_handler, const std::string& statement);
+    Statement(const NativeHandler& db_handler, std::string_view statement);
     ~Statement() override;
 
     Statement(const Statement& other) = delete;
@@ -74,7 +74,7 @@ private:
 
     using NativeStatementPtr = std::unique_ptr<sqlite3_stmt, SQLiteStatementDeleter>;
 
-    NativeStatementPtr prepareStatement(const std::string& statement_str);
+    NativeStatementPtr prepareStatement(std::string_view statement_str);
 
     const NativeHandler& db_handler_;
     NativeStatementPtr prepare_statement_;

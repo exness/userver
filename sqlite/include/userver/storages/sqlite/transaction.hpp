@@ -112,7 +112,7 @@ ResultSet Transaction::Execute(const Query& query, const Args&... args) const {
     AssertValid();
     AccountQueryExecute();
     try {
-        auto params_binder = impl::BindHelper::UpdateParamsBindings(query.GetStatement(), *connection_, args...);
+        auto params_binder = impl::BindHelper::UpdateParamsBindings(query, *connection_, args...);
         return DoExecute(params_binder);
     } catch (const std::exception& err) {
         AccountQueryFailed();
@@ -125,7 +125,7 @@ ResultSet Transaction::ExecuteDecompose(const Query& query, const T& row) const 
     AssertValid();
     AccountQueryExecute();
     try {
-        auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query.GetStatement(), *connection_, row);
+        auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query, *connection_, row);
         return DoExecute(params_binder);
     } catch (const std::exception& err) {
         AccountQueryFailed();
@@ -139,7 +139,7 @@ void Transaction::ExecuteMany(const Query& query, const Container& params) const
     AccountQueryExecute();
     for (const auto& row : params) {
         try {
-            auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query.GetStatement(), *connection_, row);
+            auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query, *connection_, row);
             DoExecute(params_binder);
         } catch (const std::exception& err) {
             AccountQueryFailed();
@@ -153,7 +153,7 @@ CursorResultSet<T> Transaction::GetCursor(std::size_t batch_size, const Query& q
     AssertValid();
     AccountQueryExecute();
     try {
-        auto params_binder = impl::BindHelper::UpdateParamsBindings(query.GetStatement(), *connection_, args...);
+        auto params_binder = impl::BindHelper::UpdateParamsBindings(query, *connection_, args...);
         return CursorResultSet<T>{DoExecute(params_binder, connection_), batch_size};
     } catch (const std::exception& err) {
         AccountQueryFailed();

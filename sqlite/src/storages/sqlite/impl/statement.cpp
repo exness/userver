@@ -1,5 +1,6 @@
-#include <string_view>
 #include <userver/storages/sqlite/impl/statement.hpp>
+
+#include <string_view>
 
 #include <fmt/format.h>
 
@@ -7,11 +8,13 @@
 #include <userver/storages/sqlite/impl/sqlite3_include.hpp>
 #include <userver/storages/sqlite/operation_types.hpp>
 
+#include <userver/utils/numeric_cast.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite::impl {
 
-Statement::Statement(const NativeHandler& db_handler, const std::string& statement)
+Statement::Statement(const NativeHandler& db_handler, std::string_view statement)
     : db_handler_{db_handler},
       prepare_statement_(prepareStatement(statement)),
       column_count_(sqlite3_column_count(prepare_statement_.get())) {}
@@ -51,11 +54,15 @@ OperationType Statement::GetOperationType() const noexcept {
     return sqlite3_stmt_readonly(prepare_statement_.get()) ? OperationType::kReadOnly : OperationType::kReadWrite;
 }
 
-Statement::NativeStatementPtr Statement::prepareStatement(const std::string& statement_str) {
+Statement::NativeStatementPtr Statement::prepareStatement(std::string_view statement_str) {
     sqlite3_stmt* statement = nullptr;
     // TODO: It can indirectly triggers I/O?
     const int ret_code = sqlite3_prepare_v2(
-        db_handler_.GetHandle(), statement_str.c_str(), static_cast<int>(statement_str.size()), &statement, nullptr
+        db_handler_.GetHandle(),
+        statement_str.data(),
+        utils::numeric_cast<int>(statement_str.size()),
+        &statement,
+        nullptr
     );
     if (ret_code != SQLITE_OK) {
         throw SQLiteException(

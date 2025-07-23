@@ -47,9 +47,9 @@ const settings::ConnectionSettings& Connection::GetSettings() const noexcept { r
 
 StatementPtr Connection::PrepareStatement(const Query& query) {
     if (settings_.conn_settings.prepared_statements == settings::ConnectionSettings::kNoPreparedStatements) {
-        return std::make_shared<Statement>(db_handler_, query.GetStatement());
+        return std::make_shared<Statement>(db_handler_, query.GetStatementView());
     } else {
-        return statements_cache_.PrepareStatement(query.GetStatement());
+        return statements_cache_.PrepareStatement(query.GetStatementView());
     }
 }
 

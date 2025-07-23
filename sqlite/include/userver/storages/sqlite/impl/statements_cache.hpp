@@ -24,7 +24,7 @@ public:
     StatementsCache& operator=(StatementsCache&&) noexcept = delete;
     StatementsCache& operator=(const StatementsCache&) = delete;
 
-    std::shared_ptr<Statement> PrepareStatement(const std::string& statement);
+    std::shared_ptr<Statement> PrepareStatement(std::string_view statement);
 
 private:
     const NativeHandler& db_handler_;

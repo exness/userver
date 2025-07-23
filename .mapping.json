@@ -4205,7 +4205,6 @@
   "sqlite/src/storages/sqlite/infra/strategy/read_only.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/infra/strategy/read_only.cpp",
   "sqlite/src/storages/sqlite/infra/strategy/read_write.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/infra/strategy/read_write.cpp",
   "sqlite/src/storages/sqlite/options.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/options.cpp",
-  "sqlite/src/storages/sqlite/query.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/query.cpp",
   "sqlite/src/storages/sqlite/result_set.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/result_set.cpp",
   "sqlite/src/storages/sqlite/savepoint.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/savepoint.cpp",
   "sqlite/src/storages/sqlite/tests/common_result_set_test.cpp":"taxi/uservices/userver/sqlite/src/storages/sqlite/tests/common_result_set_test.cpp",

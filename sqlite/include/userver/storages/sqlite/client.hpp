@@ -131,7 +131,7 @@ ResultSet Client::Execute(OperationType operation_type, const Query& query, cons
     auto connection = GetConnection(operation_type);
     AccountQueryExecute(connection);
     try {
-        auto params_binder = impl::BindHelper::UpdateParamsBindings(query.GetStatement(), *connection, args...);
+        auto params_binder = impl::BindHelper::UpdateParamsBindings(query, *connection, args...);
         return DoExecute(params_binder, connection);
     } catch (const std::exception& err) {
         AccountQueryFailed(connection);
@@ -144,7 +144,7 @@ ResultSet Client::ExecuteDecompose(OperationType operation_type, const Query& qu
     auto connection = GetConnection(operation_type);
     AccountQueryExecute(connection);
     try {
-        auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query.GetStatement(), *connection, row);
+        auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query, *connection, row);
         return DoExecute(params_binder, connection);
     } catch (const std::exception& err) {
         AccountQueryFailed(connection);
@@ -158,7 +158,7 @@ void Client::ExecuteMany(OperationType operation_type, const Query& query, const
     for (const auto& row : params) {
         AccountQueryExecute(connection);
         try {
-            auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query.GetStatement(), *connection, row);
+            auto params_binder = impl::BindHelper::UpdateRowAsParamsBindings(query, *connection, row);
             DoExecute(params_binder, connection);
         } catch (const std::exception& err) {
             AccountQueryFailed(connection);
@@ -173,7 +173,7 @@ Client::GetCursor(OperationType operation_type, std::size_t batch_size, const Qu
     auto connection = GetConnection(operation_type);
     AccountQueryExecute(connection);
     try {
-        auto params_binder = impl::BindHelper::UpdateParamsBindings(query.GetStatement(), *connection, args...);
+        auto params_binder = impl::BindHelper::UpdateParamsBindings(query, *connection, args...);
         return CursorResultSet<T>{DoExecute(params_binder, connection), batch_size};
     } catch (const std::exception& err) {
         AccountQueryFailed(connection);

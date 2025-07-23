@@ -2,6 +2,7 @@
 
 #include <userver/storages/sqlite/impl/binder_fwd.hpp>
 #include <userver/storages/sqlite/infra/connection_ptr.hpp>
+#include <userver/storages/sqlite/query.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -9,7 +10,7 @@ namespace storages::sqlite::impl::io {
 
 class ParamsBinderBase {
 public:
-    explicit ParamsBinderBase(const std::string& query, infra::ConnectionPtr& conn);
+    explicit ParamsBinderBase(const Query& query, infra::ConnectionPtr& conn);
 
     ParamsBinderBase(const ParamsBinderBase& other) = delete;
     ParamsBinderBase(ParamsBinderBase&& other) noexcept;
