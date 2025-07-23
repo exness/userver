@@ -108,12 +108,7 @@ public:
 // Parametrized tests fixture
 template <typename ConnectionProvider, typename T>
 class SQLiteParametrizedFixture : public SQLiteCompositeFixture<ConnectionProvider>,
-                                  public ::testing::WithParamInterface<T> {
-public:
-    void SetUp() override { SQLiteFixture::SetUp(); }
-
-    void TearDown() override { SQLiteFixture::TearDown(); }
-};
+                                  public ::testing::WithParamInterface<T> {};
 
 }  // namespace storages::sqlite::tests
 

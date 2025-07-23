@@ -101,26 +101,45 @@ void Statement::Bind(const int index, const double value) {
 
 void Statement::Bind(const int index, const std::string& value) {
     const int ret_code = sqlite3_bind_text(
-        prepare_statement_.get(), index, value.c_str(), static_cast<int>(value.size()), SQLITE_TRANSIENT
+        prepare_statement_.get(),
+        index,
+        value.c_str(),
+        static_cast<int>(value.size()),
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
     );
     CheckCode(ret_code);
 }
 
 void Statement::Bind(const int index, const std::string_view value) {
     const int ret_code = sqlite3_bind_text(
-        prepare_statement_.get(), index, value.data(), static_cast<int>(value.size()), SQLITE_TRANSIENT
+        prepare_statement_.get(),
+        index,
+        value.data(),
+        static_cast<int>(value.size()),
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
     );
     CheckCode(ret_code);
 }
 
 void Statement::Bind(const int index, const char* value, const int size) {
-    const int ret_code = sqlite3_bind_blob(prepare_statement_.get(), index, value, size, SQLITE_TRANSIENT);
+    const int ret_code = sqlite3_bind_blob(
+        prepare_statement_.get(),
+        index,
+        value,
+        size,
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
+    );
     CheckCode(ret_code);
 }
 
 void Statement::Bind(const int index, const std::vector<std::uint8_t>& value) {
-    const int ret_code =
-        sqlite3_bind_blob(prepare_statement_.get(), index, value.data(), value.size(), SQLITE_TRANSIENT);
+    const int ret_code = sqlite3_bind_blob(
+        prepare_statement_.get(),
+        index,
+        value.data(),
+        value.size(),
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
+    );
     CheckCode(ret_code);
 }
 
