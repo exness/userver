@@ -11,6 +11,7 @@
 
 #include <storages/postgres/detail/pg_message_severity.hpp>
 #include <userver/storages/postgres/io/traits.hpp>
+#include <userver/storages/postgres/message.hpp>
 #include <userver/storages/postgres/result_set.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -269,17 +270,20 @@ io::FieldBuffer ResultWrapper::GetFieldBuffer(std::size_t row, std::size_t col) 
 
 std::string ResultWrapper::GetErrorMessage() const {
     const char* msg = PQresultErrorMessage(handle_.get());
-    UASSERT(msg);
-    return {msg};
+    return {msg ? msg : "no error message"};
 }
 
-std::string ResultWrapper::GetPrimaryErrorMessage() const { return GetMessageField(PG_DIAG_MESSAGE_PRIMARY).value(); }
-
-std::optional<std::string> ResultWrapper::GetDetailErrorMessage() const {
-    return GetMessageField(PG_DIAG_MESSAGE_DETAIL);
+std::string ResultWrapper::GetPrimaryErrorMessage() const {
+    return GetMessageField(PG_DIAG_MESSAGE_PRIMARY).value_or(Message::kUnknown);
 }
 
-std::string ResultWrapper::GetMessageSeverityString() const { return GetMessageField(PG_DIAG_SEVERITY).value(); }
+std::string ResultWrapper::GetDetailErrorMessage() const {
+    return GetMessageField(PG_DIAG_MESSAGE_DETAIL).value_or(Message::kUnknown);
+}
+
+std::string ResultWrapper::GetMessageSeverityString() const {
+    return GetMessageField(PG_DIAG_SEVERITY).value_or(Message::kUnknown);
+}
 
 Message::Severity ResultWrapper::GetMessageSeverity() const {
     return Message::SeverityFromString(GetMachineReadableSeverity(handle_.get()));
@@ -289,12 +293,20 @@ std::string ResultWrapper::GetSqlCode() const { return GetMessageField(PG_DIAG_S
 
 SqlState ResultWrapper::GetSqlState() const { return SqlStateFromString(GetSqlCode()); }
 
-std::optional<std::string> ResultWrapper::GetMessageSchema() const { return GetMessageField(PG_DIAG_SCHEMA_NAME); }
-std::optional<std::string> ResultWrapper::GetMessageTable() const { return GetMessageField(PG_DIAG_TABLE_NAME); }
-std::optional<std::string> ResultWrapper::GetMessageColumn() const { return GetMessageField(PG_DIAG_COLUMN_NAME); }
-std::optional<std::string> ResultWrapper::GetMessageDatatype() const { return GetMessageField(PG_DIAG_DATATYPE_NAME); }
-std::optional<std::string> ResultWrapper::GetMessageConstraint() const {
-    return GetMessageField(PG_DIAG_CONSTRAINT_NAME);
+std::string ResultWrapper::GetMessageSchema() const {
+    return GetMessageField(PG_DIAG_SCHEMA_NAME).value_or(Message::kUnknown);
+}
+std::string ResultWrapper::GetMessageTable() const {
+    return GetMessageField(PG_DIAG_TABLE_NAME).value_or(Message::kUnknown);
+}
+std::string ResultWrapper::GetMessageColumn() const {
+    return GetMessageField(PG_DIAG_COLUMN_NAME).value_or(Message::kUnknown);
+}
+std::string ResultWrapper::GetMessageDatatype() const {
+    return GetMessageField(PG_DIAG_DATATYPE_NAME).value_or(Message::kUnknown);
+}
+std::string ResultWrapper::GetMessageConstraint() const {
+    return GetMessageField(PG_DIAG_CONSTRAINT_NAME).value_or(Message::kUnknown);
 }
 
 std::optional<std::string> ResultWrapper::GetMessageField(int fieldcode) const {

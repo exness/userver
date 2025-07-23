@@ -188,11 +188,11 @@ PoolError::PoolError(std::string_view msg, std::string_view db_name)
 PoolError::PoolError(std::string_view msg)
     : RuntimeError::RuntimeError(fmt::format("Postgres ConnectionPool error: {}", msg)) {}
 
-std::optional<std::string> IntegrityConstraintViolation::GetSchema() const { return GetServerMessage().GetSchema(); }
+std::string IntegrityConstraintViolation::GetSchema() const { return GetServerMessage().GetSchema(); }
 
-std::optional<std::string> IntegrityConstraintViolation::GetTable() const { return GetServerMessage().GetTable(); }
+std::string IntegrityConstraintViolation::GetTable() const { return GetServerMessage().GetTable(); }
 
-std::string IntegrityConstraintViolation::GetConstraint() const { return GetServerMessage().GetConstraint().value(); }
+std::string IntegrityConstraintViolation::GetConstraint() const { return GetServerMessage().GetConstraint(); }
 
 AlreadyInTransaction::AlreadyInTransaction() : TransactionError("Connection is already in a transaction block") {}
 

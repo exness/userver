@@ -24,16 +24,16 @@ public:
 
     std::string GetMessage() const;
     std::string GetPrimary() const;
-    std::optional<std::string> GetDetail() const;
+    std::string GetDetail() const;
     Severity GetSeverity() const;
     std::string GetSeverityString() const;
     SqlState GetSqlState() const;
 
-    std::optional<std::string> GetSchema() const;
-    std::optional<std::string> GetTable() const;
-    std::optional<std::string> GetColumn() const;
-    std::optional<std::string> GetDatatype() const;
-    std::optional<std::string> GetConstraint() const;
+    std::string GetSchema() const;
+    std::string GetTable() const;
+    std::string GetColumn() const;
+    std::string GetDatatype() const;
+    std::string GetConstraint() const;
 
     logging::LogExtra GetLogExtra() const;
 
@@ -41,6 +41,9 @@ public:
     void ThrowException() const;
 
     static Severity SeverityFromString(std::string_view);
+
+    /// This constant is returned from Message::Get* functions if the PostgreSQL failed retrieve some info.
+    static constexpr const char* kUnknown = "<unknown>";
 
 private:
     detail::ResultWrapperPtr res_;

@@ -31,7 +31,7 @@ std::string Message::GetMessage() const { return res_->GetErrorMessage(); }
 
 std::string Message::GetPrimary() const { return res_->GetPrimaryErrorMessage(); }
 
-std::optional<std::string> Message::GetDetail() const { return res_->GetDetailErrorMessage(); }
+std::string Message::GetDetail() const { return res_->GetDetailErrorMessage(); }
 
 Message::Severity Message::GetSeverity() const { return res_->GetMessageSeverity(); }
 
@@ -39,11 +39,11 @@ std::string Message::GetSeverityString() const { return res_->GetMessageSeverity
 
 SqlState Message::GetSqlState() const { return res_->GetSqlState(); }
 
-std::optional<std::string> Message::GetSchema() const { return res_->GetMessageSchema(); }
-std::optional<std::string> Message::GetTable() const { return res_->GetMessageTable(); }
-std::optional<std::string> Message::GetColumn() const { return res_->GetMessageColumn(); }
-std::optional<std::string> Message::GetDatatype() const { return res_->GetMessageDatatype(); }
-std::optional<std::string> Message::GetConstraint() const { return res_->GetMessageConstraint(); }
+std::string Message::GetSchema() const { return res_->GetMessageSchema(); }
+std::string Message::GetTable() const { return res_->GetMessageTable(); }
+std::string Message::GetColumn() const { return res_->GetMessageColumn(); }
+std::string Message::GetDatatype() const { return res_->GetMessageDatatype(); }
+std::string Message::GetConstraint() const { return res_->GetMessageConstraint(); }
 
 logging::LogExtra Message::GetLogExtra() const { return res_->GetMessageLogExtra(); }
 
