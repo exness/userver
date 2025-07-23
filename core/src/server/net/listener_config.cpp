@@ -63,11 +63,6 @@ PortConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<PortCo
         config.tls_certificate_authorities.push_back(crypto::Certificate::LoadFromString(contents));
     }
 
-    if (config.tls)
-    {
-        config.InitSslCtx();
-    }
-
     return config;
 }
 
