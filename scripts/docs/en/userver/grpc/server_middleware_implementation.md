@@ -1,10 +1,10 @@
-# gRPC server middleware implementaion
+# gRPC server middleware implementation
 
 ## Two main classes
 
 There are two main interfaces for implementing a middleware:
 1. @ref ugrpc::server::MiddlewareBase. Class that implements the main logic of a middleware
-2. @ref ugrpc::server::SimpleMiddlewareFactoryComponent short-cut for simple cases without static options. 
+2. @ref ugrpc::server::SimpleMiddlewareFactoryComponent short-cut for simple cases without static options.
     * Or @ref ugrpc::server::MiddlewareFactoryComponentBase to declare static options.
 
 ## MiddlewareBase
@@ -168,7 +168,7 @@ Register the middleware component in the component system.
 
 ## MiddlewareFactoryComponent
 
-We use a simple short-cut @ref ugrpc::server::SimpleMiddlewareFactoryComponent in the example above. 
+We use a simple short-cut @ref ugrpc::server::SimpleMiddlewareFactoryComponent in the example above.
 To declare static config options of your middleware see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 ## Exceptions and errors in middlewares
@@ -179,7 +179,7 @@ To fully understand what happens when middlewares hooks fail, you should underst
 If you want to interrupt a Call (RPC) in middlewares, you should use @ref ugrpc::server::MiddlewareCallContext::SetError (see examples above on this page).
 
 If you throw an exception in middlewares hooks, that exception will be translated to `grpc::Status` (by default `grpc::StatusCode::UNKNOWN`) and next hooks won't be called.
-@ref server::handlers::CustomHandlerException is translated to a relevant `grpc::Status`. 
+@ref server::handlers::CustomHandlerException is translated to a relevant `grpc::Status`.
 
 All errors will be logged just like an exception or error status from the user handler:
 
@@ -190,9 +190,9 @@ All errors will be logged just like an exception or error status from the user h
 
 ### Errors and OnCallFinish
 
-@ref ugrpc::server::MiddlewareBase::OnCallFinish will be called **despite of any errors**. 
+@ref ugrpc::server::MiddlewareBase::OnCallFinish will be called **despite of any errors**.
 
-The actual status is passed to `OnCallFinish` hooks. Each `OnCallFinish` hook gets the status from a previous `OnCallFinish` call and can change that by `SetError` (or exception). 
+The actual status is passed to `OnCallFinish` hooks. Each `OnCallFinish` hook gets the status from a previous `OnCallFinish` call and can change that by `SetError` (or exception).
 An error status from a handler will be passed to a first `OnCallFinish` and that hook can change that status, next hooks will get the new status. If all `OnCallFinish` hooks don't change the status, that status will be the final status for a client.
 
 ### The call path example with errors in the pipeline
@@ -211,7 +211,7 @@ for simple cases without static config options of a middleware.
 
 @note In that case, `kName` and `kDependency` (@ref middlewares::MiddlewareDependencyBuilder) must be in a middleware class (as shown above).
 
-If you want to use static config options for your middleware, use @ref ugrpc::server::MiddlewareFactoryComponentBase. 
+If you want to use static config options for your middleware, use @ref ugrpc::server::MiddlewareFactoryComponentBase.
 @see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 To override static config options of a middleware per a server see @ref grpc_middlewares_config_override.

@@ -1,4 +1,3 @@
-# [Static service sample - config hook]
 import pathlib
 
 import pytest
@@ -18,4 +17,3 @@ def static_config_hook(service_source_dir):
         )
 
     return _patch_config
-    # [Static service sample - config hook]

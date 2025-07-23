@@ -117,7 +117,7 @@ To start the service manually run
 
 In `conftest.py` path to the directory with static content should be adjusted:
 
-@snippet samples/static_service/testsuite/conftest.py  Static service sample - config hook
+@include samples/static_service/testsuite/conftest.py
 
 After that,  @ref scripts/docs/en/userver/functional_testing.md "Functional tests" for the service could be
 implemented using the @ref service_client "service_client" fixture from pytest_userver.plugins.core in the

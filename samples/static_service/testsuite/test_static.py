@@ -1,4 +1,4 @@
-# /// Functional test
+# [Functional test]
 import pytest
 
 
@@ -10,7 +10,7 @@ async def test_file(service_client, service_source_dir, path):
     assert response.headers['Expires'] == '600'
     file = service_source_dir.joinpath('public') / 'index.html'
     assert response.content.decode() == file.open().read()
-    # /// Functional test
+    # [Functional test]
 
 
 async def test_file_not_found(service_client):
