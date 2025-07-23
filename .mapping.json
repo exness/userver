@@ -2791,7 +2791,6 @@
   "mysql/src/storages/mysql/infra/topology/standalone.hpp":"taxi/uservices/userver/mysql/src/storages/mysql/infra/topology/standalone.hpp",
   "mysql/src/storages/mysql/infra/topology/topology_base.cpp":"taxi/uservices/userver/mysql/src/storages/mysql/infra/topology/topology_base.cpp",
   "mysql/src/storages/mysql/infra/topology/topology_base.hpp":"taxi/uservices/userver/mysql/src/storages/mysql/infra/topology/topology_base.hpp",
-  "mysql/src/storages/mysql/query.cpp":"taxi/uservices/userver/mysql/src/storages/mysql/query.cpp",
   "mysql/src/storages/mysql/settings/settings.cpp":"taxi/uservices/userver/mysql/src/storages/mysql/settings/settings.cpp",
   "mysql/src/storages/mysql/settings/settings.hpp":"taxi/uservices/userver/mysql/src/storages/mysql/settings/settings.hpp",
   "mysql/src/storages/mysql/statement_result_set.cpp":"taxi/uservices/userver/mysql/src/storages/mysql/statement_result_set.cpp",
