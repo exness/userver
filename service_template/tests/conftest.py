@@ -1,6 +1,3 @@
-import pathlib
-import sys  # grpc template current
-
 import handlers.hello_pb2_grpc as hello_services  # grpc template current
 import pytest
 
