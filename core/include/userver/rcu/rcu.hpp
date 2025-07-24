@@ -42,7 +42,7 @@ struct SnapshotRecord final {
 // SnapshotRecord<T> ahead of time.
 template <typename T>
 struct FreeListHookGetter {
-    auto& operator()(SnapshotRecord<T>& node) const noexcept { return node.free_list_hook; }
+    static auto& GetHook(SnapshotRecord<T>& node) noexcept { return node.free_list_hook; }
 };
 
 template <typename T>
@@ -237,7 +237,7 @@ public:
         while (true) {
             // Lock 'record', which may or may not be 'current_' by the time we got
             // there.
-            lock_ = record->indicator.Lock();
+            lock_ = record->indicator.GetLock();
 
             // seq_cst is required for indicator.Lock in the following case.
             //

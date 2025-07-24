@@ -182,7 +182,7 @@ private:
 
     // 'wait_token_' must be the first field, because its lifetime keeps
     // ServiceData alive during server shutdown.
-    const utils::impl::WaitTokenStorage::Token wait_token_;
+    const utils::impl::WaitTokenStorageLock wait_token_;
 
     MethodData<GrpcppService, CallTraits> method_data_;
 
