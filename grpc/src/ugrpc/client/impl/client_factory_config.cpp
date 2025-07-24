@@ -67,18 +67,8 @@ AuthType Parse(const yaml_config::YamlConfig& value, formats::parse::To<AuthType
 ClientFactoryConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<ClientFactoryConfig>) {
     ClientFactoryConfig config;
     config.auth_type = value["auth-type"].As<AuthType>(AuthType::kInsecure);
-    /// The buffer containing the PEM encoding of the server root certificates. If
-    /// this parameter is empty, the default roots will be used.  The default
-    /// roots can be overridden using the \a GRPC_DEFAULT_SSL_ROOTS_FILE_PATH
-    /// environment variable pointing to a file on the file system containing the
-    /// roots.
     config.pem_root_certs = value["pem-root-certs"].As<std::optional<std::string>>();
-    /// The buffer containing the PEM encoding of the client's private key. This
-    /// parameter can be empty if the client does not have a private key.
     config.pem_private_key = value["pem-private-key"].As<std::optional<std::string>>();
-    /// The buffer containing the PEM encoding of the client's certificate chain.
-    /// This parameter can be empty if the client does not have a certificate
-    /// chain.
     config.pem_cert_chain = value["pem-cert-chain"].As<std::optional<std::string>>();
     config.channel_args = MakeChannelArgs(value["channel-args"]);
     config.default_service_config = value["default-service-config"].As<std::optional<std::string>>();
