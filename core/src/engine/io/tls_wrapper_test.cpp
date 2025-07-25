@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <userver/engine/async.hpp>
+#include <userver/engine/io/exception.hpp>
 #include <userver/engine/io/socket.hpp>
 #include <userver/engine/io/tls_wrapper.hpp>
 #include <userver/engine/single_consumer_event.hpp>
