@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <userver/engine/async.hpp>
+#include <userver/engine/io/exception.hpp>
 #include <userver/engine/io/socket.hpp>
 #include <userver/engine/io/tls_wrapper.hpp>
 #include <userver/engine/single_consumer_event.hpp>
@@ -585,7 +586,7 @@ UTEST_MT(TlsWrapper, CertKeyMismatch, 2) {
 
     EXPECT_THROW(
         static_cast<void>(io::TlsWrapper::StartTlsClient(std::move(client), {}, test_deadline)),
-        userver::engine::io::IoSystemError
+        engine::io::IoSystemError
     );
     server_task.Get();
 }
