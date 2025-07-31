@@ -89,23 +89,23 @@ CertificatesChain LoadCertificatesChainFromString(std::string_view chain) {
 std::string Certificate::GetSubject() const {
     X509* x509 = GetNative();
     if (!x509) {
-        throw std::runtime_error("Invalid certificate");
+        throw KeyParseError(FormatSslError("Invalid certificate"));
     }
 
     X509_NAME* subject_name = X509_get_subject_name(x509);
     if (!subject_name) {
-        throw std::runtime_error("Failed to get subject name from certificate");
+        throw KeyParseError(FormatSslError("Failed to get subject name from certificate"));
     }
 
     BIO* bio = BIO_new(BIO_s_mem());
     if (!bio) {
-        throw std::runtime_error("Failed to create BIO");
+        throw KeyParseError(FormatSslError("Failed to create BIO"));
     }
 
     const int flags = XN_FLAG_RFC2253;
     if (X509_NAME_print_ex(bio, subject_name, 0, flags) < 0) {
         BIO_free(bio);
-        throw std::runtime_error("Failed to print subject name");
+        throw KeyParseError(FormatSslError("Failed to print subject name"));
     }
 
     char* data = nullptr;
