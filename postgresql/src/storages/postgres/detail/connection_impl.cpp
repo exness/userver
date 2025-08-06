@@ -383,8 +383,11 @@ ResultSet ConnectionImpl::ExecuteCommand(
     }
 
     auto deadline = testsuite_pg_ctl_.MakeExecuteDeadline(NetworkTimeout(statement_cmd_ctl));
-    SetStatementTimeout(std::move(statement_cmd_ctl));
-    return ExecuteCommand(query, params, deadline);
+    SetStatementTimeout(statement_cmd_ctl);
+
+    return PreparedStatementsEnabled(statement_cmd_ctl)
+               ? ExecuteCommand(query, params, deadline, logging::Level::kInfo, true)
+               : ExecuteCommandNoPrepare(query, params, deadline);
 }
 
 void ConnectionImpl::Begin(
@@ -700,6 +703,19 @@ TimeoutDuration ConnectionImpl::CurrentNetworkTimeout() const {
     return GetDefaultCommandControl().network_timeout_ms;
 }
 
+bool ConnectionImpl::PreparedStatementsEnabled(OptionalCommandControl cmd_ctl) const {
+    if (!!cmd_ctl &&
+        cmd_ctl->prepared_statements_enabled != CommandControl::PreparedStatementsOptionOverride::kNoOverride) {
+        return cmd_ctl->prepared_statements_enabled == CommandControl::PreparedStatementsOptionOverride::kEnabled;
+    }
+    if (GetDefaultCommandControl().prepared_statements_enabled !=
+        CommandControl::PreparedStatementsOptionOverride::kNoOverride) {
+        return GetDefaultCommandControl().prepared_statements_enabled ==
+               CommandControl::PreparedStatementsOptionOverride::kEnabled;
+    }
+    return ArePreparedStatementsEnabled();
+}
+
 void ConnectionImpl::SetConnectionStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline) {
     timeout = testsuite_pg_ctl_.MakeStatementTimeout(timeout);
     if (IsPipelineActive() && settings_.deadline_propagation_enabled) {
@@ -857,8 +873,15 @@ ResultSet ConnectionImpl::ExecuteCommand(const Query& query, engine::Deadline de
     return ExecuteCommand(query, kNoParams, deadline);
 }
 
-ResultSet ConnectionImpl::ExecuteCommand(const Query& query, const QueryParameters& params, engine::Deadline deadline) {
-    if (settings_.prepared_statements == ConnectionSettings::kNoPreparedStatements) {
+ResultSet ConnectionImpl::ExecuteCommand(
+    const Query& query,
+    const QueryParameters& params,
+    engine::Deadline deadline,
+    logging::Level span_log_level,
+    bool ignore_prepared_statements_setting
+) {
+    if (!ignore_prepared_statements_setting &&
+        settings_.prepared_statements == ConnectionSettings::kNoPreparedStatements) {
         return ExecuteCommandNoPrepare(query, params, deadline);
     }
 
@@ -871,6 +894,8 @@ ResultSet ConnectionImpl::ExecuteCommand(const Query& query, const QueryParamete
     CheckDeadlineReached(deadline);
     const auto network_timeout = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.TimeLeft());
     auto span = MakeQuerySpan(query, {network_timeout, GetStatementTimeout()});
+    span.SetLogLevel(span_log_level);
+
     if (testsuite::AreTestpointsAvailable() && query.GetOptionalNameView()) {
         ReportStatement(*query.GetOptionalNameView());
     }
@@ -978,13 +1003,15 @@ void ConnectionImpl::SendCommandNoPrepare(const Query& query, engine::Deadline d
 void ConnectionImpl::SendCommandNoPrepare(
     const Query& query,
     const QueryParameters& params,
-    engine::Deadline deadline
+    engine::Deadline deadline,
+    logging::Level span_log_level
 ) {
     CheckBusy();
     CheckDeadlineReached(deadline);
     auto span = MakeQuerySpan(
         query, {std::chrono::duration_cast<std::chrono::milliseconds>(deadline.TimeLeft()), GetStatementTimeout()}
     );
+    span.SetLogLevel(span_log_level);
     auto scope = span.CreateScopeTime();
     ++stats_.execute_total;
     conn_wrapper_.SendQuery(query.GetStatementView(), params, scope);
@@ -1002,9 +1029,9 @@ void ConnectionImpl::SetParameter(
     StaticQueryParameters<3> params;
     params.Write(db_types_, name, value, is_transaction_scope);
     if (IsPipelineActive()) {
-        SendCommandNoPrepare(kSetConfigQuery, detail::QueryParameters{params}, deadline);
+        SendCommandNoPrepare(kSetConfigQuery, detail::QueryParameters{params}, deadline, logging::Level::kDebug);
     } else {
-        ExecuteCommand(kSetConfigQuery, detail::QueryParameters{params}, deadline);
+        ExecuteCommand(kSetConfigQuery, detail::QueryParameters{params}, deadline, logging::Level::kDebug);
     }
 }
 

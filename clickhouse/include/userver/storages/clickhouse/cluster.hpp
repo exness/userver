@@ -23,6 +23,7 @@ USERVER_NAMESPACE_BEGIN
 namespace storages::clickhouse {
 
 class ExecutionResult;
+class ParameterStore;
 
 namespace impl {
 struct ClickhouseSettings;
@@ -64,8 +65,17 @@ public:
     ///
     /// It is convinient to keep SQL queries in separate files, see @ref scripts/docs/en/userver/sql_files.md
     /// for more info.
+    ///
+    /// # Example usage:
+    /// @snippet clickhouse/src/storages/tests/escape_chtest.cpp  basic_usage
     template <typename... Args>
     ExecutionResult Execute(OptionalCommandControl, const Query& query, const Args&... args) const;
+
+    /// @overload
+    ExecutionResult Execute(const Query& query, const ParameterStore& params) const;
+
+    /// @overload
+    ExecutionResult Execute(OptionalCommandControl, const Query& query, const ParameterStore& params) const;
 
     /// @brief Insert data at some host of the cluster;
     /// `T` is expected to be a struct of vectors of same length.

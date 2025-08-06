@@ -151,6 +151,8 @@ private:
     TimeoutDuration NetworkTimeout(OptionalCommandControl) const;
     TimeoutDuration CurrentNetworkTimeout() const;
 
+    bool PreparedStatementsEnabled(OptionalCommandControl cmd_ctl) const;
+
     void SetConnectionStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline);
 
     void SetStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline);
@@ -169,7 +171,13 @@ private:
 
     ResultSet ExecuteCommand(const Query& query, engine::Deadline deadline);
 
-    ResultSet ExecuteCommand(const Query& query, const detail::QueryParameters& params, engine::Deadline deadline);
+    ResultSet ExecuteCommand(
+        const Query& query,
+        const detail::QueryParameters& params,
+        engine::Deadline deadline,
+        logging::Level span_log_level = logging::Level::kInfo,
+        bool ignore_prepared_statements_setting = false
+    );
 
     ResultSet ExecuteCommandNoPrepare(const Query& query, engine::Deadline deadline);
 
@@ -177,7 +185,12 @@ private:
 
     void SendCommandNoPrepare(const Query& query, engine::Deadline deadline);
 
-    void SendCommandNoPrepare(const Query& query, const QueryParameters& params, engine::Deadline deadline);
+    void SendCommandNoPrepare(
+        const Query& query,
+        const QueryParameters& params,
+        engine::Deadline deadline,
+        logging::Level span_log_level = logging::Level::kInfo
+    );
 
     void SetParameter(
         std::string_view name,

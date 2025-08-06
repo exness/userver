@@ -3,7 +3,7 @@
 
 import pytest
 
-from testsuite.databases import pgsql
+from testsuite.databases import pgsql  # noqa: F401
 
 
 async def test_basic(service_client):

@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 
 #include <userver/utils/string_literal.hpp>
 #include <userver/utils/strong_typedef.hpp>
@@ -17,9 +18,10 @@ class Span;
 
 namespace storages {
 
-/// @brief Holds a query, its name and logging mode.
+/// @brief Holds a query, its name and logging mode; used by all the SQL databases of userver.
 ///
-/// Prefer using via @ref scripts/docs/en/userver/sql_files.md or use a const variable with `name` specified.
+/// Prefer using via @ref scripts/docs/en/userver/sql_files.md or use a const variable with `name` specified
+/// as NameLiteral.
 ///
 /// @note You may write a query in `.sql` file and generate a header file with Query from it.
 ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
@@ -60,13 +62,14 @@ public:
     Query& operator=(const Query& other) = default;
     Query& operator=(Query&& other) = default;
 
-    /*TODO: constexpr*/ Query(utils::StringLiteral statement, NameLiteral name, LogMode log_mode)
-        : Query(std::string{statement}, Name{std::string{name}}, log_mode) {}
+    /// Constructor that omits dynamic initialization and relies on `statement` and `name` being string literals
+    constexpr Query(utils::StringLiteral statement, NameLiteral name, LogMode log_mode)
+        : data_{StaticStrings{statement, name}}, log_mode_{log_mode} {}
 
     Query(const char* statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
         : Query(std::string{statement}, std::move(name), log_mode) {}
     Query(std::string statement, std::optional<Name> name = std::nullopt, LogMode log_mode = LogMode::kFull)
-        : dynamic_{statement, std::move(name)}, log_mode_(log_mode) {}
+        : data_{DynamicStrings{std::move(statement), std::move(name)}}, log_mode_(log_mode) {}
 
     /// @returns view to the query name that is alive as long as *this is alive
     std::optional<NameView> GetOptionalNameView() const noexcept;
@@ -74,26 +77,24 @@ public:
     /// @returns optional queury name suitable for construction of a new Query
     std::optional<Name> GetOptionalName() const { return std::optional<Name>{GetOptionalNameView()}; }
 
-    /// @deprecated Use GetOptionalName() or GetOptionalNameView()
-    const std::optional<Name>& GetName() const { return dynamic_.name_; }
-
     /// @returns zero terminated view to the statement that is alive as long as *this is alive
     utils::zstring_view GetStatementView() const noexcept;
-
-    /// @deprecated Use GetStatementView()
-    const std::string& Statement() const { return dynamic_.statement_; }
 
     /// @returns logging mode
     LogMode GetLogMode() const noexcept { return log_mode_; }
 
 private:
     struct DynamicStrings {
-        std::string statement_{};
-        std::optional<Name> name_{};
+        std::string statement_;
+        std::optional<Name> name_;
     };
+    struct StaticStrings {
+        utils::StringLiteral statement_;
+        std::optional<NameLiteral> name_;
+    };
+    struct NameViewVisitor;
 
-    DynamicStrings dynamic_{};
-
+    std::variant<StaticStrings, DynamicStrings> data_ = StaticStrings{utils::StringLiteral{""}, std::nullopt};
     LogMode log_mode_ = LogMode::kFull;
 };
 

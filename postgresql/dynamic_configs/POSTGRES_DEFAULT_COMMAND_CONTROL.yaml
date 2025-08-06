@@ -1,5 +1,9 @@
 default: {}
-description: ''
+description: |
+    Dynamic config that controls default network and statement timeouts.
+    Overrides the built-in timeouts from components::Postgres::kDefaultCommandControl,
+    but could be overridden by POSTGRES_HANDLERS_COMMAND_CONTROL,
+    POSTGRES_QUERIES_COMMAND_CONTROL and storages::postgres::CommandControl.
 schema:
     type: object
     additionalProperties: false

@@ -1,5 +1,5 @@
 default: {}
-description: ''
+description: Congestion Control settings for MongoDB
 schema:
     type: object
     additionalProperties: false
@@ -25,3 +25,6 @@ schema:
         min-qps:
             type: integer
             default: 10
+        use-separate-stats:
+            type: boolean
+            default: false

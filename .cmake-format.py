@@ -1,7 +1,7 @@
 # ----------------------------------
 # Options affecting listfile parsing
 # ----------------------------------
-with section('parse'):
+with section('parse'):  # noqa: F821
     # Specify structure for custom cmake functions
     # pargs - positional arguments
     # kwargs - keyword arguments
@@ -85,7 +85,7 @@ with section('parse'):
 # -----------------------------
 # Options affecting formatting.
 # -----------------------------
-with section('format'):
+with section('format'):  # noqa: F821
     # Disable formatting entirely, making cmake-format a no-op
     disable = False
 
