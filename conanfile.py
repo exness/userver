@@ -106,8 +106,9 @@ class UserverConan(ConanFile):
         )
         major_version = re.search(r'set\(USERVER_MAJOR_VERSION (.*)\)', content).group(1).strip()
         minor_version = re.search(r'set\(USERVER_MINOR_VERSION (.*)\)', content).group(1).strip()
+        hotfix_version = 1
 
-        self.version = f'{major_version}.{minor_version}'  # pylint: disable=attribute-defined-outside-init
+        self.version = f'{major_version}.{minor_version}.{hotfix_version}.1'  # pylint: disable=attribute-defined-outside-init
 
     def layout(self):
         cmake_layout(self)
