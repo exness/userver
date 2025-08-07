@@ -340,12 +340,11 @@ public:
         if (!len) return 0;
 
         char* const begin = static_cast<char*>(buf);
-        char* const end = begin + len;
         size_t chunk_size = 0;
 
         bio_data.current_deadline = Deadline::Passed();
 
-        const int io_ret = io_func(ssl.get(), begin, end - begin, &chunk_size);
+        const int io_ret = io_func(ssl.get(), begin, len, &chunk_size);
         if (io_ret == 1) {
             return chunk_size;
         }
@@ -624,17 +623,13 @@ bool TlsWrapper::IsValid() const { return impl_->ssl && !impl_->is_in_shutdown; 
 
 bool TlsWrapper::WaitReadable(Deadline deadline) {
     impl_->CheckAlive();
-    char buf = 0;
-    return impl_->PerformSslIo(
-        &SSL_peek_ex, &buf, 1, impl::TransferMode::kOnce, InterruptAction::kPass, deadline, "WaitReadable"
-    );
+    return impl_->bio_data.socket.WaitReadable(deadline);
 }
 
 bool TlsWrapper::WaitWriteable(Deadline deadline) {
     impl_->CheckAlive();
     return impl_->bio_data.socket.WaitWriteable(deadline);
 }
-
 
 size_t TlsWrapper::RecvSome(void* buf, size_t len, Deadline deadline) {
     impl_->CheckAlive();

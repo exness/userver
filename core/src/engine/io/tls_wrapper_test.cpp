@@ -831,9 +831,8 @@ UTEST(TlsWrapper, RecvNoblock) {
     auto tls_client = io::TlsWrapper::StartTlsClient(std::move(client), {}, test_deadline);
 
     char c = 0;
-    std::optional<size_t> read_bytes = tls_client.RecvAll(&c, 1, test_deadline);
-    EXPECT_TRUE(read_bytes.has_value());
-    EXPECT_EQ(1, read_bytes.value());
+    size_t read_bytes = tls_client.RecvAll(&c, 1, test_deadline);
+    EXPECT_EQ(1, read_bytes);
     EXPECT_EQ('1', c);
 
     EXPECT_EQ(1, tls_client.SendAll("2", 1, test_deadline));

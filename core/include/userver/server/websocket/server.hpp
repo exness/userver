@@ -72,6 +72,9 @@ public:
 
     virtual ~WebSocketConnection();
 
+    /// Suspends current task until the stream has data available.
+    [[nodiscard]] virtual bool WaitReadable(engine::Deadline) = 0;
+
     /// @brief Read a message from websocket, handling pings under the hood.
     /// @param message input message
     /// @throws engine::io::IoException in case of socket errors

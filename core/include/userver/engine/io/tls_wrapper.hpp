@@ -94,7 +94,7 @@ public:
     /// @brief Receives up to len bytes from the stream
     /// @returns
     /// - nullopt on data absence
-    /// - optional{0} if socket is closed by peer.
+    /// - optional{0} if socket is closed by peer or len is 0
     /// - optional{data_bytes_available} otherwise,
     ///    1 <= data_bytes_available <= len
     [[nodiscard]] std::optional<size_t> ReadNoblock(void* buf, size_t len) override {
