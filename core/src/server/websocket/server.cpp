@@ -184,6 +184,16 @@ public:
         }
     }
 
+    bool WaitReadable(engine::Deadline deadline) override {
+        UASSERT(io);
+        return io->GetReadableBase().WaitReadable(deadline);
+    }
+
+    bool WaitWriteable(engine::Deadline deadline) override {
+        UASSERT(io);
+        return io->GetWritableBase().WaitWriteable(deadline);
+    }
+
     void Recv(Message& msg) override {
         const auto ok = RecvImpl(msg, /*do_not_wait_for_message_header*/ false);
         UASSERT(ok);

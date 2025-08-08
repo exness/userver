@@ -330,6 +330,45 @@ public:
     }
 
     template <typename SslIoFunc>
+    std::optional<size_t> PerformSslIoOptional(
+        SslIoFunc&& io_func,
+        void* buf,
+        size_t len,
+        const char* context
+    ) {
+        UASSERT(ssl);
+        if (!len) return 0;
+
+        char* const begin = static_cast<char*>(buf);
+        size_t chunk_size = 0;
+
+        bio_data.current_deadline = Deadline::Passed();
+
+        const int io_ret = io_func(ssl.get(), begin, len, &chunk_size);
+        if (io_ret == 1) {
+            return chunk_size;
+        }
+
+        const int ssl_error = SSL_get_error(ssl.get(), io_ret);
+        switch (ssl_error) {
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                return std::nullopt;
+
+            case SSL_ERROR_ZERO_RETURN:
+                return 0;
+
+            case SSL_ERROR_SYSCALL:
+            case SSL_ERROR_SSL:
+                ssl.reset();
+            [[fallthrough]];
+
+            default:
+                throw TlsException(crypto::FormatSslError(std::string{context} + " failed"));
+        }
+    }
+
+    template <typename SslIoFunc>
     size_t PerformSslIo(
         SslIoFunc&& io_func,
         void* buf,
@@ -584,10 +623,7 @@ bool TlsWrapper::IsValid() const { return impl_->ssl && !impl_->is_in_shutdown; 
 
 bool TlsWrapper::WaitReadable(Deadline deadline) {
     impl_->CheckAlive();
-    char buf = 0;
-    return impl_->PerformSslIo(
-        &SSL_peek_ex, &buf, 1, impl::TransferMode::kOnce, InterruptAction::kPass, deadline, "WaitReadable"
-    );
+    return impl_->bio_data.socket.WaitReadable(deadline);
 }
 
 bool TlsWrapper::WaitWriteable(Deadline deadline) {
@@ -606,6 +642,13 @@ size_t TlsWrapper::RecvAll(void* buf, size_t len, Deadline deadline) {
     impl_->CheckAlive();
     return impl_->PerformSslIo(
         &SSL_read_ex, buf, len, impl::TransferMode::kWhole, InterruptAction::kPass, deadline, "RecvAll"
+    );
+}
+
+std::optional<size_t> TlsWrapper::RecvNoblock(void* buf, size_t len) {
+    impl_->CheckAlive();
+    return impl_->PerformSslIoOptional(
+        &SSL_read_ex, buf, len, "RecvNoblock"
     );
 }
 
