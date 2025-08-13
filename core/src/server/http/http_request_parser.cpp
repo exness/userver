@@ -31,7 +31,7 @@ bool IsWebSocketUpgradeRequest(std::string_view req) {
     if (it == req.end()) {
         return false;
     }
-    while (*it == ' ' && it != req.end()) {
+    while (it != req.end() && (*it == ' ' || *it == '\t')) {
         ++it;
     }
     const auto end = it + kWebsocketUpgradeHeaderValue.size();
