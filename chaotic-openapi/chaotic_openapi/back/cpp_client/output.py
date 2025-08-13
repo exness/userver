@@ -1,4 +1,5 @@
 import collections
+import dataclasses
 import pathlib
 from typing import Dict
 from typing import List
@@ -129,10 +130,11 @@ def extract_includes(name: str, path: pathlib.Path) -> Optional[List[str]]:
             for v in data:
                 visit(v)
 
-    if 'definitions' in content or 'components' in content or 'paths' in content:
+    if content.get('definitions') or content.get('components', {}).get('schemas'):
         visit(content)
         return includes
     else:
+        # No schemas in file, it will generate no .hpp/.cpp
         return None
 
 
@@ -182,7 +184,13 @@ def get_includes(client_name: str, schemas_dir: str) -> Dict[str, List[str]]:
     return output
 
 
-def external_libraries(schemas_dir: str) -> List[str]:
+@dataclasses.dataclass
+class External:
+    libraries: List[str]
+    userver_modules: List[str]
+
+
+def external_libraries(schemas_dir: str) -> External:
     types = set()
 
     def visit(data) -> None:
@@ -203,9 +211,13 @@ def external_libraries(schemas_dir: str) -> List[str]:
             visit(content)
 
     libraries = []
+    userver_modules = []
     for type_ in types:
         library = type_.split('::')[0].replace('_', '-')
         # special namespaces (and unsigned) which are defined in userver/, not in libraries/
         if library not in {'std', 'storages', 'decimal64', 'unsigned'}:
             libraries.append(library)
-    return libraries
+        if type_.startswith('storages::postgres::'):
+            userver_modules.append('postgresql')
+
+    return External(libraries=libraries, userver_modules=userver_modules)

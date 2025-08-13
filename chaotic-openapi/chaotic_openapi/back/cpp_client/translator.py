@@ -63,6 +63,7 @@ class Translator:
             op = types.Operation(
                 method=operation.method.upper(),
                 path=operation.path,
+                operation_id=operation.operationId,
                 description=operation.description,
                 parameters=[self._translate_parameter(parameter) for parameter in operation.parameters],
                 request_bodies=request_bodies,
@@ -84,6 +85,14 @@ class Translator:
             return '{}::{}'.format(
                 self._spec.cpp_namespace,
                 name.split('/')[-1],
+            )
+
+        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/requestBody/schema', name)
+        if match:
+            return '{}::{}::{}::Body'.format(
+                self._spec.cpp_namespace,
+                cpp_names.namespace(match.group(1)),
+                types.map_method(match.group(2)),
             )
 
         match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/requestBody/content/\\[([^\\]]*)\\]/schema', name)

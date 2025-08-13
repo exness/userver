@@ -4,6 +4,7 @@ from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import Union
 
 from chaotic import cpp_names
 from chaotic import error
@@ -64,6 +65,17 @@ class Parameter:
     def __post_init__(self) -> None:
         self._validate_schema(self.cpp_type, is_array_allowed=True)
 
+    # TODO: for handler only
+    def span_value(self) -> str:
+        if self.required:
+            arg = self.cpp_name
+        else:
+            arg = '*' + self.cpp_name
+        if self.cpp_type.cpp_user_name() == 'std::string':
+            return arg
+        else:
+            return f'::fmt::format("{{}}", {arg})'
+
 
 @dataclasses.dataclass
 class Body:
@@ -108,6 +120,7 @@ def map_method(method: str) -> str:
 class Operation:
     method: str
     path: str
+    operation_id: Union[str, None]
 
     description: str = ''
     parameters: List[Parameter] = dataclasses.field(default_factory=list)
@@ -117,9 +130,13 @@ class Operation:
     client_generate: bool = True
 
     def cpp_namespace(self) -> str:
+        if self.operation_id:
+            return cpp_names.namespace(self.operation_id)
         return cpp_names.namespace(self.path) + '::' + map_method(self.method)
 
     def cpp_method_name(self) -> str:
+        if self.operation_id:
+            return self.operation_id
         return cpp_names.camel_case(
             cpp_names.namespace(self.path) + '_' + map_method(self.method),
         )

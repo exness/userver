@@ -19,10 +19,13 @@ class CallState;
 /// @brief gRPC call context
 class CallContext {
 public:
-    CallContext(utils::impl::InternalTag, impl::CallState& state);
+    /// @cond
+    // For internal use only
+    CallContext(utils::impl::InternalTag, impl::CallState& state) noexcept;
+    /// @endcond
 
     /// @returns the `ClientContext` used for this RPC
-    grpc::ClientContext& GetClientContext() noexcept;
+    grpc::ClientContext& GetClientContext();
 
     /// @returns client name
     std::string_view GetClientName() const noexcept;

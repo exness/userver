@@ -59,26 +59,36 @@ CallState::CallState(CallParams&& params, CallKind call_kind)
       queue_(params.queue),
       config_values_(params.config),
       middleware_pipeline_(params.middlewares),
+      testsuite_grpc_(params.testsuite_grpc),
       call_kind_(call_kind) {
     UINVARIANT(!client_name_.empty(), "client name should not be empty");
 
     SetupSpan(span_, call_name_.Get());
-
-    client_context_ = CallOptionsAccessor::CreateClientContext(params.call_options);
-    AddTracingMetadata(*client_context_, GetSpan());
 }
 
 StubHandle& CallState::GetStub() noexcept { return stub_; }
 
-const grpc::ClientContext& CallState::GetClientContext() const noexcept { return *client_context_; }
+void CallState::SetClientContext(std::unique_ptr<grpc::ClientContext> client_context) noexcept {
+    client_context_ = std::move(client_context);
+}
 
-grpc::ClientContext& CallState::GetClientContext() noexcept { return *client_context_; }
+const grpc::ClientContext& CallState::GetClientContext() const noexcept {
+    UASSERT(client_context_);
+    return *client_context_;
+}
+
+grpc::ClientContext& CallState::GetClientContext() noexcept {
+    UASSERT(client_context_);
+    return *client_context_;
+}
 
 grpc::CompletionQueue& CallState::GetQueue() const noexcept { return queue_; }
 
 const RpcConfigValues& CallState::GetConfigValues() const noexcept { return config_values_; }
 
 const MiddlewarePipeline& CallState::GetMiddlewarePipeline() const noexcept { return middleware_pipeline_; }
+
+const testsuite::GrpcControl& CallState::GetTestsuiteControl() const noexcept { return testsuite_grpc_; }
 
 std::string_view CallState::GetCallName() const noexcept { return call_name_.Get(); }
 
@@ -107,30 +117,18 @@ bool CallState::IsDeadlinePropagated() const noexcept { return is_deadline_propa
 
 grpc::Status& CallState::GetStatus() noexcept { return status_; }
 
-UnaryCallState::~UnaryCallState() noexcept { invocation_.reset(); }
+void CallState::Commit() noexcept { committed_.store(true, std::memory_order_release); }
 
-bool UnaryCallState::IsFinishProcessed() const noexcept { return finish_processed_; }
-
-void UnaryCallState::SetFinishProcessed() noexcept {
-    UASSERT(!finish_processed_);
-    finish_processed_ = true;
+grpc::ClientContext& CallState::GetClientContextCommitted() {
+    UINVARIANT(committed_, "Call state should be committed");
+    UINVARIANT(client_context_, "GetClientContext should not be called on cancelled RPC");
+    return *client_context_;
 }
 
-bool UnaryCallState::IsStatusExtracted() const noexcept { return status_extracted_; }
-
-void UnaryCallState::SetStatusExtracted() noexcept {
-    UASSERT(!status_extracted_);
-    status_extracted_ = true;
-}
-
-void UnaryCallState::EmplaceFinishAsyncMethodInvocation() {
-    UASSERT(!invocation_.has_value());
-    invocation_.emplace();
-}
-
-FinishAsyncMethodInvocation& UnaryCallState::GetFinishAsyncMethodInvocation() noexcept {
-    UASSERT(invocation_.has_value());
-    return *invocation_;
+StreamingCallState::StreamingCallState(CallParams&& params, CallKind call_kind)
+    : CallState(std::move(params), call_kind) {
+    SetupClientContext(*this, params.call_options);
+    Commit();
 }
 
 StreamingCallState::~StreamingCallState() noexcept {
@@ -194,6 +192,12 @@ bool IsWriteAvailable(const StreamingCallState& state) noexcept { return !state.
 
 bool IsWriteAndCheckAvailable(const StreamingCallState& state) noexcept {
     return !state.AreWritesFinished() && !state.IsFinished();
+}
+
+void SetupClientContext(CallState& state, const CallOptions& call_options) {
+    auto client_context = CallOptionsAccessor::CreateClientContext(call_options);
+    AddTracingMetadata(*client_context, state.GetSpan());
+    state.SetClientContext(std::move(client_context));
 }
 
 void HandleCallStatistics(CallState& state, const grpc::Status& status) noexcept {

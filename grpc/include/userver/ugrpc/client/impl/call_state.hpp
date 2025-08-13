@@ -11,7 +11,6 @@
 #include <userver/engine/single_waiting_task_mutex.hpp>
 #include <userver/tracing/in_place_span.hpp>
 
-#include <userver/ugrpc/client/impl/async_method_invocation.hpp>
 #include <userver/ugrpc/client/impl/call_kind.hpp>
 #include <userver/ugrpc/client/impl/middleware_pipeline.hpp>
 #include <userver/ugrpc/client/impl/stub_handle.hpp>
@@ -20,6 +19,10 @@
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 
 USERVER_NAMESPACE_BEGIN
+
+namespace ugrpc::client {
+class CallOptions;
+}  // namespace ugrpc::client
 
 namespace ugrpc::client::impl {
 
@@ -42,6 +45,8 @@ public:
 
     StubHandle& GetStub() noexcept;
 
+    void SetClientContext(std::unique_ptr<grpc::ClientContext> client_context) noexcept;
+
     const grpc::ClientContext& GetClientContext() const noexcept;
 
     grpc::ClientContext& GetClientContext() noexcept;
@@ -58,6 +63,8 @@ public:
 
     const MiddlewarePipeline& GetMiddlewarePipeline() const noexcept;
 
+    const testsuite::GrpcControl& GetTestsuiteControl() const noexcept;
+
     CallKind GetCallKind() const noexcept;
 
     void ResetSpan() noexcept;
@@ -69,6 +76,10 @@ public:
     void SetDeadlinePropagated() noexcept;
 
     grpc::Status& GetStatus() noexcept;
+
+    void Commit() noexcept;
+
+    grpc::ClientContext& GetClientContextCommitted();
 
 private:
     StubHandle stub_;
@@ -90,45 +101,18 @@ private:
 
     MiddlewarePipeline middleware_pipeline_;
 
+    const testsuite::GrpcControl& testsuite_grpc_;
+
     CallKind call_kind_{};
 
     grpc::Status status_;
-};
 
-class UnaryCallState final : public CallState {
-public:
-    explicit UnaryCallState(CallParams&& params) : CallState(std::move(params), CallKind::kUnaryCall) {}
-
-    ~UnaryCallState() noexcept;
-
-    UnaryCallState(UnaryCallState&&) noexcept = delete;
-    UnaryCallState& operator=(UnaryCallState&&) noexcept = delete;
-
-    bool IsFinishProcessed() const noexcept;
-    void SetFinishProcessed() noexcept;
-
-    bool IsStatusExtracted() const noexcept;
-    void SetStatusExtracted() noexcept;
-
-    void EmplaceFinishAsyncMethodInvocation();
-
-    FinishAsyncMethodInvocation& GetFinishAsyncMethodInvocation() noexcept;
-
-private:
-    bool finish_processed_{false};
-
-    bool status_extracted_{false};
-
-    // In unary call the call is finished as soon as grpc core
-    // gives us back a response - so for unary call
-    // We use FinishAsyncMethodInvocation that will correctly close all our
-    // tracing::Span objects and account everything in statistics.
-    std::optional<FinishAsyncMethodInvocation> invocation_;
+    std::atomic<bool> committed_{false};
 };
 
 class StreamingCallState final : public CallState {
 public:
-    StreamingCallState(CallParams&& params, CallKind call_kind) : CallState(std::move(params), call_kind) {}
+    StreamingCallState(CallParams&& params, CallKind call_kind);
 
     ~StreamingCallState() noexcept;
 
@@ -191,6 +175,8 @@ bool IsReadAvailable(const StreamingCallState&) noexcept;
 bool IsWriteAvailable(const StreamingCallState&) noexcept;
 
 bool IsWriteAndCheckAvailable(const StreamingCallState&) noexcept;
+
+void SetupClientContext(CallState& state, const CallOptions& call_options);
 
 void HandleCallStatistics(CallState& state, const grpc::Status& status) noexcept;
 
