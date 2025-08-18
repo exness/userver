@@ -2,6 +2,7 @@ import logging
 
 import pytest
 import websockets
+import asyncio
 
 # Disabling redundant logs from third party library
 logger = logging.getLogger('websockets.client')
@@ -120,3 +121,30 @@ async def test_two_but_handler_alt(websocket_client):
             for _ in range(10):
                 msg = await chat1.recv()
                 assert msg == 'A'
+
+
+
+@pytest.mark.asyncio
+async def test_upgrade_header_with_tab_then_reconnect(service_port):
+    reader, writer = await asyncio.open_connection("localhost", service_port)
+
+    # request with tab in Upgrade header
+    bad_request = (
+        "GET /chat HTTP/1.1\r\n"
+        "Sec-WebSocket-Version: 13\r\n"
+        "Sec-WebSocket-Key: fQU/VaAZ3+lpmSjWKevurQ==\r\n"
+        "Connection: Upgrade\r\n"
+        "Upgrade:\twebsocket\r\n"
+        "\r\n"
+    )
+
+    writer.write(bad_request.encode("ascii"))
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+
+    # 2. Check new connection can be established
+    async with websockets.connect(f"ws://localhost:{service_port}/chat") as chat:
+        await chat.send("ping")
+        resp = await chat.recv()
+        assert resp == "ping"
