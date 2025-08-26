@@ -33,6 +33,9 @@ void EndTransaction() noexcept;
 /// @brief Check for active transactions.
 void CheckNoTransactions(utils::impl::SourceLocation location = utils::impl::SourceLocation::Current());
 
+/// @overload
+void CheckNoTransactions(std::string_view location);
+
 /// @brief Disable check for active transactions.
 ///
 /// To conciously call a heavy operation in active transaction,

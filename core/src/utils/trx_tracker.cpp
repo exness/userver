@@ -6,6 +6,7 @@
 #include <userver/formats/json.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/testsuite/testpoint.hpp>
+#include <userver/utils/function_ref.hpp>
 #include <userver/utils/statistics/rate_counter.hpp>
 #include <userver/utils/statistics/writer.hpp>
 
@@ -27,6 +28,27 @@ struct TransactionTrackerStatisticsInternal final {
 engine::TaskLocalVariable<TransactionTracker> transaction_tracker{};
 TransactionTrackerStatisticsInternal transaction_tracker_statistics{};
 
+void CheckNoTransactions(utils::function_ref<std::string()> get_location) {
+    if (!IsEnabled()) {
+        return;
+    }
+
+    auto* tracker = transaction_tracker.GetOptional();
+    if (tracker && !tracker->disabler_count && tracker->trx_count) {
+        const std::string location = get_location();
+        logging::LogExtra log_extra;
+        log_extra.Extend("location", location);
+        LOG_LIMITED_WARNING() << "Long call while having active transactions" << std::move(log_extra);
+        ++transaction_tracker_statistics.triggers;
+
+        TESTPOINT("long_call_in_trx", [&location] {
+            formats::json::ValueBuilder builder;
+            builder["location"] = location;
+            return builder.ExtractValue();
+        }());
+    }
+}
+
 }  // namespace
 
 void StartTransaction() {
@@ -43,23 +65,11 @@ void EndTransaction() noexcept {
 }
 
 void CheckNoTransactions(utils::impl::SourceLocation location) {
-    if (!IsEnabled()) {
-        return;
-    }
+    CheckNoTransactions([&location]() { return utils::impl::ToString(location); });
+}
 
-    auto* tracker = transaction_tracker.GetOptional();
-    if (tracker && !tracker->disabler_count && tracker->trx_count) {
-        logging::LogExtra log_extra;
-        log_extra.Extend("location", utils::impl::ToString(location));
-        LOG_LIMITED_WARNING() << "Long call while having active transactions" << std::move(log_extra);
-        ++transaction_tracker_statistics.triggers;
-
-        TESTPOINT("long_call_in_trx", [&location] {
-            formats::json::ValueBuilder builder;
-            builder["source"] = utils::impl::ToString(location);
-            return builder.ExtractValue();
-        }());
-    }
+void CheckNoTransactions(std::string_view location) {
+    CheckNoTransactions([&location]() { return std::string(location); });
 }
 
 TransactionTrackerStatistics GetStatistics() noexcept {
