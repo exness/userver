@@ -4,11 +4,7 @@ package simple.subdirectory;
 
 option go_package = "a.yandex-team.ru/taxi/uservices/userver/libraries/proto-structs/codegen-tests/proto/simple/subdirectory;simplesubdirectory";
 
-message SubdirStruct {
-    string name = 1;
-}
-
-enum MyEnum {
-  Zero = 0;
-  One = 1;
+enum SeparateEnum {
+  ValZero = 0;
+  ValOne = 1;
 }
