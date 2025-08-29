@@ -40,6 +40,8 @@ _FIELDS_OPTIONS = {
     'yandex.taxi.examples.service.v1.NotCondition.condition': {'should_box': True},
     'yandex.eunomia.control.v1.Difference.base': {'should_box': True},
     'yandex.eunomia.control.v1.Difference.subtract': {'should_box': True},
+    # taxi/schemas/grpc/ddd/business/quality-control
+    'yandex.business.quality_control.v1.models.Entity.ExamState.FutureState.state': {'should_box': True},
 }
 
 
