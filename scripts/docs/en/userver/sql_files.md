@@ -31,8 +31,8 @@ const USERVER_NAMESPACE::storages::Query kSelectValue = {
 };
 @endcode
 
-Each variable is statically initialized (has no dynamic|runtime initializtion), giving a protection against static
-intialization order fiasco when those variables are used.
+Each variable is statically initialized (has no dynamic|runtime initialization), giving a protection against static
+initialization order fiasco when those variables are used.
 
 You may use it as usual by passing to @ref storages::postgres::Cluster::Execute() or @ref storages::clickhouse::Cluster
 for SQL files or @ref ydb::TableClient::ExecuteDataQuery() for YQL files:

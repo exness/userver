@@ -18,7 +18,7 @@ USERVER_NAMESPACE_BEGIN
 /// database transaction, connection will be held for longer and
 /// connection pool will be exhausted. Transaction tracker prevents this
 /// by holding counter of active transactions in TaskLocalVariable
-/// and checking for active transactions in heavy operaions.
+/// and checking for active transactions in heavy operations.
 ///
 /// ## Example usage:
 ///
@@ -90,7 +90,7 @@ void CheckNoTransactions(std::string_view location);
 
 /// @brief Disable check for active transactions.
 ///
-/// To conciously call a heavy operation in active transaction,
+/// To consciously call a heavy operation in active transaction,
 /// check can be disabled by creating an instance of this class.
 /// Checks will be disabled until every instance either has
 /// Reenable() method called or is destroyed.
