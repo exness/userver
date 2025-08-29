@@ -1,6 +1,6 @@
-# External SQL/YQL files
+# Embedding SQL/YQL files via userver_add_sql_library
 
-You may generate SQL queries or YQL queries (for YDB) from external .sql/.yql files.
+You may generate SQL queries or YQL queries (for YDB) from `.sql` / `.yql` files.
 To do this, call the following cmake function in your CMakeLists.txt:
 
 @snippet samples/postgres_service/CMakeLists.txt Postgres service sample - CMakeLists.txt
