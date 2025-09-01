@@ -143,7 +143,7 @@ Changelog news also go to the
   [Konstantin Goncharik](https://github.com/botanegg) for the PR!
 * Allow dynamic selection of response streaming. Many thanks to [Sergei Fedorov](https://github.com/zmij)
   for the PR!
-* Added support for @ref mongo::options::Hint for @ref storages::mongo::operations::Delete,
+* Added support for @ref storages::mongo::options::Hint for @ref storages::mongo::operations::Delete,
   @ref storages::mongo::bulk_ops::Update and @ref  storages::mongo::bulk_ops::Delete.
 * @ref storages::Query now used in ClickHouse, MySQL and SQLite drivers, making it possible to directly use result of
   generation @ref scripts/docs/en/userver/sql_files.md "external SQL/YQL files". storages::Query::Statement() and

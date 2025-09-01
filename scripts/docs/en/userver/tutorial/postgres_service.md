@@ -116,7 +116,7 @@ Note the `dynamic-config.defaults` usage. In
 @ref scripts/docs/en/userver/tutorial/production_service.md "production ready service"
 those values are usually retrieved from remote server, so that they could be
 changed at runtime without any need to restart the service. See
-@ref scripts/docs/en/schemas/dynamic_configs.md for more info.
+@ref scripts/docs/en/dynamic_configs/dynamic_configs.md for more info.
 
 
 ### int main()
