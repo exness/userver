@@ -4,7 +4,6 @@
 
 #include <csignal>
 #include <cstring>
-#include <iostream>
 #include <variant>
 
 #include <fmt/format.h>
@@ -28,6 +27,7 @@
 #include <userver/utils/strerror.hpp>
 #include <userver/utils/string_literal.hpp>
 #include <userver/utils/traceful_exception.hpp>
+#include <userver/utils/trx_tracker.hpp>
 
 #include <components/manager.hpp>
 #include <components/manager_config.hpp>
@@ -186,6 +186,8 @@ void DoRun(
     const ComponentList& component_list,
     RunMode run_mode
 ) {
+    const auto start_time = std::chrono::steady_clock::now();
+
     utils::impl::FinishStaticRegistration();
 
     utils::SignalCatcher signal_catcher{SIGINT, SIGTERM, SIGQUIT, SIGUSR1, SIGUSR2};
@@ -201,6 +203,8 @@ void DoRun(
     utils::impl::UserverExperimentsScope experiments_scope;
     std::optional<impl::Manager> manager;
 
+    const utils::trx_tracker::impl::GlobalEnabler enabler{manager_config.enable_trx_tracker};
+
     try {
         experiments_scope.EnableOnly(manager_config.enabled_experiments);
 
@@ -209,7 +213,7 @@ void DoRun(
             PreheatStacktraceCollector();
         }
 
-        manager.emplace(std::make_unique<ManagerConfig>(std::move(manager_config)), component_list);
+        manager.emplace(std::make_unique<ManagerConfig>(std::move(manager_config)), start_time, component_list);
     } catch (const std::exception& ex) {
         LOG_ERROR() << "Loading failed: " << ex;
         throw;

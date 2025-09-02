@@ -6,6 +6,8 @@
         C++ wrapper for constructing libcurl forms
 */
 
+// NOLINTBEGIN(readability-identifier-naming)
+
 #pragma once
 
 #include <memory>
@@ -20,7 +22,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace curl {
 
-class form {
+class form {  // NOLINT(readability-identifier-naming)
 public:
     form();
     form(const form&) = delete;
@@ -75,3 +77,5 @@ private:
 }  // namespace curl
 
 USERVER_NAMESPACE_END
+
+// NOLINTEND(readability-identifier-naming)

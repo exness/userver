@@ -17,9 +17,10 @@ Telegram support chats: [English-speaking](https://t.me/userver_en) |
 
 ## Source codes and service templates at github
 
-Ready-to-use services templates and the source codes of the framework itself
-are available at the
+Samples and the source codes of the framework itself are available at the
 [userver-framework at github](https://github.com/userver-framework/).
+
+Mirror is available at [the SourceCraft](https://sourcecraft.dev/userver/repos).
 
 
 ## Introduction
@@ -31,6 +32,7 @@ are available at the
 * @ref scripts/docs/en/userver/deploy_env.md
 * @ref scripts/docs/en/userver/development/releases.md
 * @ref scripts/docs/en/userver/roadmap_and_changelog.md
+* @ref scripts/docs/en/userver/distro_maintainers.md
 * @ref scripts/docs/en/userver/faq.md
 
 
@@ -100,6 +102,7 @@ and make sure that it builds and passes tests.
 
 ## Protocols
 * @ref scripts/docs/en/userver/grpc/grpc.md
+    * @ref scripts/docs/en/userver/grpc/timeouts_retries.md
     * Middlewares
         * @ref scripts/docs/en/userver/grpc/server_middlewares.md
             * @ref scripts/docs/en/userver/grpc/server_middleware_implementation.md

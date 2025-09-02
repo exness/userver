@@ -5,6 +5,7 @@ from __future__ import annotations
 import abc
 from collections.abc import Sequence
 import dataclasses
+import re
 
 from proto_structs.models import reserved_identifiers
 
@@ -42,28 +43,37 @@ class HasCppNameImpl(HasCppName, abc.ABC):
 
     def full_cpp_name(self) -> str:
         segments = self.full_cpp_name_segments()
-        assert all(segments), 'Empty name segments are not allowed'
+        assert all(segments), f'Empty name segments are not allowed for {self}'
         return '::'.join(segments)
 
     def contextual_cpp_name(self, *, context: HasCppName) -> str:
         return _get_contextual_cpp_name(self, context=context)
 
 
+_GLOBAL_PREFIXES: Sequence[str] = (
+    '::',
+    'std::',
+    'USERVER_NAMESPACE::',
+)
+
+
 def _get_contextual_cpp_name(entity: HasCppName, *, context: HasCppName) -> str:
     node_names = entity.full_cpp_name_segments()
+
     assert node_names, f'Cannot render a reference to an instance of {entity.__class__} by an empty name'
-    assert all(node_names), 'Empty name segments are not allowed'
+    assert all(node_names), f'Empty name segments are not allowed for {entity=}'
 
     if node_names[0] in reserved_identifiers.CPP_KEYWORDS:
         assert len(node_names) == 1
         return node_names[0]
 
-    if node_names[0] == 'std' or node_names[0].startswith('std::'):
+    if node_names[0] == 'std' or any(node_names[0].startswith(prefix) for prefix in _GLOBAL_PREFIXES):
         # Always mention std:: entities by full name, global namespace prefixing is not required.
+        # Do not prefix USERVER_NAMESPACE:: names with global namespace as well (it results in a syntax error).
         return '::'.join(node_names)
 
     context_names = context.full_cpp_name_segments()
-    assert all(context_names), 'Empty name segments are not allowed'
+    assert all(context_names), f'Empty name segments are not allowed for {context=}'
 
     if not context_names:
         # If no context then all we can do is returning a full cpp name.
@@ -104,6 +114,13 @@ def _get_contextual_cpp_name(entity: HasCppName, *, context: HasCppName) -> str:
     return '::'.join(node_names[index:])
 
 
+_ID_REGEX = re.compile(r'[a-zA-Z_][a-zA-Z0-9_]*')
+
+
+def is_valid_id(identifier: str) -> bool:
+    return _ID_REGEX.fullmatch(identifier) is not None
+
+
 def escape_id(identifier: str) -> str:
     """
     Escapes a Protobuf identifier for use in C++.
@@ -130,20 +147,55 @@ def proto_namespace_to_segments(namespace: str) -> Sequence[str]:
 
 @dataclasses.dataclass(frozen=True)
 class TypeName:
-    """Represents the name of a vanilla C++ Protobuf type."""
+    """The qualified name of a C++ type."""
 
     #: Namespace obtained from the Protobuf package.
-    proto_namespace: str
+    namespace_segments: Sequence[str]
     #: Containing types, if any, outer-to-inner, e.g. for `foo::Bar::Baz::Qux` it is `[Bar, Baz]`.
     outer_type_names: Sequence[str]
     #: Name of the type itself without outer types or namespaces.
     short_name: str
 
+    def name_segments(self) -> Sequence[str]:
+        """Returns all segments of the qualified name."""
+        return *self.namespace_segments, *self.outer_type_names, self.short_name
+
 
 def make_escaped_type_name(*, package: str, outer_type_names: Sequence[str], short_name: str) -> TypeName:
     """Escapes a Protobuf full type name into a C++ `TypeName`."""
     return TypeName(
-        proto_namespace=package_to_namespace(package),
+        namespace_segments=proto_namespace_to_segments(package_to_namespace(package)),
         outer_type_names=[escape_id(type_name) for type_name in outer_type_names],
         short_name=escape_id(short_name),
     )
+
+
+def make_structs_type_name(vanilla_type_name: TypeName) -> TypeName:
+    """Makes a name for a proto-structs type from a vanilla type name."""
+    return dataclasses.replace(vanilla_type_name, namespace_segments=(*vanilla_type_name.namespace_segments, 'structs'))
+
+
+def make_nested_type_name(containing_type_name: TypeName, short_name: str) -> TypeName:
+    """Makes a `TypeName` for a nested type."""
+    return TypeName(
+        namespace_segments=containing_type_name.namespace_segments,
+        outer_type_names=(*containing_type_name.outer_type_names, containing_type_name.short_name),
+        short_name=short_name,
+    )
+
+
+def to_pascal_case(name: str) -> str:
+    """Converts a `snake_case` or `camelCase` identifier to `PascalCase`."""
+    return ''.join(part.capitalize() for part in name.split('_'))
+
+
+def to_upper_case(name: str) -> str:
+    """Converts a `snake_case`, `camelCase`, `PascalCase` or `UPPER_CASE` identifier to `UPPER_CASE`."""
+    if name.isupper():
+        return name
+    result = ''
+    for i, char in enumerate(name):
+        if char.isupper() and i > 0:
+            result += '_'
+        result += char
+    return result.upper()

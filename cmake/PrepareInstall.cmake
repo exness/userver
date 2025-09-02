@@ -60,6 +60,7 @@ function(_userver_export_targets)
         CONFIGURATIONS RELEASE
         NAMESPACE userver::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/release
+        COMPONENT universal
     )
     install(
         EXPORT userver-targets_d
@@ -67,6 +68,7 @@ function(_userver_export_targets)
         CONFIGURATIONS DEBUG
         NAMESPACE userver::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/debug
+        COMPONENT universal
     )
 endfunction()
 
@@ -74,6 +76,7 @@ function(_userver_directory_install)
     if(NOT USERVER_INSTALL)
         return()
     endif()
+    set(option)
     set(oneValueArgs COMPONENT DESTINATION PATTERN)
     set(multiValueArgs FILES DIRECTORY PROGRAMS)
     cmake_parse_arguments(ARG "${option}" "${oneValueArgs}" "${multiValueArgs}" "${ARGN}")
@@ -145,3 +148,64 @@ function(_userver_make_install_config)
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver"
     )
 endfunction()
+
+function(_userver_install_component)
+    if(NOT USERVER_INSTALL)
+        return()
+    endif()
+
+    set(oneValueArgs MODULE)
+    set(multiValueArgs DEPENDS)
+    cmake_parse_arguments(ARG "${option}" "${oneValueArgs}" "${multiValueArgs}" "${ARGN}")
+
+    string(TOUPPER "${ARG_MODULE}" MODULE_UPPER)
+    if(CPACK_COMPONENTS_GROUPING STREQUAL ONE_PER_GROUP)
+        if(NOT CPACK_DEBIAN_${MODULE_UPPER}_PACKAGE_DEPENDS)
+	    message(FATAL_ERROR "File with per-component dependencies is missing (component ${ARG_MODULE}). Either use CPACK_COMPONENTS_GROUPING=ALL_COMPONENTS_IN_ONE to build a single all-in-one package, or create dependency file ${USERVER_ROOT_DIR}/scripts/docs/en/deps/${DEPENDENCIES_FILESTEM}/${ARG_MODULE}.")
+        endif()
+    endif()
+
+    execute_process(
+        COMMAND cat "${USERVER_ROOT_DIR}/scripts/docs/en/deps/${DEPENDENCIES_FILESTEM}/${ARG_MODULE}"
+        COMMAND tr "\n" " "
+        COMMAND sed "s/ \\(.\\)/, \\1/g"
+        OUTPUT_VARIABLE MODULE_DEPENDS
+    )
+    file(APPEND "${CMAKE_BINARY_DIR}/cpack.variables.inc" "
+        set(CPACK_DEBIAN_${MODULE_UPPER}_PACKAGE_NAME libuserver-${ARG_MODULE}-dev)
+        set(CPACK_DEBIAN_${MODULE_UPPER}_PACKAGE_CONFLICTS libuserver-all-dev)
+        set(CPACK_COMPONENT_${MODULE_UPPER}_DEPENDS ${ARG_DEPENDS})
+        set(CPACK_DEBIAN_${MODULE_UPPER}_PACKAGE_DEPENDS \"${MODULE_DEPENDS}\")
+    ")
+
+    file(APPEND "${CMAKE_BINARY_DIR}/cpack.inc" "
+        cpack_add_component_group(${ARG_MODULE} EXPANDED)
+        cpack_add_component(${ARG_MODULE} GROUP ${ARG_MODULE} INSTALL_TYPES Full)
+    ")
+endfunction()
+
+function(_userver_prepare_components)
+    file(REMOVE "${CMAKE_BINARY_DIR}/cpack.inc")
+    file(REMOVE "${CMAKE_BINARY_DIR}/cpack.variables.inc")
+
+    # DEB dependencies:
+    execute_process(COMMAND lsb_release -cs OUTPUT_VARIABLE OS_CODENAME)
+    if(OS_CODENAME MATCHES "^bookworm")
+        set(DEPENDENCIES_FILESTEM "debian-12")
+    elseif(OS_CODENAME MATCHES "^bullseye")
+        set(DEPENDENCIES_FILESTEM "debian-11")
+    elseif(OS_CODENAME MATCHES "^noble")
+        set(DEPENDENCIES_FILESTEM "ubuntu-24.04")
+    elseif(OS_CODENAME MATCHES "^jammy")
+        set(DEPENDENCIES_FILESTEM "ubuntu-22.04")
+    elseif(OS_CODENAME MATCHES "^impish")
+        set(DEPENDENCIES_FILESTEM "ubuntu-21.04")
+    elseif(OS_CODENAME MATCHES "^focal")
+        set(DEPENDENCIES_FILESTEM "ubuntu-20.04")
+    elseif(OS_CODENAME MATCHES "^bionic")
+        set(DEPENDENCIES_FILESTEM "ubuntu-18.04")
+    endif()
+    set(DEPENDENCIES_FILESTEM ${DEPENDENCIES_FILESTEM} CACHE INTERNAL "")
+endfunction()
+
+_userver_prepare_components()

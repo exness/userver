@@ -121,13 +121,13 @@ acquire connection + execute query <= network timeout
 ```
 
 See PostgreSQL related
-@ref scripts/docs/en/schemas/dynamic_configs.md for more info.
+@ref scripts/docs/en/dynamic_configs/dynamic_configs.md for more info.
 
 
 ### PostgreSQL: Statement XXXX was canceled
 
 Statement was canceled by the `statement timeout`. See PostgreSQL related
-@ref scripts/docs/en/schemas/dynamic_configs.md for more info.
+@ref scripts/docs/en/dynamic_configs/dynamic_configs.md for more info.
 
 
 ### PostgreSQL: Something is slow
@@ -206,5 +206,5 @@ storages::postgres::TimePointTz.
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/roadmap_and_changelog.md | @ref scripts/docs/en/userver/build/build.md ⇨
+⇦ @ref scripts/docs/en/userver/distro_maintainers.md | @ref scripts/docs/en/userver/build/build.md ⇨
 @htmlonly </div> @endhtmlonly

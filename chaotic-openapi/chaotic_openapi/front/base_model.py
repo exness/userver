@@ -1,12 +1,11 @@
 from typing import Any
-from typing import List
 
 import pydantic
 
 
 class BaseModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra='allow')
-    _model_userver_tags: List[str] = []
+    _model_userver_tags: list[str] = []
 
     def model_post_init(self, context: Any) -> None:
         super().model_post_init(context)
@@ -27,5 +26,9 @@ class BaseModel(pydantic.BaseModel):
             raise Exception(f'Unknown field "{field}"')
 
 
-class XTaxiMiddlewares(BaseModel):
+class XMiddlewares(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra='allow')
+
     tvm: bool = True
+
+    # TODO: validate field set

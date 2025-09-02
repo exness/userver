@@ -101,7 +101,7 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_FEATURE_CRYPTOPP_BLAKE2`      | Provide wrappers for blake2 algorithms of crypto++                                                                | `ON`                                        |
 | `USERVER_FEATURE_PATCH_LIBPQ`          | Apply patches to the libpq (add portals support), requires `libpq.a`                                              | `ON`                                        |
 | `USERVER_FEATURE_CRYPTOPP_BASE64_URL`  | Provide wrappers for Base64 URL decoding and encoding algorithms of crypto++                                      | `ON`                                        |
-| `USERVER_FEATURE_REDIS_TLS`            | SSL/TLS support for Redis driver                                                                                  | `OFF`                                       |
+| `USERVER_FEATURE_REDIS_TLS`            | SSL/TLS support for Redis driver. Use with `"secure_connection": true` secdist option for @ref components::Redis  | `OFF`                                       |
 | `USERVER_FEATURE_STACKTRACE`           | Allow capturing stacktraces using `boost::stacktrace`                                                             | `ON` except for macOS, `*BSD` and old Boost |
 | `USERVER_FEATURE_JEMALLOC`             | Use jemalloc memory allocator                                                                                     | `ON`                                        |
 | `USERVER_FEATURE_DWCAS`                | Require double-width compare-and-swap                                                                             | `ON`                                        |
@@ -174,6 +174,7 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_PIP_USE_SYSTEM_PACKAGES`       | Use system python packages inside venv. Useful for Docker, CI and other controlled environments             | `OFF`                                                       |
 | `USERVER_PIP_OPTIONS`                   | Options for all pip calls. Useful for passing `--no-index` option to prevent network usage                  | (no options)                                                |
 | `USERVER_INSTALL`                       | Build userver for further installation                                                                      | `OFF`                                                       |
+| `USERVER_INSTALL_MULTIPACKAGE`          | Whether create per-component packages                                                       | `OFF`                                                       |
 | `USERVER_CONAN`                         | Build userver using Conan packages                                                                          | `ON` if build is launched from Conan, `OFF` otherwise       |
 | `USERVER_CHAOTIC_FORMAT`                | Whether to format generated code if FORMAT option is missing                                                | `ON`                                                        |
 

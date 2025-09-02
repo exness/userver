@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 import yaml
@@ -23,7 +24,7 @@ def do_main():
 
     # sort
     contents = {}
-    for file in args.file:
+    for file in args.files:
         with open(file) as ifile:
             content = yaml.safe_load(ifile)
         contents[file] = content
@@ -32,14 +33,15 @@ def do_main():
     # parse
     parser = front_parser.Parser(args.name)
     for file, content in sorted_contents:
-        parser.parse_schema(content, file)
+        parser.parse_schema(content, file, os.path.basename(file))
 
     # translate
     spec = translator.Translator(
         parser.service(),
         dynamic_config=args.dynamic_config,
         cpp_namespace=(args.namespace or f'clients::{args.name}'),
-        include_dirs=[],
+        include_dirs=args.include_dirs or [],
+        middleware_plugins=[],
     ).spec()
 
     # render
@@ -67,7 +69,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        'file',
+        '-I',
+        '--include-dir',
+        dest='include_dirs',
+        action='append',
+        help='Path to search for include files for x-usrv-cpp-type',
+    )
+    parser.add_argument(
+        'files',
         nargs='+',
         help='openapi/swagger yaml/json schemas',
     )

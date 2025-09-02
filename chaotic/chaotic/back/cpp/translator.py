@@ -4,27 +4,25 @@ import os
 import pathlib
 import re
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import NoReturn
 from typing import Optional
-from typing import Set
 
 from chaotic import cpp_names
 from chaotic import error
 from chaotic.back.cpp import type_name
 from chaotic.back.cpp import types as cpp_types
+from chaotic.front import ref
 from chaotic.front import types
 
 
 @dataclasses.dataclass
 class GeneratorConfig:
     # vfull -> namespace
-    namespaces: Dict[str, str]
+    namespaces: dict[str, str]
     # infile_path -> cpp type
     infile_to_name_func: Callable
     # type: ignore
-    include_dirs: Optional[List[str]] = dataclasses.field(
+    include_dirs: Optional[list[str]] = dataclasses.field(
         # type: ignore
         default_factory=list,
     )
@@ -34,11 +32,11 @@ class GeneratorConfig:
 
 @dataclasses.dataclass
 class GeneratorState:
-    types: Dict[str, cpp_types.CppType]
-    refs: Dict[types.Schema, str]  # type: ignore
-    ref_objects: List[cpp_types.CppRef]
-    external_types: Dict[types.Schema, cpp_types.CppType]  # type: ignore
-    seen_includes: Set[str]
+    types: dict[str, cpp_types.CppType]
+    refs: dict[types.Schema, str]  # type: ignore
+    ref_objects: list[cpp_types.CppRef]
+    external_types: dict[types.Schema, cpp_types.CppType]  # type: ignore
+    seen_includes: set[str]
 
 
 NON_NAME_SYMBOL_RE = re.compile('[^_0-9a-zA-Z]')
@@ -47,11 +45,11 @@ SPLIT_WORDS_RE = re.compile(r'[A-Z]+(?=[A-Z][a-z0-9])|[A-Z][a-z0-9]+|[a-z0-9]+|[
 
 
 class FormatChooser:
-    def __init__(self, types: List[cpp_types.CppType]) -> None:
+    def __init__(self, types: list[cpp_types.CppType]) -> None:
         self.types = types
-        self.parent: Dict[
+        self.parent: dict[
             cpp_types.CppType,
-            List[Optional[cpp_types.CppType]],
+            list[Optional[cpp_types.CppType]],
         ] = collections.defaultdict(list)
 
     def check_for_json_onlyness(self) -> None:
@@ -117,8 +115,8 @@ class Generator:
     def generate_types(
         self,
         schemas: types.ResolvedSchemas,
-        external_schemas: Dict[str, cpp_types.CppType] = {},
-    ) -> Dict[str, cpp_types.CppType]:
+        external_schemas: dict[str, cpp_types.CppType] = {},
+    ) -> dict[str, cpp_types.CppType]:
         self._state.seen_includes = set()
 
         for cpp_type in external_schemas.values():
@@ -140,7 +138,7 @@ class Generator:
         return self._state.types
 
     @property
-    def seen_includes(self) -> Set[str]:
+    def seen_includes(self) -> set[str]:
         return self._state.seen_includes
 
     def _validate_type(self, type_: cpp_types.CppType) -> None:
@@ -149,11 +147,15 @@ class Generator:
         if type_.has_generated_user_cpp_type():
             return
 
+        user_includes = type_.get_includes_by_cpp_type(type_.user_cpp_type)
+        for user_include in user_includes:
+            self._validate_user_include_exists(type_, user_include)
+
+    def _validate_user_include_exists(self, type_: cpp_types.CppType, user_include: str) -> None:
         if self._config.include_dirs is None:
             # no check at all
             return
 
-        user_include = type_.cpp_type_to_user_include_path(type_.user_cpp_type)
         for include_dir in self._config.include_dirs:
             path = os.path.join(include_dir, user_include)
             if os.path.exists(path):
@@ -217,19 +219,19 @@ class Generator:
         return container
 
     def fixup_refs(self) -> None:
-        for ref in self._state.ref_objects:
-            assert isinstance(ref.json_schema, types.Ref)
-            schema = ref.json_schema.schema
+        for ref_ in self._state.ref_objects:
+            assert isinstance(ref_.json_schema, types.Ref)
+            schema = ref_.json_schema.schema
             name = self._state.refs.get(schema)
             if name:
                 orig_cpp_type = self._state.types[name]
             else:
                 orig_cpp_type = self._state.external_types[schema]
 
-            ref.orig_cpp_type = orig_cpp_type
-            ref.indirect = ref.json_schema.indirect
-            ref.self_ref = ref.json_schema.self_ref
-            ref.cpp_name = name
+            ref_.orig_cpp_type = orig_cpp_type
+            ref_.indirect = ref_.json_schema.indirect
+            ref_.self_ref = ref_.json_schema.self_ref
+            ref_.cpp_name = name
 
     def fixup_formats(self) -> None:
         chooser = FormatChooser(list(self._state.types.values()))
@@ -247,9 +249,9 @@ class Generator:
         return cpp_type
 
     def _gen_fq_cpp_name(self, jsonschema_name: str) -> str:
-        vfile, infile = jsonschema_name.split('#')
-        name = self._config.infile_to_name_func(infile, pathlib.Path(vfile).stem)
-        namespace = self._config.namespaces[vfile]
+        reference = ref.Ref(jsonschema_name)
+        name = self._config.infile_to_name_func(reference.fragment, pathlib.Path(reference.file).stem)
+        namespace = self._config.namespaces[reference.file]
         if namespace:
             return '::' + namespace + '::' + name
         else:
@@ -285,7 +287,7 @@ class Generator:
             if 'x-enum-varnames' in schema.x_properties:
                 enum_names = schema.x_properties['x-enum-varnames']
 
-            emum_items: List[cpp_types.CppIntEnumItem] = []
+            emum_items: list[cpp_types.CppIntEnumItem] = []
 
             def to_camel_case(text: str) -> str:
                 words = SPLIT_RE.findall(text)
@@ -607,8 +609,8 @@ class Generator:
             mapping_values = schema.mapping.as_ints()
 
         for field_value, refs in zip(schema.oneOf, mapping_values):
-            for ref in refs:
-                variants[ref] = self._gen_ref(
+            for ref_ in refs:
+                variants[ref_] = self._gen_ref(
                     type_name.TypeName(''),
                     field_value,
                 )
@@ -698,7 +700,7 @@ class Generator:
         name: type_name.TypeName,
         schema: types.Ref,
     ) -> cpp_types.CppType:
-        ref = cpp_types.CppRef(
+        ref_ = cpp_types.CppRef(
             json_schema=schema,
             nullable=False,
             # stub
@@ -713,8 +715,8 @@ class Generator:
             indirect=False,
             self_ref=False,
         )
-        self._state.ref_objects.append(ref)
-        return ref
+        self._state.ref_objects.append(ref_)
+        return ref_
 
 
 # pylint: disable=protected-access

@@ -4,20 +4,21 @@ import dataclasses
 import os
 import re
 from typing import Any
-from typing import Dict
 from typing import Generator
-from typing import List
 from typing import NoReturn
 from typing import Optional
 from typing import Union
 
 from chaotic import error
+from chaotic.front import ref
 from chaotic.front import types
 
 
 @dataclasses.dataclass(frozen=True)
 class ParserConfig:
     erase_prefix: str
+    # Allow type: file
+    allow_file: bool = False
 
 
 @dataclasses.dataclass
@@ -25,7 +26,7 @@ class ParserState:
     # Current location in file
     infile_path: str
 
-    schemas: Dict[str, types.Schema]
+    schemas: dict[str, types.Schema]
     schema_type: str = 'jsonschema'
 
 
@@ -90,7 +91,7 @@ class SchemaParser:
     def _parse_allof(self, variants: list, input__: dict) -> types.AllOf:
         raw = types.AllOfRaw(**input__)
 
-        variables: List[types.Schema] = []
+        variables: list[types.Schema] = []
         with self._path_enter('allOf') as _:
             for i, variant in enumerate(variants):
                 with self._path_enter(str(i)) as _:
@@ -114,7 +115,10 @@ class SchemaParser:
                     with self._path_enter(str(i)) as _:
                         type_ = self._parse_schema(variant)
                         variables.append(type_)
-                obj = types.OneOfWithoutDiscriminator(oneOf=variables)
+                obj = types.OneOfWithoutDiscriminator(
+                    oneOf=variables,
+                    nullable=raw.nullable,
+                )
                 obj.x_properties = raw.x_properties  # type:ignore
                 return obj
 
@@ -154,7 +158,7 @@ class SchemaParser:
     def _parse_oneof_disc_mapping(
         self,
         user_mapping: dict,
-        variables: List[types.Ref],
+        variables: list[types.Ref],
     ) -> types.DiscMapping:
         with self._path_enter('discriminator/mapping') as _:
             idx_mapping = collections.defaultdict(list)
@@ -175,11 +179,11 @@ class SchemaParser:
 
                     idx_mapping[abs_ref].append(key)
 
-            for ref in variables:
-                assert isinstance(ref, types.Ref)
-                map_value = idx_mapping.pop(ref.ref, None)
+            for ref_ in variables:
+                assert isinstance(ref_, types.Ref)
+                map_value = idx_mapping.pop(ref_.ref, None)
                 if map_value is None:
-                    self._raise(f'Missing $ref in mapping: {ref.ref}')
+                    self._raise(f'Missing $ref in mapping: {ref_.ref}')
 
                 mapping.append(map_value)
 
@@ -199,7 +203,7 @@ class SchemaParser:
 
         discriminator_property = input_['discriminator']['propertyName']
 
-        variables: List[types.Ref] = []
+        variables: list[types.Ref] = []
         with self._path_enter('oneOf') as _:
             for i, variant in enumerate(variants):
                 with self._path_enter(str(i)) as _:
@@ -213,11 +217,12 @@ class SchemaParser:
         if user_mapping is not None:
             mapping = self._parse_oneof_disc_mapping(user_mapping, variables)
         else:
-            mapping = types.DiscMapping(str_values=[[ref.ref.split('/')[-1]] for ref in variables], int_values=None)
+            mapping = types.DiscMapping(str_values=[[ref_.ref.split('/')[-1]] for ref_ in variables], int_values=None)
         obj = types.OneOfWithDiscriminator(
             oneOf=variables,
             discriminator_property=discriminator_property,
             mapping=mapping,
+            nullable=input_.get('nullable', False),
         )
 
         del input_['discriminator']
@@ -233,7 +238,6 @@ class SchemaParser:
         if self._state.infile_path:
             self._state.infile_path += '/'
         self._state.infile_path += path_component
-        # print(f'enter => {self._state.infile_path}')
 
         try:
             yield
@@ -244,7 +248,7 @@ class SchemaParser:
         except ParserError:
             raise
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            self._raise(exc.__repr__())
+            self._raise(str(exc))
         else:
             self._state.infile_path = old
 
@@ -332,30 +336,40 @@ class SchemaParser:
             fmt = None
         return types.String(**input_, format=fmt)
 
+    def _parse_file(self, input_: dict) -> types.String:
+        if not self._config.allow_file:
+            with self._path_enter('type') as _:
+                self._raise('"file" type is not allowed')
+
+        return self._parse_string(input_)
+
     REF_SHRINK_RE = re.compile('/[^/]+/\\.\\./')
     REF_SHRINK_DOT_RE = re.compile('/\\./')
 
     @staticmethod
-    def _normalize_ref(ref: str) -> str:
-        while SchemaParser.REF_SHRINK_RE.search(ref):
-            ref = re.sub(SchemaParser.REF_SHRINK_RE, '/', ref)
-        while SchemaParser.REF_SHRINK_DOT_RE.search(ref):
-            ref = re.sub(SchemaParser.REF_SHRINK_DOT_RE, '/', ref)
-        return ref
+    def _normalize_ref(ref_: str) -> str:
+        ref_ = '/' + ref_  # for regex simplicity
 
-    def _make_abs_ref(self, ref: str) -> str:
+        while SchemaParser.REF_SHRINK_RE.search(ref_):
+            ref_ = re.sub(SchemaParser.REF_SHRINK_RE, '/', ref_)
+        while SchemaParser.REF_SHRINK_DOT_RE.search(ref_):
+            ref_ = re.sub(SchemaParser.REF_SHRINK_DOT_RE, '/', ref_)
+
+        return ref_[1:]
+
+    def _make_abs_ref(self, ref_: str) -> str:
         assert self._state
 
-        if ref.startswith('#'):
+        if not ref.Ref(ref_).file:
             # Local $ref
-            return self.full_vfilepath + ref
+            return self.full_vfilepath + ref_
         else:
             my_ref = '/'.join(self.full_vfilepath.split('/')[:-1])
-            file, infile = ref.split('#')
-            out_file = self._normalize_ref(os.path.join(my_ref, file))
-            return out_file + '#' + infile
+            reference = ref.Ref(ref_)
+            out_file = self._normalize_ref(os.path.join(my_ref, reference.file))
+            return out_file + '#' + reference.fragment
 
-    def _parse_ref(self, ref: str, input_: dict) -> types.Ref:
+    def _parse_ref(self, ref_: str, input_: dict) -> types.Ref:
         assert self._state
 
         fields = set(input_.keys())
@@ -380,7 +394,7 @@ class SchemaParser:
             self._raise(f'Unknown field(s) {list(fields)}')
 
         with self._path_enter('$ref') as _:
-            abs_ref = self._make_abs_ref(ref)
+            abs_ref = self._make_abs_ref(ref_)
             ref_value = types.Ref(
                 ref=abs_ref,
                 indirect=indirect,
@@ -403,6 +417,7 @@ TYPE_PARSERS = {
     'integer': SchemaParser._parse_int,
     'number': SchemaParser._parse_number,
     'string': SchemaParser._parse_string,
+    'file': SchemaParser._parse_file,
     'array': SchemaParser._parse_array,
     'object': SchemaParser._parse_object,
 }

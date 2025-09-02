@@ -1,5 +1,8 @@
+from chaotic_openapi.front import base_model
 from chaotic_openapi.front import model
+import pytest
 
+from chaotic import error
 from chaotic.front import types
 
 
@@ -54,6 +57,7 @@ def test_swagger_body_schema(simple_parser):
                 ],
                 responses={},
                 security=[],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             )
         ],
     )
@@ -118,6 +122,8 @@ def test_swagger_responses(simple_parser):
                         allowEmptyValue=False,
                         style=model.Style.simple,
                         schema=types.String(),
+                        x_cpp_name=None,
+                        x_query_log_mode_hide=False,
                     )
                 },
                 content={
@@ -154,6 +160,8 @@ def test_swagger_responses(simple_parser):
                                 allowEmptyValue=False,
                                 style=model.Style.simple,
                                 schema=types.String(),
+                                x_cpp_name=None,
+                                x_query_log_mode_hide=False,
                             ),
                             'X-Header-Name-2': model.Parameter(
                                 name='X-Header-Name-2',
@@ -165,6 +173,8 @@ def test_swagger_responses(simple_parser):
                                 allowEmptyValue=False,
                                 style=model.Style.simple,
                                 schema=types.Array(items=types.Integer()),
+                                x_cpp_name=None,
+                                x_query_log_mode_hide=False,
                             ),
                         },
                         content={
@@ -181,6 +191,7 @@ def test_swagger_responses(simple_parser):
                     500: model.Ref('<inline>#/responses/500'),
                 },
                 security=[],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             )
         ],
     )
@@ -302,6 +313,7 @@ def test_swagger_securuty(simple_parser):
                         ],
                     ),
                 ],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             ),
             model.Operation(
                 description='',
@@ -335,6 +347,7 @@ def test_swagger_securuty(simple_parser):
                         ],
                     ),
                 ],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             ),
             model.Operation(
                 description='',
@@ -368,6 +381,7 @@ def test_swagger_securuty(simple_parser):
                         ],
                     ),
                 ],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             ),
         ],
     )
@@ -456,6 +470,7 @@ def test_swagger_parameters(simple_parser):
                     model.RequestBody(content_type='application/json', required=True, schema=types.Number()),
                 ],
                 security=[],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
                 parameters=[
                     model.Parameter(
                         name='pamparam2',
@@ -467,6 +482,8 @@ def test_swagger_parameters(simple_parser):
                         examples={},
                         deprecated=False,
                         allowEmptyValue=False,
+                        x_cpp_name=None,
+                        x_query_log_mode_hide=False,
                     ),
                     model.Parameter(
                         name='pamparam2',
@@ -478,8 +495,73 @@ def test_swagger_parameters(simple_parser):
                         examples={},
                         deprecated=False,
                         allowEmptyValue=False,
+                        x_cpp_name=None,
+                        x_query_log_mode_hide=False,
                     ),
                 ],
             )
         ],
+    )
+
+
+@pytest.mark.parametrize(
+    'consumes',
+    [
+        'multipart/form-data',
+        'application/x-www-form-urlencoded',
+    ],
+)
+def test_swagger_file_in_body_ok(simple_parser, consumes):
+    simple_parser(
+        {
+            'swagger': '2.0',
+            'info': {},
+            'paths': {
+                '/': {
+                    'get': {
+                        'consumes': [consumes],
+                        'parameters': [
+                            {
+                                'name': 'pamparam',
+                                'in': 'formData',
+                                'required': True,
+                                'type': 'file',
+                            },
+                        ],
+                        'responses': {},
+                    },
+                },
+            },
+        },
+    )
+
+
+def test_swagger_file_in_body_wrong_consumes(simple_parser):
+    with pytest.raises(error.BaseError) as exc_info:
+        simple_parser(
+            {
+                'swagger': '2.0',
+                'info': {},
+                'paths': {
+                    '/': {
+                        'get': {
+                            'consumes': ['application/json'],
+                            'parameters': [
+                                {
+                                    'name': 'pamparam',
+                                    'in': 'formData',
+                                    'required': True,
+                                    'type': 'file',
+                                },
+                            ],
+                            'responses': {},
+                        },
+                    },
+                },
+            },
+        )
+
+    assert (
+        exc_info.value.msg
+        == '"consumes" must be either "multipart/form-data" or "application/x-www-form-urlencoded" for "type: file"'
     )

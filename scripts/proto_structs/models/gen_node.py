@@ -9,6 +9,7 @@ import dataclasses
 import pathlib
 from typing import Final
 from typing import final
+from typing import Optional
 
 from typing_extensions import override
 
@@ -17,7 +18,7 @@ from proto_structs.models import names
 from proto_structs.models import type_ref
 
 
-class CodegenNode(names.HasCppNameImpl, includes.HasCppIncludes, abc.ABC):
+class CodegenNode(names.HasCppNameImpl, includes.HasCppIncludes, type_ref.HasTypeDependencies, abc.ABC):
     """A C++ entity definition that should be generated. Introduces the concept of child nodes."""
 
     @property
@@ -49,6 +50,11 @@ class CodegenNode(names.HasCppNameImpl, includes.HasCppIncludes, abc.ABC):
         Empty by default, intended to be overridden.
         """
         return ()
+
+    @override
+    def type_dependencies(self) -> Iterable[type_ref.TypeDependency]:
+        for child in self.children:
+            yield from child.type_dependencies()
 
 
 class File(includes.HasCppIncludes):
@@ -126,12 +132,7 @@ class TypeNode(CodegenNode, abc.ABC):
 
     @override
     def full_cpp_name_segments(self) -> Sequence[str]:
-        return (
-            *names.proto_namespace_to_segments(self.name.proto_namespace),
-            'structs',
-            *self.name.outer_type_names,
-            self.name.short_name,
-        )
+        return self.name.name_segments()
 
 
 class StructNode(TypeNode):
@@ -140,11 +141,16 @@ class StructNode(TypeNode):
     def __init__(
         self,
         *,
-        name: names.TypeName,
+        vanilla_name: names.TypeName,
+        proto_file: pathlib.Path,
         nested_types: Sequence[TypeNode],
         fields: Sequence[StructField],
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(name=names.make_structs_type_name(vanilla_name))
+        #: Vanilla message class name.
+        self.vanilla_name: Final[names.TypeName] = vanilla_name
+        #: Source proto file path, as it appears in imports.
+        self.proto_file: Final[pathlib.Path] = proto_file
         #: Nested types definitions.
         self.nested_types: Final[Sequence[TypeNode]] = nested_types
         #: Struct fields.
@@ -165,24 +171,49 @@ class StructNode(TypeNode):
         for field in self.fields:
             yield from field.field_type.collect_includes()
 
+    @property
+    def vanilla_type_reference(self) -> type_ref.VanillaCodegenType:
+        return type_ref.VanillaCodegenType(
+            name=self.vanilla_name, include=str(includes.proto_path_to_vanilla_pb_h(self.proto_file))
+        )
 
-@dataclasses.dataclass(frozen=True)
+    @override
+    def type_dependencies(self) -> Iterable[type_ref.TypeDependency]:
+        for field in self.fields:
+            yield from field.field_type.type_dependencies()
+        for nested in self.nested_types:
+            yield from nested.type_dependencies()
+
+
+@dataclasses.dataclass
 class StructField:
     """A field of a C++ proto struct."""
 
     #: Name of the field.
-    short_name: str
+    short_name: Final[str]
     #: Type of the field.
     field_type: type_ref.TypeReference
-    #: Integer value of the enum case.
-    number: int
+    #: Low-level numeric ID of the field for serialization. Absent for oneof fields.
+    number: Final[Optional[int]]
+    #: If this struct field maps to oneof, lists the fields of the oneof type.
+    oneof_fields: Final[Optional[Sequence[StructField]]]
 
 
 class EnumNode(TypeNode):
     """A C++ proto enum class definition scheduled for generation."""
 
-    def __init__(self, *, name: names.TypeName, values: Sequence[EnumValue]) -> None:
-        super().__init__(name=name)
+    def __init__(
+        self,
+        *,
+        vanilla_name: names.TypeName,
+        proto_file: pathlib.Path,
+        values: Sequence[EnumValue],
+    ) -> None:
+        super().__init__(name=names.make_structs_type_name(vanilla_name))
+        #: Vanilla enum type name.
+        self.vanilla_name: Final[names.TypeName] = vanilla_name
+        #: Source proto file path, as it appears in imports.
+        self.proto_file: Final[pathlib.Path] = proto_file
         #: Enum values (cases).
         self.values: Final[Sequence[EnumValue]] = values
 
@@ -196,6 +227,12 @@ class EnumNode(TypeNode):
         # 'cstdint' and 'limits' are included in bundle_hpp.
         return [includes.BUNDLE_STRUCTS_HPP]
 
+    @property
+    def vanilla_type_reference(self) -> type_ref.VanillaCodegenType:
+        return type_ref.VanillaCodegenType(
+            name=self.vanilla_name, include=str(includes.proto_path_to_vanilla_pb_h(self.proto_file))
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class EnumValue:
@@ -205,3 +242,41 @@ class EnumValue:
     short_name: str
     #: Integer value of the enum case.
     number: int
+
+
+_ONEOF_BASE_CLASS = type_ref.UserverLibraryType(
+    full_cpp_name_wo_userver='proto_structs::Oneof', include='userver/proto-structs/impl/oneof_codegen.hpp'
+)
+
+
+class OneofNode(TypeNode):
+    """A C++ oneof class definition scheduled for generation."""
+
+    def __init__(
+        self,
+        *,
+        name: names.TypeName,
+        fields: Sequence[StructField],
+    ) -> None:
+        super().__init__(name=name)
+        #: Struct fields included in the oneof.
+        self.fields: Final[Sequence[StructField]] = fields
+        #: Reference to Oneof base class template.
+        self.base_class_template: Final[type_ref.TypeReference] = _ONEOF_BASE_CLASS
+
+    @property
+    @override
+    def kind(self) -> str:
+        return 'oneof'
+
+    @override
+    def own_includes(self) -> Iterable[str]:
+        yield from self.base_class_template.collect_includes()
+        for field in self.fields:
+            yield from field.field_type.collect_includes()
+
+    @override
+    def type_dependencies(self) -> Iterable[type_ref.TypeDependency]:
+        yield from super().type_dependencies()
+        for field in self.fields:
+            yield from field.field_type.type_dependencies()

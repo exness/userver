@@ -56,8 +56,8 @@ if(USERVER_BUILD_TESTS AND NOT USERVER_FEATURE_UTEST)
     message(FATAL_ERROR "Running unit tests for userver requires utest, disabling it is meaningless")
 endif()
 
-if(USERVER_INSTALL AND (USERVER_BUILD_TESTS OR USERVER_BUILD_SAMPLES))
-    message(FATAL_ERROR "For USERVER_INSTALL, please turn off USERVER_BUILD_TESTS and USERVER_BUILD_SAMPLES "
+if(USERVER_INSTALL AND USERVER_BUILD_TESTS)
+    message(FATAL_ERROR "For USERVER_INSTALL, please turn off USERVER_BUILD_TESTS "
                         "to avoid accidentally installing them"
     )
 endif()
@@ -175,6 +175,9 @@ include(UserverSetupEnvironment)
 userver_setup_environment()
 
 include(PrepareInstall)
+
+include(GetUserverVersion)
+
 include(UserverModule)
 
 if(USERVER_INSTALL)
@@ -182,7 +185,6 @@ if(USERVER_INSTALL)
 endif()
 
 include(ModuleHelpers)
-include(GetUserverVersion)
 include(AddGoogleTests)
 include(FindPackageRequired)
 include(IncludeWhatYouUse)
@@ -324,10 +326,6 @@ if(USERVER_BUILD_SAMPLES AND USERVER_FEATURE_CORE)
     add_subdirectory(samples)
 endif()
 
-if(USERVER_INSTALL)
-    include(cmake/UserverPack.cmake)
-endif()
-
 if(USERVER_FEATURE_CORE)
     _userver_directory_install(
         COMPONENT core
@@ -367,3 +365,7 @@ endif()
 _userver_add_target_gen_dynamic_configs_docs()
 
 _userver_print_features_list()
+
+if(USERVER_INSTALL)
+    include(cmake/UserverPack.cmake)
+endif()

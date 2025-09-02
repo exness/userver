@@ -1,6 +1,5 @@
 import re
 import typing
-from typing import List
 from typing import Union
 
 from chaotic import cpp_names
@@ -9,7 +8,9 @@ from chaotic.back.cpp import translator as chaotic_translator
 from chaotic.back.cpp import types as cpp_types
 from chaotic.front import ref_resolver
 from chaotic.front import types as chaotic_types
+from chaotic_openapi.back.cpp_client import middleware
 from chaotic_openapi.back.cpp_client import types
+from chaotic_openapi.front import base_model
 from chaotic_openapi.front import model
 
 
@@ -20,7 +21,8 @@ class Translator:
         *,
         cpp_namespace: str,
         dynamic_config: str,
-        include_dirs: List[str],
+        include_dirs: list[str],
+        middleware_plugins: list[middleware.MiddlewarePlugin],
     ) -> None:
         self._spec = types.ClientSpec(
             client_name=service.name,
@@ -30,7 +32,25 @@ class Translator:
             operations=[],
             schemas={},
         )
+        self._include_dirs = include_dirs
+        self._middleware_plugins = middleware_plugins
 
+        try:
+            self.translate(service)
+        except chaotic_error.BaseError:
+            raise
+        except BaseException as exc:
+            raise chaotic_error.BaseError(
+                full_filepath=f'<{service.name}>',
+                infile_path='',
+                schema_type='openapi/swagger',
+                msg=str(exc),
+            )
+
+    def translate(
+        self,
+        service: model.Service,
+    ) -> None:
         # components/schemas
         parsed_schemas = chaotic_types.ParsedSchemas(
             schemas={str(schema.source_location()): schema for schema in service.schemas.values()},
@@ -40,7 +60,7 @@ class Translator:
             chaotic_translator.GeneratorConfig(
                 namespaces={schema.source_location().filepath: '' for schema in service.schemas.values()},
                 infile_to_name_func=self.map_infile_path_to_cpp_type,
-                include_dirs=include_dirs,
+                include_dirs=self._include_dirs,
             )
         )
         self._spec.schemas = gen.generate_types(resolved_schemas)
@@ -68,6 +88,7 @@ class Translator:
                 parameters=[self._translate_parameter(parameter) for parameter in operation.parameters],
                 request_bodies=request_bodies,
                 responses=[self._translate_response(r, status) for status, r in operation.responses.items()],
+                middlewares=self._translate_middlewares(operation.x_middlewares),
             )
             self._spec.operations.append(op)
 
@@ -87,7 +108,7 @@ class Translator:
                 name.split('/')[-1],
             )
 
-        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/requestBody/schema', name)
+        match = re.fullmatch('/paths/\\[([^\\]]*)\\]/([a-zA-Z]*)/requestBody(/schema)?', name)
         if match:
             return '{}::{}::{}::Body'.format(
                 self._spec.cpp_namespace,
@@ -214,6 +235,7 @@ class Translator:
             chaotic_translator.GeneratorConfig(
                 namespaces={schema.source_location().filepath: ''},
                 infile_to_name_func=self.map_infile_path_to_cpp_type,
+                include_dirs=self._include_dirs,
             )
         )
         gen_types = gen.generate_types(
@@ -283,7 +305,9 @@ class Translator:
     def _translate_parameter(self, parameter: model.Parameter) -> types.Parameter:
         in_ = parameter.in_
         in_str = in_[0].title() + in_[1:]
-        cpp_name = cpp_names.cpp_identifier(parameter.name)
+        cpp_name = cpp_names.cpp_identifier(
+            parameter.x_cpp_name or parameter.name,
+        )
 
         if isinstance(parameter.schema, chaotic_types.Array):
             delimiter = {
@@ -318,7 +342,26 @@ class Translator:
             cpp_type=cpp_type,
             parser=parser,
             required=parameter.required,
+            query_log_mode_hide=parameter.x_query_log_mode_hide,
         )
+
+    def _translate_middlewares(self, middlewares: base_model.XMiddlewares) -> list[middleware.Middleware]:
+        extra_members = middlewares.__pydantic_extra__ or {}
+
+        result = []
+        for plugin in self._middleware_plugins:
+            field = plugin.field
+            if field not in extra_members:
+                continue
+
+            mw = plugin.create({field: extra_members[field]})
+            result.append(mw)
+            del extra_members[field]
+
+        if extra_members:
+            raise Exception(f'Unknown member(s) in x-taxi-middlewares: {extra_members}')
+
+        return result
 
     def spec(self) -> types.ClientSpec:
         return self._spec

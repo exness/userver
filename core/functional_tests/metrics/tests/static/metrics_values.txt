@@ -4,7 +4,7 @@ alerts.config_parse_error:	GAUGE	0
 alerts.dynamic_debug_invalid_location:	GAUGE	0
 alerts.log_reopening_error:	GAUGE	0
 
-# Info on cahces
+# Info on caches
 cache.any.documents.parse_failures.v2: cache_name=dynamic-config-client-updater	RATE	0
 cache.any.documents.parse_failures.v2: cache_name=sample-cache	RATE	0
 cache.any.documents.parse_failures: cache_name=dynamic-config-client-updater	GAUGE	0
@@ -115,6 +115,7 @@ engine.coro-pool.stack-usage.max-usage-percent:	GAUGE	0
 engine.ev-threads.cpu-load-percent: ev_thread_name=event-worker_0	GAUGE	0
 engine.ev-threads.cpu-load-percent: ev_thread_name=event-worker_1	GAUGE	0
 engine.load-ms:	GAUGE	0
+engine.pre-load-ms:	GAUGE	0
 engine.task-processors-load-percent: task_processor=fs-task-processor, thread=0	GAUGE	0
 engine.task-processors-load-percent: task_processor=fs-task-processor, thread=1	GAUGE	0
 engine.task-processors-load-percent: task_processor=main-task-processor, thread=0	GAUGE	0

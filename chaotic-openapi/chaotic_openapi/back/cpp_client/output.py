@@ -1,12 +1,13 @@
 import collections
 import dataclasses
+import os
 import pathlib
-from typing import Dict
-from typing import List
 from typing import Optional
 
 import yaml
 
+from chaotic.front import parser as chaotic_parser
+from chaotic.front import ref
 from . import renderer
 
 TYPES_INCLUDES = [
@@ -17,7 +18,11 @@ TYPES_INCLUDES = [
 ]
 
 
-def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[str]]) -> List[str]:
+def filepath_with_stem(fpath: str) -> str:
+    return fpath.rsplit('.', 1)[0]
+
+
+def _get_template_includes(name: str, client_name: str, graph: dict[str, list[str]]) -> list[str]:
     includes = {
         'client.cpp': [
             f'clients/{client_name}/client.hpp',
@@ -78,7 +83,6 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
             'string',
             'variant',
             *[f'clients/{client_name}/{dep}' for dep in graph],
-            # TODO
         ],
         'responses.cpp': [
             f'clients/{client_name}/responses.hpp',
@@ -93,34 +97,29 @@ def _get_template_includes(name: str, client_name: str, graph: Dict[str, List[st
             f'clients/{client_name}/exceptions.hpp',
             'userver/chaotic/openapi/client/exceptions.hpp',
             *[f'clients/{client_name}/{dep}' for dep in graph],
-            # TODO
         ],
     }
     return includes[name]
 
 
-def trim_suffix(string: str, suffix: str) -> Optional[str]:
-    if string.endswith(suffix):
-        return string[: -len(suffix)]
-    return None
-
-
-def extract_includes(name: str, path: pathlib.Path) -> Optional[List[str]]:
+def extract_includes(name: str, path: pathlib.Path, schemas_dir: pathlib.Path) -> Optional[list[str]]:
     with open(path) as ifile:
         content = yaml.safe_load(ifile)
 
-    includes: List[str] = []
+    includes: list[str] = []
+
+    relpath = os.path.relpath(os.path.dirname(path), schemas_dir)
 
     def visit(data) -> None:
         if isinstance(data, dict):
             for v in data.values():
                 visit(v)
             if '$ref' in data:
-                ref = data['$ref']
-                ref = ref.split('#')[0]
-                ref_fname = ref.rsplit('/', 1)[-1]
-                if ref_fname:
-                    stem = ref_fname.rsplit('.', 1)[0]
+                ref_ = data['$ref']
+                filename = ref.Ref(ref_).file
+                if filename:
+                    stem = os.path.join(relpath, filepath_with_stem(filename))
+                    stem = chaotic_parser.SchemaParser._normalize_ref(stem)
                     includes.append(f'clients/{name}/{stem}.hpp')
             if 'x-taxi-cpp-type' in data:
                 pass
@@ -138,19 +137,21 @@ def extract_includes(name: str, path: pathlib.Path) -> Optional[List[str]]:
         return None
 
 
-def include_graph(name: str, schemas_dir: pathlib.Path) -> Dict[str, List[str]]:
+def include_graph(name: str, schemas_dir: pathlib.Path) -> dict[str, list[str]]:
     result = {}
     for root, _, filenames in schemas_dir.walk():
         for filename in filenames:
             filepath = pathlib.Path(root) / filename
             if filepath == schemas_dir / 'client.yaml' or filename == 'a.yaml':
                 continue
-            result[filepath.stem + '.hpp'] = extract_includes(name, filepath)
+
+            stem = filepath_with_stem(os.path.relpath(filepath, schemas_dir))
+            result[stem + '.hpp'] = extract_includes(name, filepath, schemas_dir)
 
     return {key: result[key] for key in result if result[key] is not None}  # type: ignore
 
 
-def get_includes(client_name: str, schemas_dir: str) -> Dict[str, List[str]]:
+def get_includes(client_name: str, schemas_dir: str) -> dict[str, list[str]]:
     graph = include_graph(client_name, pathlib.Path(schemas_dir))
 
     output = collections.defaultdict(list)
@@ -162,7 +163,7 @@ def get_includes(client_name: str, schemas_dir: str) -> Dict[str, List[str]]:
         output[rel_path] = _get_template_includes(name, client_name, graph)
 
     for file in graph:
-        stem = pathlib.Path(file).stem
+        stem = filepath_with_stem(file)
         output[f'include/clients/{client_name}/{stem}_fwd.hpp'] = []
         output[f'include/clients/{client_name}/{stem}.hpp'] = [
             f'clients/{client_name}/{stem}_fwd.hpp',
@@ -186,12 +187,16 @@ def get_includes(client_name: str, schemas_dir: str) -> Dict[str, List[str]]:
 
 @dataclasses.dataclass
 class External:
-    libraries: List[str]
-    userver_modules: List[str]
+    libraries: list[str]
+    userver_modules: list[str]
 
 
+# For Yandex uservices only, not for OSS
 def external_libraries(schemas_dir: str) -> External:
     types = set()
+
+    libraries = []
+    userver_modules = []
 
     def visit(data) -> None:
         if isinstance(data, dict):
@@ -201,6 +206,12 @@ def external_libraries(schemas_dir: str) -> External:
                 types.add(data['x-taxi-cpp-type'])
             if 'x-usrv-cpp-type' in data:
                 types.add(data['x-usrv-cpp-type'])
+
+            if data.get('x-taxi-middlewares', {}).get('eats') == 'v1':
+                libraries.append('eats-authproxy-backend')
+            if data.get('x-taxi-middlewares', {}).get('bank-authproxy') is True:
+                libraries.append('bank-authproxy-backend')
+
         elif isinstance(data, list):
             for v in data:
                 visit(v)
@@ -210,8 +221,6 @@ def external_libraries(schemas_dir: str) -> External:
             content = yaml.safe_load(ifile)
             visit(content)
 
-    libraries = []
-    userver_modules = []
     for type_ in types:
         library = type_.split('::')[0].replace('_', '-')
         # special namespaces (and unsigned) which are defined in userver/, not in libraries/
