@@ -44,7 +44,7 @@ ClientFactoryComponent::ClientFactoryComponent(
     const auto* secdist = GetSecdist(context);
 
     factory_.emplace(
-        MakeFactorySettings(std::move(factory_config), secdist, testsuite_grpc.IsTlsEnabled()),
+        MakeFactorySettings(std::move(factory_config), secdist),
         client_common_component.blocking_task_processor_,
         *this,  // impl::PipelineCreatorInterface&
         client_common_component.completion_queues_,
