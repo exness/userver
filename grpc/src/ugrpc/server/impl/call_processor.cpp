@@ -9,7 +9,6 @@
 #include <userver/utils/algo.hpp>
 
 #include <ugrpc/impl/rpc_metadata.hpp>
-#include <ugrpc/server/impl/format_log_message.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/server/impl/error_code.hpp>
@@ -94,10 +93,11 @@ void SetupSpan(
 grpc::Status ReportHandlerError(const std::exception& ex, CallState& state) noexcept {
     try {
         auto& span = state.GetSpan();
-        LOG_ERROR() << "Uncaught exception in '" << state.call_name << "': " << ex;
+        const auto log_level = AdjustLogLevelForCancellations(logging::Level::kError);
+        LOG(log_level) << "Uncaught exception in '" << state.call_name << "': " << ex;
         span.AddNonInheritableTag(tracing::kErrorFlag, true);
         span.AddNonInheritableTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(AdjustLogLevelForCancellations(logging::Level::kError));
+        span.SetLogLevel(log_level);
         return kUnknownErrorStatus;
     } catch (const std::exception& new_ex) {
         LOG_ERROR() << "Error in ReportHandlerError: " << new_ex;
@@ -105,7 +105,7 @@ grpc::Status ReportHandlerError(const std::exception& ex, CallState& state) noex
     }
 }
 
-grpc::Status ReportRpcInterruptedError(CallState& state) noexcept {
+void ReportRpcInterruptedError(CallState& state) noexcept {
     try {
         // RPC interruption leads to asynchronous task cancellation by RpcFinishedEvent,
         // so the task either is already cancelled, or is going to be cancelled.
@@ -116,10 +116,8 @@ grpc::Status ReportRpcInterruptedError(CallState& state) noexcept {
         span.AddNonInheritableTag(tracing::kErrorMessage, "RPC interrupted");
         span.AddNonInheritableTag(tracing::kErrorFlag, true);
         span.SetLogLevel(logging::Level::kWarning);
-        return grpc::Status::CANCELLED;
     } catch (const std::exception& ex) {
         LOG_ERROR() << "Error in ReportRpcInterruptedError: " << ex;
-        return grpc::Status{grpc::StatusCode::INTERNAL, ""};
     }
 }
 
@@ -128,40 +126,18 @@ ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerExcept
     try {
         grpc::Status status{CustomStatusToGrpc(ex.GetCode()), ugrpc::impl::ToGrpcString(ex.GetExternalErrorBody())};
 
-        const auto log_level = IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning;
+        const auto log_level = AdjustLogLevelForCancellations(
+            IsServerError(status.error_code()) ? logging::Level::kError : logging::Level::kWarning
+        );
         LOG(log_level) << "Error in " << state.call_name << ": " << ex;
         auto& span = state.GetSpan();
         span.AddNonInheritableTag(tracing::kErrorFlag, true);
         span.AddNonInheritableTag(tracing::kErrorMessage, ex.what());
-        span.SetLogLevel(AdjustLogLevelForCancellations(log_level));
+        span.SetLogLevel(log_level);
         return status;
     } catch (const std::exception& new_ex) {
         LOG_ERROR() << "Error in ReportCustomError: " << new_ex;
         return grpc::Status{grpc::StatusCode::INTERNAL, ""};
-    }
-}
-
-void WriteAccessLog(
-    MiddlewareCallContext& context,
-    const grpc::Status& status,
-    logging::TextLoggerRef access_tskv_logger
-) noexcept {
-    try {
-        const auto& server_context = context.GetServerContext();
-        constexpr auto kLevel = logging::Level::kInfo;
-
-        if (access_tskv_logger.ShouldLog(kLevel)) {
-            logging::impl::TextLogItem log_item{FormatLogMessage(
-                server_context.client_metadata(),
-                server_context.peer(),
-                context.GetSpan().GetStartSystemTime(),
-                context.GetCallName(),
-                status.error_code()
-            )};
-            access_tskv_logger.Log(kLevel, log_item);
-        }
-    } catch (const std::exception& ex) {
-        LOG_ERROR() << "Error in WriteAccessLog: " << ex;
     }
 }
 

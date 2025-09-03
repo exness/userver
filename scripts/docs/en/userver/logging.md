@@ -14,6 +14,10 @@ Below are the introductions to main developer logging facilities.
 
 For information on controlling log level in unit tests see @ref scripts/docs/en/userver/testing.md
 
+### Setting up logs
+
+You can find a detailed manual for configuring how logs are written in @ref components::Logging.
+
 ### Log level
 
 Macros are used for logging:
@@ -85,7 +89,8 @@ yaml
         log-level: WARNING
 ```
 
-Logging per line and file can be overridden at runtime using @ref USERVER_LOG_DYNAMIC_DEBUG dynamic config.
+Logging per line and file can be overridden at runtime using @ref USERVER_LOG_DYNAMIC_DEBUG dynamic config,
+see also @ref USERVER_LOG_DYNAMIC_DEBUG_details.
 
 
 ### Dynamic change of the logging level
@@ -286,10 +291,11 @@ Important: getting a text representation of a stacktrace is an **expensive opera
 itself increases the log record size several times. Therefore, you do not need to use a stack trace for all errors. Use it only
 when it is 100% useful for diagnostics and other diagnostic tools are ineffective.
 
+@anchor custom_loggers
 ### Additional loggers
 
 You can create any number of additional loggers. All you need is to add them to
-your `logging.loggers` section of the static config (see components::Logging for an example)
+your `logging.loggers` section of the static config (see @ref components::Logging for an example)
 
 After that, you can get a logger in the code like this:
 
@@ -406,6 +412,9 @@ X-YaTraceId
 Using the server dynamic config @ref USERVER_NO_LOG_SPANS, you can set names and prefixes of Span names that do not need
 to be logged. If the span is not logged, then the tracing::ScopeTime of this span and any custom tags attached to the
 span via the methods of the `Add*Tag*()` are not put into the logs.
+
+@note In order for `USERVER_NO_LOG_SPANS` to work, you should `Append` @ref components::LoggingConfigurator
+component or use @ref components::CommonComponentList.
 
 For example, this is how you can disable logging of all Span for MongoDB (that is, all Span with `stopwatch_name`
 starting with `mongo`) and `Span` with `stopwatch_name=test`:

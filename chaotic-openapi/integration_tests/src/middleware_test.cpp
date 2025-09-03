@@ -9,8 +9,8 @@
 #include <userver/chaotic/openapi/middlewares/follow_redirects_middleware.hpp>
 #include <userver/chaotic/openapi/middlewares/logging_middleware.hpp>
 #include <userver/chaotic/openapi/middlewares/proxy_middleware.hpp>
+#include <userver/chaotic/openapi/middlewares/qos_middleware.hpp>
 #include <userver/chaotic/openapi/middlewares/ssl_middleware.hpp>
-#include <userver/chaotic/openapi/middlewares/timeout_retry_middleware.hpp>
 
 #include <string>
 #include <userver/logging/log.hpp>
@@ -23,40 +23,10 @@ constexpr http::headers::PredefinedHeader kLocation("Location");
 
 }
 
-UTEST(TestMiddleware, TimeoutRetryMiddleware) {
-    int request_count = 0;
-
-    utest::HttpServerMock http_server([&request_count](const utest::HttpServerMock::HttpRequest&) {
-        request_count++;
-
-        if (request_count <= 2) {
-            engine::SleepFor(std::chrono::milliseconds(200));
-        }
-
-        auto response = utest::HttpServerMock::HttpResponse{200};
-        response.body = R"({"status":"ok"})";
-        return response;
-    });
-
-    auto http_client_ptr = utest::CreateHttpClient();
-    auto request = http_client_ptr->CreateRequest();
-
-    request.url(http_server.GetBaseUrl() + "/test");
-
-    chaotic::openapi::TimeoutRetryMiddleware timeout_retry_middleware(std::chrono::milliseconds(100), 3);
-    timeout_retry_middleware.OnRequest(request);
-
-    auto response = request.perform();
-
-    EXPECT_GE(request_count, 2);
-    EXPECT_EQ(response->status_code(), 200);
-    EXPECT_EQ(response->body(), R"({"status":"ok"})");
-}
-
 UTEST(TestMiddleware, FollowRedirectsMiddleware) {
     bool redirect_visited = false;
 
-    utest::HttpServerMock http_server([&redirect_visited](const utest::HttpServerMock::HttpRequest& request) {
+    const utest::HttpServerMock http_server([&redirect_visited](const utest::HttpServerMock::HttpRequest& request) {
         if (request.path == "/test") {
             auto response = utest::HttpServerMock::HttpResponse{302};
             response.headers[kLocation] = "/redirected";
@@ -89,7 +59,7 @@ UTEST(TestMiddleware, FollowRedirectsMiddleware) {
 }
 
 UTEST(TestMiddleware, ProxyMiddleware) {
-    utest::HttpServerMock destination_server([](const utest::HttpServerMock::HttpRequest& request) {
+    const utest::HttpServerMock destination_server([](const utest::HttpServerMock::HttpRequest& request) {
         EXPECT_EQ(request.path, "/test");
 
         auto response = utest::HttpServerMock::HttpResponse{200};
@@ -98,7 +68,7 @@ UTEST(TestMiddleware, ProxyMiddleware) {
     });
 
     bool proxy_called = false;
-    utest::HttpServerMock proxy_server([&proxy_called](const utest::HttpServerMock::HttpRequest& /*request*/) {
+    const utest::HttpServerMock proxy_server([&proxy_called](const utest::HttpServerMock::HttpRequest& /*request*/) {
         proxy_called = true;
 
         auto response = utest::HttpServerMock::HttpResponse{200};
@@ -143,7 +113,7 @@ vnt5k03sADG1HQMJJ+okTNhM3X0nbmxSxQw3arVzkTtkY39zGPqQxKgDch2uCzEv
 iW5OwYvGErHvYQaO0LtwjzO8LamystYgUIXVV+fFL3w6
 -----END CERTIFICATE-----)";
 
-    utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest& request) {
+    const utest::HttpServerMock http_server([](const utest::HttpServerMock::HttpRequest& request) {
         EXPECT_EQ(request.path, "/test");
 
         auto response = utest::HttpServerMock::HttpResponse{200};
@@ -172,3 +142,5 @@ iW5OwYvGErHvYQaO0LtwjzO8LamystYgUIXVV+fFL3w6
     EXPECT_EQ(response->status_code(), 200);
     EXPECT_EQ(response->body(), R"({"status":"ok"})");
 }
+
+USERVER_NAMESPACE_END

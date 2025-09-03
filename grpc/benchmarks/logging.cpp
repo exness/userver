@@ -53,7 +53,7 @@ void BenchCustomLimit(benchmark::State& state) {
     // NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores)
     for (auto _ : state) {
         {
-            auto log = impl::ToLimitedString(kMessage, 1024);
+            auto log = impl::ToLimitedDebugString(kMessage, 1024);
             benchmark::DoNotOptimize(log);
         }
     }

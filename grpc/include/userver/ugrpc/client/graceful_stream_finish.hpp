@@ -9,7 +9,7 @@
 
 #include <userver/logging/log.hpp>
 #include <userver/ugrpc/client/impl/graceful_stream_finish.hpp>
-#include <userver/ugrpc/client/rpc.hpp>
+#include <userver/ugrpc/client/stream.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -25,8 +25,8 @@ namespace ugrpc::client {
 ///         cancellation, the stream being already closed for reads,
 ///         or the server returning an error status)
 template <typename Response>
-std::optional<std::size_t> ReadRemainingAndFinish(InputStream<Response>& stream) noexcept {
-    return impl::ReadRemainingAndFinish<InputStream<Response>, Response>(stream);
+std::optional<std::size_t> ReadRemainingAndFinish(Reader<Response>& stream) noexcept {
+    return impl::ReadRemainingAndFinish<Reader<Response>, Response>(stream);
 }
 
 /// @brief Announce end-of-input to the server, read all
@@ -40,10 +40,10 @@ std::optional<std::size_t> ReadRemainingAndFinish(InputStream<Response>& stream)
 ///         cancellation, the stream being already closed for
 ///         either reads or writes, or the server returning an error status)
 template <typename Request, typename Response>
-std::optional<std::size_t> ReadRemainingAndFinish(BidirectionalStream<Request, Response>& stream) noexcept {
+std::optional<std::size_t> ReadRemainingAndFinish(ReaderWriter<Request, Response>& stream) noexcept {
     const bool writes_done_success = stream.WritesDone();
     const std::optional<std::size_t> messages_remaining =
-        impl::ReadRemainingAndFinish<BidirectionalStream<Request, Response>, Response>(stream);
+        impl::ReadRemainingAndFinish<ReaderWriter<Request, Response>, Response>(stream);
     return writes_done_success ? messages_remaining : std::nullopt;
 }
 
@@ -60,7 +60,7 @@ std::optional<std::size_t> ReadRemainingAndFinish(BidirectionalStream<Request, R
 ///         cancellation, the stream being already closed for writes,
 ///         or the server returning an error status)
 template <typename Request, typename Response>
-[[nodiscard]] bool PingPongFinish(BidirectionalStream<Request, Response>& stream) noexcept {
+[[nodiscard]] bool PingPongFinish(ReaderWriter<Request, Response>& stream) noexcept {
     try {
         const bool writes_done_success = stream.WritesDone();
 

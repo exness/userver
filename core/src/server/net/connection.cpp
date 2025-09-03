@@ -148,8 +148,7 @@ void Connection::ListenForRequests() noexcept {
 }
 
 bool Connection::WaitOnSocket(engine::Deadline deadline) {
-    if (!peer_socket_)
-        return false;
+    if (!peer_socket_) return false;
 
     bool is_readable = true;
     if (pending_data_size_ != pending_data_.size()) {

@@ -45,12 +45,12 @@ public:
         const CommandControl& command_control
     );
 
-    template <ScanTag scan_tag>
-    Request<ScanReplyTmpl<scan_tag>> MakeScanRequestWithKey(
+    template <ScanTag TScanTag>
+    Request<ScanReplyTmpl<TScanTag>> MakeScanRequestWithKey(
         std::string key,
         size_t shard,
-        typename ScanReplyTmpl<scan_tag>::Cursor cursor,
-        ScanOptionsTmpl<scan_tag> options,
+        typename ScanReplyTmpl<TScanTag>::Cursor cursor,
+        ScanOptionsGeneric options,
         const CommandControl& command_control
     );
 
@@ -87,6 +87,12 @@ public:
         std::string script_hash,
         std::vector<std::string> keys,
         std::vector<std::string> args,
+        const CommandControl& command_control
+    ) override;
+    RequestGenericCommon GenericCommon(
+        std::string command,
+        std::vector<std::string> args,
+        size_t key_index,
         const CommandControl& command_control
     ) override;
     RequestScriptLoad ScriptLoad(std::string script, size_t shard, const CommandControl& command_control) override;
@@ -255,9 +261,8 @@ public:
 
     ScanRequest<ScanTag::kScan> Scan(size_t shard, ScanOptions options, const CommandControl& command_control) override;
 
-    template <ScanTag scan_tag>
-    ScanRequest<scan_tag>
-    ScanTmpl(std::string key, ScanOptionsTmpl<scan_tag> options, const CommandControl& command_control);
+    template <ScanTag TScanTag>
+    ScanRequest<TScanTag> ScanTmpl(std::string key, ScanOptionsGeneric options, const CommandControl& command_control);
 
     RequestScard Scard(std::string key, const CommandControl& command_control) override;
 
@@ -280,6 +285,16 @@ public:
         override;
 
     RequestSetIfNotExist SetIfNotExist(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl,
+        const CommandControl& command_control
+    ) override;
+
+    RequestSetIfNotExistOrGet
+    SetIfNotExistOrGet(std::string key, std::string value, const CommandControl& command_control) override;
+
+    RequestSetIfNotExistOrGet SetIfNotExistOrGet(
         std::string key,
         std::string value,
         std::chrono::milliseconds ttl,

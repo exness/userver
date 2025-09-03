@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <string>
 #include <userver/chaotic/openapi/client/middleware.hpp>
 #include <userver/chaotic/openapi/client/middleware_factory.hpp>
@@ -26,6 +25,11 @@ private:
 
 class ProxyMiddlewareFactory final : public client::MiddlewareFactory {
 public:
+    ProxyMiddlewareFactory(const components::ComponentConfig& config, const components::ComponentContext& context)
+        : client::MiddlewareFactory(config, context) {}
+
+    static constexpr std::string_view kName = "chaotic-client-middleware-proxy";
+
     std::shared_ptr<client::Middleware> Create(const yaml_config::YamlConfig& config) override;
     std::string GetStaticConfigSchemaStr() override;
 };
@@ -33,3 +37,8 @@ public:
 }  // namespace chaotic::openapi
 
 USERVER_NAMESPACE_END
+
+template <>
+inline constexpr auto
+    USERVER_NAMESPACE::components::kConfigFileMode<USERVER_NAMESPACE::chaotic::openapi::ProxyMiddlewareFactory> =
+        USERVER_NAMESPACE::components::ConfigFileMode::kNotRequired;

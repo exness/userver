@@ -4,6 +4,7 @@
 
 #include <userver/tracing/span.hpp>
 #include <userver/utils/fast_pimpl.hpp>
+#include <userver/utils/trx_tracker.hpp>
 
 #include <userver/storages/mysql/cluster_host_type.hpp>
 #include <userver/storages/mysql/command_result_set.hpp>
@@ -103,13 +104,14 @@ private:
     utils::FastPimpl<infra::ConnectionPtr, 24, 8> connection_;
     engine::Deadline deadline_;
     tracing::Span span_;
+    utils::trx_tracker::TransactionLock trx_lock_;
 };
 
 template <typename... Args>
 StatementResultSet Transaction::Execute(const Query& query, const Args&... args) const {
     auto params_binder = impl::BindHelper::BindParams(args...);
 
-    return DoExecute(query.GetStatement(), params_binder);
+    return DoExecute(query, params_binder);
 }
 
 template <typename T>
@@ -125,7 +127,7 @@ StatementResultSet Transaction::ExecuteBulk(const Query& query, const Container&
 
     auto params_binder = impl::BindHelper::BindContainerAsParams(params);
 
-    return DoExecute(query.GetStatement(), params_binder);
+    return DoExecute(query, params_binder);
 }
 
 template <typename MapTo, typename Container>
@@ -134,7 +136,7 @@ StatementResultSet Transaction::ExecuteBulkMapped(const Query& query, const Cont
 
     auto params_binder = impl::BindHelper::BindContainerAsParamsMapped<MapTo>(params);
 
-    return DoExecute(query.GetStatement(), params_binder);
+    return DoExecute(query, params_binder);
 }
 
 }  // namespace storages::mysql

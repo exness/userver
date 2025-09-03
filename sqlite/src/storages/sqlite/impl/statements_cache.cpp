@@ -13,8 +13,8 @@ StatementsCache::StatementsCache(const NativeHandler& db_handler, std::size_t ca
 
 StatementsCache::~StatementsCache() = default;
 
-std::shared_ptr<Statement> StatementsCache::PrepareStatement(const std::string& statement) {
-    auto* val_ptr = cache_.Get(statement);
+std::shared_ptr<Statement> StatementsCache::PrepareStatement(std::string_view statement) {
+    auto* val_ptr = cache_.GetTransparent(statement);
     if (val_ptr) {
         return *val_ptr;
     }
@@ -23,7 +23,7 @@ std::shared_ptr<Statement> StatementsCache::PrepareStatement(const std::string& 
         UASSERT(statement_to_be_deleted);
         cache_.Erase(statement_to_be_deleted->GetStatementText());
     }
-    auto* added_statement = cache_.Emplace(statement, std::make_shared<Statement>(db_handler_, statement));
+    auto* added_statement = cache_.Emplace(std::string{statement}, std::make_shared<Statement>(db_handler_, statement));
     UASSERT(added_statement);
     return *added_statement;
 }

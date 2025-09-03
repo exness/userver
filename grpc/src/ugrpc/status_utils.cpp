@@ -27,7 +27,7 @@ std::optional<google::rpc::Status> ToGoogleRpcStatus(const grpc::Status& status)
 
 std::string GetGStatusLimitedMessage(const google::rpc::Status& status) {
     constexpr std::size_t kLengthLimit = 1024;
-    return impl::ToLimitedString(status, kLengthLimit);
+    return impl::ToLimitedDebugString(status, kLengthLimit);
 }
 
 }  // namespace ugrpc

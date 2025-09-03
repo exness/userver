@@ -15,7 +15,7 @@ RpcFinishedEvent::RpcFinishedEvent(
 ) noexcept
     : cancellation_token_(std::move(cancellation_token)), server_ctx_(server_ctx) {}
 
-void* RpcFinishedEvent::GetTag() noexcept { return this; }
+void* RpcFinishedEvent::GetCompletionTag() noexcept { return this; }
 
 void RpcFinishedEvent::Wait() noexcept { event_.WaitNonCancellable(); }
 

@@ -197,6 +197,7 @@ properties:
     default_task_processor:
         type: string
         description: name of the default task processor to use in components
+        defaultDescription: main-task-processor
     fs_task_processor:
         type: string
         description: name of the fs task processor to use in components
@@ -236,6 +237,12 @@ properties:
             the balancer a chance to redirect new requests to other hosts and
             to give the service a chance to finish handling old requests.
         defaultDescription: 0s
+    enable_trx_tracker:
+        type: boolean
+        description: |
+            Enable checking of heavy operations (like http calls) while having
+            active database transactions.
+        defaultDescription: true
 )");
 }
 
@@ -254,7 +261,7 @@ ManagerConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<Man
     }
     config.components = yaml_config::ParseMapToArray<components::ComponentConfig>(value["components"]);
     config.task_processors = yaml_config::ParseMapToArray<engine::TaskProcessorConfig>(value["task_processors"]);
-    config.default_task_processor = value["default_task_processor"].As<std::string>();
+    config.default_task_processor = value["default_task_processor"].As<std::string>("main-task-processor");
     config.fs_task_processor = value["fs_task_processor"].As<std::string>("fs-task-processor");
 
     config.mlock_debug_info = value["mlock_debug_info"].As<bool>(config.mlock_debug_info);
@@ -269,6 +276,7 @@ ManagerConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<Man
     );
     config.graceful_shutdown_interval =
         value["graceful_shutdown_interval"].As<std::chrono::milliseconds>(config.graceful_shutdown_interval);
+    config.enable_trx_tracker = value["enable_trx_tracker"].As<bool>(config.enable_trx_tracker);
 
     return config;
 }

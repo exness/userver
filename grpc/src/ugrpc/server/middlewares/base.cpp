@@ -1,12 +1,11 @@
 #include <userver/ugrpc/server/middlewares/base.hpp>
 
 #include <userver/components/component.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
-#include <ugrpc/impl/internal_tag.hpp>
 #include <userver/ugrpc/server/impl/call_kind.hpp>
 #include <userver/ugrpc/server/impl/call_state.hpp>
 #include <userver/ugrpc/server/impl/exceptions.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -52,7 +51,7 @@ const dynamic_config::Snapshot& MiddlewareCallContext::GetInitialDynamicConfig()
     return *config_snapshot;
 }
 
-ugrpc::impl::RpcStatisticsScope& MiddlewareCallContext::GetStatistics(ugrpc::impl::InternalTag /*tag*/) {
+ugrpc::impl::RpcStatisticsScope& MiddlewareCallContext::GetStatistics(utils::impl::InternalTag) {
     return GetCallState(utils::impl::InternalTag{}).statistics_scope;
 }
 

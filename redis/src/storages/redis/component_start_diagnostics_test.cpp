@@ -76,7 +76,7 @@ TEST(RedisComponentBadConfig, RedisStandalone) {
         components::RunOnce(MakeRedisConfig("RedisStandalone"), MakeRedisComponentList()),
         std::exception,
         "Cannot start component redis: Failed to init cluster slots for redis, shard_group_name=redis-db in 100 ms, "
-        "mode=master_or_slave. Nodes config parsed: true. Shards readiness: [master: false, replicas: false]. "
+        "mode=master_or_slave. Nodes config parsed: true. Shards readiness: [{master: false, replicas: false},]. "
         "Failed to connect to the Redis shards"
     );
 }

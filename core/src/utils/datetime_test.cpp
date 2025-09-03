@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <userver/utils/datetime.hpp>
+#include <userver/utils/datetime/date.hpp>
 #include <userver/utils/datetime/from_string_saturating.hpp>
 
 #include <cctz/time_zone.h>
@@ -8,6 +9,14 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace {
+
+TEST(Datetime, Timestring) {
+    /// [Timestring example]
+    const auto format = "%Y-%m-%dT%H:%M:%E*S%z";
+    const auto time_string = utils::datetime::Timestring(std::time_t{0}, "Europe/Moscow", format);  // UTC+3 zone
+    EXPECT_EQ(time_string, "1970-01-01T03:00:00+0300");
+    /// [Timestring example]
+}
 
 TEST(Datetime, UtcStringtime) {
     /// [Stringtime example]
@@ -28,6 +37,11 @@ TEST(Datetime, UtcTimestring) {
     const auto tp = utils::datetime::UtcStringtime("2014-03-17T02:47:07+0000");
     EXPECT_EQ(utils::datetime::UtcTimestring(tp), "2014-03-17T02:47:07+0000");
     /// [UtcTimestring example]
+}
+
+TEST(Datetime, UtcTimestringDate) {
+    const auto tp = utils::datetime::Date(2025, 11, 15).GetSysDays();
+    EXPECT_EQ(utils::datetime::UtcTimestring<utils::datetime::Days>(tp), "2025-11-15T00:00:00+0000");
 }
 
 TEST(Datetime, UtcTimestringCTime) {

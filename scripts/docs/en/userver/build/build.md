@@ -13,7 +13,7 @@ userver-create-service [--grpc] [--mongo] [--postgresql] myservice
 
 This will create `myservice` dir, relative to the current working directory.
 
-If you did not install userver system-wide and the command above is not found, see @ref service_templates.
+If the command above is not found, see @ref service_templates.
 
 To use additional userver libraries later, see @ref service_templates_libraries.
 
@@ -23,6 +23,9 @@ To use additional userver libraries later, see @ref service_templates_libraries.
 make build-debug && \
 make test-debug
 ```
+If the tests fail and you see messages like "No XXX installation found. Install it...", then the database server is not
+installed in the environment you are running tests. Do not hesitate to install the missing database servers, like
+PostgreSQL, MongoDB and others.
 
 4\. To get a feel for how the service runs without needing to set up full production environment, run:
 
@@ -100,14 +103,17 @@ userver-create-service [--grpc] [--mongo] [--postgresql] myservice
 * service name will be the last segment of the path;
 * without feature flags, the service only has some stubs for HTTP handlers.
 
+If you use @ref devcontainers "Dev Containers", or if you use CPM to download userver,
+run this script to get `userver-create-service` command:
+
+@ref service-template/userver-create-service.sh
+
 If instead of installing userver you are planning to build userver as a subdirectory,
 call the script from userver directory:
 
 ```shell
 path/to/userver/scripts/userver-create-service [--grpc] [--mongo] [--postgresql] myservice
 ```
-
-If you use CPM to download userver, see @ref userver_cpm "CPM section".
 
 You'll need to @ref ways_to_get_userver "get userver" before proceeding with local development.
 
@@ -208,8 +214,10 @@ Dev Containers is the easiest and least problematic way to get prebuilt userver 
    * [VSCode](https://code.visualstudio.com/docs/devcontainers/containers): `ms-vscode-remote.remote-containers`
    * [CLion](https://www.jetbrains.com/help/clion/connect-to-devcontainer.html): "Dev Containers" (**note:** beta)
 
-3. Open the service project. If CMake asks to configure, deny
+3. Open the service project
 
+   * See @ref service_templates on how to create a new service from template
+   * If CMake asks to configure, deny
    * For CLion, please use JetBrains Gateway to open the project, otherwise CLion gets confused
 
 4. Agree to reopen the project in a Dev Container
@@ -281,7 +289,7 @@ Make sure to use the same build mode as for your service, otherwise subtle linka
 ### Building Debian package using Docker
 
 For Ubuntu 22.04 or Ubuntu 24.04, to build `libuserver-all-dev.deb` package using Docker,
-run the following shell command from userver directory:
+run the following shell command from directory where userver is located. For example, if userver is located in `~/userver` directory you need to run the script below in `~/` directory:
 
 ```shell
 docker run --rm -it --network ip6net -v $(pwd):/home/user -w /home/user/userver \
@@ -389,7 +397,7 @@ target_link_libraries(${PROJECT_NAME}-mysql_objs PUBLIC userver::mysql mariadbcl
 @anchor docker_with_ubuntu_22_04
 ## Docker with Ubuntu 22.04
 
-The Docker images provide a container with all the build dependencies preinstalled and 
+The Docker images provide a container with all the build dependencies preinstalled and
 with a proper setup of PPAs with databases, compilers and tools:
 
 | Image reference                                              | Contains                               |
@@ -455,7 +463,7 @@ userver/2.*
 ```
 
 Run `conan install .` to actually install the required package. For more information see
-[the official Conan documentation](https://docs.conan.io/2/tutorial/consuming_packages/build_simple_cmake_project.html). 
+[the official Conan documentation](https://docs.conan.io/2/tutorial/consuming_packages/build_simple_cmake_project.html).
 
 Link with userver in your `CMakeLists.txt` as usual:
 ```cmake

@@ -2,8 +2,6 @@
 
 #include <cstring>
 
-#include <fmt/format.h>
-
 #include <userver/logging/log.hpp>
 
 USERVER_NAMESPACE_BEGIN

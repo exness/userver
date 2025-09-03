@@ -39,18 +39,26 @@ class SQLiteTypesTest : public SQLiteCompositeFixture<SQLiteInMemoryConnection> 
                               )"
         );
     }
+
+    void CleanUp(const ClientPtr& client) final {
+        UEXPECT_NO_THROW(client->Execute(OperationType::kReadWrite, "DROP TABLE test"));
+    }
 };
 
 class SQLiteTypesStringViewTest : public SQLiteCompositeFixture<SQLiteInMemoryConnection> {
     void PreInitialize(const ClientPtr& client) final {
         client->Execute(OperationType::kReadWrite, "CREATE TABLE test(strvw TEXT)");
     }
+
+    void CleanUp(const ClientPtr& client) final { client->Execute(OperationType::kReadWrite, "DROP TABLE test"); }
 };
 
 class SQLiteTypesMismatchTest : public SQLiteCompositeFixture<SQLiteInMemoryConnection> {
     void PreInitialize(const ClientPtr& client) override {
         client->Execute(OperationType::kReadWrite, kMismatchTypesTable.data());
     }
+
+    void CleanUp(const ClientPtr& client) final { client->Execute(OperationType::kReadWrite, "DROP TABLE test"); }
 
 protected:
     static constexpr std::string_view kMismatchTypesTable = "CREATE TABLE test(int INTEGER, str TEXT)";

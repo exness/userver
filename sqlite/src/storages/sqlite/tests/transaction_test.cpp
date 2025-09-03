@@ -25,6 +25,10 @@ class SQLiteTransactionsTest : public SQLiteCompositeFixture<SQLiteInMemoryConne
             client->Execute(OperationType::kReadWrite, "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)")
         );
     }
+
+    void CleanUp(const ClientPtr& client) final {
+        UEXPECT_NO_THROW(client->Execute(OperationType::kReadWrite, "DROP TABLE test"));
+    }
 };
 
 }  // namespace

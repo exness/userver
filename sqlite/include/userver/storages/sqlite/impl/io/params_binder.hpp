@@ -13,7 +13,7 @@ namespace storages::sqlite::impl::io {
 
 class ParamsBinder final : public ParamsBinderBase {
 public:
-    explicit ParamsBinder(const std::string& query, infra::ConnectionPtr& conn);
+    explicit ParamsBinder(const Query& query, infra::ConnectionPtr& conn);
     ~ParamsBinder();
 
     ParamsBinder(const ParamsBinder& other) = delete;
@@ -25,7 +25,7 @@ public:
     }
 
     template <typename... Args>
-    static ParamsBinder BindParams(const std::string& query, infra::ConnectionPtr& conn, const Args&... args) {
+    static ParamsBinder BindParams(const Query& query, infra::ConnectionPtr& conn, const Args&... args) {
         constexpr auto kParamsCount = sizeof...(Args);
         ParamsBinder binder{query, conn};
 

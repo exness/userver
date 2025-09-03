@@ -5,7 +5,6 @@
 #include <optional>
 
 #include <userver/logging/log.hpp>
-#include <userver/ugrpc/client/rpc.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

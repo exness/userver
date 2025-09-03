@@ -1,10 +1,11 @@
-#include <client/{{ name }}/responses.hpp>
+#include <clients/{{ name }}/responses.hpp>
 
 #include <userver/clients/http/response.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include <userver/http/common_headers.hpp>
 #include <userver/http/content_type.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/chaotic/openapi/parameters_read.hpp>
 
 {% for include in spec.responses_definitions_includes() %}
   #include <{{ include }}>
@@ -62,7 +63,18 @@ namespace {{ namespace }} {
                 {% endif %}
             {% endif %}
 
-            {# TODO: headers #}
+            {% for header in response.headers %}
+            {
+              static const USERVER_NAMESPACE::http::headers::PredefinedHeader kHeader("{{ header.raw_name }}");
+              auto it = http_response.headers().find(kHeader);
+              if (it != http_response.headers().end()) {
+                namespace openapi = chaotic::openapi;
+                static constexpr openapi::Name k{{ header.cpp_name }} = "{{ header.raw_name }}";
+                using Header = {{ header.parser }};
+                r.{{ header.cpp_name }} = openapi::ParseParameter<Header::Base>::Parse(std::string{it->second});
+              }
+            }
+            {% endfor %}
 
             {% if response.is_error() %}
               throw r;

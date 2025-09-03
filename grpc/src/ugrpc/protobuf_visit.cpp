@@ -4,10 +4,12 @@
 #include <google/protobuf/port.h>
 #include <google/protobuf/reflection.h>
 
+#include <userver/utils/assert.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
+
 #include <ugrpc/impl/protobuf_utils.hpp>
 #include <userver/ugrpc/impl/protobuf_collector.hpp>
 #include <userver/ugrpc/protobuf_visit.hpp>
-#include <userver/utils/assert.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -16,6 +18,11 @@ namespace ugrpc {
 namespace {
 
 constexpr int kMaxRecursionLimit = 100;
+
+bool IsMessage(const google::protobuf::FieldDescriptor& field) {
+    return field.type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE ||
+           field.type() == google::protobuf::FieldDescriptor::TYPE_GROUP;
+}
 
 void VisitMessagesRecursiveImpl(
     google::protobuf::Message& message,
@@ -33,7 +40,7 @@ void VisitMessagesRecursiveImpl(
         [&callback,
          &recursion_limit](google::protobuf::Message& message, const google::protobuf::FieldDescriptor& field) -> void {
             // Not a nested message
-            if (!impl::IsMessage(field)) return;
+            if (!IsMessage(field)) return;
 
             VisitNestedMessage(message, field, [&](google::protobuf::Message& msg) {
                 VisitMessagesRecursiveImpl(msg, callback, recursion_limit - 1);
@@ -56,7 +63,7 @@ void GetNestedMessageDescriptorsImpl(
         UINVARIANT(field, "field is nullptr");
 
         // Not a nested message
-        if (!impl::IsMessage(*field)) continue;
+        if (!IsMessage(*field)) continue;
 
         const google::protobuf::Descriptor* msg = field->message_type();
         UINVARIANT(msg, "msg is nullptr");
@@ -103,7 +110,7 @@ void VisitNestedMessage(
     const google::protobuf::FieldDescriptor& field,
     MessageVisitCallback callback
 ) {
-    UINVARIANT(impl::IsMessage(field), "Not a nested message");
+    UINVARIANT(IsMessage(field), "Not a nested message");
 
     // Get reflection
     const google::protobuf::Reflection* reflection = message.GetReflection();
@@ -198,7 +205,7 @@ void VisitorCompiler::Compile(const DescriptorList& descriptors) {
             UINVARIANT(field, "field is nullptr");
 
             // Not a nested message
-            if (!impl::IsMessage(*field)) continue;
+            if (!IsMessage(*field)) continue;
 
             // Sync the reverse edges.
             // Even from unknown types - we might need to compile them in the future.
@@ -238,6 +245,20 @@ bool VisitorCompiler::ContainsSelected(const google::protobuf::Descriptor* descr
     return fields_with_selected_children_.find(descriptor) != fields_with_selected_children_.end() ||
            IsSelected(*descriptor);
 }
+
+const VisitorCompiler::Dependencies& VisitorCompiler::GetFieldsWithSelectedChildren(utils::impl::InternalTag) const {
+    return fields_with_selected_children_;
+}
+
+const VisitorCompiler::Dependencies& VisitorCompiler::GetReverseEdges(utils::impl::InternalTag) const {
+    return reverse_edges_;
+}
+
+const VisitorCompiler::DescriptorSet& VisitorCompiler::GetPropagated(utils::impl::InternalTag) const {
+    return propagated_;
+}
+
+const VisitorCompiler::DescriptorSet& VisitorCompiler::GetCompiled(utils::impl::InternalTag) const { return compiled_; }
 
 std::shared_lock<engine::SharedMutex> VisitorCompiler::LockRead() {
     std::shared_lock read_lock(mutex_, std::defer_lock);
@@ -315,6 +336,10 @@ FieldsVisitor::FieldsVisitor(Selector selector, const DescriptorList& descriptor
     Compile(descriptors);
 }
 
+const FieldsVisitor::Dependencies& FieldsVisitor::GetSelectedFields(utils::impl::InternalTag) const {
+    return selected_fields_;
+}
+
 void FieldsVisitor::CompileOne(const google::protobuf::Descriptor& descriptor) {
     for (const google::protobuf::FieldDescriptor* field : GetFieldDescriptors(descriptor)) {
         UINVARIANT(field, "field is nullptr");
@@ -364,6 +389,10 @@ MessagesVisitor::MessagesVisitor(Selector selector, LockBehavior lock_behavior)
 MessagesVisitor::MessagesVisitor(Selector selector, const DescriptorList& descriptors, LockBehavior lock_behavior)
     : BaseVisitor<MessageVisitCallback>(lock_behavior), selector_(selector) {
     Compile(descriptors);
+}
+
+const MessagesVisitor::DescriptorSet& MessagesVisitor::GetSelectedMessages(utils::impl::InternalTag) const {
+    return selected_messages_;
 }
 
 void MessagesVisitor::CompileOne(const google::protobuf::Descriptor& descriptor) {

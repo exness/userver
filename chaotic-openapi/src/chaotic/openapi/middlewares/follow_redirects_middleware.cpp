@@ -1,5 +1,5 @@
-#include <userver/chaotic/openapi/client/middleware_registry.hpp>
 #include <userver/chaotic/openapi/middlewares/follow_redirects_middleware.hpp>
+
 #include <userver/clients/http/request.hpp>
 #include <userver/components/component_base.hpp>
 #include <userver/components/component_config.hpp>
@@ -40,17 +40,6 @@ std::shared_ptr<client::Middleware> FollowRedirectsMiddlewareFactory::Create(con
 std::string FollowRedirectsMiddlewareFactory::GetStaticConfigSchemaStr() {
     return FollowRedirectsMiddleware::GetStaticConfigSchemaStr();
 }
-
-namespace {
-bool RegisterFollowRedirectsMiddleware() {
-    client::MiddlewareRegistry::Instance().Register(
-        "follow_redirects", std::make_unique<FollowRedirectsMiddlewareFactory>()
-    );
-    return true;
-}
-
-const bool kFollowRedirectsRegistered = RegisterFollowRedirectsMiddleware();
-}  // namespace
 
 }  // namespace chaotic::openapi
 

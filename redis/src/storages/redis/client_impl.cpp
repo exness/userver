@@ -63,17 +63,17 @@ Request<ScanReplyTmpl<ScanTag::kScan>> ClientImpl::MakeScanRequestNoKey(
     );
 }
 
-template <ScanTag scan_tag>
-Request<ScanReplyTmpl<scan_tag>> ClientImpl::MakeScanRequestWithKey(
+template <ScanTag TScanTag>
+Request<ScanReplyTmpl<TScanTag>> ClientImpl::MakeScanRequestWithKey(
     std::string key,
     size_t shard,
-    typename ScanReplyTmpl<scan_tag>::Cursor cursor,
-    ScanOptionsTmpl<scan_tag> options,
+    typename ScanReplyTmpl<TScanTag>::Cursor cursor,
+    ScanOptionsGeneric options,
     const CommandControl& command_control
 ) {
     CmdArgs cmd_args{
-        kScanCommandName<scan_tag>, std::move(key), cursor.GetValue(), options.ExtractMatch(), options.ExtractCount()};
-    return CreateRequest<Request<ScanReplyTmpl<scan_tag>>>(
+        kScanCommandName<TScanTag>, std::move(key), cursor.GetValue(), options.ExtractMatch(), options.ExtractCount()};
+    return CreateRequest<Request<ScanReplyTmpl<TScanTag>>>(
         MakeRequest(std::move(cmd_args), shard, false, GetCommandControl(command_control))
     );
 }
@@ -179,6 +179,18 @@ RequestEvalShaCommon ClientImpl::EvalShaCommon(
         true,
         GetCommandControl(command_control)
     ));
+}
+
+RequestGenericCommon ClientImpl::GenericCommon(
+    std::string command,
+    std::vector<std::string> args,
+    size_t key_index,
+    const CommandControl& command_control
+) {
+    size_t shard = ShardByKey(args.at(key_index), command_control);
+    return CreateRequest<RequestGenericCommon>(
+        MakeRequest(CmdArgs{command, std::move(args)}, shard, true, GetCommandControl(command_control))
+    );
 }
 
 RequestScriptLoad ClientImpl::ScriptLoad(std::string script, size_t shard, const CommandControl& command_control) {
@@ -440,7 +452,7 @@ RequestHmset ClientImpl::Hmset(
 }
 
 ScanRequest<ScanTag::kHscan>
-ClientImpl::Hscan(std::string key, ScanOptionsTmpl<ScanTag::kHscan> options, const CommandControl& command_control) {
+ClientImpl::Hscan(std::string key, HscanOptions options, const CommandControl& command_control) {
     return ScanTmpl<ScanTag::kHscan>(std::move(key), std::move(options), command_control);
 }
 
@@ -695,19 +707,18 @@ RequestSadd ClientImpl::Sadd(std::string key, std::vector<std::string> members, 
     ));
 }
 
-ScanRequest<ScanTag::kScan>
-ClientImpl::Scan(size_t shard, ScanOptionsTmpl<ScanTag::kScan> options, const CommandControl& command_control) {
+ScanRequest<ScanTag::kScan> ClientImpl::Scan(size_t shard, ScanOptions options, const CommandControl& command_control) {
     CheckShard(shard, command_control);
     return ScanRequest<ScanTag::kScan>(std::make_unique<RequestScanData<ScanTag::kScan>>(
         shared_from_this(), shard, std::move(options), command_control
     ));
 }
 
-template <ScanTag scan_tag>
-ScanRequest<scan_tag>
-ClientImpl::ScanTmpl(std::string key, ScanOptionsTmpl<scan_tag> options, const CommandControl& command_control) {
+template <ScanTag TScanTag>
+ScanRequest<TScanTag>
+ClientImpl::ScanTmpl(std::string key, ScanOptionsGeneric options, const CommandControl& command_control) {
     auto shard = ShardByKey(key, command_control);
-    return ScanRequest<scan_tag>(std::make_unique<RequestScanData<scan_tag>>(
+    return ScanRequest<TScanTag>(std::make_unique<RequestScanData<TScanTag>>(
         shared_from_this(), std::move(key), shard, std::move(options), command_control
     ));
 }
@@ -766,7 +777,7 @@ RequestSetIfExist ClientImpl::SetIfExist(
 RequestSetIfNotExist
 ClientImpl::SetIfNotExist(std::string key, std::string value, const CommandControl& command_control) {
     auto shard = ShardByKey(key, command_control);
-    return CreateRequest<RequestSetIfExist>(MakeRequest(
+    return CreateRequest<RequestSetIfNotExist>(MakeRequest(
         CmdArgs{"set", std::move(key), std::move(value), "NX"}, shard, true, GetCommandControl(command_control)
     ));
 }
@@ -778,8 +789,31 @@ RequestSetIfNotExist ClientImpl::SetIfNotExist(
     const CommandControl& command_control
 ) {
     auto shard = ShardByKey(key, command_control);
-    return CreateRequest<RequestSetIfExist>(MakeRequest(
+    return CreateRequest<RequestSetIfNotExist>(MakeRequest(
         CmdArgs{"set", std::move(key), std::move(value), "PX", ttl.count(), "NX"},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestSetIfNotExistOrGet
+ClientImpl::SetIfNotExistOrGet(std::string key, std::string value, const CommandControl& command_control) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestSetIfNotExistOrGet>(MakeRequest(
+        CmdArgs{"set", std::move(key), std::move(value), "NX", "GET"}, shard, true, GetCommandControl(command_control)
+    ));
+}
+
+RequestSetIfNotExistOrGet ClientImpl::SetIfNotExistOrGet(
+    std::string key,
+    std::string value,
+    std::chrono::milliseconds ttl,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestSetIfNotExistOrGet>(MakeRequest(
+        CmdArgs{"set", std::move(key), std::move(value), "PX", ttl.count(), "NX", "GET"},
         shard,
         true,
         GetCommandControl(command_control)
@@ -845,7 +879,7 @@ RequestSrem ClientImpl::Srem(std::string key, std::vector<std::string> members, 
 }
 
 ScanRequest<ScanTag::kSscan>
-ClientImpl::Sscan(std::string key, ScanOptionsTmpl<ScanTag::kSscan> options, const CommandControl& command_control) {
+ClientImpl::Sscan(std::string key, SscanOptions options, const CommandControl& command_control) {
     return ScanTmpl<ScanTag::kSscan>(std::move(key), std::move(options), command_control);
 }
 
@@ -1136,7 +1170,7 @@ ClientImpl::Zremrangebyscore(std::string key, std::string min, std::string max, 
 }
 
 ScanRequest<ScanTag::kZscan>
-ClientImpl::Zscan(std::string key, ScanOptionsTmpl<ScanTag::kZscan> options, const CommandControl& command_control) {
+ClientImpl::Zscan(std::string key, ZscanOptions options, const CommandControl& command_control) {
     return ScanTmpl<ScanTag::kZscan>(std::move(key), std::move(options), command_control);
 }
 
@@ -1185,7 +1219,7 @@ template Request<ScanReplyTmpl<ScanTag::kSscan>> ClientImpl::MakeScanRequestWith
     std::string key,
     size_t shard,
     ScanReplyTmpl<ScanTag::kSscan>::Cursor cursor,
-    ScanOptionsTmpl<ScanTag::kSscan> options,
+    SscanOptions options,
     const CommandControl& command_control
 );
 
@@ -1193,7 +1227,7 @@ template Request<ScanReplyTmpl<ScanTag::kHscan>> ClientImpl::MakeScanRequestWith
     std::string key,
     size_t shard,
     ScanReplyTmpl<ScanTag::kHscan>::Cursor cursor,
-    ScanOptionsTmpl<ScanTag::kHscan> options,
+    HscanOptions options,
     const CommandControl& command_control
 );
 
@@ -1201,7 +1235,7 @@ template Request<ScanReplyTmpl<ScanTag::kZscan>> ClientImpl::MakeScanRequestWith
     std::string key,
     size_t shard,
     ScanReplyTmpl<ScanTag::kZscan>::Cursor cursor,
-    ScanOptionsTmpl<ScanTag::kZscan> options,
+    ZscanOptions options,
     const CommandControl& command_control
 );
 

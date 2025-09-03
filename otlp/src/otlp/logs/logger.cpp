@@ -227,10 +227,10 @@ void Logger::Stop() noexcept {
 const logging::impl::LogStatistics& Logger::GetStatistics() const { return stats_; }
 
 void Logger::PrependCommonTags(logging::impl::TagWriter writer) const {
-    logging::impl::default_::PrependCommonTags(writer, GetLevel());
+    logging::impl::PrependCommonTags(writer, GetLevel());
 }
 
-bool Logger::DoShouldLog(logging::Level level) const noexcept { return logging::impl::default_::DoShouldLog(level); }
+bool Logger::DoShouldLog(logging::Level level) const noexcept { return logging::impl::DoShouldLog(level); }
 
 void Logger::Log(logging::Level level, logging::impl::formatters::LoggerItemRef item) {
     UASSERT(dynamic_cast<Item*>(&item));
@@ -337,7 +337,7 @@ void Logger::DoLog(
         auto response_future = client.AsyncExport(request);
         // this will disable tracing, but not logging. One must disable
         // logging middleware in grpc client factory configuration
-        response_future.GetCall().GetSpan().SetLogLevel(logging::Level::kNone);
+        response_future.GetContext().GetSpan().SetLogLevel(logging::Level::kNone);
         auto response = response_future.Get();
     } catch (const ugrpc::client::RpcCancelledError&) {
         std::cerr << "Stopping OTLP sender task\n";
@@ -356,7 +356,7 @@ void Logger::DoTrace(
         auto response_future = trace_client.AsyncExport(request);
         // this will disable tracing, but not logging. One must disable
         // logging middleware in grpc client factory configuration
-        response_future.GetCall().GetSpan().SetLogLevel(logging::Level::kNone);
+        response_future.GetContext().GetSpan().SetLogLevel(logging::Level::kNone);
         auto response = response_future.Get();
     } catch (const ugrpc::client::RpcCancelledError&) {
         std::cerr << "Stopping OTLP sender task\n";

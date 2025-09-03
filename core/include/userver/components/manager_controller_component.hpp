@@ -40,7 +40,7 @@ class Manager;
 /// event_thread_pool.threads | number of threads to process low level IO system calls (number of ev loops to start in libev) | 2
 /// event_thread_pool.thread_name | set OS thread name to this value | 'event-worker'
 /// components | dictionary of "component name": "options" | -
-/// default_task_processor | name of the default task processor to use in components | -
+/// default_task_processor | name of the default task processor to use in components | main-task-processor
 /// fs_task_processor | name of the blocking task processor to use in components | fs-task-processor
 /// task_processors.*NAME*.*OPTIONS* | dictionary of task processors to create and their options. See description below | -
 /// mlock_debug_info | whether to mlock(2) process debug info to prevent major page faults on unwinding | true
@@ -49,6 +49,7 @@ class Manager;
 /// preheat_stacktrace_collector | whether to collect a dummy stacktrace at server start up (usable to avoid loading debug info at random point at runtime) | true
 /// userver_experiments.*NAME* | whether to enable certain userver experiments; these are gradually enabled by userver team, for internal use only | false
 /// graceful_shutdown_interval | at shutdown, first hang for this duration with /ping 5xx to give the balancer a chance to redirect new requests to other hosts | 0s
+/// enable_trx_tracker | Enable checking of heavy operations (like http calls) while having active database transactions. | true
 ///
 /// ## Static task_processor options:
 /// Name | Description | Default value

@@ -8,7 +8,6 @@
 #include <utility>
 
 #include <grpcpp/completion_queue.h>
-#include <grpcpp/impl/service_type.h>
 #include <grpcpp/server_context.h>
 
 #include <userver/engine/async.hpp>
@@ -19,7 +18,6 @@
 #include <userver/tracing/span_builder.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
 #include <userver/utils/impl/wait_token_storage.hpp>
 #include <userver/utils/lazy_prvalue.hpp>
 #include <userver/utils/statistics/entry.hpp>
@@ -100,13 +98,19 @@ public:
         // and grpc::ServerContext::AsyncNotifyWhenDone
         ugrpc::server::impl::RpcFinishedEvent notify_when_done(engine::current_task::GetCancellationToken(), context_);
 
-        context_.AsyncNotifyWhenDone(notify_when_done.GetTag());
+        context_.AsyncNotifyWhenDone(notify_when_done.GetCompletionTag());
 
         auto& queue = method_data_.service_data.internals.completion_queues.GetQueue(method_data_.queue_id);
 
         // the request for an incoming RPC must be performed synchronously
         method_data_.service_data.async_service.template Prepare<CallTraits>(
-            method_data_.method_id, context_, initial_request_, raw_responder_, queue, queue, prepare_.GetTag()
+            method_data_.method_id,
+            context_,
+            initial_request_,
+            raw_responder_,
+            queue,
+            queue,
+            prepare_.GetCompletionTag()
         );
 
         // Note: we ignore task cancellations here. Even if notify_when_done has
@@ -137,9 +141,9 @@ public:
     }
 
     static void ListenAsync(const MethodData<GrpcppService, CallTraits>& method_data) {
-        engine::CriticalAsyncNoSpan(
+        engine::DetachUnscopedUnsafe(engine::CriticalAsyncNoSpan(
             method_data.service_data.internals.task_processor, utils::LazyPrvalue([&] { return CallData(method_data); })
-        ).Detach();
+        ));
     }
 
 private:
@@ -166,7 +170,6 @@ private:
                 span_storage_,
                 method_data_.service_data.internals.middlewares,
                 method_data_.service_data.internals.config_source,
-                *method_data_.service_data.internals.access_tskv_logger,
             },
             raw_responder_,
             initial_request_,
@@ -179,7 +182,7 @@ private:
 
     // 'wait_token_' must be the first field, because its lifetime keeps
     // ServiceData alive during server shutdown.
-    const utils::impl::WaitTokenStorage::Token wait_token_;
+    const utils::impl::WaitTokenStorageLock wait_token_;
 
     MethodData<GrpcppService, CallTraits> method_data_;
 
@@ -230,13 +233,13 @@ private:
 template <typename GrpcppService, typename Service, typename... ServiceMethods>
 std::unique_ptr<ServiceWorker> MakeServiceWorker(
     ServiceInternals&& internals,
-    const std::string_view (&method_full_names)[sizeof...(ServiceMethods)],
+    const std::array<ugrpc::impl::MethodDescriptor, sizeof...(ServiceMethods)>& methods,
     Service& service,
     ServiceMethods... service_methods
 ) {
     return std::make_unique<ServiceWorkerImpl<GrpcppService>>(
         std::move(internals),
-        ugrpc::impl::MakeStaticServiceMetadata<GrpcppService>(method_full_names),
+        ugrpc::impl::MakeStaticServiceMetadata<GrpcppService>(methods),
         service,
         service_methods...
     );

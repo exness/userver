@@ -72,9 +72,9 @@ public:
 
         auto client = MakeClient<ClientType>();
 
-        auto client_context = tests::MakeClientContext(set_deadline);
+        auto call_options = tests::MakeCallOptions(set_deadline);
         try {
-            response = client.SayHello(request, std::move(client_context));
+            response = client.SayHello(request, std::move(call_options));
             EXPECT_EQ(response.name(), "Hello abacaba");
             return true;
         } catch (const ugrpc::client::DeadlineExceededError& /*exception*/) {
@@ -149,6 +149,9 @@ UTEST_F(DeadlineStatsTests, ClientDeadlineUpdated) {
     expected_value += 3;
     EXPECT_EQ(GetClientStatistic(kDeadlinePropagated), expected_value);
 
+    // reset TaskInheritedDeadline, set once is too short for many requests
+    tests::InitTaskInheritedDeadline();
+
     // Requests without deadline
     // TaskInheritedData will be set as deadline
     EXPECT_TRUE(PerformRequest(false));
@@ -196,7 +199,7 @@ UTEST_F(DeadlineStatsTests, ClientDeadlineCancelled) {
     // Server will wait for deadline before answer
     BeSlow();
 
-    // TaskInheritedData has set up, but DP disabled
+    // TaskInheritedData has set up
     tests::InitTaskInheritedDeadline();
 
     // Requests with deadline

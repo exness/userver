@@ -23,7 +23,8 @@ struct SpanEvent;
 /// @brief Measures the execution time of the current code block, links it with
 /// the parent tracing::Spans and stores that info in the log.
 ///
-/// Logging of spans can be controlled at runtime via @ref USERVER_NO_LOG_SPANS.
+/// Logging of spans can be controlled at runtime via @ref USERVER_NO_LOG_SPANS, provided that you
+/// `Append` @ref components::LoggingConfigurator component or use @ref components::CommonComponentList.
 ///
 /// See @ref scripts/docs/en/userver/logging.md for usage examples and more
 /// descriptions.
@@ -112,6 +113,7 @@ public:
     ///
     /// @return A new Span that is the root of a new Span hierarchy.
     /// @param name Name of a new Span
+    /// @param source_location Implementation detail, do not touch.
     static Span MakeRootSpan(
         std::string name,
         const utils::impl::SourceLocation& source_location = utils::impl::SourceLocation::Current()
@@ -294,9 +296,9 @@ private:
         static OptionalDeleter DoNotDelete() noexcept;
 
     private:
-        explicit OptionalDeleter(bool do_delete) : do_delete(do_delete) {}
+        explicit OptionalDeleter(bool do_delete) : do_delete_(do_delete) {}
 
-        const bool do_delete;
+        const bool do_delete_;
     };
 
     friend class SpanBuilder;

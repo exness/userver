@@ -19,7 +19,7 @@ public:
     RpcFinishedEvent(RpcFinishedEvent&&) = delete;
     RpcFinishedEvent& operator=(RpcFinishedEvent&&) = delete;
 
-    void* GetTag() noexcept;
+    void* GetCompletionTag() noexcept;
 
     /// @see EventBase::Notify
     void Notify(bool ok) noexcept override;

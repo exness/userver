@@ -30,10 +30,12 @@ def test_request_body(translate_single_schema):
     assert translate_single_schema(schema) == types.ClientSpec(
         client_name='test',
         cpp_namespace='test_namespace',
+        dynamic_config='',
         operations=[
             types.Operation(
                 method='GET',
                 path='/',
+                operation_id=None,
                 request_bodies=[
                     types.Body(
                         content_type='application/json',
@@ -85,10 +87,12 @@ def test_request_body_ref(translate_single_schema):
     assert translate_single_schema(schema) == types.ClientSpec(
         client_name='test',
         cpp_namespace='test_namespace',
+        dynamic_config='',
         operations=[
             types.Operation(
                 method='GET',
                 path='/',
+                operation_id=None,
                 request_bodies=[
                     types.Body(
                         content_type='application/json',
@@ -132,11 +136,13 @@ def test_request_body_nonrequired(translate_single_schema):
     }
     assert translate_single_schema(schema) == types.ClientSpec(
         client_name='test',
+        dynamic_config='',
         cpp_namespace='test_namespace',
         operations=[
             types.Operation(
                 method='GET',
                 path='/',
+                operation_id=None,
                 request_bodies=[
                     types.Body(
                         content_type='application/json',

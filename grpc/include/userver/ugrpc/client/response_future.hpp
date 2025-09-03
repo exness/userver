@@ -3,7 +3,9 @@
 /// @file userver/ugrpc/client/response_future.hpp
 /// @brief @copybrief ugrpc::client::ResponseFuture
 
-#include <userver/ugrpc/client/rpc.hpp>
+#include <memory>
+
+#include <userver/ugrpc/client/impl/async_unary_call_adapter.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -27,13 +29,13 @@ public:
     /// @brief Checks if the asynchronous call has completed
     ///        Note, that once user gets result, IsReady should not be called
     /// @return true if result ready
-    [[nodiscard]] bool IsReady() const noexcept { return call_.GetFinishFuture().IsReady(); }
+    [[nodiscard]] bool IsReady() const { return impl_->IsReady(); }
 
     /// @brief Await response until specified timepoint
     ///
     /// @throws ugrpc::client::RpcError on an RPC error
-    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const {
-        return call_.GetFinishFuture().WaitUntil(deadline);
+    [[nodiscard]] engine::FutureStatus WaitUntil(engine::Deadline deadline) const noexcept {
+        return impl_->WaitUntil(deadline);
     }
 
     /// @brief Await and read the response
@@ -45,28 +47,37 @@ public:
     /// @returns the response on success
     /// @throws ugrpc::client::RpcError on an RPC error
     /// @throws ugrpc::client::RpcCancelledError on task cancellation
-    Response Get() { return call_.GetFinishFuture().Get(); }
+    Response Get() { return impl_->Get(); }
 
-    /// @brief Get the original gRPC Call, useful e.g. for accessing metadata.
-    CallAnyBase& GetCall() { return call_; }
+    /// @brief Cancel call
+    void Cancel() { return impl_->Cancel(); }
+
+    /// @brief Get call context, useful e.g. for accessing metadata.
+    CallContext& GetContext() { return impl_->GetContext(); }
 
     /// @overload
-    const CallAnyBase& GetCall() const { return call_; }
+    const CallContext& GetContext() const { return impl_->GetContext(); }
 
     /// @cond
     // For internal use only
-    template <typename PrepareFunc, typename Request>
-    ResponseFuture(impl::CallParams&& params, PrepareFunc prepare_func, const Request& req)
-        : call_(std::move(params), prepare_func, req) {}
+    template <typename Stub, typename Request>
+    ResponseFuture(
+        impl::CallParams&& params,
+        impl::PrepareUnaryCallProxy<Stub, Request, Response>&& prepare_unary_call,
+        const Request& request
+    )
+        : impl_{std::make_unique<impl::AsyncUnaryCallAdapter<Stub, Request, Response>>(
+              std::move(params),
+              std::move(prepare_unary_call),
+              request
+          )} {}
 
     // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept {
-        return call_.GetFinishFuture().TryGetContextAccessor();
-    }
+    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return impl_->TryGetContextAccessor(); }
     /// @endcond
 
 private:
-    impl::UnaryCall<Response> call_;
+    std::unique_ptr<impl::ResponseFutureImplBase<Response>> impl_;
 };
 
 }  // namespace ugrpc::client

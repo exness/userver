@@ -1,5 +1,5 @@
-#include <userver/chaotic/openapi/client/middleware_registry.hpp>
 #include <userver/chaotic/openapi/middlewares/logging_middleware.hpp>
+
 #include <userver/clients/http/request.hpp>
 #include <userver/clients/http/response.hpp>
 #include <userver/components/component_base.hpp>
@@ -16,12 +16,12 @@ LoggingMiddleware::LoggingMiddleware(logging::Level request_level, logging::Leve
 
 void LoggingMiddleware::OnRequest(clients::http::Request& request) {
     LOG(request_level_) << "Request body: " << utils::log::ToLimitedUtf8(request.GetData(), body_log_limit_)
-                        << ::logging::LogExtra{{"http_url", request.GetUrl()}};
+                        << USERVER_NAMESPACE::logging::LogExtra{{"http_url", request.GetUrl()}};
 }
 
 void LoggingMiddleware::OnResponse(clients::http::Response& response) {
     LOG(response_level_) << "Response body: " << utils::log::ToLimitedUtf8(response.body_view(), body_log_limit_)
-                         << ::logging::LogExtra{{"meta_code", response.status_code()}};
+                         << USERVER_NAMESPACE::logging::LogExtra{{"meta_code", response.status_code()}};
 }
 
 std::string LoggingMiddleware::GetStaticConfigSchemaStr() {
@@ -48,23 +48,9 @@ properties:
 )";
 }
 
-static logging::Level ParseLogLevel(const std::string& log_level) {
-    if (log_level.empty()) {
-        return logging::Level::kNone;
-    }
-
-    try {
-        return logging::LevelFromString(log_level);
-    } catch (const std::exception& ex) {
-        LOG_WARNING() << "Failed to parse log level '" << log_level << "': " << ex.what()
-                      << ". Using 'none' as fallback.";
-        return logging::Level::kNone;
-    }
-}
-
 std::shared_ptr<client::Middleware> LoggingMiddlewareFactory::Create(const yaml_config::YamlConfig& config) {
-    logging::Level log_request_level = ParseLogLevel(config["request_level"].As<std::string>("debug"));
-    logging::Level log_response_level = ParseLogLevel(config["response_level"].As<std::string>("debug"));
+    const auto log_request_level = logging::LevelFromString(config["request_level"].As<std::string>("debug"));
+    const auto log_response_level = logging::LevelFromString(config["response_level"].As<std::string>("debug"));
     return std::make_shared<LoggingMiddleware>(
         log_request_level, log_response_level, config["body_limit"].As<size_t>(1024)
     );
@@ -73,15 +59,6 @@ std::shared_ptr<client::Middleware> LoggingMiddlewareFactory::Create(const yaml_
 std::string LoggingMiddlewareFactory::GetStaticConfigSchemaStr() {
     return LoggingMiddleware::GetStaticConfigSchemaStr();
 }
-
-namespace {
-bool RegisterLoggingMiddleware() {
-    client::MiddlewareRegistry::Instance().Register("logging", std::make_unique<LoggingMiddlewareFactory>());
-    return true;
-}
-}  // namespace
-
-const bool kLoggingRegistered = RegisterLoggingMiddleware();
 
 }  // namespace chaotic::openapi
 

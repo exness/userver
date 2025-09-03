@@ -16,16 +16,17 @@
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/fixed_array.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
 #include <ugrpc/impl/grpc_native_logging.hpp>
 #include <ugrpc/server/impl/generic_service_worker.hpp>
 #include <ugrpc/server/impl/parse_config.hpp>
-#include <userver/ugrpc/deadline_timepoint.hpp>
 #include <userver/ugrpc/impl/statistics_storage.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/server/impl/completion_queue_pool.hpp>
 #include <userver/ugrpc/server/impl/service_internals.hpp>
 #include <userver/ugrpc/server/impl/service_worker.hpp>
+#include <userver/ugrpc/time_utils.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -127,7 +128,6 @@ private:
 
     ugrpc::impl::StatisticsStorage statistics_storage_;
     const dynamic_config::Source config_source_;
-    logging::TextLoggerPtr access_tskv_logger_;
 };
 
 Server::Impl::Impl(
@@ -135,9 +135,7 @@ Server::Impl::Impl(
     utils::statistics::Storage& statistics_storage,
     dynamic_config::Source config_source
 )
-    : statistics_storage_(statistics_storage, ugrpc::impl::StatisticsDomain::kServer),
-      config_source_(config_source),
-      access_tskv_logger_(std::move(config.access_tskv_logger)) {
+    : statistics_storage_(statistics_storage, ugrpc::impl::StatisticsDomain::kServer), config_source_(config_source) {
     LOG_INFO() << "Configuring the gRPC server";
     ugrpc::impl::SetupNativeLogging();
     ugrpc::impl::UpdateNativeLogLevel(config.native_log_level);
@@ -199,7 +197,6 @@ impl::ServiceInternals Server::Impl::MakeServiceInternals(ServiceConfig&& config
         config.task_processor,
         statistics_storage_,
         std::move(config.middlewares),
-        access_tskv_logger_,
         config_source_,
     };
 }

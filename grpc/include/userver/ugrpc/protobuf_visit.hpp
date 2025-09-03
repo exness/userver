@@ -12,7 +12,7 @@
 #include <userver/engine/shared_mutex.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/function_ref.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
+#include <userver/utils/impl/internal_tag_fwd.hpp>
 #include <userver/utils/span.hpp>
 
 namespace google::protobuf {
@@ -116,18 +116,16 @@ public:
     using FieldDescriptorSet = std::unordered_set<const google::protobuf::FieldDescriptor*>;
 
     /// Only for internal use.
-    const Dependencies& GetFieldsWithSelectedChildren(utils::impl::InternalTag) const {
-        return fields_with_selected_children_;
-    }
+    const Dependencies& GetFieldsWithSelectedChildren(utils::impl::InternalTag) const;
 
     /// Only for internal use.
-    const Dependencies& GetReverseEdges(utils::impl::InternalTag) const { return reverse_edges_; }
+    const Dependencies& GetReverseEdges(utils::impl::InternalTag) const;
 
     /// Only for internal use.
-    const DescriptorSet& GetPropagated(utils::impl::InternalTag) const { return propagated_; }
+    const DescriptorSet& GetPropagated(utils::impl::InternalTag) const;
 
     /// Only for internal use.
-    const DescriptorSet& GetCompiled(utils::impl::InternalTag) const { return compiled_; }
+    const DescriptorSet& GetCompiled(utils::impl::InternalTag) const;
 
 protected:
     explicit VisitorCompiler(LockBehavior lock_behavior) : lock_behavior_(lock_behavior) {}
@@ -240,7 +238,7 @@ private:
 /// You should create these at start-up.
 ///
 /// Example usage:
-/// @snippet grpc/src/ugrpc/impl/protobuf_utils.cpp  fields visitor
+/// @snippet grpc/tests/protobuf_visit_test.cpp fields visitor
 class FieldsVisitor final : public BaseVisitor<FieldVisitCallback> {
 public:
     using Selector = utils::function_ref<bool(const google::protobuf::FieldDescriptor& field)>;
@@ -267,7 +265,7 @@ public:
 
     /// @cond
     /// Only for internal use.
-    const Dependencies& GetSelectedFields(utils::impl::InternalTag) const { return selected_fields_; }
+    const Dependencies& GetSelectedFields(utils::impl::InternalTag) const;
     /// @endcond
 
 private:
@@ -320,7 +318,7 @@ public:
 
     /// @cond
     /// Only for internal use.
-    const DescriptorSet& GetSelectedMessages(utils::impl::InternalTag) const { return selected_messages_; }
+    const DescriptorSet& GetSelectedMessages(utils::impl::InternalTag) const;
     /// @endcond
 
 private:

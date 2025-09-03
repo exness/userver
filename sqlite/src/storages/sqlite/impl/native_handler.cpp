@@ -117,7 +117,7 @@ struct sqlite3* NativeHandler::OpenDatabase(const settings::SQLiteSettings& sett
                    struct sqlite3* handler = nullptr;
                    if (const int ret_code = sqlite3_open_v2(settings.db_path.c_str(), &handler, flags, nullptr);
                        ret_code != SQLITE_OK) {
-                       LOG_WARNING() << "Failed to open database: " << settings.db_path;
+                       LOG_ERROR() << "Failed to open database: " << settings.db_path << ", err code: " << ret_code;
                        sqlite3_close(handler);
                        throw SQLiteException(sqlite3_errstr(ret_code), ret_code);
                    }
@@ -143,7 +143,7 @@ NativeHandler::~NativeHandler() {
 
 struct sqlite3* NativeHandler::GetHandle() const noexcept { return db_handler_; }
 
-void NativeHandler::Exec(utils::NullTerminatedView query) const {
+void NativeHandler::Exec(utils::zstring_view query) const {
     engine::AsyncNoSpan(blocking_task_processor_, [this, query] {
         if (const int ret_code = sqlite3_exec(db_handler_, query.c_str(), nullptr, nullptr, nullptr);
             ret_code != SQLITE_OK) {

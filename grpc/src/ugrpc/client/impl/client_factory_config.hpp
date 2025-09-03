@@ -4,6 +4,7 @@
 #include <userver/yaml_config/yaml_config.hpp>
 
 #include <userver/ugrpc/client/client_factory_settings.hpp>
+#include <userver/ugrpc/client/retry_config.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -18,19 +19,10 @@ enum class AuthType {
 struct ClientFactoryConfig final {
     AuthType auth_type{AuthType::kInsecure};
 
-    /// The path to file containing the PEM encoding of the server root certificates. If
-    /// this parameter is empty, the default roots will be used.  The default
-    /// roots can be overridden using the \a GRPC_DEFAULT_SSL_ROOTS_FILE_PATH
-    /// environment variable pointing to a file on the file system containing the
-    /// roots.
-    std::optional<std::string> pem_root_certs;
-    /// The path to file containing the PEM encoding of the client's private key. This
-    /// parameter can be empty if the client does not have a private key.
-    std::optional<std::string> pem_private_key;
-    /// The path to file containing the PEM encoding of the client's certificate chain.
-    /// This parameter can be empty if the client does not have a certificate
-    /// chain.
-    std::optional<std::string> pem_cert_chain;
+    grpc::SslCredentialsOptions ssl_credentials_options{};
+
+    /// Retry configuration for outgoing RPCs
+    RetryConfig retry_config;
 
     /// Optional grpc-core channel args
     /// @see https://grpc.github.io/grpc/core/group__grpc__arg__keys.html
@@ -48,7 +40,7 @@ struct ClientFactoryConfig final {
 ClientFactoryConfig Parse(const yaml_config::YamlConfig& value, formats::parse::To<ClientFactoryConfig>);
 
 ClientFactorySettings
-MakeFactorySettings(impl::ClientFactoryConfig&& config, const storages::secdist::SecdistConfig* secdist, bool isTlsEnabled);
+MakeFactorySettings(impl::ClientFactoryConfig&& config, const storages::secdist::SecdistConfig* secdist);
 
 }  // namespace ugrpc::client::impl
 

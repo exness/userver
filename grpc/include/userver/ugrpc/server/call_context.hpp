@@ -9,7 +9,7 @@
 #include <userver/utils/any_storage.hpp>
 
 #include <userver/ugrpc/server/storage_context.hpp>
-#include <userver/utils/impl/internal_tag.hpp>
+#include <userver/utils/impl/internal_tag_fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

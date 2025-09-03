@@ -19,7 +19,7 @@ namespace {
 
 constexpr std::size_t kSubscriptionDatabaseIndex = 0;
 
-std::shared_ptr<SubscriptionStorageBase> CreateSubscriptionStorage(
+std::unique_ptr<SubscriptionStorageBase> CreateSubscriptionStorage(
     const std::shared_ptr<ThreadPools>& thread_pools,
     const std::vector<std::string>& shards,
     bool is_cluster_mode
@@ -27,10 +27,10 @@ std::shared_ptr<SubscriptionStorageBase> CreateSubscriptionStorage(
     const auto shards_count = shards.size();
     auto shard_names = std::make_shared<const std::vector<std::string>>(shards);
     if (is_cluster_mode) {
-        return std::make_shared<ClusterSubscriptionStorage>(thread_pools, shards_count);
+        return std::make_unique<ClusterSubscriptionStorage>(thread_pools, shards_count);
     }
 
-    return std::make_shared<SubscriptionStorage>(thread_pools, shards_count, is_cluster_mode, std::move(shard_names));
+    return std::make_unique<SubscriptionStorage>(thread_pools, shards_count, is_cluster_mode, std::move(shard_names));
 }
 
 }  // namespace
@@ -64,7 +64,6 @@ SubscribeSentinel::SubscribeSentinel(
           kSubscriptionDatabaseIndex
 
       ),
-      thread_pools_(thread_pools),
       storage_(CreateSubscriptionStorage(thread_pools, shards, is_cluster_mode)) {
     InitStorage();
 }
@@ -85,6 +84,7 @@ std::shared_ptr<SubscribeSentinel> SubscribeSentinel::Create(
     const testsuite::RedisControl& testsuite_redis_control
 ) {
     const auto& password = settings.password;
+    const auto& sentinel_password = settings.sentinel_password;
 
     const std::vector<std::string>& shards = settings.shards;
     LOG_DEBUG() << "shards.size() = " << shards.size();
@@ -97,11 +97,14 @@ std::shared_ptr<SubscribeSentinel> SubscribeSentinel::Create(
     LOG_DEBUG() << "sentinels.size() = " << settings.sentinels.size();
     for (const auto& sentinel : settings.sentinels) {
         LOG_DEBUG() << "sentinel:  host = " << sentinel.host << "  port = " << sentinel.port;
-        // SENTINEL MASTERS/SLAVES works without auth, sentinel has no AUTH command.
         // CLUSTER SLOTS works after auth only. Masters and slaves used instead of
         // sentinels in cluster mode.
         conns.emplace_back(
-            sentinel.host, sentinel.port, (is_cluster_mode ? password : Password("")), false, settings.secure_connection
+            sentinel.host,
+            sentinel.port,
+            (is_cluster_mode ? password : sentinel_password),
+            false,
+            settings.secure_connection
         );
     }
     LOG_DEBUG() << "redis command_control: " << command_control.ToString();

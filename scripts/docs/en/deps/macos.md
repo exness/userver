@@ -1,4 +1,4 @@
-boost@1.88
+boost@1.89
 c-ares
 ccache
 cctz
@@ -20,7 +20,7 @@ krb5
 libev
 librdkafka
 mariadb
-mongo-c-driver
+mongo-c-driver@1
 nghttp2
 ninja
 openldap

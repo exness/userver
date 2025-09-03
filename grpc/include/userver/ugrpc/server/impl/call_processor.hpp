@@ -1,10 +1,22 @@
 #pragma once
 
+#include <cstddef>
+#include <exception>
+#include <optional>
 #include <string_view>
+#include <type_traits>
+#include <utility>
+
+#include <google/protobuf/message.h>
+#include <grpcpp/server_context.h>
 
 #include <userver/server/handlers/exceptions.hpp>
+#include <userver/tracing/in_place_span.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 
+#include <userver/ugrpc/server/exceptions.hpp>
 #include <userver/ugrpc/server/impl/call_kind.hpp>
+#include <userver/ugrpc/server/impl/call_state.hpp>
 #include <userver/ugrpc/server/impl/call_traits.hpp>
 #include <userver/ugrpc/server/impl/exceptions.hpp>
 #include <userver/ugrpc/server/impl/rpc.hpp>
@@ -23,16 +35,10 @@ void SetupSpan(
 
 grpc::Status ReportHandlerError(const std::exception& ex, CallState& state) noexcept;
 
-grpc::Status ReportRpcInterruptedError(CallState& state) noexcept;
+void ReportRpcInterruptedError(CallState& state) noexcept;
 
 grpc::Status
 ReportCustomError(const USERVER_NAMESPACE::server::handlers::CustomHandlerException& ex, CallState& state) noexcept;
-
-void WriteAccessLog(
-    MiddlewareCallContext& context,
-    const grpc::Status& status,
-    logging::TextLoggerRef access_tskv_logger
-) noexcept;
 
 void CheckFinishStatus(bool finish_op_succeeded, const grpc::Status& status, CallState& state) noexcept;
 
@@ -164,7 +170,7 @@ private:
             // So, we watch to count of these middlewares.
             ++success_pre_hooks_count_;
             if constexpr (std::is_base_of_v<google::protobuf::Message, InitialRequest>) {
-                RunWithCatch([this, m] { m->PostRecvMessage(context_, initial_request_); });
+                RunWithCatch([this, &m] { m->PostRecvMessage(context_, initial_request_); });
                 if (!Status().ok()) {
                     return;
                 }
@@ -180,9 +186,6 @@ private:
             // We must call all OnRpcFinish despite the failures. So, don't check the status.
             RunWithCatch([this, &middleware] { middleware->OnCallFinish(context_, Status()); });
         }
-
-        // TODO move to a middleware.
-        impl::WriteAccessLog(context_, Status(), state_.access_tskv_logger);
     }
 
     void RunPreSendMessage(Response& response) {

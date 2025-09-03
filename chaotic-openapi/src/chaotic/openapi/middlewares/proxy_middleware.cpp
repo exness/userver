@@ -1,5 +1,5 @@
-#include <userver/chaotic/openapi/client/middleware_registry.hpp>
 #include <userver/chaotic/openapi/middlewares/proxy_middleware.hpp>
+
 #include <userver/clients/http/request.hpp>
 #include <userver/components/component_base.hpp>
 #include <userver/components/component_config.hpp>
@@ -34,15 +34,6 @@ std::shared_ptr<client::Middleware> ProxyMiddlewareFactory::Create(const yaml_co
 }
 
 std::string ProxyMiddlewareFactory::GetStaticConfigSchemaStr() { return ProxyMiddleware::GetStaticConfigSchemaStr(); }
-
-namespace {
-bool RegisterProxyMiddleware() {
-    client::MiddlewareRegistry::Instance().Register("proxy", std::make_unique<ProxyMiddlewareFactory>());
-    return true;
-}
-
-const bool kProxyRegistered = RegisterProxyMiddleware();
-}  // namespace
 
 }  // namespace chaotic::openapi
 

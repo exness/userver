@@ -1,8 +1,8 @@
 # gRPC middlewares configuration
 
 If your middleware doesn't have static config options, just use:
-1. @ref ugrpc::server::SimpleMiddlewareFactoryComponent 
-2. @ref ugrpc::client::SimpleMiddlewareFactoryComponent
+1. @ref ugrpc::server::SimpleMiddlewareFactoryComponent and see @ref scripts/docs/en/userver/grpc/server_middleware_implementation.md
+2. @ref ugrpc::client::SimpleMiddlewareFactoryComponent and see @ref scripts/docs/en/userver/grpc/client_middleware_implementation.md
 
 ## Yaml config for a middleware
 
@@ -27,7 +27,7 @@ The static yaml config of middleware. You must add middleware to the config `grp
         grpc-server-meta-filter:
             headers:
               - global-header
- 
+
         grpc-server-middlewares-pipeline:
             middlewares:
                 grpc-server-meta-filter:  # register the middleware in the pipeline
@@ -36,15 +36,15 @@ The static yaml config of middleware. You must add middleware to the config `grp
 
 See full srcs:
 
-* @ref samples/grpc_middleware_service/src/middlewares/server/meta_filter.hpp	
-* @ref samples/grpc_middleware_service/src/middlewares/server/meta_filter.cpp	
+* @ref samples/grpc_middleware_service/src/middlewares/server/meta_filter.hpp
+* @ref samples/grpc_middleware_service/src/middlewares/server/meta_filter.cpp
 * @ref samples/grpc_middleware_service/main.cpp
 
 
 @anchor grpc_middlewares_config_override
 ## Config override
 
-Config options are overrided in your components that are inherited from:
+Config options are overridden in your components that are inherited from:
 
 1. @ref ugrpc::server::MiddlewareFactoryComponentBase for the server side.
 2. @ref ugrpc::client::MiddlewareFactoryComponentBase for the client side.

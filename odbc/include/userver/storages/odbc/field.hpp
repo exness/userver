@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <userver/storages/odbc/odbc_fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -19,6 +21,7 @@ public:
     int64_t GetInt64() const;
     int32_t GetInt32() const;
     double GetDouble() const;
+    bool GetBool() const;
 
 protected:
     friend class Row;

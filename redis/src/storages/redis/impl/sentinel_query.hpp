@@ -98,6 +98,8 @@ struct SlotInterval {
     bool operator==(const SlotInterval& r) const { return slot_min == r.slot_min && slot_max == r.slot_max; }
 };
 
+logging::LogHelper& operator<<(logging::LogHelper& log, SlotInterval interval);
+
 struct ClusterShardHostInfo {
     ConnectionInfoInt master;
     std::vector<ConnectionInfoInt> slaves;
@@ -161,6 +163,14 @@ private:
     std::mutex mutex_;
     std::map<ServerId, ClusterSlotsResponse> responses_by_id_;
 };
+
+enum class ClusterSlotsResponseStatus {
+    kOk,
+    kFail,
+    kNonCluster,
+};
+
+ClusterSlotsResponseStatus ParseClusterSlotsResponse(const ReplyPtr& reply, ClusterSlotsResponse& res);
 
 }  // namespace storages::redis::impl
 

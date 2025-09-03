@@ -24,12 +24,13 @@ class SubscriptionRebalanceScheduler;
 
 class SubscriptionToken {
 public:
-    SubscriptionToken() = default;
-    SubscriptionToken(std::weak_ptr<SubscriptionStorageBase> storage, SubscriptionId subscription_id);
+    SubscriptionToken() = delete;
+    SubscriptionToken(SubscriptionStorageBase& storage, SubscriptionId subscription_id);
     SubscriptionToken(SubscriptionToken&& token) noexcept;
     SubscriptionToken(const SubscriptionToken& token) = delete;
 
     SubscriptionToken& operator=(SubscriptionToken&& token) noexcept;
+    SubscriptionToken& operator=(const SubscriptionToken& token) = delete;
 
     bool Subscribed() const { return subscription_id_ != 0; }
 
@@ -38,11 +39,11 @@ public:
     void Unsubscribe();
 
 private:
-    std::weak_ptr<SubscriptionStorageBase> storage_;
+    SubscriptionStorageBase& storage_;
     SubscriptionId subscription_id_{0};
 };
 
-class SubscriptionStorageBase : public std::enable_shared_from_this<SubscriptionStorageBase> {
+class SubscriptionStorageBase {
 public:
     using ServerWeights = std::unordered_map<ServerId, size_t, ServerIdHasher>;
     using CommandCb = std::function<void(size_t shard, CommandPtr command)>;
@@ -220,27 +221,27 @@ protected:
             return shards_count_;
         }
         void SetShardsCount(std::size_t shards_count) {
-            const std::lock_guard lock{mutex_};
+            const std::lock_guard lock{mutex};
             shards_count_ = shards_count;
         }
 
         void ClearCallbackMaps() {
-            const std::lock_guard lock{mutex_};
-            callback_map_.clear();
-            pattern_callback_map_.clear();
-            sharded_callback_map_.clear();
+            const std::lock_guard lock{mutex};
+            callback_map.clear();
+            pattern_callback_map.clear();
+            sharded_callback_map.clear();
         }
 
         // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-        mutable std::mutex mutex_;
-        CommandCb subscribe_callback_;
-        CommandCb unsubscribe_callback_;
-        ShardedCommandCb sharded_subscribe_callback_;
-        ShardedCommandCb sharded_unsubscribe_callback_;
+        mutable std::mutex mutex;
+        CommandCb subscribe_callback;
+        CommandCb unsubscribe_callback;
+        ShardedCommandCb sharded_subscribe_callback;
+        ShardedCommandCb sharded_unsubscribe_callback;
 
-        CallbackMap callback_map_;
-        PcallbackMap pattern_callback_map_;
-        CallbackMap sharded_callback_map_;
+        CallbackMap callback_map;
+        PcallbackMap pattern_callback_map;
+        CallbackMap sharded_callback_map;
         // NOLINTEND(misc-non-private-member-variables-in-classes)
 
     private:

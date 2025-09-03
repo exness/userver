@@ -244,8 +244,8 @@ bool AdjustDeadline(const SentinelImplBase::SentinelCommand& scommand, const dyn
 
 void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_instance_idx) {
     if (!AdjustDeadline(scommand, dynamic_config_source_.GetSnapshot())) {
-        auto reply = std::make_shared<Reply>("", ReplyData::CreateNil());
-        reply->status = ReplyStatus::kTimeoutError;
+        auto reply =
+            std::make_shared<Reply>("", ReplyData::CreateError("Deadline propagation"), ReplyStatus::kTimeoutError);
         InvokeCommand(scommand.command, std::move(reply));
         return;
     }
@@ -404,6 +404,8 @@ void SentinelImpl::RefreshConnectionInfo() {
 }
 
 void SentinelImpl::Stop() {
+    UASSERT(engine::current_task::IsTaskProcessorThread());
+
     ev_thread_.RunInEvLoopBlocking([this] {
         ev_thread_.Stop(check_timer_);
         ev_thread_.Stop(watch_state_);
@@ -421,9 +423,8 @@ void SentinelImpl::Stop() {
                     LOG_ERROR() << fmt::format("Killing request: {}", args.GetJoinedArgs(", "));
                     auto reply = std::make_shared<Reply>(
                         args.GetCommandName(),
-                        nullptr,
-                        ReplyStatus::kEndOfFileError,
-                        "Stopping, killing commands remaining in send queue"
+                        ReplyData::CreateError("Stopping, killing commands remaining in send queue"),
+                        ReplyStatus::kEndOfFileError
                     );
                     statistics_internal_.redis_not_ready++;
                     InvokeCommand(command, std::move(reply));
@@ -621,7 +622,9 @@ void SentinelImpl::ProcessWaitingCommands() {
         if (scommand.start + cc.timeout_all < now) {
             for (const auto& args : command->args) {
                 auto reply = std::make_shared<Reply>(
-                    args.GetCommandName(), nullptr, ReplyStatus::kTimeoutError, "Command in the send queue timed out"
+                    args.GetCommandName(),
+                    ReplyData::CreateError("Command in the send queue timed out"),
+                    ReplyStatus::kTimeoutError
                 );
                 statistics_internal_.redis_not_ready++;
                 InvokeCommand(command, std::move(reply));

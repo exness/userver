@@ -1,5 +1,5 @@
-#include <userver/chaotic/openapi/client/middleware_registry.hpp>
 #include <userver/chaotic/openapi/middlewares/ssl_middleware.hpp>
+
 #include <userver/clients/http/request.hpp>
 #include <userver/components/component_base.hpp>
 #include <userver/components/component_config.hpp>
@@ -30,35 +30,17 @@ properties:
 }
 
 static crypto::Certificate ParseCertificate(const std::string& certificate) {
-    if (certificate.empty()) {
-        return crypto::Certificate{};
-    }
-
-    try {
-        return crypto::Certificate::LoadFromString(certificate);
-    } catch (const std::exception& ex) {
-        LOG_WARNING() << "Failed to parse SSL certificate: " << ex.what() << ". No certificate will be used.";
-        return crypto::Certificate{};
-    }
+    return crypto::Certificate::LoadFromString(certificate);
 }
 
 std::shared_ptr<client::Middleware> SslMiddlewareFactory::Create(
     const USERVER_NAMESPACE::yaml_config::YamlConfig& config
 ) {
-    auto certificate = ParseCertificate(config["certificate"].As<std::string>(""));
+    auto certificate = ParseCertificate(config["certificate"].As<std::string>());
     return std::make_shared<SslMiddleware>(std::move(certificate));
 }
 
 std::string SslMiddlewareFactory::GetStaticConfigSchemaStr() { return SslMiddleware::GetStaticConfigSchemaStr(); }
-
-namespace {
-bool RegisterSslMiddleware() {
-    client::MiddlewareRegistry::Instance().Register("ssl", std::make_unique<SslMiddlewareFactory>());
-    return true;
-}
-
-const bool kSslMiddlewareRegistered = RegisterSslMiddleware();
-}  // namespace
 
 }  // namespace chaotic::openapi
 

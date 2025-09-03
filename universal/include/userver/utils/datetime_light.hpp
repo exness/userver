@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
+#include <ratio>
 #include <stdexcept>
 #include <string>
 
@@ -23,14 +24,15 @@ inline const std::string kRfc3339Format = "%Y-%m-%dT%H:%M:%E*S%Ez";
 /// @snippet utils/datetime/from_string_saturating_test.cpp  kTaximeterFormat
 inline const std::string kTaximeterFormat = "%Y-%m-%dT%H:%M:%E6SZ";
 inline constexpr std::time_t kStartOfTheEpoch = 0;
-/// @snippet utils/datetime/datetime_test.cpp  kDefaultDriverTimezone
+/// @snippet utils/datetime_test.cpp  kDefaultDriverTimezone
 inline const std::string kDefaultDriverTimezone = "Europe/Moscow";
-/// @snippet utils/datetime/datetime_test.cpp  kDefaultTimezone
+/// @snippet utils/datetime_test.cpp  kDefaultTimezone
 inline const std::string kDefaultTimezone = "UTC";
 /// @snippet utils/datetime/from_string_saturating_test.cpp  kDefaultFormat
 inline const std::string kDefaultFormat = "%Y-%m-%dT%H:%M:%E*S%z";
 /// @snippet utils/datetime/from_string_saturating_test.cpp  kIsoFormat
 inline const std::string kIsoFormat = "%Y-%m-%dT%H:%M:%SZ";
+inline const std::string kFractionFormat = "%Y-%m-%dT%H:%M:%S.%E*f%z";
 
 using timepair_t = std::pair<std::uint8_t, std::uint8_t>;
 
@@ -118,7 +120,27 @@ LocalTimezoneTimestring(std::chrono::system_clock::time_point tp, const std::str
 /// @brief Returns time in a string of specified format in UTC timezone
 /// @see kRfc3339Format, kTaximeterFormat, kStartOfTheEpoch,
 /// kDefaultDriverTimezone, kDefaultTimezone, kDefaultFormat, kIsoFormat
-std::string UtcTimestring(std::chrono::system_clock::time_point tp, const std::string& format = kDefaultFormat);
+/// @throws std::runtime_error if tp does not fit into @c std::chrono::hours
+template <class Duration>
+std::string UtcTimestring(
+    std::chrono::time_point<std::chrono::system_clock, Duration> tp,
+    const std::string& format = kDefaultFormat
+) {
+    using quotient = std::ratio_divide<typename Duration::period, std::chrono::hours::period>;
+    if constexpr (quotient::num <= quotient::den) {
+        return cctz::format(format, tp, cctz::utc_time_zone());
+    } else {
+        // cctz cannot handle time_points with duration more than hours
+        const auto days = tp.time_since_epoch();
+        if (days > std::chrono::duration_cast<Duration>(std::chrono::hours::max())) {
+            throw std::runtime_error("tp does not find std::chrono::hours");
+        }
+        const std::chrono::time_point<std::chrono::system_clock, std::chrono::hours> tp_hours(
+            std::chrono::duration_cast<std::chrono::hours>(days)
+        );
+        return cctz::format(format, tp_hours, cctz::utc_time_zone());
+    }
+}
 
 /// @brief Extracts time point from a string of a specified format in local timezone
 /// @throws utils::datetime::DateParseError
@@ -157,7 +179,7 @@ std::chrono::system_clock::time_point GuessLocalTimezoneStringtime(const std::st
 ///
 /// Example:
 ///
-/// @snippet utils/datetime/datetime_test.cpp  Timestring C time example
+/// @snippet utils/datetime_test.cpp  UtcTimestring C time example
 std::time_t Timestamp(std::chrono::system_clock::time_point tp) noexcept;
 
 /// @brief Returned current time as std::time_t; could be mocked
@@ -185,7 +207,7 @@ std::string TimestampToString(std::time_t timestamp);
 ///
 /// Example:
 ///
-/// @snippet utils/datetime/datetime_test.cpp  TimePointToTicks example
+/// @snippet utils/datetime_test.cpp  TimePointToTicks example
 std::int64_t TimePointToTicks(const std::chrono::system_clock::time_point& tp) noexcept;
 
 /// @brief Convert DotNet ticks to a time point

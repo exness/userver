@@ -1,13 +1,12 @@
 import dataclasses
-from typing import Dict
 from typing import Generator
-from typing import List
 from typing import Optional
-from typing import Set
+from typing import Union
 
 from chaotic import cpp_names
 from chaotic import error
 from chaotic.back.cpp import types as cpp_types
+from . import middleware
 
 
 @dataclasses.dataclass
@@ -19,7 +18,9 @@ class Parameter:
     parser: str
     required: bool
 
-    def declaration_includes(self) -> List[str]:
+    query_log_mode_hide: bool
+
+    def declaration_includes(self) -> list[str]:
         # TODO
         if not self.required:
             return ['optional']
@@ -64,6 +65,17 @@ class Parameter:
     def __post_init__(self) -> None:
         self._validate_schema(self.cpp_type, is_array_allowed=True)
 
+    # TODO: for handler only
+    def span_value(self) -> str:
+        if self.required:
+            arg = self.cpp_name
+        else:
+            arg = '*' + self.cpp_name
+        if self.cpp_type.cpp_user_name() == 'std::string':
+            return arg
+        else:
+            return f'::fmt::format("{{}}", {arg})'
+
 
 @dataclasses.dataclass
 class Body:
@@ -79,8 +91,8 @@ class Body:
 @dataclasses.dataclass
 class Response:
     status: int
-    body: Dict[str, cpp_types.CppType]
-    headers: List[Parameter] = dataclasses.field(default_factory=list)
+    body: dict[str, cpp_types.CppType]
+    headers: list[Parameter] = dataclasses.field(default_factory=list)
 
     def is_error(self) -> bool:
         return self.status >= 400
@@ -97,24 +109,38 @@ class Response:
         )
 
 
+def map_method(method: str) -> str:
+    method = method.lower()
+    if method == 'delete':
+        return 'delete_'
+    return method
+
+
 @dataclasses.dataclass
 class Operation:
     method: str
     path: str
+    operation_id: Union[str, None]
 
     description: str = ''
-    parameters: List[Parameter] = dataclasses.field(default_factory=list)
-    request_bodies: List[Body] = dataclasses.field(default_factory=list)
-    responses: List[Response] = dataclasses.field(default_factory=list)
+    parameters: list[Parameter] = dataclasses.field(default_factory=list)
+    request_bodies: list[Body] = dataclasses.field(default_factory=list)
+    responses: list[Response] = dataclasses.field(default_factory=list)
 
     client_generate: bool = True
 
+    middlewares: list[middleware.Middleware] = dataclasses.field(default_factory=list)
+
     def cpp_namespace(self) -> str:
-        return cpp_names.namespace(self.path + '_' + self.method)
+        if self.operation_id:
+            return cpp_names.namespace(self.operation_id)
+        return cpp_names.namespace(self.path) + '::' + map_method(self.method)
 
     def cpp_method_name(self) -> str:
+        if self.operation_id:
+            return self.operation_id
         return cpp_names.camel_case(
-            cpp_names.namespace(self.path + '_' + self.method),
+            cpp_names.namespace(self.path) + '_' + map_method(self.method),
         )
 
     def empty_request(self) -> bool:
@@ -141,15 +167,25 @@ class Operation:
             if response.is_error():
                 yield response
 
+    def has_any_hidden_query_parameters(self) -> bool:
+        for parameter in self.parameters:
+            if parameter.query_log_mode_hide:
+                return True
+        return False
+
 
 @dataclasses.dataclass
 class ClientSpec:
     client_name: str
     cpp_namespace: str
+    dynamic_config: str
     description: str = ''
-    operations: List[Operation] = dataclasses.field(default_factory=list)
+    operations: list[Operation] = dataclasses.field(default_factory=list)
 
-    schemas: Dict[str, cpp_types.CppType] = dataclasses.field(default_factory=dict)
+    # Internal types which cannot be referred to
+    internal_schemas: dict[str, cpp_types.CppType] = dataclasses.field(default_factory=dict)
+    # Types which can be referred to
+    schemas: dict[str, cpp_types.CppType] = dataclasses.field(default_factory=dict)
 
     def has_multiple_content_type_request(self) -> bool:
         for op in self.operations:
@@ -157,8 +193,8 @@ class ClientSpec:
                 return True
         return False
 
-    def requests_declaration_includes(self) -> List[str]:
-        includes: Set[str] = set()
+    def requests_declaration_includes(self) -> list[str]:
+        includes: set[str] = set()
         for op in self.operations:
             if not op.client_generate:
                 continue
@@ -169,10 +205,13 @@ class ClientSpec:
             for param in op.parameters:
                 includes.update(param.declaration_includes())
 
+            for mw in op.middlewares:
+                includes.update(mw.requests_hpp_includes)
+
         return sorted(includes)
 
-    def responses_declaration_includes(self) -> List[str]:
-        includes: Set[str] = set()
+    def responses_declaration_includes(self) -> list[str]:
+        includes: set[str] = set()
         for op in self.operations:
             if not op.client_generate:
                 continue
@@ -180,10 +219,12 @@ class ClientSpec:
             for response in op.responses:
                 for _, body in response.body.items():
                     includes.update(body.declaration_includes())
+                for header in response.headers:
+                    includes.update(header.declaration_includes())
         return sorted(includes)
 
-    def responses_definitions_includes(self) -> List[str]:
-        includes: Set[str] = set()
+    def responses_definitions_includes(self) -> list[str]:
+        includes: set[str] = set()
         for op in self.operations:
             if not op.client_generate:
                 continue
@@ -193,47 +234,21 @@ class ClientSpec:
                     includes.update(body.definition_includes())
         return sorted(includes)
 
-    def cpp_includes(self) -> List[str]:
+    def cpp_includes(self) -> list[str]:
         includes = []
         for cpp_type in self.extract_cpp_types().values():
             assert cpp_type.json_schema
             filepath = cpp_type.json_schema.source_location().filepath
             includes.append(
-                'client/{}/{}.hpp'.format(
+                'clients/{}/{}.hpp'.format(
                     self.client_name,
-                    filepath.split('/')[-1].split('.')[0],
+                    filepath.rsplit('.', 1)[0],
                 ),
             )
         return includes
 
-    def extract_cpp_types(self) -> Dict[str, cpp_types.CppType]:
+    def extract_cpp_types(self) -> dict[str, cpp_types.CppType]:
         types = self.schemas.copy()
-
-        for operation in self.operations:
-            for body in operation.request_bodies:
-                if body.schema:
-                    name = '{}::{}_{}::Body{}'.format(
-                        self.cpp_namespace,
-                        operation.path[1:],
-                        operation.method.lower(),
-                        cpp_names.camel_case(
-                            cpp_names.cpp_identifier(body.content_type),
-                        ),
-                    )
-                    types[name] = body.schema
-            for response in operation.responses:
-                for content_type, cpp_type in response.body.items():
-                    name = '{}::{}_{}::Response{}Body{}'.format(
-                        self.cpp_namespace,
-                        operation.path[1:],
-                        operation.method.lower(),
-                        response.status,
-                        cpp_names.camel_case(
-                            cpp_names.cpp_identifier(content_type),
-                        ),
-                    )
-                    types[name] = cpp_type
-
-        # TODO: response.content
+        types.update(self.internal_schemas)
 
         return types

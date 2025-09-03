@@ -16,6 +16,7 @@
 #include <userver/storages/redis/request.hpp>
 #include <userver/storages/redis/request_eval.hpp>
 #include <userver/storages/redis/request_evalsha.hpp>
+#include <userver/storages/redis/request_generic.hpp>
 #include <userver/storages/redis/transaction.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -105,6 +106,22 @@ public:
     ) {
         return RequestEvalSha<ScriptResult, ReplyType>{
             EvalShaCommon(std::move(script_hash), std::move(keys), std::move(args), command_control)};
+    }
+
+    /// @brief Execute a custom Redis command.
+    /// @param key_index Index of the key in the args vector used to determine the shard
+    ///
+    /// Sample usage:
+    /// @snippet redis/src/storages/redis/client_cluster_redistest.cpp  Sample generic command usage
+    template <typename ReplyType>
+    RequestGeneric<ReplyType> GenericCommand(
+        std::string command,
+        std::vector<std::string> args,
+        size_t key_index,
+        const CommandControl& command_control
+    ) {
+        return RequestGeneric<ReplyType>{
+            GenericCommon(std::move(command), std::move(args), key_index, command_control)};
     }
 
     /// @brief Load the script to the server for further execution via EvalSha() member function.
@@ -217,6 +234,10 @@ public:
         const CommandControl& command_control
     ) = 0;
 
+    /// @brief Iterate over a collection of elements.
+    ///
+    /// Sample usage:
+    /// @snippet redis/src/storages/redis/client_scan_redistest.cpp  Sample Hscan usage
     virtual RequestHscan Hscan(std::string key, HscanOptions options, const CommandControl& command_control) = 0;
 
     virtual RequestHset
@@ -288,11 +309,20 @@ public:
 
     virtual RequestRpushx Rpushx(std::string key, std::string element, const CommandControl& command_control) = 0;
 
+    /// @brief Add member to a set of elements.
+    ///
+    /// Sample usage:
+    /// @snippet redis/src/storages/redis/client_scan_redistest.cpp  Sample Sadd and Sscan usage
     virtual RequestSadd Sadd(std::string key, std::string member, const CommandControl& command_control) = 0;
 
+    /// @overload
     virtual RequestSadd
     Sadd(std::string key, std::vector<std::string> members, const CommandControl& command_control) = 0;
 
+    /// @brief Iterate over a collection of elements.
+    ///
+    /// Sample usage:
+    /// @snippet redis/src/storages/redis/client_scan_redistest.cpp  Sample Scan usage
     virtual RequestScan Scan(size_t shard, ScanOptions options, const CommandControl& command_control) = 0;
 
     virtual RequestScard Scard(std::string key, const CommandControl& command_control) = 0;
@@ -321,6 +351,16 @@ public:
         const CommandControl& command_control
     ) = 0;
 
+    virtual RequestSetIfNotExistOrGet
+    SetIfNotExistOrGet(std::string key, std::string value, const CommandControl& command_control) = 0;
+
+    virtual RequestSetIfNotExistOrGet SetIfNotExistOrGet(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl,
+        const CommandControl& command_control
+    ) = 0;
+
     virtual RequestSetex
     Setex(std::string key, std::chrono::seconds seconds, std::string value, const CommandControl& command_control) = 0;
 
@@ -338,6 +378,10 @@ public:
     virtual RequestSrem
     Srem(std::string key, std::vector<std::string> members, const CommandControl& command_control) = 0;
 
+    /// @brief Iterate over a collection of elements.
+    ///
+    /// Sample usage:
+    /// @snippet redis/src/storages/redis/client_scan_redistest.cpp  Sample Sadd and Sscan usage
     virtual RequestSscan Sscan(std::string key, SscanOptions options, const CommandControl& command_control) = 0;
 
     virtual RequestStrlen Strlen(std::string key, const CommandControl& command_control) = 0;
@@ -450,6 +494,10 @@ public:
     virtual RequestZremrangebyscore
     Zremrangebyscore(std::string key, std::string min, std::string max, const CommandControl& command_control) = 0;
 
+    /// @brief Iterate over a collection of elements.
+    ///
+    /// Sample usage:
+    /// @snippet redis/src/storages/redis/client_scan_redistest.cpp  Sample Zscan usage
     virtual RequestZscan Zscan(std::string key, ZscanOptions options, const CommandControl& command_control) = 0;
 
     virtual RequestZscore Zscore(std::string key, std::string member, const CommandControl& command_control) = 0;
@@ -484,6 +532,12 @@ protected:
         std::string script_hash,
         std::vector<std::string> keys,
         std::vector<std::string> args,
+        const CommandControl& command_control
+    ) = 0;
+    virtual RequestGenericCommon GenericCommon(
+        std::string command,
+        std::vector<std::string> args,
+        size_t key_index,
         const CommandControl& command_control
     ) = 0;
 };

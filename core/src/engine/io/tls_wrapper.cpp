@@ -267,7 +267,7 @@ public:
 
     engine::impl::ContextAccessor& GetSocketContextAccessor() const noexcept;
 
-    TlsWrapper::Impl& impl_;
+    TlsWrapper::Impl& impl;
 };
 
 class TlsWrapper::Impl {
@@ -326,6 +326,41 @@ public:
             throw TlsException(crypto::FormatSslError(
                 fmt::format("Failed to set up client TLS wrapper ({})", SSL_get_error(ssl.get(), ret))
             ));
+        }
+    }
+
+    template <typename SslIoFunc>
+    std::optional<size_t> PerformSslIoOptional(SslIoFunc&& io_func, void* buf, size_t len, const char* context) {
+        UASSERT(ssl);
+        if (!len) return 0;
+
+        char* const begin = static_cast<char*>(buf);
+        char* const end = begin + len;
+        size_t chunk_size = 0;
+
+        bio_data.current_deadline = Deadline::Passed();
+
+        const int io_ret = io_func(ssl.get(), begin, end - begin, &chunk_size);
+        if (io_ret == 1) {
+            return chunk_size;
+        }
+
+        const int ssl_error = SSL_get_error(ssl.get(), io_ret);
+        switch (ssl_error) {
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                return std::nullopt;
+
+            case SSL_ERROR_ZERO_RETURN:
+                return 0;
+
+            case SSL_ERROR_SYSCALL:
+            case SSL_ERROR_SSL:
+                ssl.reset();
+                [[fallthrough]];
+
+            default:
+                throw TlsException(crypto::FormatSslError(std::string{context} + " failed"));
         }
     }
 
@@ -422,16 +457,16 @@ private:
     }
 };
 
-TlsWrapper::ReadContextAccessor::ReadContextAccessor(TlsWrapper::Impl& impl) : impl_(impl) {}
+TlsWrapper::ReadContextAccessor::ReadContextAccessor(TlsWrapper::Impl& impl) : impl(impl) {}
 
 bool TlsWrapper::ReadContextAccessor::IsReady() const noexcept {
-    auto* ssl = impl_.ssl.get();
+    auto* ssl = impl.ssl.get();
     if (!ssl || SSL_has_pending(ssl)) return true;
     return GetSocketContextAccessor().IsReady();
 }
 
 engine::impl::EarlyWakeup TlsWrapper::ReadContextAccessor::TryAppendWaiter(engine::impl::TaskContext& waiter) {
-    auto* ssl = impl_.ssl.get();
+    auto* ssl = impl.ssl.get();
     if (!ssl || SSL_has_pending(ssl)) return engine::impl::EarlyWakeup{true};
 
     return GetSocketContextAccessor().TryAppendWaiter(waiter);
@@ -446,7 +481,7 @@ void TlsWrapper::ReadContextAccessor::AfterWait() noexcept { GetSocketContextAcc
 void TlsWrapper::ReadContextAccessor::RethrowErrorResult() const { GetSocketContextAccessor().RethrowErrorResult(); }
 
 engine::impl::ContextAccessor& TlsWrapper::ReadContextAccessor::GetSocketContextAccessor() const noexcept {
-    auto* ca = impl_.bio_data.socket.GetReadableBase().TryGetContextAccessor();
+    auto* ca = impl.bio_data.socket.GetReadableBase().TryGetContextAccessor();
     UASSERT(ca);
     return *ca;
 }
@@ -607,6 +642,11 @@ size_t TlsWrapper::RecvAll(void* buf, size_t len, Deadline deadline) {
     return impl_->PerformSslIo(
         &SSL_read_ex, buf, len, impl::TransferMode::kWhole, InterruptAction::kPass, deadline, "RecvAll"
     );
+}
+
+std::optional<size_t> TlsWrapper::RecvNoblock(void* buf, size_t len) {
+    impl_->CheckAlive();
+    return impl_->PerformSslIoOptional(&SSL_read_ex, buf, len, "RecvNoblock");
 }
 
 size_t TlsWrapper::SendAll(const void* buf, size_t len, Deadline deadline) {

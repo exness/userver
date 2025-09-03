@@ -1,5 +1,8 @@
+from chaotic_openapi.front import base_model
 from chaotic_openapi.front import model
+import pytest
 
+from chaotic import error
 from chaotic.front import types
 
 
@@ -40,7 +43,7 @@ def test_openapi_body_schema(simple_parser):
                 description='',
                 path='/',
                 method='get',
-                operationId='Get',
+                operationId=None,
                 parameters=[],
                 requestBody=[
                     model.RequestBody(
@@ -51,6 +54,7 @@ def test_openapi_body_schema(simple_parser):
                 ],
                 responses={},
                 security=[],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             )
         ],
     )
@@ -138,7 +142,7 @@ def test_openapi_security(simple_parser):
                 description='',
                 path='/',
                 method='get',
-                operationId='Get',
+                operationId=None,
                 parameters=[],
                 responses={},
                 requestBody=[],
@@ -161,12 +165,13 @@ def test_openapi_security(simple_parser):
                         ],
                     ),
                 ],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             ),
             model.Operation(
                 description='',
                 path='/',
                 method='post',
-                operationId='Post',
+                operationId=None,
                 parameters=[],
                 responses={},
                 requestBody=[],
@@ -189,12 +194,13 @@ def test_openapi_security(simple_parser):
                         ],
                     ),
                 ],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             ),
             model.Operation(
                 description='',
                 path='/',
                 method='put',
-                operationId='Put',
+                operationId=None,
                 parameters=[],
                 responses={},
                 requestBody=[],
@@ -217,6 +223,7 @@ def test_openapi_security(simple_parser):
                         ],
                     ),
                 ],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
             ),
         ],
     )
@@ -307,6 +314,8 @@ def test_openapi_parameters(simple_parser):
                 examples={},
                 deprecated=False,
                 allowEmptyValue=False,
+                x_cpp_name=None,
+                x_query_log_mode_hide=False,
             )
         },
         operations=[
@@ -314,10 +323,11 @@ def test_openapi_parameters(simple_parser):
                 description='',
                 path='/',
                 method='get',
-                operationId='Get',
+                operationId=None,
                 responses={},
                 requestBody=[],
                 security=[],
+                x_middlewares=base_model.XMiddlewares(tvm=True),
                 parameters=[
                     model.Parameter(
                         name='pamparam1',
@@ -329,6 +339,8 @@ def test_openapi_parameters(simple_parser):
                         examples={},
                         deprecated=False,
                         allowEmptyValue=False,
+                        x_cpp_name=None,
+                        x_query_log_mode_hide=False,
                     ),
                     model.Parameter(
                         name='pamparam2',
@@ -340,6 +352,8 @@ def test_openapi_parameters(simple_parser):
                         examples={},
                         deprecated=False,
                         allowEmptyValue=False,
+                        x_cpp_name=None,
+                        x_query_log_mode_hide=False,
                     ),
                     model.Parameter(
                         name='pamparam2',
@@ -351,8 +365,34 @@ def test_openapi_parameters(simple_parser):
                         examples={},
                         deprecated=False,
                         allowEmptyValue=False,
+                        x_cpp_name=None,
+                        x_query_log_mode_hide=False,
                     ),
                 ],
             )
         ],
     )
+
+
+def test_unknown_usrv_tag(simple_parser):
+    expected = """
+===============================================================
+Unhandled error while processing <inline>
+Path "paths./.get", Format "openapi"
+Error:
+Assertion failed, Field x-usrv-tag is not allowed in this context
+==============================================================="""
+
+    with pytest.raises(error.BaseError, match=expected):
+        simple_parser({
+            'openapi': '3.0.0',
+            'info': {'title': '', 'version': '1.0'},
+            'paths': {
+                '/': {
+                    'get': {
+                        'x-usrv-tag': '1',
+                        'responses': {},
+                    },
+                },
+            },
+        })

@@ -30,7 +30,9 @@ formats::json::Value SelectRowsHandler::
         "FROM events VIEW sample_index "
         "WHERE service = $service_key AND channel IN $channel_keys "
         "AND created > $created_key;",
-        ydb::Query::Name("select")};
+        ydb::Query::NameLiteral("select"),
+        ydb::Query::LogMode::kNameOnly,
+    };
 
     auto response = Ydb().ExecuteDataQuery(
         query_params,

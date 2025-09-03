@@ -5,6 +5,7 @@
 
 #include <fmt/format.h>
 
+#include <userver/ugrpc/impl/protobuf_collector.hpp>
 #include <userver/utils/assert.hpp>
 
 namespace {
@@ -49,12 +50,12 @@ std::string GetFieldName(const buf::validate::Violation& violation) {
     return fmt::to_string(name);
 }
 
-std::string_view GetConstraintId(const buf::validate::Violation& violation) {
-    if (violation.constraint_id().empty()) {
+std::string_view GetRuleId(const buf::validate::Violation& violation) {
+    if (violation.rule_id().empty()) {
         return "null";
     }
 
-    return violation.constraint_id();
+    return violation.rule_id();
 }
 
 std::string_view GetDescription(const buf::validate::Violation& violation) {
@@ -72,9 +73,9 @@ namespace buf::validate {
 USERVER_NAMESPACE::logging::LogHelper&
 operator<<(USERVER_NAMESPACE::logging::LogHelper& lh, const Violation& violation) {
     lh << fmt::format(
-        "field={}, constraint={}, description='{}'{}",
+        "field={}, rule={}, description='{}'{}",
         GetFieldName(violation),
-        GetConstraintId(violation),
+        GetRuleId(violation),
         GetDescription(violation),
         violation.for_key() ? " (key error)" : ""
     );
@@ -91,7 +92,11 @@ namespace grpc_protovalidate::impl {
 std::unique_ptr<buf::validate::ValidatorFactory> CreateProtoValidatorFactory() {
     auto result = buf::validate::ValidatorFactory::New();
     UINVARIANT(result.ok(), "Failed to create validator factory");
-    return std::move(result).value();
+    std::unique_ptr<buf::validate::ValidatorFactory> factory = std::move(result).value();
+    for (const google::protobuf::Descriptor* descriptor : ugrpc::impl::GetGeneratedMessages()) {
+        factory->Add(descriptor);
+    }
+    return factory;
 }
 
 }  // namespace grpc_protovalidate::impl

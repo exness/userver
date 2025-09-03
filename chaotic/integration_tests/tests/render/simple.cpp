@@ -23,6 +23,7 @@
 #include <schemas/one_of.hpp>
 #include <schemas/oneofdiscriminator.hpp>
 #include <schemas/string64.hpp>
+#include <schemas/uri.hpp>
 #include <schemas/uuid.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -355,6 +356,20 @@ TEST(Simple, DateTimeIsoBasic) {
     EXPECT_EQ(str, date);
 }
 
+TEST(Simple, DateTimeFraction) {
+    auto date = "2020-10-01T12:34:56.789+0000";
+    auto json = formats::json::MakeObject("modified_at", date);
+    auto obj = json.As<ns::ObjectDate>();
+
+    const utils::datetime::TimePointTz tp{
+        utils::datetime::UtcStringtime("2020-10-01T12:34:56Z"), std::chrono::seconds(0)};
+    EXPECT_EQ(obj.modified_at->GetTimePoint() - tp.GetTimePoint(), std::chrono::milliseconds(789));
+    EXPECT_EQ(obj.modified_at->GetTzOffset(), std::chrono::seconds(0));
+
+    auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["modified_at"].As<std::string>();
+    EXPECT_EQ(str, date) << str;
+}
+
 TEST(Simple, Uuid) {
     auto uuid = "01234567-89ab-cdef-0123-456789abcdef";
     auto json = formats::json::MakeObject("uuid", uuid);
@@ -366,6 +381,17 @@ TEST(Simple, Uuid) {
 
     auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["uuid"].As<std::string>();
     EXPECT_EQ(str, uuid);
+}
+
+TEST(Simple, Uri) {
+    auto uri = "http://example.com";
+    auto json = formats::json::MakeObject("uri", uri);
+    auto obj = json.As<ns::ObjectUri>();
+
+    EXPECT_EQ(obj.uri, uri);
+
+    auto str = Serialize(obj, formats::serialize::To<formats::json::Value>())["uri"].As<std::string>();
+    EXPECT_EQ(str, uri);
 }
 
 TEST(SIMPLE, String64) {

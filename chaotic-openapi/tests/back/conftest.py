@@ -7,10 +7,16 @@ import pytest
 def translate_single_schema():
     def func(schema):
         parser = front_parser.Parser('test')
-        parser.parse_schema(schema, '<inline>')
+        parser.parse_schema(schema, '<inline>', '<inline>')
         service = parser.service()
 
-        tr = translator.Translator(service, 'test_namespace')
+        tr = translator.Translator(
+            service,
+            dynamic_config='',
+            cpp_namespace='test_namespace',
+            include_dirs=[],
+            middleware_plugins=[],
+        )
         return tr.spec()
 
     return func

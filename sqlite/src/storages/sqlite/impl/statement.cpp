@@ -1,5 +1,6 @@
-#include <string_view>
 #include <userver/storages/sqlite/impl/statement.hpp>
+
+#include <string_view>
 
 #include <fmt/format.h>
 
@@ -7,13 +8,15 @@
 #include <userver/storages/sqlite/impl/sqlite3_include.hpp>
 #include <userver/storages/sqlite/operation_types.hpp>
 
+#include <userver/utils/numeric_cast.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::sqlite::impl {
 
-Statement::Statement(const NativeHandler& db_handler, const std::string& statement)
+Statement::Statement(const NativeHandler& db_handler, std::string_view statement)
     : db_handler_{db_handler},
-      prepare_statement_(prepareStatement(statement)),
+      prepare_statement_(PrepareStatement(statement)),
       column_count_(sqlite3_column_count(prepare_statement_.get())) {}
 
 Statement::~Statement() = default;
@@ -51,11 +54,15 @@ OperationType Statement::GetOperationType() const noexcept {
     return sqlite3_stmt_readonly(prepare_statement_.get()) ? OperationType::kReadOnly : OperationType::kReadWrite;
 }
 
-Statement::NativeStatementPtr Statement::prepareStatement(const std::string& statement_str) {
+Statement::NativeStatementPtr Statement::PrepareStatement(std::string_view statement_str) {
     sqlite3_stmt* statement = nullptr;
     // TODO: It can indirectly triggers I/O?
     const int ret_code = sqlite3_prepare_v2(
-        db_handler_.GetHandle(), statement_str.c_str(), static_cast<int>(statement_str.size()), &statement, nullptr
+        db_handler_.GetHandle(),
+        statement_str.data(),
+        utils::numeric_cast<int>(statement_str.size()),
+        &statement,
+        nullptr
     );
     if (ret_code != SQLITE_OK) {
         throw SQLiteException(
@@ -101,26 +108,45 @@ void Statement::Bind(const int index, const double value) {
 
 void Statement::Bind(const int index, const std::string& value) {
     const int ret_code = sqlite3_bind_text(
-        prepare_statement_.get(), index, value.c_str(), static_cast<int>(value.size()), SQLITE_TRANSIENT
+        prepare_statement_.get(),
+        index,
+        value.c_str(),
+        static_cast<int>(value.size()),
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
     );
     CheckCode(ret_code);
 }
 
 void Statement::Bind(const int index, const std::string_view value) {
     const int ret_code = sqlite3_bind_text(
-        prepare_statement_.get(), index, value.data(), static_cast<int>(value.size()), SQLITE_TRANSIENT
+        prepare_statement_.get(),
+        index,
+        value.data(),
+        static_cast<int>(value.size()),
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
     );
     CheckCode(ret_code);
 }
 
 void Statement::Bind(const int index, const char* value, const int size) {
-    const int ret_code = sqlite3_bind_blob(prepare_statement_.get(), index, value, size, SQLITE_TRANSIENT);
+    const int ret_code = sqlite3_bind_blob(
+        prepare_statement_.get(),
+        index,
+        value,
+        size,
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
+    );
     CheckCode(ret_code);
 }
 
 void Statement::Bind(const int index, const std::vector<std::uint8_t>& value) {
-    const int ret_code =
-        sqlite3_bind_blob(prepare_statement_.get(), index, value.data(), value.size(), SQLITE_TRANSIENT);
+    const int ret_code = sqlite3_bind_blob(
+        prepare_statement_.get(),
+        index,
+        value.data(),
+        value.size(),
+        SQLITE_TRANSIENT  // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
+    );
     CheckCode(ret_code);
 }
 

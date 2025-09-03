@@ -47,9 +47,9 @@ const settings::ConnectionSettings& Connection::GetSettings() const noexcept { r
 
 StatementPtr Connection::PrepareStatement(const Query& query) {
     if (settings_.conn_settings.prepared_statements == settings::ConnectionSettings::kNoPreparedStatements) {
-        return std::make_shared<Statement>(db_handler_, query.GetStatement());
+        return std::make_shared<Statement>(db_handler_, query.GetStatementView());
     } else {
-        return statements_cache_.PrepareStatement(query.GetStatement());
+        return statements_cache_.PrepareStatement(query.GetStatementView());
     }
 }
 
@@ -119,7 +119,7 @@ bool Connection::IsBroken() const { return broken_.load(); }
 
 void Connection::NotifyBroken() { broken_.store(true); }
 
-void Connection::ExecuteQuery(utils::NullTerminatedView query) const { db_handler_.Exec(query); }
+void Connection::ExecuteQuery(utils::zstring_view query) const { db_handler_.Exec(query); }
 
 }  // namespace storages::sqlite::impl
 

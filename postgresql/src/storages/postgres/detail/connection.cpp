@@ -149,7 +149,7 @@ ResultSet Connection::Execute(CommandControl statement_cmd_ctl, const Query& que
 }
 
 Connection::StatementId Connection::PortalBind(
-    const std::string& statement,
+    USERVER_NAMESPACE::utils::zstring_view statement,
     const std::string& portal_name,
     const detail::QueryParameters& params,
     OptionalCommandControl statement_cmd_ctl
@@ -192,7 +192,7 @@ void Connection::Ping() { pimpl_->Ping(); }
 
 void Connection::MarkAsBroken() { pimpl_->MarkAsBroken(); }
 
-OptionalCommandControl Connection::GetQueryCmdCtl(const std::optional<Query::Name>& query_name) const {
+OptionalCommandControl Connection::GetQueryCmdCtl(std::optional<Query::NameView> query_name) const {
     return pimpl_->GetNamedQueryCommandControl(query_name);
 }
 

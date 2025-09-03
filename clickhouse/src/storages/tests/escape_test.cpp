@@ -56,7 +56,7 @@ TEST(EscapeScalar, Basic) {
         int64_t{8}
     );
 
-    EXPECT_EQ(formatted_query.QueryText(), "1 2 3 4 5 6 7 8");
+    EXPECT_EQ(formatted_query.GetStatementView(), "1 2 3 4 5 6 7 8");
 }
 
 TEST(EscapeVectorString, Basic) {

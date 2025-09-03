@@ -32,10 +32,12 @@ def test_headers(translate_single_schema):
     assert translate_single_schema(schema) == types.ClientSpec(
         client_name='test',
         cpp_namespace='test_namespace',
+        dynamic_config='',
         operations=[
             types.Operation(
                 method='GET',
                 path='/',
+                operation_id=None,
                 request_bodies=[],
                 responses=[
                     types.Response(
@@ -53,11 +55,12 @@ def test_headers(translate_single_schema):
                                         type='integer',
                                     ),
                                     validators=cpp_types.CppPrimitiveValidator(
-                                        namespace='::test_namespace::/_get', prefix='Response200HeaderHeader'
+                                        namespace='::test_namespace::root_::get', prefix='Response200HeaderHeader'
                                     ),
                                 ),
                                 parser='openapi::TrivialParameter<openapi::In::kHeader, kHeader, int, int>',
                                 required=False,
+                                query_log_mode_hide=False,
                             )
                         ],
                         body={},
@@ -102,10 +105,12 @@ def test_header_ref(translate_single_schema):
     assert translate_single_schema(schema) == types.ClientSpec(
         client_name='test',
         cpp_namespace='test_namespace',
+        dynamic_config='',
         operations=[
             types.Operation(
                 method='GET',
                 path='/',
+                operation_id=None,
                 request_bodies=[],
                 responses=[
                     types.Response(
@@ -127,6 +132,7 @@ def test_header_ref(translate_single_schema):
                                 ),
                                 parser='openapi::TrivialParameter<openapi::In::kHeader, kXHeader, bool, bool>',
                                 required=False,
+                                query_log_mode_hide=False,
                             ),
                         ],
                     )

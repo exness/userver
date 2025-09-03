@@ -21,7 +21,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
 
-template <ScanTag scan_tag>
+template <ScanTag TScanTag>
 class RequestScanData;
 
 /// @brief Valkey or Redis future for a non-scan and non-eval responses.
@@ -56,8 +56,11 @@ public:
     template <typename T1, typename T2>
     friend class RequestEvalSha;
 
-    template <ScanTag scan_tag>
+    template <ScanTag TScanTag>
     friend class RequestScanData;
+
+    template <typename T1>
+    friend class RequestGeneric;
 
 private:
     ReplyPtr GetRaw() { return impl_->GetRaw(); }
@@ -69,12 +72,12 @@ private:
 ///
 /// Member functions of classes storages::redis::Client and storages::redis::Transaction that do send SCAN-like request
 /// to the Redis return this type or storages::redis::ScanRequest.
-template <ScanTag scan_tag>
+template <ScanTag TScanTag>
 class ScanRequest final {
 public:
-    using ReplyElem = typename ScanReplyElem<scan_tag>::type;
+    using ReplyElem = typename ScanReplyElem<TScanTag>::type;
 
-    explicit ScanRequest(std::unique_ptr<RequestScanDataBase<scan_tag>>&& impl) : impl_(std::move(impl)) {}
+    explicit ScanRequest(std::unique_ptr<RequestScanDataBase<TScanTag>>&& impl) : impl_(std::move(impl)) {}
 
     template <typename T = std::vector<ReplyElem>>
     T GetAll(std::string request_description) {
@@ -154,7 +157,7 @@ private:
 
     friend class Iterator;
 
-    std::unique_ptr<RequestScanDataBase<scan_tag>> impl_;
+    std::unique_ptr<RequestScanDataBase<TScanTag>> impl_;
 };
 
 /// @name Valkey/Redis futures aliases
@@ -165,6 +168,7 @@ using RequestDbsize = Request<size_t>;
 using RequestDecr = Request<int64_t>;
 using RequestDel = Request<size_t>;
 using RequestUnlink = Request<size_t>;
+using RequestGenericCommon = Request<ReplyData>;
 using RequestEvalCommon = Request<ReplyData>;
 using RequestEvalShaCommon = Request<ReplyData>;
 using RequestScriptLoad = Request<std::string>;
@@ -217,6 +221,7 @@ using RequestScard = Request<size_t>;
 using RequestSet = Request<StatusOk, void>;
 using RequestSetIfExist = Request<std::optional<StatusOk>, bool>;
 using RequestSetIfNotExist = Request<std::optional<StatusOk>, bool>;
+using RequestSetIfNotExistOrGet = Request<std::optional<std::string>>;
 using RequestSetOptions = Request<SetReply>;
 using RequestSetex = Request<StatusOk, void>;
 using RequestSismember = Request<size_t>;
