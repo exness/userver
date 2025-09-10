@@ -106,25 +106,6 @@ properties:
             type: string
             description: value of channel argument, must be string or integer
         properties: {}
-    auth-type:
-        type: string
-        description: an optional authentication method
-        defaultDescription: insecure
-        enum:
-          - insecure
-          - ssl
-    pem-root-certs:
-        type: string
-        description: The path to containing the PEM encoding of the server root certificates
-        defaultDescription: absent
-    pem-private-key:
-        type: string
-        description: The path to containing the PEM encoding of the client's private key
-        defaultDescription: absent
-    pem-cert-chain:
-        type: string
-        description: The path to file containing the PEM encoding of the client's certificate chain
-        defaultDescription: absent
     auth-token:
         type: string
         description: auth token name from secdist
