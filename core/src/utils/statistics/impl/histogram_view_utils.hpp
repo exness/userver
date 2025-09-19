@@ -54,7 +54,7 @@ inline void AddNonAtomic(std::atomic<double>& to, std::uint64_t x) {
 }
 
 inline void AddAtomic(std::atomic<double>& to, double x) {
-#if __cplusplus >= 202002L
+#if !defined(__APPLE__) && __cplusplus >= 202002L
     to += x;
 #else
     double expected = to.load();
