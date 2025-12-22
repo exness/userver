@@ -136,7 +136,7 @@ class UserverConan(ConanFile):
         self.requires('cctz/2.4', transitive_headers=True)
         self.requires('concurrentqueue/1.0.3', transitive_headers=True)
         self.requires('cryptopp/8.9.0')
-        self.requires('fmt/11.0.2', transitive_headers=True)
+        self.requires('fmt/11.2.0', transitive_headers=True)
         self.requires('libiconv/1.17')
         self.requires('libnghttp2/1.61.0')
         self.requires('libcurl/8.12.1')
