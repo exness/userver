@@ -76,6 +76,9 @@ userver_target_cxx_compile_options_if_supported(
     # protobuf 6 generated code uses absl_nullable/absl_nonnull (-> _Nullable/_Nonnull),
     # which are clang extensions and trip -Wpedantic -Werror in Debug builds.
     "-Wno-nullability-extension"
+    # __COUNTER__ is flagged as a C2y extension by clang under -Wpedantic; it is used
+    # pervasively (e.g. ASSIGN_OR_RETURN macros, google/benchmark). Suppress the noise.
+    "-Wno-c2y-extensions"
     # This warning is unavoidable in generic code with templates
     "-Wno-useless-cast"
     # gcc complains: the ABI of passing union with ‘long double’ has changed in GCC 4.4
