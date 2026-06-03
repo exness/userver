@@ -136,7 +136,7 @@ function(userver_target_generate_chaotic TARGET)
     if(PARSE_PARSE_EXTRA_FORMATS)
         list(APPEND CHAOTIC_ARGS "--parse-extra-formats")
     endif()
-    
+
     if(PARSE_NO_SAX_PARSE)
         list(APPEND CHAOTIC_ARGS "--no-sax-parse")
     endif()

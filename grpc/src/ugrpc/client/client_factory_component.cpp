@@ -142,6 +142,11 @@ ClientFactoryComponent::ClientFactoryComponent(
 ClientFactory& ClientFactoryComponent::GetFactory() { return *factory_; }
 
 yaml_config::Schema ClientFactoryComponent::GetStaticConfigSchema() {
+    /*
+    *    auth-token:
+        type: string
+        description: auth token name from secdist
+     */
     return yaml_config::MergeSchemasFromResource<
         impl::MiddlewareRunnerComponentBase>("src/ugrpc/client/client_factory_component.yaml");
 }

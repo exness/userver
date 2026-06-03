@@ -128,12 +128,12 @@ void PeriodicTask::Stop() noexcept {
     const auto name = impl_->GetName();
     try {
         if (IsRunning()) {
-            LOG_INFO() << "Stopping PeriodicTask with name=" << name;
+            LOG_DEBUG() << "Stopping PeriodicTask with name=" << name;
             impl_->task.SyncCancel();
             impl_->changed_event.Reset();
             impl_->should_force_step = false;
             impl_->task = engine::TaskWithResult<void>();
-            LOG_INFO() << "Stopped PeriodicTask with name=" << name;
+            LOG_DEBUG() << "Stopped PeriodicTask with name=" << name;
         }
     } catch (std::exception& e) {
         LOG_ERROR() << "Exception while stopping PeriodicTask with name=" << name << ": " << e;

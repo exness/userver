@@ -1,6 +1,7 @@
 # pylint: disable=no-member
 import os
 import platform
+import re
 
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
@@ -12,6 +13,8 @@ from conan.tools.cmake import CMakeToolchain
 from conan.tools.files import copy
 from conan.tools.files import export_conandata_patches
 from conan.tools.files import get
+from conan.tools.files import load
+from conan.tools.system import package_manager
 from conan.tools.scm import Git
 
 required_conan_version = '>=2.8.0'  # pylint: disable=invalid-name
@@ -78,6 +81,17 @@ class UserverConan(ConanFile):
         're2/*:with_icu': True,
     }
 
+    def set_version(self):
+        content = load(
+            self,
+            os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                'version.txt',
+            ),
+        )
+        hotfix_version = '4'
+        self.version = content.strip() + f".{hotfix_version}"  # pylint: disable=attribute-defined-outside-init
+
     def source(self):
         known_version = (self.conan_data or {}).get('sources', {}).get(self.version)
         if known_version:
@@ -102,31 +116,38 @@ class UserverConan(ConanFile):
     def layout(self):
         cmake_layout(self)
 
+    def configure(self):
+        # Control dependencies of our dependencies based on current options
+        if self.options.with_jemalloc:
+            self.options['jemalloc'].enable_prof = True
+
     def requirements(self):
-        self.requires('boost/[>=1.83 <1.88]', transitive_headers=True)
+        self.requires('boost/1.90.0', transitive_headers=True, options={
+            "with_stacktrace_backtrace": True,
+            "without_stacktrace": False,
+            "without_cobalt": True
+        })
         self.requires('c-ares/[^1.33]')
         self.requires('cctz/[^2.4]', transitive_headers=True)
-
         self.requires('concurrentqueue/[^1.0.5]', transitive_headers=True)
-
         self.requires('cryptopp/[^8.9]')
-        self.requires('fmt/[>=8.1.1 <13]', transitive_headers=True)
+        self.requires('fmt/11.2.0', transitive_headers=True)
         self.requires('libiconv/[^1.17]')
         self.requires('libnghttp2/[^1.61]')
-        self.requires('libcurl/[>=7.86.0 <7.88 || >8.1.2]')
+        self.requires('libcurl/8.12.1')
         self.requires('libev/[^4.33]')
-        self.requires('openssl/[>=1.1 <4]')
+        self.requires('openssl/[>=3.6.2 <4]')
         self.requires('rapidjson/[>=cci.20230929 <cci.20230930]', transitive_headers=True)
         self.requires('yaml-cpp/[>=0.8.0 <=0.9.0]')
         self.requires('zlib/[^1.3]')
         self.requires('zstd/[^1.5]')
         self.requires('icu/[>=74.1 <77]', force=True)
-        self.requires('re2/[>=20230301]')
+        self.requires('re2/[>=20251105]')
 
         if self.options.with_jemalloc:
             self.requires('jemalloc/[^5.3]')
         if self.options.with_grpc or self.options.with_clickhouse:
-            self.requires('abseil/20240722.1', force=True)
+            self.requires('abseil/20260107.1', transitive_headers=True, transitive_libs=True, force=True)
         if self.options.with_grpc:
             self.requires(
                 'grpc/[^1.69.0]',
@@ -134,7 +155,7 @@ class UserverConan(ConanFile):
                 transitive_libs=True,
             )
             self.requires(
-                'protobuf/[^5.27]',
+                'protobuf/6.33.5',
                 transitive_headers=True,
                 transitive_libs=True,
                 force=True,
@@ -145,12 +166,12 @@ class UserverConan(ConanFile):
             # without system package. We use system package.
             #
             # `<16` is due to link errors `undefined reference to `gss_release_buffer'`
-            self.requires('libpq/[>=14.9 <16]')
+            self.requires('libpq/[>=15.17 <16]')
         if self.options.with_mongodb or self.options.with_kafka:
             self.requires('cyrus-sasl/[^2.1]')
         if self.options.with_mongodb:
             self.requires(
-                'mongo-c-driver/[^1.30]',
+                'mongo-c-driver/1.30.3',
                 transitive_headers=True,
                 transitive_libs=True,
             )
@@ -170,7 +191,7 @@ class UserverConan(ConanFile):
                 transitive_libs=True,
             )
             self.requires(
-                'benchmark/[>=1.9 <3]',
+                'benchmark/[>=1.9.5 <3]',
                 transitive_headers=True,
                 transitive_libs=True,
             )
