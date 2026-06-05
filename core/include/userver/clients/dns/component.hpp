@@ -35,10 +35,7 @@ public:
     Resolver& GetResolver();
 
 private:
-    void Write(utils::statistics::Writer& writer);
-
     Resolver resolver_;
-    utils::statistics::Entry statistics_holder_;
 };
 
 }  // namespace clients::dns

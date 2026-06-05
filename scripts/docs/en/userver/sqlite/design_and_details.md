@@ -1,6 +1,6 @@
-## SQLite driver design and implementation details 
+## SQLite driver design and implementation details
 
-This document offers a guided tour through **`userver-sqlite`**.  
+This document offers a guided tour through **`userver-sqlite`**.
 It describes the main design decisions, shows how the pieces fit together, and highlights the trade-offs we made to keep SQLite usable inside a coroutine-based, non-blocking service.
 
 ### Motivation and scope
@@ -126,5 +126,5 @@ transaction.Rollback();
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/sqlite/supported_types.md | @ref scripts/docs/en/userver/mongodb.md ⇨
+⇦ @ref scripts/docs/en/userver/sqlite/supported_types.md | @ref scripts/docs/en/userver/odbc.md ⇨
 @htmlonly </div> @endhtmlonly

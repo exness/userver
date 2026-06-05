@@ -59,7 +59,7 @@ public:
     void MoveStartedTo(MethodStatistics& other) noexcept;
 
 private:
-    using Percentile = utils::statistics::Percentile<2000, std::uint32_t, 256, 100>;
+    using Percentile = utils::statistics::Percentile<2000, std::uint32_t, 1180, 100>;
     using Timings = utils::statistics::RecentPeriod<Percentile, Percentile>;
     using RateCounter = utils::statistics::RateCounter;
 
@@ -85,7 +85,7 @@ struct MethodStatisticsSnapshot final {
 
     explicit MethodStatisticsSnapshot(const MethodStatistics& stats);
 
-    explicit MethodStatisticsSnapshot(const StatisticsDomain domain);
+    explicit MethodStatisticsSnapshot(StatisticsDomain domain);
 
     void Add(const MethodStatisticsSnapshot& other);
 
@@ -108,7 +108,7 @@ void DumpMetric(utils::statistics::Writer& writer, const MethodStatisticsSnapsho
 void DumpMetricWithLabels(
     utils::statistics::Writer& writer,
     const MethodStatisticsSnapshot& stats,
-    std::optional<std::string_view> client_name,
+    std::optional<std::string_view> destination_prefix_in_metrics,
     std::string_view call_name,
     std::string_view service_name
 );
@@ -132,7 +132,7 @@ public:
 
     void DumpAndCountTotal(
         utils::statistics::Writer& writer,
-        std::optional<std::string_view> client_name,
+        std::optional<std::string_view> destination_prefix_in_metrics,
         MethodStatisticsSnapshot& total
     ) const;
 

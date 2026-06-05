@@ -2,8 +2,17 @@ project(userver-redis-tests CXX)
 
 add_custom_target(${PROJECT_NAME})
 
+function(userver_chaos_testsuite_add_redis)
+    userver_chaos_testsuite_add(
+        ENV REDIS_SLEEP_WORKAROUND_SECONDS=120
+    )
+endfunction()
+
 add_subdirectory(basic_chaos)
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-basic-chaos)
+
+add_subdirectory(dynamic_cluster)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-dynamic-cluster)
 
 add_subdirectory(database_index)
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-database-index)

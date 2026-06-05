@@ -10,17 +10,18 @@ userver_module(
     UTEST_LINK_LIBRARIES ${PROJECT_NAME}-utest
     DBTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_redistest.cpp"
     DBTEST_DATABASES redis redis-cluster
+    DBTEST_ENV REDIS_SLEEP_WORKAROUND_SECONDS=120
     UBENCH_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/benchmark"
     UBENCH_DATABASES redis
     DEPENDS core
     GENERATE_DYNAMIC_CONFIGS
     EMBED_FILES src/storages/redis/component.yaml
+    EMBED_FILES src/storages/redis/dynamic_component.yaml
 )
 
 # for libev
 set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/src/storages/redis/impl/redis.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/storages/redis/impl/sentinel_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/storages/redis/impl/subscription_rebalance_scheduler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/storages/redis/impl/ev_thread/thread.cpp
     PROPERTIES COMPILE_FLAGS -fno-strict-aliasing
