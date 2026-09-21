@@ -91,7 +91,7 @@ class UserverConan(ConanFile):
                 'version.txt',
             ),
         )
-        hotfix_version = '4'
+        hotfix_version = 'dev'
         self.version = content.strip() + f".{hotfix_version}"  # pylint: disable=attribute-defined-outside-init
 
     def source(self):
