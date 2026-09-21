@@ -56,10 +56,8 @@ Mongo::Mongo(const ComponentConfig& config, const ComponentContext& context)
         storages::mongo::Pool>(config.Name(), connection_string, pool_config, dns_resolver, config_source);
 
     if (!dbalias_.empty()) {
-        secdist_subscriber_ = secdist->UpdateAndListen(this, dbalias_, &Mongo::OnSecdistUpdate);
+        secdist->UpdateAndListen(context.Scopes(), this, dbalias_, &Mongo::OnSecdistUpdate);
     }
-
-    auto& statistics_storage = context.FindComponent<components::StatisticsStorage>();
 
     auto section_name = config.Name();
     if (boost::algorithm::starts_with(section_name, kStandardMongoPrefix) &&
@@ -67,7 +65,8 @@ Mongo::Mongo(const ComponentConfig& config, const ComponentContext& context)
     {
         section_name = section_name.substr(kStandardMongoPrefix.size());
     }
-    statistics_holder_ = statistics_storage.GetStorage().RegisterWriter(
+    utils::statistics::RegisterWriterScope(
+        context,
         "mongo",
         [this](utils::statistics::Writer& writer) {
             UASSERT(pool_);
@@ -77,10 +76,7 @@ Mongo::Mongo(const ComponentConfig& config, const ComponentContext& context)
     );
 }
 
-Mongo::~Mongo() {
-    statistics_holder_.Unregister();
-    secdist_subscriber_.Unsubscribe();
-}
+Mongo::~Mongo() = default;
 
 storages::mongo::PoolPtr Mongo::GetPool() const { return pool_; }
 
@@ -96,6 +92,7 @@ yaml_config::Schema Mongo::GetStaticConfigSchema() {
 MultiMongo::MultiMongo(const ComponentConfig& config, const ComponentContext& context)
     : ComponentBase(config, context),
       multi_mongo_(
+          context.Scopes(),
           config.Name(),
           context.FindComponent<Secdist>().GetStorage(),
           ParsePoolConfig(config),
@@ -103,15 +100,12 @@ MultiMongo::MultiMongo(const ComponentConfig& config, const ComponentContext& co
           context.FindComponent<DynamicConfig>().GetSource()
       )
 {
-    auto& statistics_storage = context.FindComponent<components::StatisticsStorage>();
-    statistics_holder_ =
-        statistics_storage.GetStorage()
-            .RegisterWriter(multi_mongo_.GetName(), [this](utils::statistics::Writer& writer) {
-                writer = multi_mongo_;
-            });
+    utils::statistics::RegisterWriterScope(context, multi_mongo_.GetName(), [this](utils::statistics::Writer& writer) {
+        writer = multi_mongo_;
+    });
 }
 
-MultiMongo::~MultiMongo() { statistics_holder_.Unregister(); }
+MultiMongo::~MultiMongo() = default;
 
 storages::mongo::PoolPtr MultiMongo::GetPool(const std::string& dbalias) const { return multi_mongo_.GetPool(dbalias); }
 

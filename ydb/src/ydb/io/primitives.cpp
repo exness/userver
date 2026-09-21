@@ -294,7 +294,7 @@ UuidTrait::Type UuidTrait::Parse(const NYdb::TValueParser& value_parser) {
     static_assert(Type::static_size() == 16);
 
     Type res;
-    TransformUuid(value_parser.GetUuid().Buf_.Bytes, res.data);
+    TransformUuid(value_parser.GetUuid().Buf_.Bytes, static_cast<std::uint8_t(&)[16]>(res.data));
     return res;
 }
 
@@ -304,7 +304,7 @@ void UuidTrait::Write(NYdb::TValueBuilderBase<Builder>& builder, Type value) {
     static_assert(Type::static_size() == 16);
 
     auto res = NYdb::TUuidValue{0, 0};
-    TransformUuid(value.data, res.Buf_.Bytes);
+    TransformUuid(static_cast<std::uint8_t(&)[16]>(value.data), res.Buf_.Bytes);
     builder.Uuid(res);
 }
 

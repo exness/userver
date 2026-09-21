@@ -25,7 +25,7 @@ public:
         : HttpHandlerBase(config, context),
           sqlite_client_(context.FindComponent<components::SQLite>("key-value-database").GetClient())
     {
-        sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, db::sql::kCreateTable.data());
+        sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, db::sql::kCreateTable.c_str());
     }
 
     std::string HandleRequestThrow(const server::http::HttpRequest& request, server::request::RequestContext&)
@@ -54,7 +54,7 @@ public:
 private:
     std::string GetValue(std::string_view key, const server::http::HttpRequest& request) const {
         auto res =
-            sqlite_client_->Execute(storages::sqlite::OperationType::kReadOnly, db::sql::kSelectValueByKey.data(), key)
+            sqlite_client_->Execute(storages::sqlite::OperationType::kReadOnly, db::sql::kSelectValueByKey.c_str(), key)
                 .AsOptionalSingleField<std::string>();
         if (!res.has_value()) {
             request.SetResponseStatus(server::http::HttpStatus::kNotFound);
@@ -70,14 +70,14 @@ private:
         storages::sqlite::Transaction
             transaction = sqlite_client_->Begin(storages::sqlite::OperationType::kReadWrite, {});
 
-        auto res = transaction.Execute(db::sql::kInsertKeyValue.data(), key, value).AsExecutionResult();
+        auto res = transaction.Execute(db::sql::kInsertKeyValue.c_str(), key, value).AsExecutionResult();
         if (res.rows_affected) {
             transaction.Commit();
             request.SetResponseStatus(server::http::HttpStatus::kCreated);
             return std::string{value};
         }
 
-        auto trx_res = transaction.Execute(db::sql::kSelectValueByKey.data(), key).AsSingleField<std::string>();
+        auto trx_res = transaction.Execute(db::sql::kSelectValueByKey.c_str(), key).AsSingleField<std::string>();
         transaction.Rollback();
         if (value != trx_res) {
             request.SetResponseStatus(server::http::HttpStatus::kConflict);
@@ -95,14 +95,15 @@ private:
             TransactionOptions{TransactionOptions::LockingMode::kImmediate}
         );
 
-        auto res = transaction.Execute(db::sql::kUpdateKeyValue.data(), value, key).AsExecutionResult();
+        auto res = transaction.Execute(db::sql::kUpdateKeyValue.c_str(), value, key).AsExecutionResult();
         if (res.rows_affected) {
             transaction.Commit();
             request.SetResponseStatus(server::http::HttpStatus::kCreated);
             return std::string{value};
         }
 
-        auto trx_res = transaction.Execute(db::sql::kSelectValueByKey.data(), key).AsOptionalSingleField<std::string>();
+        auto
+            trx_res = transaction.Execute(db::sql::kSelectValueByKey.c_str(), key).AsOptionalSingleField<std::string>();
         if (!trx_res.has_value()) {
             request.SetResponseStatus(server::http::HttpStatus::kNotFound);
             return {};
@@ -118,7 +119,7 @@ private:
     }
 
     std::string DeleteValue(std::string_view key) const {
-        const storages::sqlite::Query delete_value{db::sql::kDeleteKeyValue.data()};
+        const storages::sqlite::Query delete_value{db::sql::kDeleteKeyValue.c_str()};
 
         auto res =
             sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, delete_value, key).AsExecutionResult();

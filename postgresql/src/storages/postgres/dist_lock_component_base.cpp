@@ -8,6 +8,7 @@
 #include <userver/storages/postgres/component.hpp>
 #include <userver/testsuite/tasks.hpp>
 #include <userver/utils/algo.hpp>
+#include <userver/utils/resource_scopes.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 
 #ifndef ARCADIA_ROOT
@@ -22,12 +23,14 @@ namespace storages::postgres {
 
 DistLockComponentBase::DistLockComponentBase(
     const components::ComponentConfig& component_config,
-    const components::ComponentContext& component_context
+    const components::ComponentContext& component_context,
+    AutostartDistlock enable_autostart_at_base
 )
     : components::ComponentBase(component_config, component_context),
       config_(component_context.FindComponent<components::DynamicConfig>().GetSource()),
       name_(component_config.Name()),
-      real_host_name_(hostinfo::blocking::GetRealHostName())
+      real_host_name_(hostinfo::blocking::GetRealHostName()),
+      enable_autostart_at_base_(enable_autostart_at_base)
 {
     auto shard_number = component_config["shard-number"].As<size_t>(components::Postgres::kDefaultShardNumber);
     auto cluster =
@@ -73,8 +76,8 @@ DistLockComponentBase::DistLockComponentBase(
         task_processor,
         locker_log_level
     );
-    subscription_token_ = config_.UpdateAndListen(this, name_, &DistLockComponentBase::OnConfigUpdate);
-    autostart_ = component_config["autostart"].As<bool>(false);
+    config_.UpdateAndListen(component_context.Scopes(), this, name_, &DistLockComponentBase::OnConfigUpdate);
+    autostart_ = component_config["autostart"].As<bool>(true);
 
     utils::statistics::RegisterWriterScope(
         component_context,
@@ -83,7 +86,8 @@ DistLockComponentBase::DistLockComponentBase(
         {{"distlock_name", component_config.Name()}}
     );
 
-    if (component_config["testsuite-support"].As<bool>(false)) {
+    const bool autostart_enabled = enable_autostart_at_base_ == AutostartDistlock::kYes;
+    if (component_config["testsuite-support"].As<bool>(autostart_enabled)) {
         auto& testsuite_tasks = testsuite::GetTestsuiteTasks(component_context);
 
         if (testsuite_tasks.IsEnabled()) {
@@ -91,15 +95,40 @@ DistLockComponentBase::DistLockComponentBase(
             testsuite_enabled_ = true;
         }
     }
+
+    if (autostart_enabled && !testsuite_enabled_) {
+        component_context.Scopes().Register([this] {
+            if (autostart_) {
+                worker_->Start();
+            }
+            // if StopDistLock() throws, we are probably in unrecoverable state
+            return utils::FastScopeGuard([this]() noexcept { StopDistLock(); });
+        });
+    }
 }
 
-DistLockComponentBase::~DistLockComponentBase() { subscription_token_.Unsubscribe(); }
+DistLockComponentBase::DistLockComponentBase(
+    const components::ComponentConfig& component_config,
+    const components::ComponentContext& component_context
+)
+    : storages::postgres::DistLockComponentBase(component_config, component_context, AutostartDistlock::kYes) {}
+
+DistLockComponentBase::DistLockComponentBase(
+    const components::ComponentConfig& component_config,
+    const components::ComponentContext& component_context,
+    DisableAutostartAtBase
+)
+    : storages::postgres::DistLockComponentBase(component_config, component_context, AutostartDistlock::kNo) {}
+
+DistLockComponentBase::~DistLockComponentBase() = default;
 
 dist_lock::DistLockedWorker& DistLockComponentBase::GetWorker() { return *worker_; }
 
 bool DistLockComponentBase::OwnsLock() const noexcept { return worker_->OwnsLock() || testsuite_enabled_; }
 
 void DistLockComponentBase::AutostartDistLock() {
+    UASSERT(enable_autostart_at_base_ == AutostartDistlock::kNo);
+
     if (testsuite_enabled_) {
         return;
     }

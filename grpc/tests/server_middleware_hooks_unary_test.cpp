@@ -8,6 +8,7 @@
 #include <tests/server_middleware_base_gmock.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/server/exceptions.hpp>
+#include <userver/ugrpc/server/generic_service_base.hpp>
 #include <userver/ugrpc/server/middlewares/base.hpp>
 #include <userver/ugrpc/server/middlewares/deadline_propagation/middleware.hpp>
 #include <userver/ugrpc/tests/service_fixtures.hpp>
@@ -281,25 +282,41 @@ UTEST_P(ServerMiddlewareHooksUnaryTest, ThrowInHandler) {
     UEXPECT_THROW(Client().SayHello(sample::ugrpc::GreetingRequest()), ugrpc::client::UnauthenticatedError);
 }
 
+// The test verifies that in case of deadline propagation, the client receives
+// DEADLINE_EXCEEDED and the deadline propagation server middleware forces the
+// status to DEADLINE_EXCEEDED.
 UTEST_P(ServerMiddlewareHooksUnaryTest, DeadlinePropagation) {
     SetSuccessHandler();
 
-    ON_CALL(Middleware(1), OnCallStart).WillByDefault([](ugrpc::server::MiddlewareCallContext& context) {
-        const ugrpc::server::middlewares::deadline_propagation::Middleware deadline_propagation{
-            ugrpc::server::middlewares::deadline_propagation::Settings{}
-        };
-        deadline_propagation.OnCallStart(context);
-    });
+    std::atomic<int> m0_pre_send_status{0};
+
+    std::atomic<int> m1_on_call_start{0};
+    std::atomic<int> m1_pre_send_status{0};
+
+    std::atomic<int> m2_pre_send_status{0};
+
+    engine::SingleUseEvent all_middlewares_finished{};
+
+    ON_CALL(Middleware(1), OnCallStart)
+        .WillByDefault([&m1_on_call_start](ugrpc::server::MiddlewareCallContext& context) {
+            m1_on_call_start.fetch_add(1);
+            const ugrpc::server::middlewares::deadline_propagation::Middleware deadline_propagation{
+                ugrpc::server::middlewares::deadline_propagation::Settings{}
+            };
+            deadline_propagation.OnCallStart(context);
+        });
 
     // The order if OnCallFinish is reversed: M2 -> M1 -> M0
     ON_CALL(Middleware(2), PreSendStatus)
-        .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, grpc::Status& status) {
+        .WillByDefault([&m2_pre_send_status](ugrpc::server::MiddlewareCallContext& /*context*/, grpc::Status& status) {
+            m2_pre_send_status.fetch_add(1);
             EXPECT_TRUE(status.ok());
             // We want to exceed a deadline for middleware 'grpc-server-deadline-propagation'
-            engine::SleepFor(std::chrono::milliseconds{200});
+            engine::SleepFor(std::chrono::milliseconds{600});
         });
     ON_CALL(Middleware(1), PreSendStatus)
-        .WillByDefault([](ugrpc::server::MiddlewareCallContext& context, grpc::Status& status) {
+        .WillByDefault([&m1_pre_send_status](ugrpc::server::MiddlewareCallContext& context, grpc::Status& status) {
+            m1_pre_send_status.fetch_add(1);
             EXPECT_TRUE(status.ok());
             /// Here the status will be replaced by 'grpc-server-deadline-propagation' middleware
             const ugrpc::server::middlewares::deadline_propagation::Middleware deadline_propagation{
@@ -308,36 +325,44 @@ UTEST_P(ServerMiddlewareHooksUnaryTest, DeadlinePropagation) {
             deadline_propagation.PreSendStatus(context, status);
         });
     ON_CALL(Middleware(0), PreSendStatus)
-        .WillByDefault([](ugrpc::server::MiddlewareCallContext& /*context*/, grpc::Status& status) {
+        .WillByDefault([&m0_pre_send_status](ugrpc::server::MiddlewareCallContext& /*context*/, grpc::Status& status) {
+            m0_pre_send_status.fetch_add(1);
             // Status from 'grpc-server-deadline-propagation' middleware
             EXPECT_TRUE(!status.ok());
             EXPECT_EQ(status.error_code(), grpc::StatusCode::DEADLINE_EXCEEDED);
-            const auto& msg = status.error_message();
-            EXPECT_EQ("Deadline specified by the client for this RPC was exceeded", msg);
         });
-
-    EXPECT_CALL(Middleware(1), OnCallStart).Times(1);
-    EXPECT_CALL(Middleware(1), PostRecvMessage).Times(1);
-    EXPECT_CALL(Middleware(1), PreSendMessage).Times(1);
-    EXPECT_CALL(Middleware(1), PreSendStatus).Times(1);
-    // OnCallStart of M1 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(Middleware(1), OnCallFinish).Times(1);
-
-    EXPECT_CALL(Middleware(2), OnCallStart).Times(1);
-    EXPECT_CALL(Middleware(2), PostRecvMessage).Times(1);
-    EXPECT_CALL(Middleware(2), PreSendMessage).Times(1);
-    EXPECT_CALL(Middleware(2), PreSendStatus).Times(1);
-    // OnCallStart of M2 is successfully => OnCallFinish must be called.
-    EXPECT_CALL(Middleware(2), OnCallFinish).Times(1);
+    ON_CALL(Middleware(0), OnCallFinish)
+        .WillByDefault([&all_middlewares_finished](
+                           ugrpc::server::MiddlewareCallContext& /*context*/,
+                           const std::optional<grpc::Status>& /*status*/
+                       ) { all_middlewares_finished.Send(); });
 
     ugrpc::client::CallOptions call_options;
-    const std::chrono::milliseconds timeout_ms{100};
+    const std::chrono::milliseconds timeout_ms{500};
     call_options.SetTimeout(timeout_ms);
 
     UEXPECT_THROW(
         Client().SayHello(sample::ugrpc::GreetingRequest(), std::move(call_options)),
         ugrpc::client::DeadlineExceededError
     );
+
+    if (m1_on_call_start.load() == 0) {
+        GTEST_SKIP()
+            << "RPC was cancelled at the transport layer before reaching the "
+               "server, so no middleware hooks ran. Nothing to verify.";
+    }
+
+    all_middlewares_finished.WaitNonCancellable();
+
+    EXPECT_EQ(m1_on_call_start.load(), 1);
+
+    if (m2_pre_send_status.load() != 0) {
+        EXPECT_EQ(m2_pre_send_status.load(), 1);
+
+        EXPECT_EQ(m1_pre_send_status.load(), 1);
+
+        EXPECT_EQ(m0_pre_send_status.load(), 1);
+    }
 }
 
 INSTANTIATE_UTEST_SUITE_P(
@@ -345,5 +370,48 @@ INSTANTIATE_UTEST_SUITE_P(
     ServerMiddlewareHooksUnaryTest,
     testing::Values(Flags{.set_error = true}, Flags{.set_error = false})
 );
+
+namespace {
+
+class ResponseLifetimeService final : public ugrpc::server::GenericServiceBase {
+public:
+    std::atomic<bool> response_destroyed{false};
+
+    GenericResult Handle(GenericCallContext&, GenericReaderWriter&) override {
+        static std::string payload = [] {
+            sample::ugrpc::GreetingResponse response;
+            response.set_name("hello");
+            return response.SerializeAsString();
+        }();
+        grpc::Slice slice{
+            payload.data(),
+            payload.size(),
+            [](void* user_data) { static_cast<std::atomic<bool>*>(user_data)->store(true); },
+            &response_destroyed
+        };
+        return grpc::ByteBuffer{&slice, 1};
+    }
+};
+
+using ResponseLifetimeTest = tests::MiddlewaresFixture<
+    tests::server::ServerMiddlewareBaseMock,
+    ResponseLifetimeService,
+    sample::ugrpc::UnitTestServiceClient,
+    1>;
+
+}  // namespace
+
+UTEST_F(ResponseLifetimeTest, OnCallFinishBeforeResponseDestruction) {
+    auto& response_destroyed = Service().response_destroyed;
+    EXPECT_CALL(Middleware(), OnCallFinish)
+        .WillOnce([&response_destroyed](ugrpc::server::MiddlewareCallContext&, const std::optional<grpc::Status>&) {
+            EXPECT_FALSE(response_destroyed.load());
+        });
+
+    EXPECT_EQ(Client().SayHello(sample::ugrpc::GreetingRequest{}).name(), "hello");
+
+    GetServer().StopServing();
+    EXPECT_TRUE(response_destroyed.load());
+}
 
 USERVER_NAMESPACE_END

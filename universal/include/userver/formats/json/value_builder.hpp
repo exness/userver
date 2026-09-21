@@ -7,6 +7,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <userver/compiler/impl/nodebug.hpp>
 #include <userver/formats/common/meta.hpp>
 #include <userver/formats/common/transfer_tag.hpp>
 #include <userver/formats/json/impl/mutable_value_wrapper.hpp>
@@ -17,8 +18,6 @@ USERVER_NAMESPACE_BEGIN
 
 namespace formats::json {
 
-// clang-format off
-
 /// @ingroup userver_universal userver_containers userver_formats
 ///
 /// @brief Builder for JSON.
@@ -28,16 +27,13 @@ namespace formats::json {
 ///
 /// ## Example usage:
 ///
-/// @snippet formats/json/value_builder_test.cpp  Sample formats::json::ValueBuilder usage
+/// @snippet universal/src/formats/json/value_builder_test.cpp  Sample formats::json::ValueBuilder usage
 ///
 /// ## Customization example:
 ///
-/// @snippet formats/json/value_builder_test.cpp  Sample Customization formats::json::ValueBuilder usage
+/// @snippet universal/src/formats/json/value_builder_test.cpp  Sample Customization formats::json::ValueBuilder usage
 ///
 /// @see @ref scripts/docs/en/userver/formats.md
-
-// clang-format on
-
 class ValueBuilder final {
 public:
     struct IterTraits {
@@ -155,12 +151,21 @@ public:
     /// @throw `TypeMismatchException` if not an array or an object.
     std::size_t GetSize() const;
 
+    /// @brief Returns storage capacity for array elements or object members.
+    /// @throw `TypeMismatchException` if not an array or an object.
+    std::size_t GetCapacity() const;
+
     /// @brief Returns true if value holds a `key`.
     /// @throw `TypeMismatchException` if `*this` is not a map or null.
     bool HasMember(std::string_view key) const;
 
     /// @brief Returns full path to this value.
     std::string GetPath() const;
+
+    /// @brief Ensures storage capacity for array elements or object members is at least `capacity` without changing
+    /// size.
+    /// @throw `TypeMismatchException` if not an array or object.
+    void Reserve(std::size_t capacity);
 
     /// @brief Resize the array value or convert null value
     /// into an array of requested size.
@@ -196,27 +201,25 @@ private:
     impl::Value& AddMember(std::string_view key, CheckMemberExists);
 
     template <typename T>
-    static Value DoSerialize(const T& t);
+    USERVER_IMPL_NODEBUG_INLINE_FUNC static Value DoSerialize(const T& t) {
+        static_assert(
+            formats::common::impl::HasSerialize<Value, T>,
+            "There is no `Serialize(const T&, formats::serialize::To<json::Value>)` "
+            "in namespace of `T` or `formats::serialize`. "
+            ""
+            "Probably you forgot to include the <userver/formats/serialize/common_containers.hpp> header "
+            "or one of the <formats/json/serialize_*.hpp> headers or you have not provided a `Serialize` function "
+            "overload."
+        );
+
+        return Serialize(t, formats::serialize::To<Value>());
+    }
 
     impl::MutableValueWrapper value_;
 
     friend class Iterator<IterTraits, common::IteratorDirection::kForward>;
     friend class Iterator<IterTraits, common::IteratorDirection::kReverse>;
 };
-
-template <typename T>
-Value ValueBuilder::DoSerialize(const T& t) {
-    static_assert(
-        formats::common::impl::HasSerialize<Value, T>,
-        "There is no `Serialize(const T&, formats::serialize::To<json::Value>)` "
-        "in namespace of `T` or `formats::serialize`. "
-        ""
-        "Probably you forgot to include the <userver/formats/serialize/common_containers.hpp> header "
-        "or one of the <formats/json/serialize_*.hpp> headers or you have not provided a `Serialize` function overload."
-    );
-
-    return Serialize(t, formats::serialize::To<Value>());
-}
 
 template <typename T>
 requires(std::is_integral<T>::value && sizeof(T) <= sizeof(int64_t))
@@ -229,7 +232,7 @@ json::Value Serialize(std::chrono::system_clock::time_point tp, formats::seriali
 
 /// Optimized maps of StrongTypedefs serialization for JSON
 template <typename T>
-requires(meta::kIsUniqueMap<T> && utils::IsStrongTypedefLoggable(T::key_type::kOps))
+requires(meta::IsUniqueMap<T> && utils::IsStrongTypedefLoggable(T::key_type::kOps))
 Value Serialize(const T& value, formats::serialize::To<Value>) {
     json::ValueBuilder builder(formats::common::Type::kObject);
     for (const auto& [key, value] : value) {
@@ -240,7 +243,7 @@ Value Serialize(const T& value, formats::serialize::To<Value>) {
 
 /// Optimized maps serialization for JSON
 template <typename T>
-requires meta::kIsUniqueMap<T> && std::is_convertible_v<typename T::key_type, std::string>
+requires meta::IsUniqueMap<T> && std::is_convertible_v<typename T::key_type, std::string>
 Value Serialize(const T& value, formats::serialize::To<Value>) {
     json::ValueBuilder builder(formats::common::Type::kObject);
     for (const auto& [key, value] : value) {

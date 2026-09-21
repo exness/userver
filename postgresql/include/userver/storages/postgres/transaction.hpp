@@ -1,10 +1,11 @@
 #pragma once
 
 /// @file userver/storages/postgres/transaction.hpp
-/// @brief Transactions
+/// @brief @copybrief storages::postgres::Transaction
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include <userver/storages/postgres/detail/connection_ptr.hpp>
 #include <userver/storages/postgres/detail/query_parameters.hpp>
@@ -21,105 +22,6 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::postgres {
 
-/// @page pg_transactions uPg: Transactions
-///
-/// All queries that are run on a PostgreSQL cluster are executed inside
-/// a transaction, even if a single-query interface is used.
-///
-/// A uPg transaction can be started using all isolation levels and modes
-/// supported by PostgreSQL server as specified in documentation here
-/// https://www.postgresql.org/docs/current/static/sql-set-transaction.html.
-/// When starting a transaction, the options are specified using
-/// TransactionOptions structure.
-///
-/// For convenience and improvement of readability there are constants
-/// defined: Transaction::RW, Transaction::RO and Transaction::Deferrable.
-///
-/// @see TransactionOptions
-///
-/// Transaction object ensures that a transaction started in a PostgreSQL
-/// connection will be either committed or rolled back and the connection
-/// will returned back to a connection pool.
-///
-/// @todo Code snippet with transaction starting and committing
-///
-/// Next: @ref pg_run_queries
-///
-/// See also: @ref pg_process_results
-///
-/// ----------
-///
-/// @htmlonly <div class="bottom-nav"> @endhtmlonly
-/// ⇦ @ref scripts/docs/en/userver/pg_driver.md | @ref pg_run_queries ⇨
-/// @htmlonly </div> @endhtmlonly
-
-/// @page pg_run_queries uPg: Running queries
-///
-/// All queries are executed through a transaction object, event when being
-/// executed through singe-query interface, so here only executing queries
-/// with transaction will be covered. Single-query interface is basically
-/// the same except for additional options.
-///
-/// uPg provides means to execute text queries only. There is no query
-/// generation, but can be used by other tools to execute SQL queries.
-///
-/// @warning A query must contain a single query, multiple statements delimited
-/// by ';' are not supported.
-///
-/// All queries are parsed and prepared during the first invocation and are
-/// executed as prepared statements afterwards.
-///
-/// Any query execution can throw an exception. Please see @ref pg_errors for
-/// more information on possible errors.
-///
-/// @par Queries without parameters
-///
-/// Executing a query without any parameters is rather straightforward.
-/// @code
-/// auto trx = cluster->Begin(/* transaction options */);
-/// auto res = trx.Execute("select foo, bar from foobar");
-/// trx.Commit();
-/// @endcode
-///
-/// The cluster also provides interface for single queries
-/// @code
-/// #include <service/sql_queries.hpp>
-///
-/// auto res = cluster->Execute(/* transaction options */, sql::kMyQuery);
-/// @endcode
-///
-/// You may store SQL queries in separate `.sql` files and access them via
-/// sql_queries.hpp include header. See @ref scripts/docs/en/userver/sql_files.md
-/// for more information.
-///
-/// @par Queries with parameters
-///
-/// uPg supports SQL dollar notation for parameter placeholders. The statement
-/// is prepared at first execution and then only arguments for a query is sent
-/// to the server.
-///
-/// A parameter can be of any type that is supported by the driver.
-/// See @ref scripts/docs/en/userver/pg_types.md for more information.
-///
-/// @code
-/// auto trx = cluster->Begin(/* transaction options */);
-/// auto res = trx.Execute(
-///     "select foo, bar from foobar where foo > $1 and bar = $2", 42, "baz");
-/// trx.Commit();
-/// @endcode
-///
-/// @note You may write a query in `.sql` file and generate a header file with Query from it.
-///       See @ref scripts/docs/en/userver/sql_files.md for more information.
-/// @see Transaction
-/// @see ResultSet
-///
-/// ----------
-///
-/// @htmlonly <div class="bottom-nav"> @endhtmlonly
-/// ⇦ @ref pg_transactions | @ref pg_process_results ⇨
-/// @htmlonly </div> @endhtmlonly
-
-// clang-format off
 /// @brief PostgreSQL transaction.
 ///
 /// RAII wrapper for running transactions on PostgreSQL connections. Should be
@@ -140,8 +42,6 @@ namespace storages::postgres {
 /// // rolled back in the destructor of trx.
 /// trx.Commit();
 /// @endcode
-// clang-format on
-
 class Transaction {
 public:
     //@{
@@ -205,7 +105,7 @@ public:
     /// @note You may write a query in `.sql` file and generate a header file with Query from it.
     ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
     ///
-    /// @snippet storages/postgres/tests/landing_test.cpp TransacExec
+    /// @snippet postgresql/src/storages/postgres/tests/landing_test.cpp TransacExec
     template <typename... Args>
     ResultSet Execute(const Query& query, const Args&... args) {
         return Execute(OptionalCommandControl{}, query, args...);
@@ -269,7 +169,7 @@ public:
     /// @note You may write a query in `.sql` file and generate a header file with Query from it.
     ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
     ///
-    /// @snippet storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeTrx
+    /// @snippet postgresql/src/storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeTrx
     template <typename Container>
     ResultSet ExecuteDecompose(const Query& query, const Container& args);
 
@@ -286,7 +186,7 @@ public:
     /// @note You may write a query in `.sql` file and generate a header file with Query from it.
     ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
     ///
-    /// @snippet storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeTrx
+    /// @snippet postgresql/src/storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeTrx
     template <typename Container>
     ResultSet ExecuteDecompose(OptionalCommandControl statement_cmd_ctl, const Query& query, const Container& args);
 
@@ -330,7 +230,7 @@ public:
     /// @note You may write a query in `.sql` file and generate a header file with Query from it.
     ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
     ///
-    /// @snippet storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeBulk
+    /// @snippet postgresql/src/storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeBulk
     template <typename Container>
     void ExecuteDecomposeBulk(const Query& query, const Container& args, std::size_t chunk_rows = kDefaultRowsInChunk);
 
@@ -347,7 +247,7 @@ public:
     /// @note You may write a query in `.sql` file and generate a header file with Query from it.
     ///       See @ref scripts/docs/en/userver/sql_files.md for more information.
     ///
-    /// @snippet storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeBulk
+    /// @snippet postgresql/src/storages/postgres/tests/arrays_pgtest.cpp ExecuteDecomposeBulk
     template <typename Container>
     void ExecuteDecomposeBulk(
         OptionalCommandControl statement_cmd_ctl,
@@ -397,7 +297,7 @@ public:
     /// Set a connection parameter
     /// https://www.postgresql.org/docs/current/sql-set.html
     /// The parameter is set for this transaction only
-    void SetParameter(const std::string& param_name, const std::string& value);
+    void SetParameter(std::string_view param_name, std::string_view value);
     //@}
 
     /// Commit the transaction

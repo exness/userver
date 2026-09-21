@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/storages/redis/base.hpp>
 #include <userver/storages/redis/exception.hpp>
 #include <userver/storages/redis/reply_types.hpp>
@@ -35,9 +36,10 @@ public:
         return nullptr;
     }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
         UASSERT_MSG(false, "not supported in mocked request");
-        return nullptr;
+        return engine::AwaitableToken{};
     }
 
 private:
@@ -58,9 +60,9 @@ public:
         return nullptr;
     }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
         UASSERT_MSG(false, "not supported in mocked request");
-        return nullptr;
+        return engine::AwaitableToken{};
     }
 };
 
@@ -80,9 +82,9 @@ public:
         return nullptr;
     }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
         UASSERT_MSG(false, "not supported in mocked request");
-        return nullptr;
+        return engine::AwaitableToken{};
     }
 };
 

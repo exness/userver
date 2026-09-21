@@ -1,11 +1,13 @@
 #include <userver/utest/utest.hpp>
 
+#include <string_view>
 #include <vector>
 
 #include <userver/dynamic_config/snapshot.hpp>
 #include <userver/dynamic_config/source.hpp>
 #include <userver/dynamic_config/storage_mock.hpp>
 #include <userver/dynamic_config/test_helpers.hpp>
+#include <userver/formats/json/inline.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include <userver/utils/trivial_map.hpp>
 
@@ -63,6 +65,10 @@ DummyConfig Parse(const formats::json::Value& value, formats::parse::To<DummyCon
     return {.foo = value["foo"].As<int>(), .bar = value["bar"].As<std::string>()};
 }
 
+formats::json::Value Serialize(const DummyConfig& value, formats::serialize::To<formats::json::Value>) {
+    return formats::json::MakeObject("foo", value.foo, "bar", value.bar);
+}
+
 const dynamic_config::Key kDummyConfig{dynamic_config::ConstantConfig{}, DummyConfig{.foo = 42, .bar = "what"}};
 
 const dynamic_config::Key kIntConfig{dynamic_config::ConstantConfig{}, 0};
@@ -114,21 +120,6 @@ UTEST_F(DynamicConfigTest, VariableSnapshotPtr) {
 }
 
 UTEST_F(DynamicConfigTest, Copy) { EXPECT_EQ(source_.GetCopy(kIntConfig), 5); }
-
-struct OldConfig final {
-    static const dynamic_config::Key<OldConfig> kDeprecatedKey;
-
-    int foo{42};
-};
-
-const dynamic_config::Key<OldConfig> OldConfig::kDeprecatedKey{dynamic_config::ConstantConfig{}, OldConfig{}};
-
-UTEST(DynamicConfig, TheOldWay) {
-    const dynamic_config::StorageMock storage{{OldConfig::kDeprecatedKey, {}}};
-
-    const auto config = storage.GetSource().GetSnapshot();
-    EXPECT_EQ(config.Get<OldConfig>().foo, 42);
-}
 
 class DummyClient final {
 public:
@@ -578,6 +569,22 @@ UTEST(DynamicConfig, DeadlockOnSubscribeInSendEventDiff) {
     storage.Extend({});
 
     subscriber.cb = {};  // cleanup to avoid UAF in dtr (in debug)
+}
+
+const dynamic_config::Key<DummyConfig> kMyConfig{"DOC_MY_CONFIG", DummyConfig{.foo = 0, .bar = ""}};
+
+UTEST(DynamicConfig, DocsKeyValueInPlace) {
+    /// [KeyValue in-place]
+    const dynamic_config::KeyValue kv{kMyConfig, DummyConfig{.foo = 42, .bar = "foo"}};
+    /// [KeyValue in-place]
+    EXPECT_EQ(kv.GetValue().type(), typeid(DummyConfig));
+}
+
+UTEST(DynamicConfig, DocsKeyValueFromJson) {
+    /// [KeyValue from JSON]
+    const dynamic_config::KeyValue kv{kMyConfig, formats::json::FromString(R"({"foo": 42, "bar": "what"})")};
+    /// [KeyValue from JSON]
+    EXPECT_EQ(kv.GetValue().type(), typeid(DummyConfig));
 }
 
 USERVER_NAMESPACE_END

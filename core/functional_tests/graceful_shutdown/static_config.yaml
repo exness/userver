@@ -1,8 +1,9 @@
 # yaml
-# [graceful_shutdown_interval]
+# [graceful_shutdown_settings]
 components_manager:
-    graceful_shutdown_interval: 10s
-    # [graceful_shutdown_interval]
+    graceful_shutdown_continue_accepting_requests_interval: 10s
+    graceful_shutdown_pending_requests_completion_interval: 5s
+    # [graceful_shutdown_settings]
 
     task_processors:
         main-task-processor:
@@ -60,10 +61,9 @@ components_manager:
             task_processor: main-task-processor
             throttling_enabled: false
 
-        handler-log-level:
-            monitor-handler: true
-            path: /log-level/{level}
+        handler-delaying:
             method: GET
+            path: /test
             task_processor: main-task-processor
 
         tests-control:

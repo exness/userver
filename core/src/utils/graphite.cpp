@@ -28,7 +28,7 @@ bool IsPrintable(char c) {
 
 }  // namespace
 
-std::string EscapeName(const std::string& s) {
+std::string EscapeName(std::string_view s) {
     std::string result;
     result.reserve(s.size());
     for (auto c : s) {

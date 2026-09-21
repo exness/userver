@@ -7,10 +7,12 @@
 #include <string_view>
 #include <type_traits>
 
+#include <userver/utils/function_ref.hpp>
 #include <userver/utils/impl/internal_tag.hpp>
 #include <userver/utils/statistics/histogram_view.hpp>
 #include <userver/utils/statistics/labels.hpp>
 #include <userver/utils/statistics/rate.hpp>
+#include <userver/utils/statistics/request.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -20,29 +22,17 @@ class Writer;
 class MetricValue;
 
 namespace impl {
-
 struct WriterState;
-
-template <class Metric>
-constexpr auto HasDumpMetricWriter()
-    noexcept -> decltype(DumpMetric(std::declval<Writer&>(), std::declval<const Metric&>()), std::true_type{}) {
-    return {};
-}
-
-template <class Metric, class... Args>
-constexpr auto HasDumpMetricWriter(Args...) noexcept {
-    return std::is_arithmetic_v<Metric>;
-}
-
 }  // namespace impl
 
-/// @brief Returns true, if the `Metric` could be written by
-/// utils::statistics::Writer.
+/// @brief Returns true, if the `Metric` could be written by @ref utils::statistics::Writer.
 ///
-/// In other words, checks that the DumpMetric for the `Metric` is provided or
+/// In other words, checks that the `DumpMetric` for the `Metric` is provided or
 /// that the metric could be written without providing one.
 template <class Metric>
-inline constexpr bool kHasWriterSupport = impl::HasDumpMetricWriter<Metric>();
+concept HasWriterSupport = std::is_arithmetic_v<Metric> || requires(Writer& writer, const Metric& metric) {
+    DumpMetric(writer, metric);
+};
 
 /// @ingroup userver_universal
 ///
@@ -91,7 +81,7 @@ inline constexpr bool kHasWriterSupport = impl::HasDumpMetricWriter<Metric>();
 class Writer final {
 public:
     /// Path parts delimiter. In other words, writer["a"]["b"] becomes "a.b"
-    static inline constexpr char kDelimiter = '.';
+    static constexpr char kDelimiter = '.';
 
     Writer() = delete;
     Writer(Writer&& other) = delete;
@@ -118,7 +108,7 @@ public:
         } else {
             if (state_) {
                 static_assert(
-                    kHasWriterSupport<T>,
+                    HasWriterSupport<T>,
                     "Cast the metric to an arithmetic type or provide a "
                     "`void DumpMetric(utils::statistics::Writer& writer, "
                     "const Metric& value)` function for the `Metric` type"
@@ -221,10 +211,41 @@ private:
     LabelsSizeType current_labels_size_;
 };
 
+/// Non-owning reference to a function that writes metrics via @ref Writer.
+using WriterFuncRef = utils::function_ref<void(Writer&) const>;
+
 template <class Metric>
 void DumpMetric(Writer& writer, const std::atomic<Metric>& m) {
     static_assert(std::atomic<Metric>::is_always_lock_free, "std::atomic misuse");
     writer = m.load();
+}
+
+/// @brief Low-level connecting function that dumps metrics from @a func into @a out.
+///
+/// Calls @a func with a @ref Writer. Each metric written through that `Writer`
+/// is forwarded to `out.HandleMetric`. @a request filters the metrics and may
+/// attach extra labels; `request.prefix` is a match filter, not a path to write
+/// under.
+///
+/// @ref utils::statistics::Storage::VisitMetrics uses this function to dump
+/// Writer-based metrics. It is used to implement formats such as:
+/// - @ref utils::statistics::ToPrometheusFormat "Prometheus"
+/// - @ref utils::statistics::ToGraphiteFormat "Graphite"
+/// - @ref utils::statistics::ToJsonFormat "JSON"
+/// - @ref utils::statistics::ToPrettyFormat "pretty format"
+/// - @ref utils::statistics::ToSolomonFormat "Solomon"
+/// - @ref utils::statistics::GetPortabilityWarnings "portability info"
+///
+/// @param func writes metrics to the provided @ref Writer
+/// @param out receives each written metric via @ref BaseFormatBuilder::HandleMetric
+/// @param request metric filter and extra labels
+void VisitMetrics(WriterFuncRef func, BaseFormatBuilder& out, const Request& request = {});
+
+/// @overload
+///
+/// Dumps @a metric via `writer = metric` (`DumpMetric` / built-in Writer support).
+void VisitMetrics(const HasWriterSupport auto& metric, BaseFormatBuilder& out, const Request& request = {}) {
+    utils::statistics::VisitMetrics([&metric](Writer& writer) { writer = metric; }, out, request);
 }
 
 }  // namespace utils::statistics

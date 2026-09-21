@@ -27,27 +27,20 @@ that could be is dynamically enabled/disabled via the server::handlers::Jemalloc
    have to do something like this:
    ```
    bash
-   $ curl -X POST localhost:1188/service/jemalloc/prof/enable
+   $ curl -X POST localhost:1188/service/jemalloc/pprof/enable
    OK
-   $ curl -s -X POST localhost:1188/service/jemalloc/prof/stat | grep ' prof.active:'
+   $ curl -s -X POST localhost:1188/service/jemalloc/pprof/stat | grep ' prof.active:'
      prof.active: true
    ```
    If you see "ОК", then the sampling started.
 
-4. After some time make a dump of memory state:
-   ```
-   bash
-   $ curl -X POST localhost:1188/service/jemalloc/prof/dump
-   OK
-   ```
+4. Wait for samples to accumulate and @ref how-to-analyse-the-dump "analyse them".
 
-5. @ref how-to-analyse-the-dump "Analyse the dump".
-
-6. Do not forget to turn off the profiling:
+5. Do not forget to turn off the profiling:
    ```
-   $ curl -X POST localhost:1188/service/jemalloc/prof/disable
+   $ curl -X POST localhost:1188/service/jemalloc/pprof/disable
    OK
-   $ curl -s -X POST localhost:1188/service/jemalloc/prof/stat | grep ' prof.active:'
+   $ curl -s -X POST localhost:1188/service/jemalloc/pprof/stat | grep ' prof.active:'
      prof.active: false
    ```
 
@@ -63,36 +56,66 @@ that could be is dynamically enabled/disabled via the server::handlers::Jemalloc
 3. Ensure that the profiler is active:
    ```
    bash
-   $ curl -s -X POST localhost:1188/service/jemalloc/prof/stat | grep ' prof.active:'
+   $ curl -s -X POST localhost:1188/service/jemalloc/pprof/stat | grep ' prof.active:'
      prof.active: true
    ```
 
-4. After some time make a dump of memory state:
+4. @ref how-to-analyse-the-dump "Analyse the profile".
+
+5. Do not forget to turn off the profiling:
    ```
    bash
-   $ curl -X POST localhost:1188/service/jemalloc/prof/dump
+   $ curl -X POST localhost:1188/service/jemalloc/pprof/disable
    OK
-   ```
-
-5. @ref how-to-analyse-the-dump "Analyse the dump".
-
-6. Do not forget to turn off the profiling:
-   ```
-   bash
-   $ curl -X POST localhost:1188/service/jemalloc/prof/disable
-   OK
-   $ curl -s -X POST localhost:1188/service/jemalloc/prof/stat | grep ' prof.active:'
+   $ curl -s -X POST localhost:1188/service/jemalloc/pprof/stat | grep ' prof.active:'
      prof.active: false
    ```
 
 @anchor how-to-analyse-the-dump
 ## How to analyse the dump
 
+After enabling the profiler, take a heap profile snapshot and analyse it.
+The methods below are **independent**.
+
+### Via `/heap`, without the service binary
+
+**`/heap`** (`GET`) — the service returns the profile **in the HTTP response
+body**. From your local machine you can fetch a profile from a remote service
+without creating a file on it. The handler implements the `pprof` protocol:
+`jeprof` requests `/heap` and asks the service to symbolize addresses itself.
+
+**This is the recommended approach.** You do not need to haul a multi-gigabyte
+binary off the build cache, and you avoid silently wrong symbols when the
+deployed binary does not match the one you downloaded.
+
+```
+bash
+$ jeprof --raw http://localhost:1188/service/jemalloc/pprof/heap > out.raw
+$ jeprof --text out.raw
+```
+
+The second command needs neither the service nor its binary. Note that
+`--lines` and `--disasm` do not work in this mode - they require a binary.
+
+### From a dump file on the remote machine after `/dump` (service binary required)
+
+**`/dump`** (`POST`) — jemalloc writes a dump file **on the service machine**
+(the directory is set in `prof_prefix` in `MALLOC_CONF`). The file is then
+analysed separately, usually with the service binary.
+
+```
+bash
+$ curl -X POST localhost:1188/service/jemalloc/pprof/dump
+OK
+```
+
+Use this flow when you already have a `.heap` file from the service machine
+and want a PDF call graph or a text report with `--lines` / `--disasm`.
+
 1. To decrypt the dump file, you need the binary files of your service and
    dynamic libraries with which the process was launched during profiling.
    Therefore, it is recommended to run `jeprof` on the target machine and parse
-   the resulting pdf/text file on your working machine. To install `jeprof`,
-   you can do `apt install libjemalloc-dev`.
+   the resulting pdf/text file on your working machine.
 
 2. If you want to get a call graph with notes about the allocated memory, use the command:
     ```
@@ -100,7 +123,6 @@ that could be is dynamically enabled/disabled via the server::handlers::Jemalloc
     $ jeprof --show_bytes --pdf build/services/userver-sample /tmp/jeprof.5503.1.m1.heap> prof.pdf
     $ gnome-open prof.pdf # Open the file in PDF viewer
     ```
-    For the command to work, you need to make sure that the `apt install graphviz ghostscript` packages are installed.
 
 3. If you want to get the top of memory allocation commands, use the command:
     ```

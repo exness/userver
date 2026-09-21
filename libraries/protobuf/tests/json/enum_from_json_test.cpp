@@ -24,6 +24,9 @@ struct EnumFromJsonSuccessTestParam {
     std::string input = {};
     EnumMessageData expected_message = {};
     ParseOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 struct EnumFromJsonFailureTestParam {
@@ -76,7 +79,12 @@ INSTANTIATE_TEST_SUITE_P(
         EnumFromJsonSuccessTestParam{R"({"field1":"2"})", EnumMessageData{msgs::EnumMessage::TEST_VALUE2}},
         EnumFromJsonSuccessTestParam{R"({"field1":3})", EnumMessageData{msgs::EnumMessage::TEST_VALUE3}},
         EnumFromJsonSuccessTestParam{R"({"field1":5})", EnumMessageData{static_cast<msgs::EnumMessage::Test>(5)}},
-        EnumFromJsonSuccessTestParam{R"({"field1":"-5"})", EnumMessageData{static_cast<msgs::EnumMessage::Test>(-5)}},
+        EnumFromJsonSuccessTestParam{
+            R"({"field1":"-5"})",
+            EnumMessageData{static_cast<msgs::EnumMessage::Test>(-5)},
+            {},
+            !kIsModernProtoJson
+        },
         EnumFromJsonSuccessTestParam{
             R"({"field1":2147483647})",
             EnumMessageData{static_cast<msgs::EnumMessage::Test>(kMax)}
@@ -115,9 +123,12 @@ TEST_P(EnumFromJsonSuccessTest, Test) {
     message.set_field1(static_cast<proto_json::messages::EnumMessage::Test>(100001));
 
     UASSERT_NO_THROW((message = JsonToMessage<proto_json::messages::EnumMessage>(input, param.options)));
-    UASSERT_NO_THROW(InitSampleMessage(param.input, sample_message, param.options));
 
-    CheckMessageEqual(message, sample_message);
+    if (!param.skip_native_check) {
+        UASSERT_NO_THROW(InitSampleMessage(param.input, sample_message, param.options));
+        CheckMessageEqual(message, sample_message);
+    }
+
     CheckMessageEqual(message, expected_message);
 }
 

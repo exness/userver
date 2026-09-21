@@ -414,7 +414,9 @@ TEST(ValueFromJsonAdditionalTest, InlinedNullListValue) {
     message.add_values()->set_number_value(100001);
 
     UASSERT_NO_THROW((message = JsonToMessage<Message>(json)));
-    UASSERT_NO_THROW(InitSampleMessage(json_str, sample));
+    if (kIsModernProtoJson) {
+        UASSERT_NO_THROW(InitSampleMessage(json_str, sample));
+    }
     EXPECT_TRUE(message.values().empty());
     CheckMessageEqual(message, sample);
 }
@@ -430,7 +432,9 @@ TEST(ValueFromJsonAdditionalTest, InlinedNullStruct) {
     (*message.mutable_fields())["aaa"].set_number_value(100001);
 
     UASSERT_NO_THROW((message = JsonToMessage<Message>(json)));
-    UASSERT_NO_THROW(InitSampleMessage(json_str, sample));
+    if (kIsModernProtoJson) {
+        UASSERT_NO_THROW(InitSampleMessage(json_str, sample));
+    }
     EXPECT_TRUE(message.fields().empty());
     CheckMessageEqual(message, sample);
 }

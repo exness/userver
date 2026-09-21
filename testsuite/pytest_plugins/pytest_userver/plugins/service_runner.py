@@ -2,59 +2,32 @@
 Helpers to make the `make start-*` commands work.
 """
 
-# pylint: disable=no-member,missing-kwoa
-import pathlib
+from collections.abc import Iterable
+from collections.abc import Sequence
 
 import pytest
 
-
-class ServiceRunnerModule(pytest.Module):
-    class FakeModule:
-        def __init__(self, path):
-            self.__file__ = path
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self._module = self.FakeModule(path=str(self.path))
-
-    @property
-    def obj(self):
-        return self._module
+pytest_plugins = ['pytest_userver.plugins.generated_tests']
 
 
-class UserviceRunner:
-    @pytest.hookimpl(tryfirst=True)
-    def pytest_collection_modifyitems(self, session, config, items):
-        paths = set()
+def pytest_generate_virtual_tests(
+    parent: pytest.File,
+    config: pytest.Config,
+    existing_items: Sequence[pytest.Item],
+) -> Iterable[pytest.Item]:
+    if not config.option.service_runner_mode:
+        return
 
-        # Is there servicetest chosen
-        for item in items:
-            skip = False
-            for marker in item.own_markers:
-                if marker.name == 'servicetest':
-                    return
-                elif marker.name == 'includetest':
-                    skip = True
+    for item in existing_items:
+        for marker in item.own_markers:
+            if marker.name == 'servicetest':
+                return
 
-            if not skip:
-                paths.add(pathlib.Path(item.module.__file__).parent)
-
-        if not paths:
-            return
-
-        tests_root = min(paths, key=lambda p: len(p.parts))
-
-        module = ServiceRunnerModule.from_parent(
-            parent=session,
-            path=pathlib.Path(tests_root).resolve(),
-        )
-        function = pytest.Function.from_parent(
-            parent=module,
-            name=test_service_default.__name__,
-            callobj=test_service_default,
-        )
-
-        items.append(function)
+    yield pytest.Function.from_parent(
+        parent=parent,
+        name=test_service_default.__name__,
+        callobj=test_service_default,
+    )
 
 
 @pytest.mark.servicetest
@@ -86,9 +59,3 @@ def test_service_default(
         message += f'\ngRPC endpoint is {grpc_endpoint}'
     message += f'\n{delimiter}\n'
     print(message)
-
-
-def pytest_configure(config):
-    if config.option.service_runner_mode:
-        runner = UserviceRunner()
-        config.pluginmanager.register(runner, 'uservice_runner')

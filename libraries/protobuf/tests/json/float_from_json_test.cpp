@@ -22,6 +22,9 @@ struct FloatFromJsonSuccessTestParam {
     std::string input = {};
     FloatMessageData expected_message = {};
     ParseOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 struct FloatFromJsonFailureTestParam {
@@ -65,9 +68,21 @@ INSTANTIATE_TEST_SUITE_P(
         FloatFromJsonSuccessTestParam{R"({"field1":100.123e-2})", FloatMessageData{1.00123}},
         FloatFromJsonSuccessTestParam{R"({"field1":"-100.123567E2"})", FloatMessageData{-10012.3567}},
         FloatFromJsonSuccessTestParam{R"({"field1":3.40282347e+38})", FloatMessageData{kMax}},
-        FloatFromJsonSuccessTestParam{R"({"field1":"3.40282347E38"})", FloatMessageData{kMax}},
+        FloatFromJsonSuccessTestParam{
+            R"({"field1":"3.40282347E38"})",
+            FloatMessageData{kMax},
+            {},
+            // Sign '+' or '-' is required in exponent notation in old protobuf versions.
+            !kIsModernProtoJson
+        },
         FloatFromJsonSuccessTestParam{R"({"field1":-3.40282347E+38})", FloatMessageData{-kMax}},
-        FloatFromJsonSuccessTestParam{R"({"field1":"-3.40282347e38"})", FloatMessageData{-kMax}},
+        FloatFromJsonSuccessTestParam{
+            R"({"field1":"-3.40282347e38"})",
+            FloatMessageData{-kMax},
+            {},
+            // Sign '+' or '-' is required in exponent notation in old protobuf versions.
+            !kIsModernProtoJson
+        },
         FloatFromJsonSuccessTestParam{R"({"field1":1.17549435e-38})", FloatMessageData{kMin}},
         FloatFromJsonSuccessTestParam{R"({"field1":"1.17549435E-38"})", FloatMessageData{kMin}},
         FloatFromJsonSuccessTestParam{R"({"field1":-1.17549435E-38})", FloatMessageData{-kMin}},
@@ -104,9 +119,12 @@ TEST_P(FloatFromJsonSuccessTest, Test) {
     message.set_field1(100.001);
 
     UASSERT_NO_THROW((message = JsonToMessage<proto_json::messages::FloatMessage>(input, param.options)));
-    UASSERT_NO_THROW(InitSampleMessage(param.input, sample_message, param.options));
 
-    CheckMessageEqual(message, sample_message);
+    if (!param.skip_native_check) {
+        UASSERT_NO_THROW(InitSampleMessage(param.input, sample_message, param.options));
+        CheckMessageEqual(message, sample_message);
+    }
+
     CheckMessageEqual(message, expected_message);
 }
 

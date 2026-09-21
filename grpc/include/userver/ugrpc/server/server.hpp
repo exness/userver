@@ -16,6 +16,7 @@
 #include <userver/server/congestion_control/sensor.hpp>
 #include <userver/utils/function_ref.hpp>
 #include <userver/utils/impl/internal_tag_fwd.hpp>
+#include <userver/utils/resource_scopes_fwd.hpp>
 #include <userver/utils/statistics/fwd.hpp>
 #include <userver/yaml_config/fwd.hpp>
 
@@ -72,6 +73,9 @@ struct ServerConfig final {
 
     /// TLS settings
     TlsConfig tls;
+
+    /// Whether to apply OpenTelemetry trace-sampling to incoming gRPC requests.
+    bool otel_trace_sampling_enabled{false};
 };
 
 /// @brief Manages the gRPC server
@@ -84,9 +88,9 @@ public:
 
     /// @brief Start building the server
     explicit Server(
+        utils::ResourceScopeStorage& scope_storage,
         ServerConfig&& config,
-        utils::statistics::Storage& statistics_storage,
-        dynamic_config::Source config_source
+        utils::statistics::Storage& statistics_storage
     );
 
     Server(Server&&) = delete;
@@ -125,7 +129,7 @@ public:
     /// - does not destroy server statistics
     /// - does not close the associated CompletionQueue
     /// Stop must still be called. StopServing is also useful for testing.
-    void StopServing() noexcept;
+    void StopServing(std::optional<engine::Deadline> serving_shutdown_deadline = std::nullopt) noexcept;
 
     /// @cond
     // For internal use only.

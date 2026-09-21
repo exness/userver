@@ -13,6 +13,12 @@ struct Schema;
 
 }  // namespace yaml_config
 
+namespace engine {
+
+class Deadline;
+
+}  // namespace engine
+
 namespace components {
 
 /// State of the component
@@ -53,6 +59,8 @@ public:
     virtual void OnLoadingCancelled() {}
 
     virtual void OnAllComponentsLoaded() {}
+
+    virtual void OnGracefulShutdown(engine::Deadline /*serving_shutdown_deadline*/);
 
     virtual void OnAllComponentsAreStopping() {}
 

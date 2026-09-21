@@ -7,6 +7,7 @@
 #include <userver/engine/future_status.hpp>
 #include <userver/engine/single_consumer_event.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/utils/algo.hpp>
 
@@ -24,7 +25,7 @@ namespace {
 constexpr int kNumber = 42;
 constexpr auto kLongTimeout = 500ms;
 
-void CheckServerContext(grpc::ServerContext& context) {
+void CheckServerContext(grpc::ServerContextBase& context) {
     const auto& client_metadata = context.client_metadata();
     EXPECT_EQ(utils::FindOptional(client_metadata, "req_header"), "value");
     context.AddTrailingMetadata("resp_header", "value");
@@ -320,10 +321,10 @@ UTEST_P_MT(GrpcClientMultichannelTest, MultiThreadedClientTest, 4) {
     engine::SingleConsumerEvent request_finished;
     std::atomic<bool> keep_running{true};
     std::vector<engine::TaskWithResult<void>> tasks;
-    tasks.reserve(GetThreadCount());
+    tasks.reserve(engine::current_task::GetWorkerCount());
 
-    for (std::size_t i = 0; i < GetThreadCount(); ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
+    for (std::size_t i = 0; i < engine::current_task::GetWorkerCount(); ++i) {
+        tasks.push_back(engine::AsyncNoTracing([&] {
             sample::ugrpc::GreetingRequest out;
             out.set_name("userver");
 

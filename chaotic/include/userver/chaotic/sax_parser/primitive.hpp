@@ -5,7 +5,10 @@
 #include <userver/formats/json/parser/bool_parser.hpp>
 #include <userver/formats/json/parser/int_parser.hpp>
 #include <userver/formats/json/parser/number_parser.hpp>
+#include <userver/formats/json/parser/parser_json.hpp>
+#include <userver/formats/json/parser/parser_raw_json.hpp>
 #include <userver/formats/json/parser/string_parser.hpp>
+#include <userver/formats/json/value.hpp>
 #include <userver/utils/meta.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -28,7 +31,12 @@ formats::json::parser::DoubleParser ParserOf(Type<double>);
 
 formats::json::parser::StringParser ParserOf(Type<std::string>);
 
-template <typename Array, typename = std::enable_if_t<meta::kIsRange<Array> && !meta::kIsMap<Array>>>
+formats::json::parser::JsonValueParser ParserOf(Type<formats::json::Value>);
+
+formats::json::parser::JsonRawStringParser ParserOf(Type<formats::json::RawString>);
+
+template <typename Array>
+requires(meta::IsRange<Array> && !meta::IsMap<Array>)
 auto ParserOf(Type<Array>)
 {
     using Value = typename Array::value_type;

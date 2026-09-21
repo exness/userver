@@ -42,8 +42,12 @@ def _is_ydb_metric(line: str) -> bool:
 
 def _normalize_metrics(metrics: str) -> str:
     filtered = [line for line in metrics.splitlines() if _is_ydb_metric(line)]
-    filtered.sort()
-    without_host = (re.sub(r'YdbHost=[^,\t]*', 'YdbHost=(REDACTED)', line) for line in filtered)
+    # Redact the host BEFORE sorting. Otherwise lines that differ only by
+    # YdbHost (the same metric reported for several databases) are ordered by
+    # the real host value and then collapse into identical redacted lines in a
+    # host-dependent order that a pre-redacted golden file cannot reproduce.
+    without_host = [re.sub(r'YdbHost=[^,\t]*', 'YdbHost=(REDACTED)', line) for line in filtered]
+    without_host.sort()
     return '\n'.join(without_host)
 
 

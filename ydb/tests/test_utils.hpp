@@ -38,6 +38,8 @@ public:
 
     ydb::TopicClient& GetTopicClient() { return *topic_client_; }
 
+    std::shared_ptr<ydb::TopicClient> GetTopicClientPtr() { return topic_client_; }
+
     NYdb::NTopic::TTopicClient& GetNativeTopicClient() { return topic_client_->GetNativeTopicClient(); }
 
     ydb::FederatedTopicClient& GetFederatedTopicClient() { return *federated_topic_client_; }
@@ -55,6 +57,8 @@ public:
     }
 
 protected:
+    virtual impl::TableSettings GetTableSettings() const { return {}; }
+
     void InitializeClients() {
         // NOLINTNEXTLINE(concurrency-mt-unsafe)
         const char* endpoint = std::getenv("YDB_ENDPOINT");
@@ -67,7 +71,7 @@ protected:
         driver_settings.endpoint = endpoint;
         driver_settings.database = database;
 
-        const ydb::impl::TableSettings table_settings;
+        const auto table_settings = GetTableSettings();
 
         const ydb::OperationSettings query_params = {
             3,                                      // retries

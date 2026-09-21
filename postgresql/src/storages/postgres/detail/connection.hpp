@@ -1,8 +1,8 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <string>
+#include <string_view>
 
 #include <userver/clients/dns/resolver_fwd.hpp>
 #include <userver/concurrent/background_task_storage_fwd.hpp>
@@ -13,6 +13,7 @@
 #include <userver/tracing/scope_time.hpp>
 #include <userver/utils/statistics/min_max_avg.hpp>
 #include <userver/utils/strong_typedef.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 #include <userver/storages/postgres/detail/query_parameters.hpp>
 #include <userver/storages/postgres/detail/time_types.hpp>
@@ -166,8 +167,8 @@ public:
     bool IsBroken() const;
     /// Check if the connection lived past its ttl
     bool IsExpired() const;
-    /// Check is the connection is in pipeline mode
-    bool IsPipelineActive() const;
+    /// Check that the connection is in pipeline mode
+    void AssertPipelineActive() const;
     /// Check if prepared statements are enabled
     bool ArePreparedStatementsEnabled() const;
 
@@ -229,7 +230,7 @@ public:
 
     void AddIntoPipeline(
         CommandControl cc,
-        const std::string& meta_statement_name,
+        USERVER_NAMESPACE::utils::zstring_view meta_statement_name,
         const detail::QueryParameters& params,
         const ResultSet& description,
         tracing::ScopeTime& scope
@@ -257,11 +258,16 @@ public:
 
     StatementId PortalBind(
         const Query& query,
-        const std::string& portal_name,
+        USERVER_NAMESPACE::utils::zstring_view portal_name,
         const detail::QueryParameters& params,
         OptionalCommandControl
     );
-    ResultSet PortalExecute(StatementId, const std::string& portal_name, std::uint32_t n_rows, OptionalCommandControl);
+    ResultSet PortalExecute(
+        StatementId,
+        USERVER_NAMESPACE::utils::zstring_view portal_name,
+        std::uint32_t n_rows,
+        OptionalCommandControl
+    );
 
     /// Send cancel to the database backend
     /// Try to return connection to idle state discarding all results.
@@ -282,7 +288,7 @@ public:
     /// @brief Set session parameter
     /// Parameters documentation
     /// https://www.postgresql.org/docs/current/sql-set.html
-    void SetParameter(const std::string& param, const std::string& value, ParameterScope scope);
+    void SetParameter(std::string_view param, std::string_view value, ParameterScope scope);
 
     /// @brief Reload user types after creating a type
     void ReloadUserTypes();

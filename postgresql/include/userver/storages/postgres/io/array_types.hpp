@@ -45,12 +45,12 @@ struct HasFixedDimensionsImpl {
 template <typename T>
 struct HasFixedDimensions
     : std::conditional_t<
-          meta::kIsFixedSizeContainer<T>,
+          meta::IsFixedSizeContainer<T>,
           detail::HasFixedDimensionsImpl<T>,
           BoolConstant<!kIsCompatibleContainer<T>>>::type {};
 
 template <typename Container>
-inline constexpr bool kHasFixedDimensions = HasFixedDimensions<Container>::value;
+concept kHasFixedDimensions = HasFixedDimensions<Container>::value;  // NOLINT(readability-identifier-naming)
 
 template <typename T>
 struct FixedDimensions;
@@ -76,7 +76,7 @@ struct JoinSequences<std::integer_sequence<T, U...>, std::integer_sequence<T, V.
 
 template <typename T>
 struct FixedDimensionsImpl {
-    static_assert(meta::kIsFixedSizeContainer<T>, "Container must have fixed size");
+    static_assert(meta::IsFixedSizeContainer<T>, "Container must have fixed size");
     using type = typename JoinSequences<
         std::integer_sequence<std::size_t, kDimensionSize<T>>,
         typename FixedDimensions<typename T::value_type>::type>::type;
@@ -97,7 +97,7 @@ constexpr std::array<T, sizeof...(Values)> MakeArray(const std::integer_sequence
 template <typename T>
 struct FixedDimensions
     : std::conditional_t<
-          meta::kIsFixedSizeContainer<T>,
+          meta::IsFixedSizeContainer<T>,
           detail::FixedDimensionsImpl<T>,
           detail::FixedDimensionsNonContainer<T>> {};
 
@@ -182,7 +182,7 @@ private:
     }
     template <typename Element>
     bool CheckDimensions([[maybe_unused]] DimensionConstIterator dim) const {
-        if constexpr (meta::kIsFixedSizeContainer<Element>) {
+        if constexpr (meta::IsFixedSizeContainer<Element>) {
             // check subdimensions
             if (*dim != traits::kDimensionSize<Element>) {
                 return false;
@@ -389,34 +389,20 @@ constexpr bool IsElementMappedToSystem() {
 }
 
 template <typename Container>
-constexpr bool EnableArrayParser() {
-    if constexpr (!traits::kIsCompatibleContainer<Container>) {
-        return false;
-    } else {
-        using ElementType = typename traits::ContainerFinalElement<Container>::type;
-        return traits::HasParser<ElementType>;
-    }
-}
-template <typename Container>
-inline constexpr bool kEnableArrayParser = EnableArrayParser<Container>();
+concept EnableArrayParser =
+    traits::kIsCompatibleContainer<Container> &&
+    traits::HasParser<typename traits::ContainerFinalElement<Container>::type>;
 
 template <typename Container>
-constexpr bool EnableArrayFormatter() {
-    if constexpr (!traits::kIsCompatibleContainer<Container>) {
-        return false;
-    } else {
-        using ElementType = typename traits::ContainerFinalElement<Container>::type;
-        return traits::HasFormatter<ElementType>;
-    }
-}
-template <typename Container>
-inline constexpr bool kEnableArrayFormatter = EnableArrayFormatter<Container>();
+concept EnableArrayFormatter =
+    traits::kIsCompatibleContainer<Container> &&
+    traits::HasFormatter<typename traits::ContainerFinalElement<Container>::type>;
 
 }  // namespace detail
 
 template <typename T>
-struct CppToPg<T, std::enable_if_t<traits::detail::EnableContainerMapping<T>()>>
-    : detail::ArrayPgOid<T, detail::IsElementMappedToSystem<T>()> {};
+requires(traits::detail::EnableContainerMapping<T>())
+struct CppToPg<T> : detail::ArrayPgOid<T, detail::IsElementMappedToSystem<T>()> {};
 
 template <typename T>
 constexpr bool IsTypeMappedToSystemArray() {
@@ -427,12 +413,14 @@ constexpr bool IsTypeMappedToSystemArray() {
 namespace traits {
 
 template <typename T>
-struct Input<T, std::enable_if_t<!detail::CustomParserDefined<T> && io::detail::kEnableArrayParser<T>>> {
+requires(!detail::CustomParserDefined<T> && io::detail::EnableArrayParser<T>)
+struct Input<T> {
     using type = io::detail::ArrayBinaryParser<T>;
 };
 
 template <typename T>
-struct Output<T, std::enable_if_t<!detail::CustomFormatterDefined<T> && io::detail::kEnableArrayFormatter<T>>> {
+requires(!detail::CustomFormatterDefined<T> && io::detail::EnableArrayFormatter<T>)
+struct Output<T> {
     using type = io::detail::ArrayBinaryFormatter<T>;
 };
 
@@ -509,17 +497,20 @@ public:
 
     class ChunkIterator {
     public:
+        using iterator_category = std::input_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = ContainerChunk<Container>;
+        using reference = value_type;
+        using pointer = void;
+
         using UnderlyingIterator = typename Container::const_iterator;
         ChunkIterator(const Container& container, UnderlyingIterator current, std::size_t chunk_elements)
-            : container_{container},
-              chunk_size_{chunk_elements},
-              tail_size_{static_cast<size_t>(std::distance(current, container_.end()))},
+            : chunk_size_{chunk_elements},
+              tail_size_{static_cast<size_t>(std::distance(current, container.end()))},
               current_{current}
         {}
 
         bool operator==(const ChunkIterator& rhs) const { return current_ == rhs.current_; }
-
-        bool operator!=(const ChunkIterator& rhs) const { return !(*this == rhs); }
 
         value_type operator*() const { return {current_, NextStep()}; }
 
@@ -541,8 +532,7 @@ public:
     private:
         std::size_t NextStep() const { return std::min(chunk_size_, tail_size_); }
 
-        const Container& container_;
-        const std::size_t chunk_size_;
+        std::size_t chunk_size_;
         std::size_t tail_size_;
         UnderlyingIterator current_;
     };

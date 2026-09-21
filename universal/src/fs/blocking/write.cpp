@@ -58,7 +58,7 @@ void CreateDirectories(std::string_view path) {
     CreateDirectories(path, perms0755);
 }
 
-void RewriteFileContents(const std::string& path, std::string_view contents) {
+void RewriteFileContents(utils::zstring_view path, std::string_view contents) {
     constexpr OpenMode flags{OpenFlag::kWrite, OpenFlag::kCreateIfNotExists, OpenFlag::kTruncate};
     auto fd = FileDescriptor::Open(path, flags);
 
@@ -66,7 +66,7 @@ void RewriteFileContents(const std::string& path, std::string_view contents) {
     std::move(fd).Close();
 }
 
-void RewriteFileContentsFSync(const std::string& path, std::string_view contents) {
+void RewriteFileContentsFSync(utils::zstring_view path, std::string_view contents) {
     constexpr OpenMode flags{OpenFlag::kWrite, OpenFlag::kCreateIfNotExists, OpenFlag::kTruncate};
     auto fd = FileDescriptor::Open(path, flags);
     fd.Write(contents);
@@ -75,17 +75,21 @@ void RewriteFileContentsFSync(const std::string& path, std::string_view contents
     std::move(fd).Close();
 }
 
-void SyncDirectoryContents(const std::string& path) {
+void SyncDirectoryContents(utils::zstring_view path) {
     auto fd = FileDescriptor::OpenDirectory(path);
     fd.FSync();
     std::move(fd).Close();
 }
 
-void Rename(const std::string& source, const std::string& destination) {
-    boost::filesystem::rename(source, destination);
+void Rename(utils::zstring_view source, utils::zstring_view destination) {
+    boost::filesystem::rename(source.c_str(), destination.c_str());
 }
 
-void RewriteFileContentsAtomically(const std::string& path, std::string_view contents, boost::filesystem::perms perms) {
+void RewriteFileContentsAtomically(
+    utils::zstring_view path,
+    std::string_view contents,
+    boost::filesystem::perms perms
+) {
     const auto tmp_path = fmt::format("{}{}.tmp", path, utils::generators::GenerateBoostUuid());
     const boost::filesystem::path boost_tmp_path{tmp_path};
     const auto directory = boost_tmp_path.parent_path().string();
@@ -102,9 +106,11 @@ void RewriteFileContentsAtomically(const std::string& path, std::string_view con
     fs::blocking::SyncDirectoryContents(directory);
 }
 
-void Chmod(const std::string& path, boost::filesystem::perms perms) { boost::filesystem::permissions(path, perms); }
+void Chmod(utils::zstring_view path, boost::filesystem::perms perms) {
+    boost::filesystem::permissions(path.c_str(), perms);
+}
 
-bool RemoveSingleFile(const std::string& path) { return boost::filesystem::remove(path); }
+bool RemoveSingleFile(utils::zstring_view path) { return boost::filesystem::remove(path.c_str()); }
 
 }  // namespace fs::blocking
 

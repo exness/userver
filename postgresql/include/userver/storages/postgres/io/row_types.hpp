@@ -8,6 +8,9 @@
 
 #include <userver/utils/strong_typedef.hpp>
 
+// TODO remove extra include.
+#include <userver/utils/text_light.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::postgres {
@@ -15,14 +18,14 @@ namespace storages::postgres {
 /// @brief Tag type to disambiguate reading the row to a user's row type
 /// (values of the row initialize user's type data members).
 ///
-/// @snippet storages/postgres/tests/typed_rows_pgtest.cpp RowTagSippet
+/// @snippet postgresql/src/storages/postgres/tests/typed_rows_pgtest.cpp RowTagSippet
 struct RowTag {};
 
 /// @brief Tag type to disambiguate reading the first value of a row to a
 /// user's composite type (PostgreSQL composite type in the row initializes
 /// user's type).
 ///
-/// @snippet storages/postgres/tests/composite_types_pgtest.cpp FieldTagSippet
+/// @snippet postgresql/src/storages/postgres/tests/composite_types_pgtest.cpp FieldTagSippet
 struct FieldTag {};
 
 inline constexpr RowTag kRowTag{};
@@ -40,14 +43,14 @@ struct IsTuple<std::tuple<T...>> : std::true_type {};
 
 namespace impl {
 
-template <typename T, typename = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct HasConstIntrospection : std::false_type {};
 
 template <typename T>
-struct HasConstIntrospection<T, USERVER_NAMESPACE::utils::void_t<decltype(std::declval<const T&>().Introspect())>>
-    : std::true_type {};
+requires requires(const T& t) { t.Introspect(); }
+struct HasConstIntrospection<T> : std::true_type {};
 
-template <typename T, typename = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct HasNonConstIntrospection : std::false_type {
     static_assert(
         !impl::HasConstIntrospection<T>::value,
@@ -57,8 +60,8 @@ struct HasNonConstIntrospection : std::false_type {
 };
 
 template <typename T>
-struct HasNonConstIntrospection<T, USERVER_NAMESPACE::utils::void_t<decltype(std::declval<T&>().Introspect())>>
-    : std::true_type {
+requires requires(T& t) { t.Introspect(); }
+struct HasNonConstIntrospection<T> : std::true_type {
     static_assert(
         IsTuple<decltype(std::declval<T&>().Introspect())>::value,
         "Introspect() should return a std::tuple. "
@@ -78,12 +81,12 @@ namespace detail {
 
 struct ForDeserializationTag;
 
-template <typename T, typename = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct IsPostgresBuildInTypeWrapperImpl : std::false_type {};
 
 template <typename T>
-struct IsPostgresBuildInTypeWrapperImpl<T, USERVER_NAMESPACE::utils::void_t<decltype(T::kIsPostgresBuildInTypeWrapper)>>
-    : std::integral_constant<const bool, T::kIsPostgresBuildInTypeWrapper> {
+requires requires { T::kIsPostgresBuildInTypeWrapper; }
+struct IsPostgresBuildInTypeWrapperImpl<T> : std::integral_constant<const bool, T::kIsPostgresBuildInTypeWrapper> {
     static_assert(
         std::is_same_v<decltype(T::kIsPostgresBuildInTypeWrapper), const bool>,
         "kIsPostgresBuildInTypeWrapper must be bool"
@@ -172,13 +175,14 @@ concept kIsColumnType = IsColumnType<T>;
 
 // NOLINTEND(readability-identifier-naming)
 
-template <typename T, typename Enable = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct ExtractionTag {
     using type = FieldTag;
 };
 
 template <typename T>
-struct ExtractionTag<T, std::enable_if_t<kIsRowType<T>>> {
+requires IsRowType<T>
+struct ExtractionTag<T> {
     using type = RowTag;
 };
 

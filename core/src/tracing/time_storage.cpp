@@ -18,9 +18,15 @@ constexpr auto kNsInMs = 1'000'000;
 
 namespace tracing::impl {
 
-void TimeStorage::PushLap(const std::string& key, Duration value) { data_[key] += value; }
+void TimeStorage::PushLap(std::string_view key, Duration value) {
+    if (auto it = data_.find(key); it != data_.end()) {
+        it->second += value;
+    } else {
+        data_.emplace(key, value);
+    }
+}
 
-TimeStorage::Duration TimeStorage::DurationTotal(const std::string& key) const {
+TimeStorage::Duration TimeStorage::DurationTotal(std::string_view key) const {
     return utils::FindOrDefault(data_, key, Duration{0});
 }
 

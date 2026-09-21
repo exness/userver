@@ -7,7 +7,6 @@
 
 #include <userver/storages/postgres/detail/is_decl_complete.hpp>
 #include <userver/storages/postgres/io/pg_types.hpp>
-#include <userver/utils/void_t.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -87,24 +86,24 @@ struct FieldBuffer {
 
 /// @brief Primary template for Postgre buffer parser.
 /// Specialisations should provide call operators that parse FieldBuffer.
-template <typename T, typename Enable = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct BufferParser;
 
 /// @brief Primary template for Postgre buffer formatter
 /// Specialisations should provide call operators that write to a buffer.
-template <typename T, typename Enable = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct BufferFormatter;
 
 namespace traits {
 
 /// Customisation point for parsers
-template <typename T, typename Enable = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct Input {
     using type = BufferParser<T>;
 };
 
 /// Customisation point for formatters
-template <typename T, typename Enable = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct Output {
     using type = BufferFormatter<T>;
 };

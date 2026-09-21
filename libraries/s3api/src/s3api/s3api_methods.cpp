@@ -7,6 +7,7 @@
 
 #include <userver/http/common_headers.hpp>
 #include <userver/http/url.hpp>
+#include <userver/utils/string_literal.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -46,7 +47,7 @@ constexpr std::string_view kApplicationXml = "application/xml; charset=UTF-8";
 
 constexpr std::string_view kEncodingTypeValueUrl = "url";
 
-constexpr std::string_view kS3AwsXmlNamespace = "http://s3.amazonaws.com/doc/2006-03-01/";
+constexpr utils::StringLiteral kS3AwsXmlNamespace = "http://s3.amazonaws.com/doc/2006-03-01/";
 
 // see https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html
 const unsigned kMaxUploadsListLimit = 1000u;
@@ -218,7 +219,7 @@ Request CreateInternalApiRequest(
 
     pugi::xml_document doc;
     auto multipart_upload_node = doc.append_child("CompleteMultipartUpload");
-    multipart_upload_node.append_attribute("xmlns").set_value(kS3AwsXmlNamespace.data());
+    multipart_upload_node.append_attribute("xmlns").set_value(kS3AwsXmlNamespace.c_str());
     for (const auto& part : request.completed_parts) {
         auto part_node = multipart_upload_node.append_child("Part");
         part_node.append_child("PartNumber")

@@ -62,8 +62,7 @@ Date DateFromRFC3339String(const std::string& date_string);
 /// Outputs date as a YYYY-MM-DD string
 std::string ToString(Date date);
 
-template <typename Value>
-requires formats::common::kIsFormatValue<Value>
+template <formats::common::IsFormatValue Value>
 Date Parse(const Value& value, formats::parse::To<Date>) {
     std::string str;
     try {
@@ -79,8 +78,7 @@ Date Parse(const Value& value, formats::parse::To<Date>) {
     }
 }
 
-template <typename Value>
-requires formats::common::kIsFormatValue<Value>
+template <formats::common::IsFormatValue Value>
 Value Serialize(Date date, formats::serialize::To<Value>) {
     return typename Value::Builder(ToString(date)).ExtractValue();
 }

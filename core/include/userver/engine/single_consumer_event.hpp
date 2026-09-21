@@ -3,11 +3,12 @@
 /// @file userver/engine/single_consumer_event.hpp
 /// @brief @copybrief engine::SingleConsumerEvent
 
-#include <atomic>
 #include <chrono>
 
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
-#include <userver/engine/impl/wait_list_fwd.hpp>
+#include <userver/engine/future_status.hpp>
+#include <userver/utils/fast_pimpl.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -54,8 +55,19 @@ public:
     template <typename Clock, typename Duration>
     [[nodiscard]] bool WaitForEventUntil(std::chrono::time_point<Clock, Duration>);
 
-    /// @overload bool WaitForEvent()
+    /// @brief Waits until the event is signaled, the deadline is reached, or the task is cancelled
     [[nodiscard]] bool WaitForEventUntil(Deadline);
+
+    /// @brief Waits until the event is in a signaled state, same as
+    /// #WaitForEventUntil, but gives the precise reason of a failure instead of just
+    /// `false`.
+    ///
+    /// If the event is auto-resetting, clears the signal flag upon waking up. If already in a signaled state,
+    /// does the same without sleeping.
+    ///
+    /// @return `FutureStatus::kReady` if the event signaled, `FutureStatus::kCancelled` if the current task was
+    /// cancelled, `FutureStatus::kTimeout` if the deadline was reached.
+    [[nodiscard]] FutureStatus WaitUntil(Deadline deadline);
 
     /// @brief Works like `std::condition_variable::wait_until`. Waits until
     /// @a stop_waiting becomes `true`, and we are notified via `Send`.
@@ -71,15 +83,18 @@ public:
     /// it.
     ///
     /// Initialization:
-    /// @snippet engine/single_consumer_event_test.cpp  CV init
+    /// @snippet core/src/engine/single_consumer_event_test.cpp  CV init
     ///
     /// Notifier side:
-    /// @snippet engine/single_consumer_event_test.cpp  CV notifier
+    /// @snippet core/src/engine/single_consumer_event_test.cpp  CV notifier
     ///
     /// Waiter side:
-    /// @snippet engine/single_consumer_event_test.cpp  CV waiter
+    /// @snippet core/src/engine/single_consumer_event_test.cpp  CV waiter
+    ///
+    /// @return `FutureStatus::kReady` if @a stop_waiting became `true`, `FutureStatus::kCancelled` if the current
+    /// task was cancelled, `FutureStatus::kTimeout` if the deadline was reached.
     template <typename Predicate>
-    [[nodiscard]] bool WaitUntil(Deadline, Predicate stop_waiting);
+    [[nodiscard]] FutureStatus WaitUntil(Deadline, Predicate stop_waiting);
 
     /// Resets the signal flag, if there is any existing event. Guarantees at least 'acquire' and 'release'
     /// memory ordering. Must only be called by the waiting task.
@@ -92,7 +107,7 @@ public:
     /// after exiting WaitForEvent, ONLY IF the wait succeeded. Otherwise
     /// a concurrent task may call Send on a destroyed SingleConsumerEvent.
     /// Here is an example of this situation:
-    /// @snippet engine/single_consumer_event_test.cpp  Wait and destroy
+    /// @snippet core/src/engine/single_consumer_event_test.cpp  Wait and destroy
     ///
     /// You can safely invoke Send from outside a coroutine.
     void Send();
@@ -100,15 +115,21 @@ public:
     /// Returns `true` iff already signaled. Never resets the signal.
     [[nodiscard]] bool IsReady() const noexcept;
 
+    /// @brief Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    ///
+    /// @note When using `SingleConsumerEvent` as a condition variable, beware of spurious wakeups.
+    /// The awaitable signals completion as soon as @ref Send is called regardless of possible semantic restrictions
+    /// of the predicate in @ref WaitUntil.
+    ///
+    /// @warning Only available for @ref NoAutoReset case.
+    AwaitableToken GetAwaitableToken();
+
 private:
-    class EventWaitStrategy;
+    struct Impl;
 
     bool GetIsSignaled() noexcept;
 
-    void CheckIsAutoResetForWaitPredicate() const;
-
-    impl::FastPimplWaitListLight waiters_;
-    const bool is_auto_reset_{true};
+    utils::FastPimpl<Impl, 32, 16> impl_;
 };
 
 template <typename Clock, typename Duration>
@@ -122,9 +143,7 @@ bool SingleConsumerEvent::WaitForEventUntil(std::chrono::time_point<Clock, Durat
 }
 
 template <typename Predicate>
-bool SingleConsumerEvent::WaitUntil(Deadline deadline, Predicate stop_waiting) {
-    CheckIsAutoResetForWaitPredicate();
-
+FutureStatus SingleConsumerEvent::WaitUntil(Deadline deadline, Predicate stop_waiting) {
     // If the state, according to what we've been previously notified of via
     // 'Send', is OK, then return right away. Fresh state updates can also
     // leak to us here, but we should not rely on it.
@@ -136,12 +155,19 @@ bool SingleConsumerEvent::WaitUntil(Deadline deadline, Predicate stop_waiting) {
         // We may also receive false signals from cases when we are allowed
         // and unallowed to make progress in a rapid sequence, or when the notifier
         // thinks that we might be happy with the state, but we aren't.
-        if (!WaitForEventUntil(deadline)) {
-            return false;
+        if (const auto status = WaitUntil(deadline); status != FutureStatus::kReady) {
+            return status;
+        }
+
+        if (!IsAutoReset()) {
+            // Reset guarantees `std::memory_order_acquire` on the signal, so
+            // if we reset any additional signals here, then the predicate will
+            // see the associated data updates.
+            Reset();
         }
     }
 
-    return true;
+    return FutureStatus::kReady;
 }
 
 }  // namespace engine

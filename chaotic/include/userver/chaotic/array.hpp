@@ -3,6 +3,7 @@
 #include <vector>
 
 #include <userver/chaotic/validators.hpp>
+#include <userver/formats/json/string_builder_fwd.hpp>
 #include <userver/formats/json/value.hpp>
 #include <userver/formats/parse/common_containers.hpp>
 #include <userver/formats/parse/to.hpp>
@@ -23,7 +24,7 @@ UserType Parse(const Value& value, formats::parse::To<Array<ItemType, UserType, 
     value.CheckArrayOrNull();
 
     UserType arr;
-    if constexpr (meta::kIsReservable<UserType>) {
+    if constexpr (meta::IsReservable<UserType>) {
         arr.reserve(value.GetSize());
     }
     // Note: call arr.end() *after* reserve() as the latter may invalidate end()
@@ -62,6 +63,14 @@ Value Serialize(const Array<ItemType, UserType, Validators...>& ps, formats::ser
         vb.PushBack(ItemType{item});
     }
     return vb.ExtractValue();
+}
+
+template <typename ItemType, typename UserType, typename... Validators, typename StringBuilder>
+void WriteToStream(const Array<ItemType, UserType, Validators...>& ps, StringBuilder& sw) {
+    const typename StringBuilder::ArrayGuard guard{sw};
+    for (const auto& item : ps.value) {
+        WriteToStream(ItemType{item}, sw);
+    }
 }
 
 }  // namespace chaotic

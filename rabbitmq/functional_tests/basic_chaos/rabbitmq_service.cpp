@@ -1,5 +1,6 @@
 #include <userver/utest/using_namespace_userver.hpp>
 
+#include <algorithm>
 #include <vector>
 
 #include <userver/clients/dns/component.hpp>
@@ -22,13 +23,14 @@
 
 namespace chaos {
 
-class ChaosProducer final : public components::LoggableComponentBase {
+class ChaosProducer final : public components::ComponentBase {
 public:
     static constexpr std::string_view kName{"chaos-producer"};
 
     ChaosProducer(const components::ComponentConfig& config, const components::ComponentContext& context)
-        : components::LoggableComponentBase{config, context},
-          rabbit_client_{context.FindComponent<components::RabbitMQ>("chaos-rabbit").GetClient()} {
+        : components::ComponentBase{config, context},
+          rabbit_client_{context.FindComponent<components::RabbitMQ>("chaos-rabbit").GetClient()}
+    {
         const auto setup_deadline = engine::Deadline::FromDuration(kDefaultOperationTimeout);
 
         auto admin_channel = rabbit_client_->GetAdminChannel(setup_deadline);
@@ -78,7 +80,9 @@ public:
     static constexpr std::string_view kName{"chaos-consumer"};
 
     ChaosConsumer(const components::ComponentConfig& config, const components::ComponentContext& context)
-        : components::ComponentBase{config, context}, consumer_{config, context, messages_} {
+        : components::ComponentBase{config, context},
+          consumer_{config, context, messages_}
+    {
         Start();
     }
 
@@ -97,9 +101,7 @@ public:
             return *storage;
         }();
 
-        std::sort(messages.begin(), messages.end(), [](const auto& lhs, const auto& rhs) {
-            return lhs.message < rhs.message;
-        });
+        std::ranges::sort(messages, [](const auto& lhs, const auto& rhs) { return lhs.message < rhs.message; });
         return messages;
     }
 
@@ -118,7 +120,8 @@ private:
         )
             : urabbitmq::
                   ConsumerBase{context.FindComponent<components::RabbitMQ>(config["rabbit_name"].As<std::string>()).GetClient(), ParseSettings(config)},
-              messages_{messages} {}
+              messages_{messages}
+        {}
 
     protected:
         void Process(urabbitmq::ConsumedMessage msg) override {
@@ -148,7 +151,8 @@ public:
     ChaosHandler(const components::ComponentConfig& config, const components::ComponentContext& context)
         : server::handlers::HttpHandlerBase{config, context},
           producer_{context.FindComponent<ChaosProducer>()},
-          consumer_{context.FindComponent<ChaosConsumer>()} {}
+          consumer_{context.FindComponent<ChaosConsumer>()}
+    {}
 
     std::string HandleRequestThrow(const server::http::HttpRequest& request, server::request::RequestContext&)
         const override {

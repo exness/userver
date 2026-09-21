@@ -1,5 +1,6 @@
 #pragma once
 #include <chrono>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -8,6 +9,7 @@
 
 #include <engine/ev/thread_control.hpp>
 #include <engine/ev/thread_pool.hpp>
+#include <userver/concurrent/mpsc_queue.hpp>
 #include <userver/concurrent/variable.hpp>
 #include <userver/dynamic_config/source.hpp>
 #include <userver/engine/deadline.hpp>
@@ -16,11 +18,14 @@
 #include <userver/utils/swappingsmart.hpp>
 
 #include <storages/redis/impl/keyshard.hpp>
+#include <storages/redis/impl/redis_group.hpp>
 #include <storages/redis/impl/redis_stats.hpp>
 #include <userver/storages/redis/client.hpp>
 #include <userver/storages/redis/fwd.hpp>
-#include <userver/storages/redis/wait_connected_mode.hpp>
+#include <userver/storages/redis/health_check_param.hpp>
+#include <userver/storages/redis/topology_update_method.hpp>
 
+#include "command_admission.hpp"
 #include "shard.hpp"
 
 USERVER_NAMESPACE_BEGIN
@@ -61,10 +66,9 @@ public:
         const std::vector<std::string>& shards,
         const std::vector<ConnectionInfo>& conns,
         std::string shard_group_name,
-        const std::string& client_name,
-        const Password& password,
+        const Credentials& credentials,
         ConnectionSecurity connection_security,
-        KeyShardFactory&& key_shard_factory,
+        SentinelStaticConfig creation_config,
         dynamic_config::Source dynamic_config_source,
         std::size_t database_index
     );
@@ -79,6 +83,7 @@ public:
     void WaitConnectedDebug(bool allow_empty_slaves);
 
     void WaitConnectedOnce(RedisWaitConnected wait_connected);
+    bool IsReady(const HealthCheckParams& params) const;
 
     void ForceUpdateHosts();
 
@@ -101,17 +106,27 @@ public:
     static size_t GetClusterSlotsCalledCounter();
 
     void SetConnectionInfo(const std::vector<ConnectionInfoInt>& info_array);
-    void UpdatePassword(const Password& password);
+    void UpdateCredentials(const Credentials& credentials);
 
 private:
+    using CommandQueue = concurrent::MpscQueue<SentinelCommand>;
+
     void Init();  // used from constructor
 
     void AsyncCommandFailed(const SentinelCommand& scommand);
-    void EnqueueCommand(const SentinelCommand& command);
+    bool EnqueueCommand(SentinelCommand command);
+    bool StartClosingCommandQueue();
+    void WaitForCommandProducers() const noexcept;
 
     Sentinel& sentinel_obj_;
     engine::ev::ThreadControl ev_thread_;
     std::atomic_bool delete_started_{false};
+
+    std::shared_ptr<CommandQueue> commands_queue_;
+    CommandQueue::MultiProducer commands_producer_;
+    CommandQueue::Consumer commands_consumer_;
+
+    CommandAdmission command_admission_;
 
     std::unique_ptr<engine::ev::PeriodicWatcher> process_waiting_commands_timer_;
     void ProcessWaitingCommands();
@@ -129,9 +144,6 @@ private:
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
 
     const std::string client_name_;
-
-    std::vector<SentinelCommand> commands_;
-    std::mutex command_mutex_;
 
     SentinelStatisticsInternal statistics_internal_;
 

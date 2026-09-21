@@ -70,7 +70,7 @@ Dst NarrowToInt(Src x, const Value& value) {
         "expanding cast requested"
     );
 
-    CheckInBounds<Src>(value, x, std::numeric_limits<Dst>::min(), std::numeric_limits<Dst>::max());
+    impl::CheckInBounds<Src>(value, x, std::numeric_limits<Dst>::min(), std::numeric_limits<Dst>::max());
     return static_cast<Dst>(x);
 }
 
@@ -80,8 +80,7 @@ std::chrono::seconds ToSeconds(const std::string& data, const Value& value) {
     const auto converted = std::chrono::duration_cast<std::chrono::seconds>(ms);
     if (converted != ms) {
         throw typename Value::ParseException(fmt::format(
-            "Value of '{}' = {}ms cannot be represented as "
-            "'std::chrono::seconds' without precision loss",
+            "Value of '{}' = {}ms cannot be represented as 'std::chrono::seconds' without precision loss",
             value.GetPath(),
             ms.count()
         ));
@@ -96,18 +95,18 @@ float Parse(const Value& value, To<float>) {
     return impl::NarrowToFloat(value.template As<double>(), value);
 }
 
-template <common::kIsFormatValue Value, meta::kIsInteger T>
+template <common::IsFormatValue Value, meta::IsInteger T>
 T Parse(const Value& value, To<T>) {
     using IntT = std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>;
     return impl::NarrowToInt<T>(value.template As<IntT>(), value);
 }
 
-template <common::kIsFormatValue Value, typename Period>
+template <common::IsFormatValue Value, typename Period>
 std::chrono::duration<double, Period> Parse(const Value& n, To<std::chrono::duration<double, Period>>) {
     return std::chrono::duration<double, Period>(n.template As<double>());
 }
 
-template <common::kIsFormatValue Value>
+template <common::IsFormatValue Value>
 std::chrono::seconds Parse(const Value& n, To<std::chrono::seconds>) {
     return n.IsInt64() ? std::chrono::seconds{n.template As<int64_t>()}
                        : impl::ToSeconds(n.template As<std::string>(), n);
@@ -124,7 +123,7 @@ float Convert(const Value& value, To<float>) {
     return impl::NarrowToFloat(value.template ConvertTo<double>(), value);
 }
 
-template <typename Value, meta::kIsInteger T>
+template <typename Value, meta::IsInteger T>
 T Convert(const Value& value, To<T>) {
     using IntT = std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>;
     return impl::NarrowToInt<T>(value.template ConvertTo<IntT>(), value);

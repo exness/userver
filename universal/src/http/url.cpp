@@ -255,7 +255,7 @@ std::optional<std::string> MakeUrlWithPathArgs(std::string_view path_template, c
         if (key.empty()) {
             return std::nullopt;
         }
-        fmt_args.push_back(fmt::arg(key.data(), UrlEncode(value)));
+        fmt_args.push_back(fmt::arg(key.c_str(), UrlEncode(value)));
     }
 
     try {

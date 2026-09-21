@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/utils/statistics/recentperiod_detail.hpp
+/// @brief RecentPeriod template type traits and concepts
+
 USERVER_NAMESPACE_BEGIN
 
 namespace utils::statistics::detail {

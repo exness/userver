@@ -2,9 +2,12 @@
 
 #include <dynamic_config/variables/USERVER_GRPC_CLIENT_ENABLE_DEADLINE_PROPAGATION.hpp>
 
+#include <fmt/format.h>
+
 #include <string>
 
 #include <userver/http/url.hpp>
+#include <userver/tracing/manager.hpp>
 #include <userver/tracing/opentelemetry.hpp>
 #include <userver/tracing/tags.hpp>
 #include <userver/utils/algo.hpp>
@@ -49,15 +52,19 @@ void AddTracingMetadata(grpc::ClientContext& client_context, const tracing::Span
         client_context.AddMetadata(ugrpc::impl::kXYaSpanId, ugrpc::impl::ToGrpcString(*span_id));
         client_context.AddMetadata(ugrpc::impl::kXYaRequestId, ugrpc::impl::ToGrpcString(span.GetLink()));
 
-        constexpr std::string_view kDefaultOtelTraceFlags = "01";
-        auto traceparent =
-            tracing::opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, kDefaultOtelTraceFlags);
+        const auto flags_hex = fmt::format("{:02x}", static_cast<unsigned>(tracing::GetInheritedOtelTraceFlags()));
+        auto traceparent = tracing::opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, flags_hex);
 
         if (!traceparent.has_value()) {
             LOG_LIMITED_DEBUG("Cannot build opentelemetry traceparent header ({})", traceparent.error());
             return;
         }
         client_context.AddMetadata(ugrpc::impl::kTraceParent, ugrpc::impl::ToGrpcString(traceparent.value()));
+
+        const auto tracestate = tracing::GetInheritedOtelTraceState();
+        if (!tracestate.empty()) {
+            client_context.AddMetadata(ugrpc::impl::kTraceState, ugrpc::impl::ToGrpcString(tracestate));
+        }
     }
 }
 

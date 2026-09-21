@@ -72,10 +72,6 @@ bool PeriodicTask::Settings::operator==(const Settings& other) const noexcept {
     return TieSettings(*this) == TieSettings(other);
 }
 
-bool PeriodicTask::Settings::operator!=(const Settings& other) const noexcept {
-    return TieSettings(*this) != TieSettings(other);
-}
-
 PeriodicTask::PeriodicTask()
     : impl_()
 {}
@@ -121,7 +117,7 @@ void PeriodicTask::Impl::DoStart() {
     auto settings_ptr = settings.Read();
     auto& task_processor =
         settings_ptr->task_processor ? *settings_ptr->task_processor : engine::current_task::GetTaskProcessor();
-    task = engine::CriticalAsyncNoSpan(task_processor, &PeriodicTask::Impl::Run, this);
+    task = engine::CriticalAsyncNoTracing(task_processor, &PeriodicTask::Impl::Run, this);
 }
 
 void PeriodicTask::Stop() noexcept {

@@ -47,11 +47,11 @@ Otherwise, there could be enough information to reproduce the problem.
 
 #### Hint: Take a look at the core dump or stacktrace.
 
-* `std::terminate` in core dump usually means that the an exception was thrown from
+* `std::terminate` in core dump usually means that an exception was thrown from
   a `noexcept` function. See the trace for the place where that happened and add
   `try`+`catch` block in your sources, to catch and print the exception that
   is thrown.
-* Take a closer look at the utils::Async and @ref engine::AsyncNoSpan usage in
+* Take a closer look at the utils::Async and @ref engine::AsyncNoTracing usage in
   your code. Captured by reference variables in lambdas should outlive the
   returned task.
 

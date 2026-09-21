@@ -94,8 +94,8 @@ std::unique_ptr<CMS_ContentInfo, decltype(&CMS_ContentInfo_free)> ReadCmsContent
 
 }  // namespace
 
-Verifier::Verifier(const std::string& name)
-    : NamedAlgo(name)
+Verifier::Verifier(std::string name)
+    : NamedAlgo(std::move(name))
 {}
 Verifier::~Verifier() = default;
 

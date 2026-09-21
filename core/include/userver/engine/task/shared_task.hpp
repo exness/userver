@@ -17,7 +17,12 @@ namespace engine {
 
 /// @brief Asynchronous task that has a shared ownership of the payload.
 ///
-/// See engine::SharedTaskWithResult for a type that could return a value or
+/// @warning This class has no `Get` and cannot report exceptions thrown by the
+/// task payload. Prefer
+/// @ref engine::SharedTaskWithResult "SharedTaskWithResult<void>" even when no
+/// result is needed.
+///
+/// See @ref engine::SharedTaskWithResult for a type that could return a value or
 /// report an exception from the payload.
 class [[nodiscard]] SharedTask : public TaskBase {
 public:
@@ -50,6 +55,9 @@ public:
     /// finishes before move assigning the other. Otherwise just move assigns the
     /// other task into this, leaving the other in an invalid state.
     SharedTask& operator=(SharedTask&& other) noexcept;
+
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND;
 
     /// @cond
     static constexpr WaitMode kWaitMode = WaitMode::kMultipleAwaiters;

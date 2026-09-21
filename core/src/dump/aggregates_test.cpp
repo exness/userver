@@ -64,8 +64,10 @@ NonAggregate Read(dump::Reader& reader, dump::To<NonAggregate>) { return NonAggr
 template <>
 struct dump::IsDumpedAggregate<Empty>;
 
+/// [IsDumpedAggregate declaration]
 template <>
 struct dump::IsDumpedAggregate<MyPair>;
+/// [IsDumpedAggregate declaration]
 
 template <typename T>
 struct dump::IsDumpedAggregate<Single<T>>;

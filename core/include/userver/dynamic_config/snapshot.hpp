@@ -3,19 +3,36 @@
 /// @file userver/dynamic_config/snapshot.hpp
 /// @brief @copybrief dynamic_config::Snapshot
 
+#include <any>
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <userver/compiler/impl/lifetime.hpp>
 #include <userver/dynamic_config/impl/snapshot.hpp>
 #include <userver/dynamic_config/impl/to_json.hpp>
+#include <userver/dynamic_config/registered_config_meta.hpp>
 #include <userver/formats/json_fwd.hpp>
 #include <userver/utils/fast_pimpl.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace dynamic_config {
+
+/// Opaque schema hash supplied by code generation. userver does not calculate it.
+struct SchemaHash final {
+    constexpr SchemaHash() = default;
+
+    constexpr explicit SchemaHash(std::string_view value)
+        : value(value)
+    {}
+
+    std::string_view value;
+};
 
 /// A strong typedef for usage in dynamic_config::Key constructors.
 struct DefaultAsJsonString final {
@@ -30,9 +47,13 @@ struct ConfigDefault final {
     ConfigDefault(std::string_view name, const T& value);
 
     ConfigDefault(std::string_view name, DefaultAsJsonString default_json);
+    /// @warning The schema hash must be supplied by code generation. userver
+    /// treats it as an opaque value and does not calculate it.
+    ConfigDefault(std::string_view name, DefaultAsJsonString default_json, SchemaHash schema_hash);
 
     std::string_view name;
     std::string default_json;
+    std::string schema_hash;
 };
 
 /// A tag type for usage in dynamic_config::Key constructors.
@@ -58,6 +79,13 @@ public:
     /// @snippet core/src/dynamic_config/config_test.cpp key bool
     Key(std::string_view name, const VariableType& default_value);
 
+    /// @brief The constructor for a trivial `VariableType` with schema
+    /// metadata.
+    /// @param schema_hash Opaque schema hash.
+    /// @warning The schema hash must be supplied by code generation. userver
+    /// treats it as an opaque value and does not calculate it.
+    Key(std::string_view name, const VariableType& default_value, SchemaHash schema_hash);
+
     /// @brief The constructor for a non-trivial `VariableType`. The default is
     /// passed as a JSON string.
     ///
@@ -68,14 +96,36 @@ public:
     /// @snippet core/src/dynamic_config/config_test.cpp struct config cpp
     Key(std::string_view name, DefaultAsJsonString default_json);
 
+    /// @brief The constructor for a non-trivial `VariableType` with schema
+    /// metadata.
+    /// @param schema_hash Opaque schema hash.
+    /// @warning The schema hash must be supplied by code generation. userver
+    /// treats it as an opaque value and does not calculate it.
+    Key(std::string_view name, DefaultAsJsonString default_json, SchemaHash schema_hash);
+
     /// @brief The constructor that provides a special parser from JSON.
     /// @warning Prefer the constructors above whenever possible.
     /// @details Can be used when generic `Parse` is not applicable. Sometimes
     /// used to add validation, e.g. minimum, maximum, string pattern, etc.
     Key(std::string_view name, JsonParser parser, DefaultAsJsonString default_json);
 
+    /// @brief The constructor with a custom JSON parser and schema metadata.
+    /// @param name config variable name
+    /// @param parser custom JSON parser for the variable
+    /// @param default_json default value as a JSON string
+    /// @param schema_hash Opaque schema hash.
+    ///        Stored in the global registry and retrievable via
+    ///        dynamic_config::impl::GetRegisteredConfigsMeta() as
+    ///        dynamic_config::RegisteredConfigMeta::schema_hash.
+    /// @warning The schema hash must be supplied by code generation. userver
+    /// treats it as an opaque value and does not calculate it.
+    Key(std::string_view name, JsonParser parser, DefaultAsJsonString default_json, SchemaHash schema_hash);
+
     /// @brief The constructor that parses multiple JSON config items
     /// into a single C++ object.
+    ///
+    /// To register schema metadata for the JSON config items, pass the generated
+    /// `variable_namespace::GetSchemaHash()` to each ConfigDefault.
     /// @warning Prefer to use a separate `Key` per JSON config item and use the
     /// constructors above whenever possible.
     template <std::size_t N>
@@ -93,7 +143,9 @@ public:
     Key(const Key&) noexcept = delete;
     Key& operator=(const Key&) noexcept = delete;
 
-    /// @returns the name of the config variable, as passed at the construction.
+    /// @returns the name of the single registered config item, or the explicit
+    /// name of an internal derived key. Calling this for a key with zero or
+    /// multiple config items and no explicit internal name is an invariant violation.
     std::string_view GetName() const noexcept;
 
     /// Parses the config. Useful only in some very niche scenarios. The config
@@ -108,8 +160,6 @@ private:
     const impl::ConfigId id_;
 };
 
-// clang-format off
-
 /// @brief The shared snapshot of
 /// @ref scripts/docs/en/userver/dynamic_config.md "dynamic configs". Cheap to
 /// copy, even cheaper to move. Thread safe, not updated with new dynamic
@@ -123,9 +173,7 @@ private:
 /// somewhere in the program.
 ///
 /// ## Usage example:
-/// @snippet components/component_sample_test.cpp  Sample user component runtime config source
-
-// clang-format on
+/// @snippet core/src/components/component_sample_test.cpp  Sample user component runtime config source
 class Snapshot final {
 public:
     Snapshot(const Snapshot&);
@@ -143,16 +191,6 @@ public:
     /// Used to access individual configs in the type-safe config map
     template <typename VariableType>
     const VariableType& operator[](const Key<VariableType>&) &&;
-
-    /// @cond
-    // No longer supported, use `config[key]` instead
-    template <typename T>
-    const T& Get() const& USERVER_IMPL_LIFETIME_BOUND;
-
-    // No longer supported, use `config[key]` instead
-    template <typename T>
-    const T& Get() &&;
-    /// @endcond
 
 private:
     // for the constructor
@@ -182,69 +220,95 @@ ConfigDefault::ConfigDefault(std::string_view name, const T& value)
 
 template <typename Variable>
 Key<Variable>::Key(std::string_view name, const VariableType& default_value)
+    : Key(name, default_value, SchemaHash{})
+{}
+
+template <typename Variable>
+Key<Variable>::Key(std::string_view name, const VariableType& default_value, SchemaHash schema_hash)
     : id_(impl::Register(
-          std::string{name},
           [name = std::string{name}](const auto& docs_map) -> std::any {
               return impl::DocsMapGet(docs_map, name).template As<VariableType>();
           },
-          impl::ValueToDocsMapString(name, default_value)
+          {{.name = std::string{name},
+            .schema_hash = std::string{schema_hash.value},
+            .default_as_json_string = impl::ToJsonString(default_value)}}
       ))
 {}
 
 template <typename Variable>
 Key<Variable>::Key(std::string_view name, DefaultAsJsonString default_json)
+    : Key(name, default_json, SchemaHash{})
+{}
+
+template <typename Variable>
+Key<Variable>::Key(std::string_view name, DefaultAsJsonString default_json, SchemaHash schema_hash)
     : id_(impl::Register(
-          std::string{name},
           [name = std::string{name}](const auto& docs_map) -> std::any {
               return impl::DocsMapGet(docs_map, name).template As<VariableType>();
           },
-          impl::SingleToDocsMapString(name, default_json.json_string)
+          {{.name = std::string{name},
+            .schema_hash = std::string{schema_hash.value},
+            .default_as_json_string = std::string{default_json.json_string}}}
       ))
 {}
 
 template <typename Variable>
 Key<Variable>::Key(std::string_view name, JsonParser parser, DefaultAsJsonString default_json)
+    : Key(name, parser, default_json, SchemaHash{})
+{}
+
+template <typename Variable>
+Key<Variable>::Key(std::string_view name, JsonParser parser, DefaultAsJsonString default_json, SchemaHash schema_hash)
     : id_(impl::Register(
-          std::string{name},
           [name = std::string{name}, parser](const auto& docs_map) -> std::any {
               return parser(impl::DocsMapGet(docs_map, name));
           },
-          impl::SingleToDocsMapString(name, default_json.json_string)
+          {{.name = std::string{name},
+            .schema_hash = std::string{schema_hash.value},
+            .default_as_json_string = std::string{default_json.json_string}}}
       ))
 {}
 
 template <typename Variable>
 template <std::size_t N>
 Key<Variable>::Key(DocsMapParser parser, const ConfigDefault (&default_json_map)[N])
-    : id_(impl::Register(
-          std::string{},
-          [parser](const DocsMap& docs_map) -> std::any { return parser(docs_map); },
-          impl::MultipleToDocsMapString(default_json_map, N)
-      ))
+    : id_([parser, &default_json_map] {
+          std::vector<impl::ConfigMetadata> config_metadata;
+          config_metadata.reserve(N);
+          for (const auto& config_default : default_json_map) {
+              config_metadata.push_back({
+                  .name = std::string{config_default.name},
+                  .schema_hash = config_default.schema_hash,
+                  .default_as_json_string = config_default.default_json,
+              });
+          }
+          return impl::Register(
+              [parser](const DocsMap& docs_map) -> std::any { return parser(docs_map); },
+              std::move(config_metadata)
+          );
+      }())
 {}
 
 template <typename Variable>
 Key<Variable>::Key(ConstantConfig /*tag*/, VariableType value)
-    : id_(impl::Register(std::string{}, [value = std::move(value)](const DocsMap& /*unused*/) { return value; }, "{}"))
+    : id_(impl::Register([value = std::move(value)](const DocsMap& /*unused*/) { return value; }, {}))
 {}
 
 template <typename Variable>
 Key<Variable>::Key(impl::InternalTag, std::string_view name)
-    : id_(impl::Register(
+    : id_(impl::RegisterInternal(
           std::string{name},
           [name = std::string{name}](const auto& docs_map) -> std::any {
               return impl::DocsMapGet(docs_map, name).template As<VariableType>();
-          },
-          "{}"
+          }
       ))
 {}
 
 template <typename Variable>
 Key<Variable>::Key(impl::InternalTag, DocsMapParser parser)
-    : id_(impl::Register(
+    : id_(impl::RegisterInternal(
           std::string{},
-          [parser](const DocsMap& docs_map) -> std::any { return parser(docs_map); },
-          "{}"
+          [parser](const DocsMap& docs_map) -> std::any { return parser(docs_map); }
       ))
 {}
 
@@ -266,16 +330,6 @@ const VariableType& Snapshot::operator[](const Key<VariableType>& key) const& US
 template <typename VariableType>
 const VariableType& Snapshot::operator[](const Key<VariableType>&) && {
     static_assert(!sizeof(VariableType), "keep the Snapshot before using, please");
-}
-
-template <typename T>
-const T& Snapshot::Get() const& USERVER_IMPL_LIFETIME_BOUND {
-    return (*this)[T::kDeprecatedKey];
-}
-
-template <typename T>
-const T& Snapshot::Get() && {
-    static_assert(!sizeof(T), "keep the Snapshot before using, please");
 }
 
 }  // namespace dynamic_config

@@ -10,6 +10,7 @@
 #include <userver/components/component_context.hpp>
 #include <userver/components/raw_component_base.hpp>
 #include <userver/engine/condition_variable.hpp>
+#include <userver/engine/deadline.hpp>
 #include <userver/engine/mutex.hpp>
 #include <userver/utils/not_null.hpp>
 #include <userver/utils/resource_scopes.hpp>
@@ -18,7 +19,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace components::impl {
 
-enum class ComponentLifetimeStage { kNull, kCreated, kRunning, kReadyForClearing };
+enum class ComponentLifetimeStage { kNull, kCreated, kRunning, kGracefulShutdown, kReadyForClearing };
 
 class StageSwitchingCancelledException : public std::runtime_error {
 public:
@@ -39,6 +40,8 @@ public:
     void ClearComponent();
     RawComponentBase* GetComponent() const;
     RawComponentBase* WaitAndGetComponent() const;
+
+    ComponentHealth GetComponentHealth() const;
 
     void AddItDependsOn(ComponentInfo& component);
     void AddDependsOnIt(ComponentInfo& component);
@@ -90,6 +93,7 @@ public:
 
     void OnLoadingCancelled();
     void OnAllComponentsLoaded();
+    void OnGracefulShutdown(engine::Deadline serving_shutdown_deadline);
     void OnAllComponentsAreStopping();
 
     void SetStage(ComponentLifetimeStage stage);
@@ -99,6 +103,8 @@ public:
     std::string GetDependencies() const;
 
     utils::ResourceScopeStorage& GetScopes();
+
+    void BeforeDestruction();
 
 private:
     bool HasComponent() const;

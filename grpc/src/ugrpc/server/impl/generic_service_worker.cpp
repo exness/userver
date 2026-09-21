@@ -12,7 +12,7 @@ namespace {
 constexpr utils::StringLiteral kGenericServiceFullNameFake = "Generic";
 
 constexpr std::array kGenericMethodsFake = {ugrpc::impl::MethodDescriptor{
-    /*method_full_name*/ utils::StringLiteral{"Generic/Generic"},
+    /*method_full_name*/ utils::StringLiteral{"/Generic/Generic"},
     /*method_type*/ RpcType::kBidiStreaming,
 }};
 
@@ -45,7 +45,7 @@ grpc::AsyncGenericService& GenericServiceWorker::GetService() {
 }
 
 void GenericServiceWorker::Start() {
-    impl::StartServing(impl_->generic_service_data, impl_->generic_service, &GenericServiceBase::Handle);
+    impl::StartProcessing(impl_->generic_service_data, impl_->generic_service, &GenericServiceBase::Handle);
 }
 
 }  // namespace ugrpc::server::impl

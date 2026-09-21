@@ -2,6 +2,7 @@
 
 #include <grpcpp/support/async_stream.h>
 #include <grpcpp/support/async_unary_call.h>
+#include <grpcpp/support/byte_buffer.h>
 
 #include <userver/ugrpc/rpc_type.hpp>
 #include <userver/ugrpc/server/impl/async_methods.hpp>
@@ -22,7 +23,7 @@ class GenericCallContext;
 
 namespace ugrpc::server::impl {
 
-struct NoInitialRequest final {};
+struct NoSerializedInitialRequest final {};
 
 grpc::ServerContext DetectRawContextType(CallContext&);
 grpc::GenericServerContext DetectRawContextType(GenericCallContext&);
@@ -31,8 +32,8 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsUnaryCall final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawResponder = grpc::ServerAsyncResponseWriter<Response>;
-    using InitialRequest = Request;
+    using RawResponder = grpc::ServerAsyncResponseWriter<grpc::ByteBuffer>;
+    using SerializedInitialRequest = grpc::ByteBuffer;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));
     using StreamAdapter = NoStreamingAdapter;
@@ -45,8 +46,8 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsInputStream final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawResponder = grpc::ServerAsyncReader<Response, Request>;
-    using InitialRequest = NoInitialRequest;
+    using RawResponder = grpc::ServerAsyncReader<grpc::ByteBuffer, grpc::ByteBuffer>;
+    using SerializedInitialRequest = NoSerializedInitialRequest;
     using RawContextType = ::grpc::ServerContext;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));
@@ -60,8 +61,8 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsOutputStream final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawResponder = grpc::ServerAsyncWriter<Response>;
-    using InitialRequest = Request;
+    using RawResponder = grpc::ServerAsyncWriter<grpc::ByteBuffer>;
+    using SerializedInitialRequest = grpc::ByteBuffer;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));
     using StreamAdapter = WriterAdapter<CallTraitsOutputStream>;
@@ -74,8 +75,8 @@ template <typename ServiceBaseType, typename ContextType, typename RequestType, 
 struct CallTraitsBidirectionalStream final {
     using Request = RequestType;
     using Response = ResponseType;
-    using RawResponder = grpc::ServerAsyncReaderWriter<Response, Request>;
-    using InitialRequest = NoInitialRequest;
+    using RawResponder = grpc::ServerAsyncReaderWriter<grpc::ByteBuffer, grpc::ByteBuffer>;
+    using SerializedInitialRequest = NoSerializedInitialRequest;
     using Context = ContextType;
     using RawContext = decltype(DetectRawContextType(std::declval<ContextType&>()));
     using StreamAdapter = ReaderWriterAdapter<CallTraitsBidirectionalStream>;

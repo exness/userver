@@ -8,6 +8,7 @@ from typing import NoReturn
 
 import transliterate
 
+from chaotic import cpp_keywords
 from chaotic import cpp_names
 from chaotic import error
 from chaotic.back.cpp import type_name
@@ -22,6 +23,10 @@ class GeneratorConfig:
     namespaces: dict[str, str]
     # infile_path -> cpp type
     infile_to_name_func: Callable
+    # Where to look for `x-usrv-cpp-type` headers to check that they exist
+    # (used only to produce a nicer error message, does not affect codegen).
+    # `None` disables the check entirely; `[]` fails on the very first usage
+    # of `x-usrv-cpp-type`, since there is nowhere to look.
     # type: ignore
     include_dirs: list[str] | None = dataclasses.field(
         # type: ignore
@@ -260,6 +265,20 @@ class Generator:
         else:
             return '::' + name
 
+    def _gen_any_value(
+        self,
+        name: type_name.TypeName,
+        schema: types.AnyValue,
+    ) -> cpp_types.CppType:
+        return cpp_types.CppAnyValue(
+            json_schema=schema,
+            nullable=False,
+            raw_cpp_type=type_name.TypeName(
+                'USERVER_NAMESPACE::formats::json::Value',
+            ),
+            user_cpp_type=self._extract_user_cpp_type(schema),
+        )
+
     def _gen_boolean(
         self,
         name: type_name.TypeName,
@@ -485,12 +504,45 @@ class Generator:
         )
 
     @staticmethod
+    def _is_emoji(code_point: int) -> bool:
+        return (
+            # Box Drawing, Block Elements, Geometric Shapes, Miscellaneous Symbols, Dingbats
+            (0x2500 <= code_point and code_point <= 0x27BF)
+            # Miscellaneous Symbols and Pictographs, Ornamental Dingbats, Transport and Map Symbols, Alchemical Symbols
+            or (0x1F300 <= code_point and code_point <= 0x1F77F)
+        )
+
+    @staticmethod
     def _normalize_name(name: str) -> str:
         if re.search(NON_NAME_SYMBOL_RE, name):
+            initially_with_leading_underscore = name.startswith('_')
+
             lang = transliterate.detect_language(name, heavy_check=True)
             if lang:
                 name = transliterate.translit(name, lang, reversed=True)
+
+            replacements = {}
+            for symbol in name:
+                code_point = ord(symbol)
+                if Generator._is_emoji(code_point):
+                    replacements[symbol] = f'_u{code_point:X}'
+
+            for symbol, replacement in replacements.items():
+                name = name.replace(symbol, replacement)
+
             name = re.sub(NON_NAME_SYMBOL_RE, '_', name)
+
+            if not initially_with_leading_underscore and name.startswith('_'):
+                name = name[1:]
+
+        if not name:
+            name = '_'
+
+        if name[0].isnumeric():
+            name = 'x' + name
+        elif cpp_keywords.is_cpp_keyword(name):
+            name = name + '_'
+
         return name
 
     def _gen_field(
@@ -543,6 +595,12 @@ class Generator:
         # TODO: name?
         items = self._generate_type(name.add_suffix('A'), schema.items)
 
+        if schema.uniqueItems and not isinstance(schema.items, (types.Integer, types.String, types.Boolean)):
+            self._raise(
+                schema,
+                'uniqueItems is only supported for integer, string, and boolean item types',
+            )
+
         user_cpp_type = self._extract_user_cpp_type(schema)
         container = self._extract_container(schema)
 
@@ -560,6 +618,7 @@ class Generator:
             validators=cpp_types.CppArrayValidator(
                 minItems=schema.minItems,
                 maxItems=schema.maxItems,
+                uniqueItems=schema.uniqueItems,
             ),
         )
 
@@ -671,33 +730,55 @@ class Generator:
                 )
                 extra_type = type_
             else:
-                assert schema.additionalProperties is True
+                # schema.additionalProperties is True (explicit `additionalProperties: true`)
                 extra_type = True
         else:
             extra_type = False
 
+        strict_parsing = schema.get_x_property_bool(
+            'x-taxi-strict-parsing',
+            schema.get_x_property_bool(
+                'x-usrv-strict-parsing',
+                self._config.strict_parsing_default,
+            ),
+        )
+        assert strict_parsing is not None
+
         user_cpp_type = self._extract_user_cpp_type(schema)
 
+        # Default for need_extra_member:
+        # - non-bool extra_type (a Schema) -> True: we must store typed extras
+        # - explicit `additionalProperties: true` -> True: generate extra member by default
+        # - None (key absent) -> False: keep old "ignore unknown" behavior
+        # - `additionalProperties: false` -> False
+        need_extra_member_default = (
+            not isinstance(extra_type, bool)  # typed schema case
+            or schema.additionalProperties is True  # explicit `true`
+        )
         need_extra_member = schema.get_x_property_bool(
-            'x-usrv-cpp-extra-member',
-            schema.get_x_property_bool('x-taxi-cpp-extra-member', True),
+            'x-usrv-extra-member',
+            schema.get_x_property_bool(
+                'x-taxi-extra-member',
+                need_extra_member_default,
+            ),
         )
         if not need_extra_member and not isinstance(extra_type, bool):
             self._raise(
                 schema,
-                msg=('"x-usrv-cpp-extra-member: false" is not allowed for non-boolean "additionalProperties"'),
+                msg=('"x-usrv-extra-member: false" is not allowed for non-boolean "additionalProperties"'),
             )
         if not need_extra_member:
+            if extra_type or schema.additionalProperties is None:
+                # extra_type=True  → explicit `additionalProperties: true`: user opted out
+                #                    of storing extras, so disable strict parsing to
+                #                    preserve "ignore unknown fields" behavior.
+                # additionalProperties is None → key was absent: same "ignore unknowns"
+                #                    semantics as before this field existed.
+                strict_parsing = False
             extra_type = None
 
-        strict_parsing = schema.get_x_property_bool(
-            'x-taxi-strict-parsing',
-            self._config.strict_parsing_default,
-        )
-        assert strict_parsing is not None
-
         return cpp_types.CppStruct(
-            raw_cpp_type=name,
+            raw_cpp_type=name.parent().joinns(self._normalize_name(name.in_local_scope())),
             user_cpp_type=user_cpp_type,
             json_schema=schema,
             nullable=schema.nullable,
@@ -705,6 +786,23 @@ class Generator:
             extra_type=extra_type,
             autodiscover_default_dict=self._config.autodiscover_default_dict,
             strict_parsing=strict_parsing,
+        )
+
+    def _gen_const(
+        self,
+        name: type_name.TypeName,
+        schema: types.ConstSchema,
+    ) -> cpp_types.CppType:
+        cpp_type = types.CONST_TYPE_TO_CPP[schema.const_type]
+        return cpp_types.CppConstType(
+            json_schema=schema,
+            nullable=False,
+            raw_cpp_type=name,
+            user_cpp_type=None,
+            const_value=schema.const,
+            cpp_type=cpp_type,
+            prefix=name.in_local_scope(),
+            namespace=name.namespace(),
         )
 
     def _gen_ref(
@@ -733,10 +831,12 @@ class Generator:
 
 # pylint: disable=protected-access
 SCHEMA_GENERATORS = {
+    types.AnyValue: Generator._gen_any_value,
     types.Boolean: Generator._gen_boolean,
     types.Integer: Generator._gen_integer,
     types.Number: Generator._gen_number,
     types.String: Generator._gen_string,
+    types.ConstSchema: Generator._gen_const,
     types.SchemaObject: Generator._gen_object,
     types.Array: Generator._gen_array,
     types.Ref: Generator._gen_ref,

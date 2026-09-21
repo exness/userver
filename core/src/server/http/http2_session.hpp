@@ -6,6 +6,7 @@
 #include <server/http/http2_stream.hpp>
 #include <server/http/http2_writer.hpp>
 #include <server/http/http_request_constructor.hpp>
+#include <server/http/http_response_impl.hpp>
 #include <server/net/stats.hpp>
 #include <server/request/request_parser.hpp>
 
@@ -64,6 +65,8 @@ public:
     void WriteWhileWant();
     void HandleStreamingEvents();
 
+    bool ConnectionIsOk() const;
+
 private:
     friend class Http2ResponseWriter;
 
@@ -106,14 +109,24 @@ private:
 
     static int OnStreamClose(nghttp2_session* session, int32_t stream_id, uint32_t error_code, void* user_data);
 
+    static int OnBeginFrame(nghttp2_session* session, const nghttp2_frame_hd* hd, void* user_data);
+
+    static int OnInvalidFrame(
+        nghttp2_session* session,
+        const nghttp2_frame* frame,
+        int lib_error_code,
+        void* user_data
+    );
+
     void RegisterStream(Stream::Id id);
     void RemoveStream(Stream& stream);
     Stream& GetStreamChecked(Stream::Id id);
 
-    void SubmitRstStream(Stream::Id stream_id);
+    void SubmitRstStream(Stream::Id stream_id, std::uint32_t error_code = NGHTTP2_INTERNAL_ERROR);
 
     void FinalizeRequest(Stream& stream);
-    bool ConnectionIsOk();
+
+    bool MemRecv(std::string_view data);
 
     const net::Http2SessionConfig& config_;
 
@@ -132,6 +145,11 @@ private:
     std::shared_ptr<impl::Http2StreamEventQueue> streaming_queue_{nullptr};
     engine::SingleConsumerEvent streaming_event_;
     impl::Http2StreamEventQueue::Consumer streaming_consumer_;
+    std::int32_t max_client_stream_id_{0};
+    bool peer_goaway_received_{false};
+    // nghttp2 failed to parse the input: the session must not be used anymore, so the connection
+    // is closed as soon as the already accepted requests are answered.
+    bool session_is_broken_{false};
 };
 
 }  // namespace server::http

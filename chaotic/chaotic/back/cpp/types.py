@@ -4,7 +4,6 @@ import dataclasses
 import itertools
 from typing import Any
 
-from chaotic import cpp_keywords
 from chaotic.back.cpp import type_name
 from chaotic.front import types
 
@@ -202,6 +201,15 @@ class CppType:
     def need_serializer(self) -> bool:
         return False
 
+    def need_stream_writer(self) -> bool:
+        return False
+
+    def need_to_json_string(self) -> bool:
+        return False
+
+    def need_add_hiding_args(self) -> bool:
+        return False
+
     def need_operator_eq(self) -> bool:
         return False
 
@@ -209,6 +217,12 @@ class CppType:
         return False
 
     def need_operator_lshift(self) -> bool:
+        return True
+
+    def needs_new_type(self) -> bool:
+        """Returns True when this type introduces a new C++ declaration
+        (struct, enum class). Returns False for types that are resolved
+        entirely via template machinery without emitting a new declaration."""
         return True
 
 
@@ -347,6 +361,95 @@ class CppPrimitiveType(CppType):
     def need_operator_lshift(self) -> bool:
         return False
 
+    def needs_new_type(self) -> bool:
+        return False
+
+
+# any JSON value ({})
+@dataclasses.dataclass
+class CppAnyValue(CppType):
+    KNOWN_X_PROPERTIES = ['x-usrv-cpp-type', 'x-taxi-cpp-type']
+
+    __hash__ = CppType.__hash__
+
+    def __post_init__(self) -> None:
+        if self._is_raw_json_string():
+            self.raw_cpp_type = type_name.TypeName('USERVER_NAMESPACE::formats::json::RawString')
+
+    def declaration_includes(self) -> list[str]:
+        if self._is_raw_json_string():
+            return ['userver/formats/json/raw_string.hpp']
+        return ['userver/formats/json/value.hpp']
+
+    def definition_includes(self) -> list[str]:
+        return []
+
+    def parser_type(self, ns: str, name: str) -> str:
+        return self.cpp_global_name()
+
+    def need_using_type(self) -> bool:
+        return True
+
+    def need_operator_lshift(self) -> bool:
+        return False
+
+    def needs_new_type(self) -> bool:
+        return False
+
+    def _is_raw_json_string(self) -> bool:
+        if self.user_cpp_type:
+            sanitized_type = self.user_cpp_type.removeprefix('::').removeprefix(USERVER_COLONCOLON)
+            return sanitized_type == 'formats::json::RawString'
+        return False
+
+
+@dataclasses.dataclass
+class CppConstType(CppType):
+    const_value: str | int | bool
+    # C++ raw type, e.g. 'std::string', 'int', 'std::int32_t', 'std::int64_t', 'bool'
+    cpp_type: str
+    prefix: str
+    namespace: str
+
+    __hash__ = CppType.__hash__
+
+    def const_declaration_type(self) -> str:
+        if self.cpp_type == 'std::string':
+            return 'USERVER_NAMESPACE::utils::StringLiteral'
+        # int32_t, int64_t, bool, int
+        return self.cpp_type
+
+    def get_const_value(self) -> str:
+        if self.cpp_type == 'std::string':
+            return f'R"--({self.const_value})--"'
+        if self.cpp_type == 'bool':
+            return 'true' if self.const_value else 'false'
+        return str(self.const_value)
+
+    def declaration_includes(self) -> list[str]:
+        includes = ['userver/chaotic/const_value.hpp']
+        if self.cpp_type == 'std::string':
+            includes.append('userver/utils/string_literal.hpp')
+        elif self.cpp_type in ('std::int32_t', 'std::int64_t'):
+            includes.append('cstdint')
+        return includes
+
+    def definition_includes(self) -> list[str]:
+        return ['userver/chaotic/const_value.hpp']
+
+    def parser_type(self, ns: str, name: str) -> str:
+        parser_type = f'USERVER_NAMESPACE::chaotic::ConstValue<{self.namespace}::k{self.prefix}Const>'
+        return parser_type
+
+    def need_using_type(self) -> bool:
+        return False
+
+    def need_operator_lshift(self) -> bool:
+        return False
+
+    def needs_new_type(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass
 class CppStringWithFormat(CppType):
@@ -406,6 +509,9 @@ class CppStringWithFormat(CppType):
         return True
 
     def need_operator_lshift(self) -> bool:
+        return False
+
+    def needs_new_type(self) -> bool:
         return False
 
 
@@ -473,6 +579,9 @@ class CppRef(CppType):
     def need_operator_lshift(self) -> bool:
         return False
 
+    def needs_new_type(self) -> bool:
+        return False
+
 
 class EnumItemName(str):
     pass
@@ -519,6 +628,9 @@ class CppIntEnum(CppType):
     def need_serializer(self) -> bool:
         return True
 
+    def need_stream_writer(self) -> bool:
+        return True
+
 
 @dataclasses.dataclass
 class CppStringEnumItem:
@@ -560,12 +672,8 @@ class CppStringEnum(CppType):
     def need_serializer(self) -> bool:
         return True
 
-
-@dataclasses.dataclass
-class CppStructPrimitiveField:
-    raw_cpp_type: str
-    user_cpp_type: str | None = None
-    default: Any = None  # the type already checked at front stage
+    def need_stream_writer(self) -> bool:
+        return True
 
 
 @dataclasses.dataclass
@@ -648,13 +756,7 @@ class CppStructField:
         return optional and self._default() is None
 
     def cpp_field_name(self) -> str:
-        data = self.name
-        if data[0].isnumeric():
-            return 'x' + data
-        elif cpp_keywords.is_cpp_keyword(data):
-            return data + '_'
-        else:
-            return data
+        return self.name
 
     def cpp_field_parse_type(self) -> str:
         type_ = self.schema.parser_type('TODO', self.name.title())
@@ -665,6 +767,10 @@ class CppStructField:
                 return type_
         else:
             return f'std::optional<{type_}>'
+
+    def property_name_holder_variable(self, object_type: str) -> str:
+        type_prefix = object_type.replace('::', '_')
+        return f'k{type_prefix}FieldName{self.cpp_field_name()}'
 
     def descriptor_type(self, object_type: str) -> str:
         ch = 'USERVER_NAMESPACE::chaotic'
@@ -684,7 +790,7 @@ class CppStructField:
             default_var = f'{object_type}::kFieldDefault{name}'
             mode = f'{ch}::Defaulted<{type_}, {self.get_default_cpp_type()}, {default_var}>'
 
-        name_var = f'{object_type}::kFieldName{name}'
+        name_var = self.property_name_holder_variable(object_type)
         return f'{ch}::Field<{object_type}, {mode}, &{object_type}::{name}, {name_var}>'
 
 
@@ -692,17 +798,17 @@ class CppStructField:
 class CppStruct(CppType):
     fields: dict[str, CppStructField]
     # 'None' means 'do not generate extra member'
-    extra_type: CppType | bool | None = False
+    extra_type: CppType | bool | None = None
     autodiscover_default_dict: bool = False
     strict_parsing: bool = True
 
     KNOWN_X_PROPERTIES = [
         'x-usrv-cpp-type',
         'x-usrv-cpp-extra-type',
-        'x-usrv-cpp-extra-member',
+        'x-usrv-extra-member',
         'x-taxi-cpp-type',
         'x-taxi-cpp-extra-type',
-        'x-taxi-cpp-extra-member',
+        'x-taxi-extra-member',
     ]
 
     __hash__ = CppType.__hash__
@@ -744,7 +850,10 @@ class CppStruct(CppType):
 
         match self.extra_type:
             case None:
-                unknown_fields = f'{ch}::UnknownFields::Ignore'
+                if self.strict_parsing:
+                    unknown_fields = f'{ch}::UnknownFields::Forbid'
+                else:
+                    unknown_fields = f'{ch}::UnknownFields::Ignore'
             case True:
                 unknown_fields = f'{ch}::UnknownFields::StoreJson'
             case False:
@@ -810,12 +919,8 @@ class CppStruct(CppType):
             'userver/chaotic/with_type.hpp',
         ]
         if self.extra_type or self.strict_parsing:
-            # for ExtractAdditionalProperties/ValidateNoAdditionalProperties
-            includes.append('userver/chaotic/object.hpp')
-
-        if self.extra_type:
-            # for kPropertiesNames
-            includes.append('userver/utils/trivial_map.hpp')
+            includes.append('userver/chaotic/additional_properties.hpp')
+            includes.append('userver/utils/trivial_map.hpp')  # for kPropertiesNames
         for field in self.fields.values():
             includes.extend(field.schema.definition_includes())
         if isinstance(self.extra_type, CppType):
@@ -840,6 +945,15 @@ class CppStruct(CppType):
     def need_serializer(self) -> bool:
         return True
 
+    def need_stream_writer(self) -> bool:
+        return True
+
+    def need_to_json_string(self) -> bool:
+        return True
+
+    def need_add_hiding_args(self) -> bool:
+        return True
+
     def need_operator_eq(self) -> bool:
         return True
 
@@ -848,6 +962,7 @@ class CppStruct(CppType):
 class CppArrayValidator:
     minItems: int | None = None
     maxItems: int | None = None
+    uniqueItems: bool = False
 
     def is_none(self) -> bool:
         return self == CppArrayValidator()
@@ -880,6 +995,8 @@ class CppArray(CppType):
             validators += f', USERVER_NAMESPACE::chaotic::MinItems<{self.validators.minItems}>'
         if self.validators.maxItems is not None:
             validators += f', USERVER_NAMESPACE::chaotic::MaxItems<{self.validators.maxItems}>'
+        if self.validators.uniqueItems:
+            validators += ', USERVER_NAMESPACE::chaotic::UniqueItems'
 
         parser_type = (
             'USERVER_NAMESPACE::chaotic::Array'
@@ -912,6 +1029,9 @@ class CppArray(CppType):
     def need_operator_lshift(self) -> bool:
         return False
 
+    def needs_new_type(self) -> bool:
+        return False
+
 
 def flatten(data: list) -> list:
     return list(itertools.chain.from_iterable(data))
@@ -936,10 +1056,27 @@ class CppStructAllOf(CppType):
         return [
             'userver/formats/common/merge.hpp',
             'userver/chaotic/primitive.hpp',
+            'userver/chaotic/additional_properties.hpp',
         ] + flatten([item.definition_includes() for item in self.parents])
 
     def sax_parser_includes(self) -> list[str]:
         return super().sax_parser_includes() + flatten([item.sax_parser_includes() for item in self.parents])
+
+    def has_nested_additional_properties(self) -> bool:
+        for parent in self.parents_dereferenced():
+            if isinstance(parent, CppStruct) and parent.extra_type:
+                return True
+
+        return False
+
+    def parents_dereferenced(self) -> list[CppType]:
+        result: list[CppType] = list()
+        for parent in self.parents:
+            if isinstance(parent, CppRef) and parent.orig_cpp_type:
+                result.append(parent.orig_cpp_type)
+            else:
+                result.append(parent)
+        return result
 
     def parser_type(self, ns: str, name: str) -> str:
         return self._primitive_parser_type()
@@ -951,6 +1088,15 @@ class CppStructAllOf(CppType):
         return True
 
     def need_serializer(self) -> bool:
+        return True
+
+    def need_stream_writer(self) -> bool:
+        return True
+
+    def need_to_json_string(self) -> bool:
+        return True
+
+    def need_add_hiding_args(self) -> bool:
         return True
 
     def need_operator_eq(self) -> bool:
@@ -1004,6 +1150,9 @@ class CppVariant(CppType):
     def need_operator_lshift(self) -> bool:
         return False
 
+    def needs_new_type(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass
 class CppVariantWithDiscriminator(CppType):
@@ -1023,9 +1172,10 @@ class CppVariantWithDiscriminator(CppType):
         return includes + flatten([item.declaration_includes() for item in self.variants.values()])
 
     def definition_includes(self) -> list[str]:
-        return ['userver/formats/json/serialize_variant.hpp'] + flatten([
-            item.definition_includes() for item in self.variants.values()
-        ])
+        return [
+            'userver/formats/json/serialize_variant.hpp',
+            'userver/chaotic/additional_properties.hpp',
+        ] + flatten([item.definition_includes() for item in self.variants.values()])
 
     def sax_parser_includes(self) -> list[str]:
         return super().sax_parser_includes() + flatten([item.sax_parser_includes() for item in self.variants.values()])
@@ -1049,6 +1199,9 @@ class CppVariantWithDiscriminator(CppType):
             return parser_type
 
     def need_operator_lshift(self) -> bool:
+        return False
+
+    def needs_new_type(self) -> bool:
         return False
 
     def is_str_discriminator(self) -> bool:

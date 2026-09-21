@@ -14,6 +14,7 @@
 #include <userver/formats/parse/to.hpp>
 #include <userver/utils/meta.hpp>
 
+/// @brief Boost.UUID helpers referenced by format parsers and serializers.
 namespace boost::uuids {
 struct uuid;
 }
@@ -59,7 +60,8 @@ ObjectType ParseObject(const Value& value, ExtractFunc extract_func) {
     value.CheckObjectOrNull();
     ObjectType result;
 
-    for (auto it = value.begin(); it != value.end(); ++it) {
+    const auto end = value.end();
+    for (auto it = value.begin(); it != end; ++it) {
         if constexpr (std::is_constructible_v<KeyType, std::string>) {
             result.emplace(it.GetName(), extract_func(*it));
         } else {
@@ -72,17 +74,17 @@ ObjectType ParseObject(const Value& value, ExtractFunc extract_func) {
 
 template <typename T>
 concept RangeNotMap =
-    meta::kIsRange<T> && !meta::kIsMap<T> && !std::is_same_v<T, boost::uuids::uuid> &&
+    meta::IsRange<T> && !meta::IsMap<T> && !std::is_same_v<T, boost::uuids::uuid> &&
     !std::is_convertible_v<T&, utils::impl::strong_typedef::StrongTypedefTag&>;
 
 }  // namespace impl
 
-template <impl::RangeNotMap T, common::kIsFormatValue Value>
+template <impl::RangeNotMap T, common::IsFormatValue Value>
 T Parse(const Value& value, To<T>) {
     return impl::ParseArray<T>(value, &impl::AsExtractor<meta::RangeValueType<T>, Value>);
 }
 
-template <meta::kIsMap T, common::kIsFormatValue Value>
+template <meta::IsMap T, common::IsFormatValue Value>
 T Parse(const Value& value, To<T>) {
     return impl::ParseObject<T>(value, &impl::AsExtractor<typename T::mapped_type, Value>);
 }
@@ -109,7 +111,7 @@ T Convert(const Value& value, To<T>) {
     return impl::ParseArray<T>(value, &impl::ConvertToExtractor<meta::RangeValueType<T>, Value>);
 }
 
-template <meta::kIsMap T, typename Value>
+template <meta::IsMap T, typename Value>
 T Convert(const Value& value, To<T>) {
     if (value.IsMissing()) {
         return {};

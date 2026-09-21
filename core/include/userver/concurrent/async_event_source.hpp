@@ -66,9 +66,9 @@ enum class UnsubscribingKind { kManual, kAutomatic };
 ///
 /// Removes the associated listener automatically on destruction.
 ///
-/// The Scope is usually placed as a member in the subscribing object.
-/// `Unsubscribe` should be called manually in the objects destructor, before
-/// anything that the callback needs is destroyed.
+/// Store the Scope as a member and call `Unsubscribe` manually
+/// in the object's destructor, before anything that the callback needs
+/// is destroyed.
 class [[nodiscard]] AsyncEventSubscriberScope final {
 public:
     AsyncEventSubscriberScope() = default;
@@ -118,7 +118,7 @@ public:
     /// event inside another listener.
     ///
     /// Example usage:
-    /// @snippet concurrent/async_event_channel_test.cpp  AddListener sample
+    /// @snippet core/src/concurrent/async_event_channel_test.cpp  AddListener sample
     ///
     /// @param obj the subscriber, which is the owner of the listener method, and
     /// is also used as the unique identifier of the subscription for this
@@ -126,9 +126,8 @@ public:
     /// @param name the name of the subscriber, for diagnostic purposes
     /// @param func the listener method, usually called `On<DataName>Update`, e.g.
     /// `OnConfigUpdate` or `OnCacheUpdate`
-    /// @returns a AsyncEventSubscriberScope controlling the subscription, which
-    /// should be stored as a member in the subscriber; `Unsubscribe` should be
-    /// called explicitly
+    /// @returns a AsyncEventSubscriberScope controlling the subscription.
+    /// Store the scope as a member and call `Unsubscribe` explicitly.
     template <class Class>
     AsyncEventSubscriberScope AddListener(Class* obj, std::string_view name, void (Class::*func)(Args...)) {
         return AddListener(FunctionId(obj), name, [obj, func](Args... args) { (obj->*func)(args...); });

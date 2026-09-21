@@ -65,7 +65,7 @@ public:
     ~UpdateStatisticsScope();
 
     // For internal use only.
-    impl::UpdateState GetState(utils::impl::InternalTag) const;
+    impl::UpdateState GetState(utils::impl::InternalTag) const noexcept;
     /// @endcond
 
     /// @brief Mark that the `Update` has finished with changes

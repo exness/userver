@@ -1,10 +1,12 @@
 #pragma once
 
+/// @file userver/ydb/settings.hpp
+/// @brief YDB operation, query and transaction settings
+
 #include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string_view>
 
 #include <ydb-cpp-sdk/client/table/query_stats/stats.h>
 
@@ -14,7 +16,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ydb {
 
-enum class TransactionMode { kSerializableRW, kOnlineRO, kStaleRO, kSnapshotRO, kSnapshotRW };
+enum class TransactionMode { kSerializableRW, kOnlineRO, kStaleRO, kSnapshotRO, kSnapshotRW, kImplicitTx };
 
 /// @brief Settings for a single request.
 struct OperationSettings final {
@@ -42,7 +44,7 @@ struct OperationSettings final {
 /// @brief Settings for a single query execution.
 struct QuerySettings final {
     /// Whether to keep the query in a server-side query cache.
-    /// @deprecated Query Client doesn't have KeepInQueryCache, it caches automatically.
+    /// @deprecated Ignored. Execute uses Query API, which caches queries automatically.
     std::optional<bool> keep_in_query_cache{std::nullopt};
 
     /// Stats collection mode for query execution.
@@ -77,13 +79,13 @@ struct RetryTxSettings final {
     bool is_idempotent{false};
 
     /// Settings for a get session request.
-    GetSessionSettings get_session_settings;
+    GetSessionSettings get_session_settings{};
 
     /// Settings for a commit transaction.
-    CommitSettings commit_settings;
+    CommitSettings commit_settings{};
 
     /// Settings for a rollback transaction.
-    RollbackSettings rollback_settings;
+    RollbackSettings rollback_settings{};
 };
 
 }  // namespace ydb

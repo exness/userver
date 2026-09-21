@@ -7,6 +7,8 @@ SET_APPEND(
     CODEGEN_CONFIG_FILES
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/command_control.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/config.hpp
+    ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/content_encoding.hpp
+    ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/digest_auth.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/exceptions.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/middleware.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/client/middleware_factory.hpp
@@ -22,5 +24,7 @@ SET_APPEND(
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/parameters_read.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/parameters_write.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/server/dependencies.hpp
+    ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/server/handler_base.hpp
+    ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/include/userver/chaotic/openapi/server/parameters_write.hpp
     ${ARCADIA_ROOT}/taxi/uservices/userver/chaotic-openapi/library.yaml
 )

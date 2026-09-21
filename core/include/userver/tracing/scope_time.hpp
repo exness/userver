@@ -79,7 +79,7 @@ public:
 
     /// Returns total time elapsed for a certain scope. If there is no record for
     /// the scope, returns 0
-    Duration DurationTotal(const std::string& scope_name) const;
+    Duration DurationTotal(std::string_view scope_name) const;
 
     /// Returns total time elapsed for current scope
     /// Will return 0 if the timer is stopped
@@ -94,7 +94,7 @@ public:
     /// the scope, returns 0.
     ///
     /// Prefer using ScopeTime::DurationTotal()
-    DurationMillis ElapsedTotal(const std::string& scope_name) const;
+    DurationMillis ElapsedTotal(std::string_view scope_name) const;
 
     /// Returns total time elapsed for current scope
     /// Will return 0 if the timer is stopped.

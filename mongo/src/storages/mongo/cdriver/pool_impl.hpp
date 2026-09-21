@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 
 #include <mongoc/mongoc.h>
 #include <moodycamel/concurrentqueue.h>
@@ -61,43 +62,62 @@ public:
 
     class BoundClientPtr final {
     public:
-        explicit BoundClientPtr(ConnPtr ptr, CDriverPoolImpl* pool) noexcept : ptr_(std::move(ptr)), pool_(pool) {
+        BoundClientPtr(ConnPtr ptr, CDriverPoolImpl* pool) noexcept
+            : conn_(ptr.release()), pool_(pool) {
+            UASSERT(conn_);
             UASSERT(pool_);
-            UASSERT(ptr_);
         }
 
-        BoundClientPtr(BoundClientPtr&& o) noexcept = default;
+        /// Non-owning view of an owning BoundClientPtr.
+        /// Caller must ensure `client` outlives the returned view.
+        /// `client` must be owning; borrowing from a borrowed view is not supported.
+        static BoundClientPtr Borrowed(const BoundClientPtr& client) noexcept {
+            UASSERT(client.conn_);
+            UASSERT_MSG(client.pool_, "Borrowed() may only be called on an owning BoundClientPtr");
+            return BoundClientPtr{client.conn_};
+        }
+
+        BoundClientPtr(BoundClientPtr&& o) noexcept
+            : conn_(std::exchange(o.conn_, nullptr)),
+              pool_(std::exchange(o.pool_, nullptr)) {}
 
         BoundClientPtr(const BoundClientPtr&) = delete;
         BoundClientPtr& operator=(const BoundClientPtr&) = delete;
-        BoundClientPtr& operator=(const BoundClientPtr&&) = delete;
+        BoundClientPtr& operator=(BoundClientPtr&&) = delete;
 
-        explicit operator bool() { return !!ptr_; }
+        ~BoundClientPtr() { ReturnIfOwning(); }
+
+        explicit operator bool() const { return conn_ != nullptr; }
+        mongoc_client_t* get() { return conn_->GetNativePtr(); }
 
         stats::EventStats GetEventStatsSnapshot() {
-            UASSERT(ptr_);
-            return ptr_->GetStatsPtr()->event_stats;
+            UASSERT(conn_);
+            return conn_->GetStatsPtr()->event_stats;
         }
 
         void reset() {
-            UASSERT(ptr_);
-            pool_->Push(std::move(ptr_));
+            ReturnIfOwning();
+            conn_ = nullptr;
+            pool_ = nullptr;
         }
 
-        ~BoundClientPtr() {
-            if (ptr_) {
-                pool_->Push(std::move(ptr_));
+    private:
+        explicit BoundClientPtr(Connection* borrowed) noexcept : conn_(borrowed) {
+            UASSERT(conn_);
+        }
+
+        void ReturnIfOwning() noexcept {
+            if (conn_ && pool_) {
+                pool_->Push(ConnPtr{conn_});
             }
         }
 
-        mongoc_client_t* get() { return ptr_->GetNativePtr(); }
-
-    private:
-        ConnPtr ptr_;
-        CDriverPoolImpl* pool_;
+        Connection* conn_ = nullptr;
+        CDriverPoolImpl* pool_ = nullptr;  // nullptr => non-owning view
     };
 
     CDriverPoolImpl(
+        utils::ResourceScopeStorage& scopes,
         std::string id,
         const std::string& uri_string,
         const PoolConfig& config,
@@ -108,6 +128,7 @@ public:
     ~CDriverPoolImpl() override;
 
     const std::string& DefaultDatabaseName() const override;
+    const std::optional<std::chrono::seconds>& GetMaxReplicationLag() const;
 
     void Ping() override;
 
@@ -119,6 +140,12 @@ public:
 
     /// @throws CancelledException, PoolOverloadException
     BoundClientPtr Acquire();
+
+    bool IsBulkWriteSupported() const;
+
+    void RecheckBulkWriteSupport(mongoc_client_t* client);
+
+    void MarkBulkWriteUnsupported();
 
     void SetPoolSettings(const PoolSettings& pool_settings) override;
 
@@ -148,6 +175,8 @@ private:
     std::atomic<size_t> idle_limit_;
     const std::chrono::milliseconds queue_timeout_;
     std::atomic<size_t> size_;
+    enum class BulkWriteSupport { kUnknown, kSupported, kUnsupported };
+    std::atomic<BulkWriteSupport> bulk_write_support_{BulkWriteSupport::kUnknown};
     engine::Semaphore in_use_semaphore_;
     engine::Semaphore connecting_semaphore_;
     const PoolConfig pool_config_;

@@ -1,5 +1,6 @@
 #include <userver/utils/statistics/storage.hpp>
 
+#include <optional>
 #include <utility>
 
 #include <boost/container/small_vector.hpp>
@@ -7,6 +8,8 @@
 #include <userver/formats/common/utils.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
+#include <userver/utils/lazy_prvalue.hpp>
 #include <userver/utils/resource_scopes.hpp>
 #include <userver/utils/text_light.hpp>
 
@@ -56,18 +59,17 @@ void WriteWithFakeFormat(impl::MetricsSource& source)
     }
 }
 
-// During the `Entry::Unregister` call or destruction of `Entry`, all variables
-// used by the writer or extender callback must be valid (must not be
-// destroyed). A common cause of crashes in this place: there is no manual call
-// to `Unregister`. In this case, check the lifetime of the data used by the
-// callback.
+// During `Entry::Unregister` or automatic teardown (Entry destructor /
+// ResourceScopeStorage::BeforeDestruction), all variables used by the writer
+// or extender callback must still be valid. A common cause of crashes here:
+// the holder is removed after the captured data is destroyed.
 [[maybe_unused]] void CheckDataUsedByCallbackHasNotBeenDestroyedBeforeUnregistering(impl::MetricsSource& source
 ) noexcept {
     try {
         WriteWithFakeFormat(source);
     } catch (const std::exception& e) {
         utils::AbortWithStacktrace(fmt::format(
-            "Unhandled exception while statistics holder {} is unregistering automatically: {}",
+            "Unhandled exception while statistics holder {} is unregistering: {}",
             source.prefix_path,
             e.what()
         ));
@@ -80,68 +82,74 @@ Storage::Storage()
     : may_register_extenders_(true)
 {}
 
-formats::json::Value Storage::GetAsJson() const {
-    formats::json::ValueBuilder result;
-    result[kVersionField] = kVersion;
+void DumpMetric(Writer& writer, const Storage& storage) {
+    boost::container::small_vector<LabelView, 16> labels_vector;
 
-    const std::shared_lock lock(mutex_);
-
-    for (const auto& entry : metrics_sources_) {
-        if (entry.writer) {
+    const std::shared_lock lock(storage.mutex_);
+    for (const auto& entry : storage.metrics_sources_) {
+        if (!entry.writer) {
             continue;
         }
 
-        LOG_DEBUG() << "Getting statistics for prefix=" << entry.prefix_path;
-        SetSubField(result, std::vector(entry.path_segments), entry.extender(StatisticsRequest{}));
-    }
-
-    return result.ExtractValue();
-}
-
-void Storage::VisitMetrics(BaseFormatBuilder& out, const Request& request) const {
-    {
-        impl::WriterState state{out, request, {}, {}};
-        for (const auto& [name, value] : request.add_labels) {
-            state.add_labels.emplace_back(name, value);
+        labels_vector.clear();
+        labels_vector.reserve(entry.writer_labels.size());
+        for (const auto& l : entry.writer_labels) {
+            labels_vector.emplace_back(l);
         }
 
-        boost::container::small_vector<LabelView, 16> labels_vector;
-
-        const std::shared_lock lock(mutex_);
-        for (const auto& entry : metrics_sources_) {
-            if (!entry.writer) {
-                continue;
-            }
-
-            labels_vector.clear();
-            labels_vector.reserve(entry.writer_labels.size());
-            for (const auto& l : entry.writer_labels) {
-                labels_vector.emplace_back(l);
-            }
-
-            try {
-                auto writer =
-                    (entry.prefix_path.empty()
-                         ? Writer{state, labels_vector}
-                         : Writer{state, labels_vector}[entry.prefix_path]);
+        try {
+            writer.WithLabels(utils::impl::InternalTag{}, labels_vector, [&entry](Writer& labeled) {
+                std::optional<Writer> prefixed;
+                if (!entry.prefix_path.empty()) {
+                    prefixed.emplace(utils::LazyPrvalue([&] { return labeled[entry.prefix_path]; }));
+                }
+                Writer& writer = prefixed ? *prefixed : labeled;
                 if (writer) {
                     LOG_DEBUG() << "Getting statistics for prefix=" << entry.prefix_path;
                     entry.writer(writer);
                 }
-            } catch (const std::exception& e) {
-                UASSERT_MSG(
-                    false,
-                    fmt::format("Failed to write metrics for prefix '{}': {}", entry.prefix_path, e.what())
-                );
-                LOG_ERROR() << "Failed to write metrics for prefix '" << entry.prefix_path << "': " << e;
-            }
+            });
+        } catch (const std::exception& e) {
+            UASSERT_MSG(false, fmt::format("Failed to write metrics for prefix '{}': {}", entry.prefix_path, e.what()));
+            LOG_ERROR() << "Failed to write metrics for prefix '" << entry.prefix_path << "': " << e;
         }
     }
+}
 
-    statistics::VisitMetrics(out, GetAsJson(), request);
+void Storage::VisitMetrics(BaseFormatBuilder& out, const Request& request) const {
+    statistics::VisitMetrics(*this, out, request);
+
+    formats::json::ValueBuilder legacy_metrics;
+    legacy_metrics[kVersionField] = kVersion;
+    {
+        const std::shared_lock lock(mutex_);
+        for (const auto& entry : metrics_sources_) {
+            if (entry.writer) {
+                continue;
+            }
+
+            LOG_DEBUG() << "Getting statistics for prefix=" << entry.prefix_path;
+            SetSubField(legacy_metrics, std::vector(entry.path_segments), entry.extender(StatisticsRequest{}));
+        }
+    }
+    statistics::VisitMetrics(out, legacy_metrics.ExtractValue(), request);
 }
 
 void Storage::StopRegisteringExtenders() { may_register_extenders_ = false; }
+
+void Storage::RegisterWriter(
+    ResourceScopeStorage& scopes,
+    std::string common_prefix,
+    WriterFunc func,
+    std::vector<Label> add_labels
+) {
+    scopes.Register([&storage = *this,
+                     common_prefix = std::move(common_prefix),
+                     func = std::move(func),
+                     add_labels = std::move(add_labels)] {
+        return storage.RegisterWriter(std::move(common_prefix), std::move(func), std::move(add_labels));
+    });
+}
 
 Entry Storage::RegisterWriter(std::string prefix, WriterFunc func, std::vector<Label> add_labels) {
     return DoRegisterExtender(impl::MetricsSource{std::move(prefix), {}, {}, std::move(func), std::move(add_labels)});
@@ -171,29 +179,10 @@ void Storage::UnregisterExtender(impl::StorageIterator iterator, [[maybe_unused]
     noexcept {
     const std::lock_guard lock(mutex_);
     if constexpr (impl::kCheckSubscriptionUB) {
-        if (kind == impl::UnregisteringKind::kAutomatic) {
-            // fake writer and extender call to check
-            CheckDataUsedByCallbackHasNotBeenDestroyedBeforeUnregistering(*iterator);
-        }
+        // fake writer and extender call to check
+        CheckDataUsedByCallbackHasNotBeenDestroyedBeforeUnregistering(*iterator);
     }
     metrics_sources_.erase(iterator);
-}
-
-void RegisterWriterScope(
-    ResourceScopeStorage& scope_storage,
-    Storage& storage,
-    std::string common_prefix,
-    WriterFunc func,
-    std::vector<Label> add_labels
-)
-{
-    scope_storage
-        .Register([&storage,
-                   common_prefix = std::move(common_prefix),
-                   func = std::move(func),
-                   add_labels = std::move(add_labels)] {
-            return storage.RegisterWriter(common_prefix, std::move(func), std::move(add_labels));
-        });
 }
 
 }  // namespace utils::statistics

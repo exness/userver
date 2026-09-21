@@ -16,6 +16,16 @@ def config_echo_url(mockserver_info):
     return _do_patch
 
 
+@pytest.fixture(scope='session')
+def disable_otel_trace_sampling():
+    def _do_patch(config_yaml, _config_vars):
+        config_yaml['components_manager']['components']['tracing-manager-locator']['otel-trace-sampling-enabled'] = (
+            False
+        )
+
+    return _do_patch
+
+
 # Overriding userver fixture
 @pytest.fixture(name='userver_service_client_options')
 def _userver_service_client_options(userver_service_client_options):

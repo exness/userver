@@ -1,8 +1,7 @@
 #include <userver/utils/statistics/portability_info.hpp>
 
 #include <limits>
-
-#include <boost/range/irange.hpp>
+#include <ranges>
 
 #include <userver/utils/algo.hpp>
 #include <userver/utils/statistics/histogram.hpp>
@@ -191,7 +190,9 @@ UTEST(MetricsPortabilityInfo, LabelsMismatch) {
 UTEST(MetricsPortabilityInfo, HistogramBucketsCount) {
     Storage storage;
     auto holder = storage.RegisterWriter("test", [](Writer& writer) {
-        writer = utils::statistics::Histogram{utils::AsContainer<std::vector<double>>(boost::irange(1, 300))};
+        writer = utils::statistics::Histogram{
+            utils::impl::AsContainerViaInsert<std::vector<double>>(std::views::iota(1, 300))
+        };
     });
 
     const auto warnings = GetPortabilityWarnings(storage, {});

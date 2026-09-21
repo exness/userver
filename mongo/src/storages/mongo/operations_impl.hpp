@@ -9,6 +9,7 @@
 #include <userver/formats/bson/exception.hpp>
 #include <userver/formats/bson/value.hpp>
 #include <userver/storages/mongo/bulk.hpp>
+#include <userver/storages/mongo/exception.hpp>
 #include <userver/storages/mongo/operations.hpp>
 
 #include <storages/mongo/cdriver/wrappers.hpp>
@@ -69,6 +70,7 @@ public:
     stats::OperationKey op_key{stats::OpType::kInsertOne};
     std::optional<formats::bson::impl::BsonBuilder> options;
     bool should_throw{true};
+    std::chrono::milliseconds max_server_time{kNoMaxServerTime};
 };
 
 class InsertMany::Impl {
@@ -83,6 +85,7 @@ public:
     stats::OperationKey op_key{stats::OpType::kInsertMany};
     std::optional<formats::bson::impl::BsonBuilder> options;
     bool should_throw{true};
+    std::chrono::milliseconds max_server_time{kNoMaxServerTime};
 };
 
 class ReplaceOne::Impl {
@@ -97,23 +100,29 @@ public:
     stats::OperationKey op_key{stats::OpType::kReplaceOne};
     std::optional<formats::bson::impl::BsonBuilder> options;
     bool should_throw{true};
+    std::chrono::milliseconds max_server_time{kNoMaxServerTime};
 };
 
 class Update::Impl {
 public:
-    Impl(Mode mode, formats::bson::Document&& selector, formats::bson::Document update)
+    Impl(Mode mode, formats::bson::Document&& selector, formats::bson::Value update)
         : mode(mode),
           selector(std::move(selector)),
           update(std::move(update))
-    {}
+    {
+        if (!this->update.IsDocument() && !this->update.IsArray()) {
+            throw InvalidQueryArgumentException("update must be a document or an aggregation pipeline array");
+        }
+    }
 
     Mode mode;
     bool should_throw{true};  // moved here for size optimization
     bool should_retry_dupkey{false};
     formats::bson::Document selector;
-    formats::bson::Document update;
+    formats::bson::Value update;
     stats::OperationKey op_key{ToStatsOpType(mode)};
     std::optional<formats::bson::impl::BsonBuilder> options;
+    std::chrono::milliseconds max_server_time{kNoMaxServerTime};
 };
 
 class Delete::Impl {
@@ -128,6 +137,7 @@ public:
     formats::bson::Document selector;
     stats::OperationKey op_key{ToStatsOpType(mode)};
     std::optional<formats::bson::impl::BsonBuilder> options;
+    std::chrono::milliseconds max_server_time{kNoMaxServerTime};
 };
 
 class FindAndModify::Impl {

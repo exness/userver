@@ -3,11 +3,14 @@
 #include <storages/mongo/util_mongotest.hpp>
 #include <userver/formats/bson.hpp>
 #include <userver/storages/mongo.hpp>
+#include <userver/storages/mongo/exception.hpp>
+#include <userver/storages/mongo/operators.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace bson = formats::bson;
 namespace mongo = storages::mongo;
+namespace bulk_ops = storages::mongo::bulk_ops;
 
 namespace {
 class Bulk : public MongoPoolFixture {};
@@ -20,14 +23,8 @@ UTEST_F(Bulk, Empty) {
     EXPECT_TRUE(bulk.IsEmpty());
     auto result = coll.Execute(std::move(bulk));
 
-    EXPECT_EQ(0, result.InsertedCount());
-    EXPECT_EQ(0, result.MatchedCount());
-    EXPECT_EQ(0, result.ModifiedCount());
-    EXPECT_EQ(0, result.UpsertedCount());
-    EXPECT_EQ(0, result.DeletedCount());
-    EXPECT_TRUE(result.UpsertedIds().empty());
-    EXPECT_TRUE(result.ServerErrors().empty());
-    EXPECT_TRUE(result.WriteConcernErrors().empty());
+    ExpectWriteCounts(result, {});
+    ExpectNoWriteErrors(result);
 }
 
 UTEST_F(Bulk, DISABLED_InsertOne) {  // TODO: TAXICOMMON-8662
@@ -39,14 +36,8 @@ UTEST_F(Bulk, DISABLED_InsertOne) {  // TODO: TAXICOMMON-8662
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(1, result.InsertedCount());
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.inserted = 1});
+        ExpectNoWriteErrors(result);
     }
     {
         auto bulk = coll.MakeUnorderedBulk(mongo::options::WriteConcern::kMajority);
@@ -54,14 +45,8 @@ UTEST_F(Bulk, DISABLED_InsertOne) {  // TODO: TAXICOMMON-8662
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(1, result.InsertedCount());
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.inserted = 1});
+        ExpectNoWriteErrors(result);
     }
     {
         auto bulk = coll.MakeOrderedBulk();
@@ -81,17 +66,15 @@ UTEST_F(Bulk, DISABLED_InsertOne) {  // TODO: TAXICOMMON-8662
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(2, result.InsertedCount());
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
+        ExpectWriteCounts(result, {.inserted = 2});
         EXPECT_TRUE(result.WriteConcernErrors().empty());
+        const auto& operation_error = result.OperationError();
 
-        auto errors = result.ServerErrors();
-        ASSERT_EQ(1, errors.size());
-        EXPECT_EQ(11000, errors[2].Code());
+        EXPECT_TRUE(operation_error);
+        EXPECT_EQ(kDuplicateKeyErrorCode, operation_error.Code());
+
+        ExpectSingleDuplicateKeyError(result);
+        EXPECT_EQ(1, result.ServerErrors().count(2));
     }
     coll.DeleteMany({});
     {
@@ -104,18 +87,18 @@ UTEST_F(Bulk, DISABLED_InsertOne) {  // TODO: TAXICOMMON-8662
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(3, result.InsertedCount());
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
+        ExpectWriteCounts(result, {.inserted = 3});
         EXPECT_TRUE(result.WriteConcernErrors().empty());
+
+        const auto& operation_error = result.OperationError();
+
+        EXPECT_TRUE(operation_error);
+        EXPECT_EQ(kDuplicateKeyErrorCode, operation_error.Code());
 
         auto errors = result.ServerErrors();
         ASSERT_EQ(2, errors.size());
-        EXPECT_EQ(11000, errors[2].Code());
-        EXPECT_EQ(11000, errors[4].Code());
+        EXPECT_EQ(kDuplicateKeyErrorCode, errors[2].Code());
+        EXPECT_EQ(kDuplicateKeyErrorCode, errors[4].Code());
     }
 }
 
@@ -129,14 +112,8 @@ UTEST_F(Bulk, ReplaceOne) {
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(0, result.InsertedCount());
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
     }
     {
         auto bulk =
@@ -146,17 +123,14 @@ UTEST_F(Bulk, ReplaceOne) {
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(0, result.InsertedCount());
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
         EXPECT_TRUE(result.WriteConcernErrors().empty());
 
-        auto errors = result.ServerErrors();
-        ASSERT_EQ(1, errors.size());
-        EXPECT_EQ(11000, errors[0].Code());
+        const auto& operation_error = result.OperationError();
+
+        EXPECT_TRUE(operation_error);
+        EXPECT_EQ(kDuplicateKeyErrorCode, operation_error.Code());
+        ExpectSingleDuplicateKeyError(result);
     }
 }
 
@@ -165,48 +139,57 @@ UTEST_F(Bulk, Update) {
 
     {
         auto bulk = coll.MakeOrderedBulk();
-        bulk.UpdateOne(bson::MakeDoc("_id", 1), bson::MakeDoc("$set", bson::MakeDoc("x", 1)), mongo::options::Upsert{});
+        bulk.UpdateOne(
+            bson::MakeDoc("_id", 1),
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 1)),
+            mongo::options::Upsert{}
+        );
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(0, result.InsertedCount());
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-
-        auto upserted_ids = result.UpsertedIds();
-        EXPECT_EQ(1, upserted_ids.size());
-        EXPECT_EQ(1, upserted_ids[0].As<int>());
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 1);
     }
     {
         auto bulk = coll.MakeUnorderedBulk(mongo::options::SuppressServerExceptions{});
         bulk.UpdateOne(
             bson::MakeDoc("y", 2),
-            bson::MakeDoc("$setOnInsert", bson::MakeDoc("_id", 1)),
+            bson::MakeDoc(mongo::operators::kSetOnInsert, bson::MakeDoc("_id", 1)),
             mongo::options::Upsert{}
         );
-        bulk.UpdateOne(bson::MakeDoc("_id", 2), bson::MakeDoc("$set", bson::MakeDoc("x", 2)), mongo::options::Upsert{});
-        bulk.UpdateMany({}, bson::MakeDoc("$inc", bson::MakeDoc("x", 1)));
+        bulk.UpdateOne(
+            bson::MakeDoc("_id", 2),
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 2)),
+            mongo::options::Upsert{}
+        );
+        bulk.UpdateMany({}, bson::MakeDoc(mongo::operators::kInc, bson::MakeDoc("x", 1)));
+        EXPECT_FALSE(bulk.IsEmpty());
+        auto result = coll.Execute(std::move(bulk));
+        const auto& operation_error = result.OperationError();
+
+        EXPECT_TRUE(operation_error);
+        EXPECT_EQ(kDuplicateKeyErrorCode, operation_error.Code());
+
+        ExpectWriteCounts(result, {.matched = 2, .modified = 2, .upserted = 1});
+        EXPECT_TRUE(result.WriteConcernErrors().empty());
+
+        ExpectSingleDuplicateKeyError(result);
+
+        auto upserted_ids = result.UpsertedIds();
+        EXPECT_EQ(2, upserted_ids[1].As<int>());
+    }
+    {
+        const formats::bson::Value query =
+            formats::bson::ValueBuilder(bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("z", 3))).ExtractValue();
+
+        auto bulk = coll.MakeOrderedBulk();
+        bulk.UpdateOne(bson::MakeDoc("_id", 1), query);  // Ensure Value overload correctly handles documents
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(0, result.InsertedCount());
-        EXPECT_EQ(2, result.MatchedCount());
-        EXPECT_EQ(2, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-
-        auto errors = result.ServerErrors();
-        ASSERT_EQ(1, errors.size());
-        EXPECT_EQ(11000, errors[0].Code());
-
-        auto upserted_ids = result.UpsertedIds();
-        EXPECT_EQ(1, upserted_ids.size());
-        EXPECT_EQ(2, upserted_ids[1].As<int>());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
     }
 }
 
@@ -221,29 +204,27 @@ UTEST_F(Bulk, UpdateWithArrayFilters) {
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(3, result.InsertedCount());
+        ExpectWriteCounts(result, {.inserted = 3});
         EXPECT_TRUE(result.ServerErrors().empty());
     }
     {
         auto bulk = coll.MakeOrderedBulk();
-        auto options = mongo::options::ArrayFilters({bson::MakeDoc("elem", bson::MakeDoc("$gte", 4))});
+        auto options = mongo::options::ArrayFilters({bson::MakeDoc("elem", bson::MakeDoc(mongo::operators::kGte, 4))});
 
         bulk.UpdateMany(
-            bson::MakeDoc("array", bson::MakeDoc("$elemMatch", bson::MakeDoc("$gte", 4))),
-            bson::MakeDoc("$set", bson::MakeDoc("array.$[elem]", 10)),
+            bson::MakeDoc(
+                "array",
+                bson::MakeDoc(mongo::operators::kElemMatch, bson::MakeDoc(mongo::operators::kGte, 4))
+            ),
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("array.$[elem]", 10)),
             options
         );
 
         EXPECT_FALSE(bulk.IsEmpty());
         auto result = coll.Execute(std::move(bulk));
 
-        EXPECT_EQ(0, result.InsertedCount());
-        EXPECT_EQ(2, result.MatchedCount());
-        EXPECT_EQ(2, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
+        ExpectWriteCounts(result, {.matched = 2, .modified = 2});
+        ExpectNoWriteErrors(result);
     }
 }
 
@@ -261,20 +242,14 @@ UTEST_F(Bulk, Delete) {
 
     auto bulk = coll.MakeUnorderedBulk();
     bulk.DeleteOne(bson::MakeDoc("x", 1));
-    bulk.DeleteOne(bson::MakeDoc("x", bson::MakeDoc("$gt", 6)));
-    bulk.DeleteMany(bson::MakeDoc("x", bson::MakeDoc("$gt", 10)));
-    bulk.DeleteMany(bson::MakeDoc("x", bson::MakeDoc("$lt", 5)));
+    bulk.DeleteOne(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 6)));
+    bulk.DeleteMany(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 10)));
+    bulk.DeleteMany(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kLt, 5)));
     EXPECT_FALSE(bulk.IsEmpty());
     auto result = coll.Execute(std::move(bulk));
 
-    EXPECT_EQ(0, result.InsertedCount());
-    EXPECT_EQ(0, result.MatchedCount());
-    EXPECT_EQ(0, result.ModifiedCount());
-    EXPECT_EQ(0, result.UpsertedCount());
-    EXPECT_EQ(6, result.DeletedCount());
-    EXPECT_TRUE(result.UpsertedIds().empty());
-    EXPECT_TRUE(result.ServerErrors().empty());
-    EXPECT_TRUE(result.WriteConcernErrors().empty());
+    ExpectWriteCounts(result, {.deleted = 6});
+    ExpectNoWriteErrors(result);
 }
 
 UTEST_F(Bulk, Mixed) {
@@ -284,25 +259,26 @@ UTEST_F(Bulk, Mixed) {
     bulk.InsertOne(bson::MakeDoc("x", 1));
     bulk.InsertOne(bson::MakeDoc("x", 2));
     bulk.InsertOne(bson::MakeDoc("y", 3));
-    bulk.UpdateMany(bson::MakeDoc("x", bson::MakeDoc("$exists", true)), bson::MakeDoc("$inc", bson::MakeDoc("x", -1)));
+    bulk.UpdateMany(
+        bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kExists, true)),
+        bson::MakeDoc(mongo::operators::kInc, bson::MakeDoc("x", -1))
+    );
     bulk.ReplaceOne(bson::MakeDoc("y", 3), bson::MakeDoc("x", 2));
-    bulk.UpdateOne(bson::MakeDoc("y", 3), bson::MakeDoc("$set", bson::MakeDoc("x", 3)), mongo::options::Upsert{});
-    bulk.DeleteMany(bson::MakeDoc("x", bson::MakeDoc("$gt", 1)));
-    bulk.UpdateMany({}, bson::MakeDoc("$set", bson::MakeDoc("x", 0)));
-    bulk.DeleteOne(bson::MakeDoc("x", bson::MakeDoc("$lt", 1)));
+    bulk.UpdateOne(
+        bson::MakeDoc("y", 3),
+        bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 3)),
+        mongo::options::Upsert{}
+    );
+    bulk.DeleteMany(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 1)));
+    bulk.UpdateMany({}, bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 0)));
+    bulk.DeleteOne(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kLt, 1)));
     EXPECT_FALSE(bulk.IsEmpty());
     auto result = coll.Execute(std::move(bulk));
 
-    EXPECT_EQ(3, result.InsertedCount());
-    EXPECT_EQ(5, result.MatchedCount());
-    EXPECT_EQ(4, result.ModifiedCount());
-    EXPECT_EQ(1, result.UpsertedCount());
-    EXPECT_EQ(3, result.DeletedCount());
-    EXPECT_TRUE(result.ServerErrors().empty());
-    EXPECT_TRUE(result.WriteConcernErrors().empty());
+    ExpectWriteCounts(result, {.inserted = 3, .matched = 5, .modified = 4, .upserted = 1, .deleted = 3});
+    ExpectNoWriteErrors(result);
 
     auto upserted_ids = result.UpsertedIds();
-    EXPECT_EQ(1, upserted_ids.size());
     EXPECT_TRUE(upserted_ids[5].IsOid());
 }
 
@@ -313,12 +289,74 @@ UTEST_F(Bulk, Hint) {
     bulk.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
     bulk.UpdateOne(
         bson::MakeDoc("x", 1),
-        bson::MakeDoc("$set", bson::MakeDoc("x", 2)),
+        bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 2)),
         mongo::options::Hint{bson::MakeDoc("_id", 1)}
     );
     bulk.DeleteOne(bson::MakeDoc("x", 2), mongo::options::Hint{bson::MakeDoc("_id", 1)});
 
     UEXPECT_NO_THROW(coll.Execute(std::move(bulk)));
+}
+
+UTEST_F(Bulk, UpdateOneWithAggregationPipeline) {
+    auto coll = GetDefaultPool().GetCollection("update_pipeline_one");
+    coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    auto bulk = coll.MakeOrderedBulk();
+    bulk.UpdateOne(
+        bson::MakeDoc("_id", 1),
+        bson::MakeArray(bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 10)))
+    );
+    EXPECT_FALSE(bulk.IsEmpty());
+    auto result = coll.Execute(std::move(bulk));
+
+    ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+    ExpectNoWriteErrors(result);
+}
+
+UTEST_F(Bulk, UpdateManyWithAggregationPipeline) {
+    auto coll = GetDefaultPool().GetCollection("update_pipeline_many");
+    coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+    coll.InsertOne(bson::MakeDoc("_id", 2, "x", 2));
+    coll.InsertOne(bson::MakeDoc("_id", 3, "x", 3));
+
+    auto bulk = coll.MakeOrderedBulk();
+    bulk.UpdateMany(
+        bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 0)),
+        bson::MakeArray(bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("updated", true)))
+    );
+    EXPECT_FALSE(bulk.IsEmpty());
+    auto result = coll.Execute(std::move(bulk));
+
+    ExpectWriteCounts(result, {.matched = 3, .modified = 3});
+    ExpectNoWriteErrors(result);
+}
+
+UTEST_F(Bulk, UpdateWithMultiStageAggregationPipeline) {
+    auto coll = GetDefaultPool().GetCollection("update_pipeline_multistage");
+    coll.InsertOne(bson::MakeDoc("_id", 2, "x", 2));
+
+    auto bulk = coll.MakeOrderedBulk();
+    bulk.UpdateOne(
+        bson::MakeDoc("_id", 2),
+        bson::MakeArray(
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("y", 100)),
+            bson::MakeDoc(mongo::operators::kUnset, "x")
+        )
+    );
+    EXPECT_FALSE(bulk.IsEmpty());
+    auto result = coll.Execute(std::move(bulk));
+
+    ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+    EXPECT_TRUE(result.ServerErrors().empty());
+}
+
+UTEST_F(Bulk, UpdateWithAggregationPipelineInvalidType) {
+    // Test: invalid update type (integer, not document or array) should throw on construction
+    const bson::Value int_value = bson::ValueBuilder{42}.ExtractValue();
+    UEXPECT_THROW(
+        (bulk_ops::Update{bulk_ops::Update::Mode::kSingle, bson::MakeDoc("_id", 1), int_value}),
+        mongo::InvalidQueryArgumentException
+    );
 }
 
 USERVER_NAMESPACE_END

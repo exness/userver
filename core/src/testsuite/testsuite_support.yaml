@@ -55,3 +55,14 @@ properties:
           - concurrent
           - sequential
         default: concurrent
+    cache-reverse-dependencies:
+        type: array
+        description: |
+            Cache component names that must be updated synchronously before
+            concurrent cache reset starts. Used to load dynamic config into
+            the `dynamic-config` sink before config-dependent caches update.
+        items:
+            type: string
+            description: cache component name
+        default:
+          - dynamic-config-client-updater

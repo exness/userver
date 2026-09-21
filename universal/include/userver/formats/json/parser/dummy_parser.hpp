@@ -1,11 +1,16 @@
 #pragma once
 
+/// @file userver/formats/json/parser/dummy_parser.hpp
+/// @brief @copybrief formats::json::parser::DummyParser
+/// @ingroup userver_universal
+
 #include <userver/formats/json/parser/base_parser.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace formats::json::parser {
 
+/// @brief No-op SAX parser for tests and plumbing.
 class DummyParser final : public BaseParser {
 public:
     DummyParser();
@@ -25,7 +30,7 @@ public:
 
     std::string Expected() const override;
 
-    void Reset();
+    void Reset() noexcept;
 
     DummyParser& GetParser();
 

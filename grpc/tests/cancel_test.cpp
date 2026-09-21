@@ -212,7 +212,7 @@ UTEST_F_MT(GrpcServerEcho, DestroyServerDuringRequest, 2) {
     sample::ugrpc::StreamGreetingResponse response;
     EXPECT_TRUE(call.Read(response));
 
-    auto complete_rpc = engine::AsyncNoSpan([&] {
+    auto complete_rpc = engine::AsyncNoTracing([&] {
         // Make sure that 'server.StopServing()' call starts
         engine::SleepFor(50ms);
 
@@ -223,7 +223,7 @@ UTEST_F_MT(GrpcServerEcho, DestroyServerDuringRequest, 2) {
         UEXPECT_NO_THROW(EXPECT_FALSE(call.Read(response)));
     });
 
-    GetServer().StopServing();
+    GetServer().StopServing(engine::Deadline::FromDuration(std::chrono::seconds(1)));
     complete_rpc.Get();
 }
 

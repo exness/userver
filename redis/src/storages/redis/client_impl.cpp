@@ -1,7 +1,14 @@
 #include "client_impl.hpp"
 
+#include <iterator>
+#include <ranges>
+
+#include <fmt/format.h>
+
+#include <userver/formats/json/serialize.hpp>
 #include <userver/utils/assert.hpp>
 
+#include <storages/redis/impl/keyshard.hpp>
 #include <storages/redis/impl/sentinel.hpp>
 
 #include "impl/command_control_impl.hpp"
@@ -47,6 +54,8 @@ ClientImpl::ClientImpl(std::shared_ptr<impl::Sentinel> sentinel)
 void ClientImpl::WaitConnectedOnce(RedisWaitConnected wait_connected) {
     redis_client_->WaitConnectedOnce(wait_connected);
 }
+
+bool ClientImpl::IsReady(const HealthCheckParams& params) const { return redis_client_->IsReady(params); }
 
 size_t ClientImpl::ShardsCount() const { return redis_client_->ShardsCount(); }
 bool ClientImpl::IsInClusterMode() const { return redis_client_->IsInClusterMode(); }
@@ -441,6 +450,12 @@ RequestGet ClientImpl::Get(std::string key, const CommandControl& command_contro
         RequestGet>(MakeRequest(CmdArgs{"get", std::move(key)}, shard, false, GetCommandControl(command_control)));
 }
 
+RequestGetdel ClientImpl::Getdel(std::string key, const CommandControl& command_control) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<
+        RequestGetdel>(MakeRequest(CmdArgs{"getdel", std::move(key)}, shard, true, GetCommandControl(command_control)));
+}
+
 RequestGetset ClientImpl::Getset(std::string key, std::string value, const CommandControl& command_control) {
     auto shard = ShardByKey(key, command_control);
     return CreateRequest<RequestGetset>(MakeRequest(
@@ -741,6 +756,33 @@ RequestMset ClientImpl::Mset(
     );
 }
 
+RequestMsetex ClientImpl::Msetex(
+    std::vector<std::pair<std::string, std::string>> key_values,
+    const CommandControl& command_control
+) {
+    return Msetex(std::move(key_values), MsetexOptions::NoTtl(), command_control);
+}
+
+RequestMsetex ClientImpl::Msetex(
+    std::vector<std::pair<std::string, std::string>> key_values,
+    MsetexOptions options,
+    const CommandControl& command_control
+) {
+    if (key_values.empty()) {
+        return CreateDummyRequest<RequestMsetex>(std::make_shared<Reply>("msetex", 1));
+    }
+    CheckMsetexKeysInSameSlot(key_values);
+
+    const auto shard = ShardByKey(key_values.front().first, command_control);
+    const auto numkeys = key_values.size();
+    return CreateRequest<RequestMsetex>(MakeRequest(
+        CmdArgs{"msetex", numkeys, std::move(key_values), options},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
 TransactionPtr ClientImpl::Multi() { return std::make_unique<TransactionImpl>(shared_from_this()); }
 
 TransactionPtr ClientImpl::Multi(Transaction::CheckShards check_shards) {
@@ -1022,6 +1064,21 @@ RequestSetex ClientImpl::Setex(
     auto shard = ShardByKey(key, command_control);
     return CreateRequest<RequestSetex>(MakeRequest(
         CmdArgs{"setex", std::move(key), seconds.count(), std::move(value)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestSetAndGetPrevious ClientImpl::SetAndGetPrevious(
+    std::string key,
+    std::string value,
+    std::chrono::milliseconds ttl,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestSetAndGetPrevious>(MakeRequest(
+        CmdArgs{"set", std::move(key), std::move(value), "PX", ttl.count(), "GET"},
         shard,
         true,
         GetCommandControl(command_control)
@@ -1451,6 +1508,471 @@ RequestZscore ClientImpl::Zscore(std::string key, std::string member, const Comm
     ));
 }
 
+// Hash field expiration commands:
+
+namespace {
+
+void AppendHgetexModifier(std::vector<std::string>& args, const HgetexOptions& options) {
+    switch (options.ttl_action) {
+        case HgetexOptions::TtlAction::kKeep:
+            break;
+        case HgetexOptions::TtlAction::kSetSeconds:
+            args.emplace_back("EX");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HgetexOptions::TtlAction::kSetMilliseconds:
+            args.emplace_back("PX");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HgetexOptions::TtlAction::kSetAtSeconds:
+            args.emplace_back("EXAT");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HgetexOptions::TtlAction::kSetAtMilliseconds:
+            args.emplace_back("PXAT");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HgetexOptions::TtlAction::kPersist:
+            args.emplace_back("PERSIST");
+            break;
+    }
+}
+
+void AppendHsetexModifiers(std::vector<std::string>& args, const HsetexOptions& options) {
+    switch (options.exist) {
+        case HsetexOptions::Exist::kSetAlways:
+            break;
+        case HsetexOptions::Exist::kSetIfNoneExist:
+            args.emplace_back("FNX");
+            break;
+        case HsetexOptions::Exist::kSetIfAllExist:
+            args.emplace_back("FXX");
+            break;
+    }
+    switch (options.ttl_action) {
+        case HsetexOptions::TtlAction::kNone:
+            break;
+        case HsetexOptions::TtlAction::kSetSeconds:
+            args.emplace_back("EX");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HsetexOptions::TtlAction::kSetMilliseconds:
+            args.emplace_back("PX");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HsetexOptions::TtlAction::kSetAtSeconds:
+            args.emplace_back("EXAT");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HsetexOptions::TtlAction::kSetAtMilliseconds:
+            args.emplace_back("PXAT");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HsetexOptions::TtlAction::kKeepTtl:
+            args.emplace_back("KEEPTTL");
+            break;
+    }
+}
+
+}  // namespace
+
+RequestHexpire ClientImpl::Hexpire(
+    std::string key,
+    std::chrono::seconds ttl,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hexpire", std::move(key), ttl.count(), "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hexpire(
+    std::string key,
+    std::chrono::seconds ttl,
+    ExpireOptions options,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hexpire", std::move(key), ttl.count(), options, "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hpexpire(
+    std::string key,
+    std::chrono::milliseconds ttl,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hpexpire", std::move(key), ttl.count(), "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hpexpire(
+    std::string key,
+    std::chrono::milliseconds ttl,
+    ExpireOptions options,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hpexpire", std::move(key), ttl.count(), options, "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    const auto deadline_sec = std::chrono::duration_cast<std::chrono::seconds>(deadline.time_since_epoch()).count();
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hexpireat", std::move(key), deadline_sec, "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    ExpireOptions options,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    const auto deadline_sec = std::chrono::duration_cast<std::chrono::seconds>(deadline.time_since_epoch()).count();
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hexpireat", std::move(key), deadline_sec, options, "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hpexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    const auto deadline_ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.time_since_epoch()).count();
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hpexpireat", std::move(key), deadline_ms, "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpire ClientImpl::Hpexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    ExpireOptions options,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    const auto deadline_ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.time_since_epoch()).count();
+    return CreateRequest<RequestHexpire>(MakeRequest(
+        CmdArgs{"hpexpireat", std::move(key), deadline_ms, options, "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHexpiretime ClientImpl::Hexpiretime(
+    std::string key,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHexpiretime>(MakeRequest(
+        CmdArgs{"hexpiretime", std::move(key), "FIELDS", field_count, std::move(fields)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHpexpiretime ClientImpl::Hpexpiretime(
+    std::string key,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHpexpiretime>(MakeRequest(
+        CmdArgs{"hpexpiretime", std::move(key), "FIELDS", field_count, std::move(fields)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHttl ClientImpl::Httl(std::string key, std::vector<std::string> fields, const CommandControl& command_control) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHttl>(MakeRequest(
+        CmdArgs{"httl", std::move(key), "FIELDS", field_count, std::move(fields)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHpttl ClientImpl::Hpttl(
+    std::string key,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHpttl>(MakeRequest(
+        CmdArgs{"hpttl", std::move(key), "FIELDS", field_count, std::move(fields)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHpersist ClientImpl::Hpersist(
+    std::string key,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHpersist>(MakeRequest(
+        CmdArgs{"hpersist", std::move(key), "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHgetex ClientImpl::Hgetex(
+    std::string key,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    const auto field_count = std::ssize(fields);
+    return CreateRequest<RequestHgetex>(MakeRequest(
+        CmdArgs{"hgetex", std::move(key), "FIELDS", field_count, std::move(fields)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestHgetex ClientImpl::Hgetex(
+    std::string key,
+    HgetexOptions options,
+    std::vector<std::string> fields,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    std::vector<std::string> tail;
+    AppendHgetexModifier(tail, options);
+    tail.emplace_back("FIELDS");
+    tail.emplace_back(std::to_string(std::ssize(fields)));
+    tail.insert(tail.end(), std::make_move_iterator(fields.begin()), std::make_move_iterator(fields.end()));
+    return CreateRequest<RequestHgetex>(
+        MakeRequest(CmdArgs{"hgetex", std::move(key), std::move(tail)}, shard, true, GetCommandControl(command_control))
+    );
+}
+
+RequestHsetex ClientImpl::Hsetex(
+    std::string key,
+    std::vector<HsetexFieldValue> field_values,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    std::vector<std::string> tail;
+    tail.reserve(2 + (std::ssize(field_values) * 2));
+    tail.emplace_back("FIELDS");
+    tail.emplace_back(std::to_string(std::ssize(field_values)));
+    for (auto&& fv : field_values) {
+        tail.push_back(std::move(fv.field));
+        tail.push_back(std::move(fv.value));
+    }
+    return CreateRequest<RequestHsetex>(
+        MakeRequest(CmdArgs{"hsetex", std::move(key), std::move(tail)}, shard, true, GetCommandControl(command_control))
+    );
+}
+
+RequestHsetex ClientImpl::Hsetex(
+    std::string key,
+    HsetexOptions options,
+    std::vector<HsetexFieldValue> field_values,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    std::vector<std::string> tail;
+    tail.reserve(5 + (std::ssize(field_values) * 2));
+    AppendHsetexModifiers(tail, options);
+    tail.emplace_back("FIELDS");
+    tail.emplace_back(std::to_string(std::ssize(field_values)));
+    for (auto&& fv : field_values) {
+        tail.push_back(std::move(fv.field));
+        tail.push_back(std::move(fv.value));
+    }
+    return CreateRequest<RequestHsetex>(
+        MakeRequest(CmdArgs{"hsetex", std::move(key), std::move(tail)}, shard, true, GetCommandControl(command_control))
+    );
+}
+
+// JSON module commands:
+
+RequestJsonSet ClientImpl::JsonSet(
+    std::string key,
+    std::string path,
+    formats::json::Value value,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    auto json_string = formats::json::ToString(value);
+    return CreateRequest<RequestJsonSet>(MakeRequest(
+        CmdArgs{"json.set", std::move(key), std::move(path), std::move(json_string)},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestJsonSetIfNotExist ClientImpl::JsonSetIfNotExist(
+    std::string key,
+    std::string path,
+    formats::json::Value value,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    auto json_string = formats::json::ToString(value);
+    return CreateRequest<RequestJsonSetIfNotExist>(MakeRequest(
+        CmdArgs{"json.set", std::move(key), std::move(path), std::move(json_string), "NX"},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestJsonSetIfExist ClientImpl::JsonSetIfExist(
+    std::string key,
+    std::string path,
+    formats::json::Value value,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    auto json_string = formats::json::ToString(value);
+    return CreateRequest<RequestJsonSetIfExist>(MakeRequest(
+        CmdArgs{"json.set", std::move(key), std::move(path), std::move(json_string), "XX"},
+        shard,
+        true,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestJsonGet ClientImpl::JsonGet(std::string key, const CommandControl& command_control) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestJsonGet>(
+        MakeRequest(CmdArgs{"json.get", std::move(key)}, shard, false, GetCommandControl(command_control))
+    );
+}
+
+RequestJsonGet ClientImpl::JsonGet(std::string key, std::string path, const CommandControl& command_control) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestJsonGet>(MakeRequest(
+        CmdArgs{"json.get", std::move(key), std::move(path)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestJsonGet ClientImpl::JsonGet(
+    std::string key,
+    std::vector<std::string> paths,
+    const CommandControl& command_control
+) {
+    auto shard = ShardByKey(key, command_control);
+    return CreateRequest<RequestJsonGet>(MakeRequest(
+        CmdArgs{"json.get", std::move(key), std::move(paths)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestJsonMget ClientImpl::JsonMget(
+    std::vector<std::string> keys,
+    std::string path,
+    const CommandControl& command_control
+) {
+    if (keys.empty()) {
+        return CreateDummyRequest<RequestJsonMget>(std::make_shared<Reply>("json.mget", ReplyData::Array{}));
+    }
+    auto shard = ShardByKey(keys.at(0), command_control);
+    return CreateRequest<RequestJsonMget>(MakeRequest(
+        CmdArgs{"json.mget", std::move(keys), std::move(path)},
+        shard,
+        false,
+        GetCommandControl(command_control)
+    ));
+}
+
+RequestJsonMset ClientImpl::JsonMset(
+    std::vector<JsonKeyPathValue> key_path_values,
+    const CommandControl& command_control
+) {
+    if (key_path_values.empty()) {
+        return CreateDummyRequest<RequestJsonMset>(std::make_shared<Reply>("json.mset", ReplyData::CreateStatus("OK")));
+    }
+    auto shard = ShardByKey(key_path_values.at(0).key, command_control);
+    std::vector<std::string> args;
+    args.reserve(key_path_values.size() * 3);
+    for (auto&& [key, path, value] : key_path_values) {
+        args.push_back(std::move(key));
+        args.push_back(std::move(path));
+        args.push_back(formats::json::ToString(std::move(value)));
+    }
+    return CreateRequest<RequestJsonMset>(
+        MakeRequest(CmdArgs{"json.mset", std::move(args)}, shard, true, GetCommandControl(command_control))
+    );
+}
+
 // end of redis commands
 
 impl::Sentinel& ClientImpl::GetNative() const { return *redis_client_; }
@@ -1486,6 +2008,33 @@ size_t ClientImpl::ShardByKey(const std::string& key, const CommandControl& cc) 
 }
 
 void ClientImpl::CheckShard(size_t shard, const CommandControl& cc) const { DoCheckShard(shard, cc.force_shard_idx); }
+
+// Valkey 9.1 answers no CROSSSLOT to an MSETEX whose keys belong to different cluster hash slots:
+// it writes such keys into the node that happened to receive the command, even if that node does
+// not serve their slots, so the values silently become invisible to the rest of the cluster.
+void ClientImpl::CheckMsetexKeysInSameSlot(const std::vector<std::pair<std::string, std::string>>& key_values) const {
+    if (key_values.empty() || !IsInClusterMode()) {
+        return;
+    }
+
+    const auto& first_key = key_values.front().first;
+    const auto first_slot = impl::HashSlot(first_key);
+    for (const auto& [key, _] : key_values | std::views::drop(1)) {
+        const auto slot = impl::HashSlot(key);
+        if (slot != first_slot) {
+            throw InvalidArgumentException(fmt::format(
+                "Msetex requires all the keys to belong to a single cluster hash slot, but key '{}' belongs to "
+                "slot {} while key '{}' belongs to slot {}. To fix, wrap the shared part of the keys into a hash "
+                "tag (e.g. '{{user:42}}:name') so that they hash to a single slot, or write the keys by separate "
+                "requests",
+                first_key,
+                first_slot,
+                key,
+                slot
+            ));
+        }
+    }
+}
 
 template Request<ScanReplyTmpl<ScanTag::kSscan>> ClientImpl::MakeScanRequestWithKey(
     std::string key,

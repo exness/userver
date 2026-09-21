@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/engine/future.hpp>
 #include <userver/storages/redis/request_data_base.hpp>
 
@@ -29,9 +30,9 @@ public:
 
     ReplyPtr GetRaw() override { throw std::logic_error("call TransactionSubrequestDataImpl::GetRaw()"); }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
         UASSERT_MSG(false, "Not implemented");
-        return nullptr;
+        return engine::AwaitableToken{};
     }
 
 private:

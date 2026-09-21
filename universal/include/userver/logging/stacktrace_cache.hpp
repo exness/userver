@@ -1,17 +1,31 @@
 #pragma once
 
+/// @file userver/logging/stacktrace_cache.hpp
+/// @brief Cached stringification for Boost stack traces.
+/// @ingroup userver_universal
+
 #include <string>
 
 #include <boost/stacktrace/stacktrace_fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
-/// Contains functions that cache stacktrace results
+/// @brief Cached stringification for stack traces.
 namespace logging::stacktrace_cache {
 
 /// Get cached stacktrace
 /// @see GlobalEnableStacktrace
 std::string to_string(const boost::stacktrace::stacktrace& st);  // NOLINT(readability-identifier-naming)
+
+/// @brief Resolve a single instruction address to a function name, using the
+/// same per-frame cache as stacktrace_cache::to_string().
+///
+/// Unlike stacktrace_cache::to_string(), the name is returned unfiltered: no
+/// frame is blanked out, so the result is usable for profile symbolization.
+///
+/// @returns The function name, or an empty string if the address cannot be
+/// resolved or if stacktraces are disabled via GlobalEnableStacktrace().
+std::string SymbolizeAddress(const void* pc);
 
 /// Enable/disable stacktraces. If disabled, stacktrace_cache::to_string()
 /// returns with a const string.

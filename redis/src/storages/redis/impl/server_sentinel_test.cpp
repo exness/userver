@@ -3,6 +3,9 @@
 #include <thread>
 
 #include <userver/engine/sleep.hpp>
+#include <userver/logging/log.hpp>
+#include <userver/storages/redis/reply.hpp>
+#include <userver/utils/scope_guard.hpp>
 
 #include <storages/redis/impl/keyshard_impl.hpp>
 #include <storages/redis/impl/server_common_sentinel_test.hpp>
@@ -14,6 +17,7 @@ namespace {
 // 100ms should be enough, but valgrind is too slow
 constexpr auto kSentinelChangeHostsWaitingTime = std::chrono::milliseconds(500);
 constexpr auto kSentinelChangeHostsMaxAttempts = 10;
+constexpr auto kMaxTimeoutBeforeFirstReplyAfterUpdateSecdist = std::chrono::seconds(10);
 
 auto MakeGetRequest(
     storages::redis::impl::Sentinel& sentinel,
@@ -36,7 +40,38 @@ bool CheckMasterChanged(storages::redis::impl::Sentinel& sentinel, const size_t 
     return false;
 }
 
+template <typename RedisTest>
+void CheckStopCompletesPendingRequest(RedisTest& redis_test) {
+    const logging::DefaultLoggerLevelScope log_level{logging::Level::kDebug};
+    auto& master = redis_test.Master();
+    const auto paused_reply = master.RegisterPausedReplyHandler("GET", storages::redis::ReplyData::CreateNil());
+    const utils::ScopeGuard close_masters{[&redis_test] { redis_test.Masters().clear(); }};
+    storages::redis::CommandControl command_control;
+    command_control.timeout_single = kSuccessTimeout * 2;
+    command_control.timeout_all = kSuccessTimeout * 2;
+    command_control.max_retries = 1;
+    command_control.force_request_to_master = true;
+
+    auto request = MakeGetRequest(redis_test.SentinelClient(), "pending-on-stop", command_control);
+    ASSERT_TRUE(paused_reply->WaitForRequest(kSuccessTimeout));
+
+    redis_test.ResetSentinelClient();
+
+    const auto reply = request.Get();
+    EXPECT_EQ(reply->status, storages::redis::ReplyStatus::kEndOfFileError);
+}
+
 }  // namespace
+
+UTEST(Redis, ClusterStopCompletesPendingRequest) {
+    ClusterTest cluster_test(1);
+    CheckStopCompletesPendingRequest(cluster_test);
+}
+
+UTEST(Redis, SentinelStopCompletesPendingRequest) {
+    SentinelTest sentinel_test(1, 1, 0);
+    CheckStopCompletesPendingRequest(sentinel_test);
+}
 
 UTEST(Redis, SentinelSingleMaster) {
     const size_t master_count = 1;
@@ -47,7 +82,7 @@ UTEST(Redis, SentinelSingleMaster) {
     SentinelTest sentinel_test(sentinel_count, master_count, slave_count, magic_value);
     auto& sentinel = sentinel_test.SentinelClient();
 
-    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSmallPeriod));
+    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSuccessTimeout));
 
     auto res = MakeGetRequest(sentinel, "value").Get();
     ASSERT_TRUE(res->data.IsInt());
@@ -71,7 +106,7 @@ UTEST(Redis, SentinelMastersChanging) {
                 {{sentinel_test.RedisName(), kLocalhost, sentinel_test.Master(master_idx).GetPort()}}
             );
             sentinel.ForceUpdateHosts();
-            EXPECT_TRUE(masters_handler->WaitForFirstReply(kSmallPeriod));
+            EXPECT_TRUE(masters_handler->WaitForFirstReply(kSuccessTimeout));
             EXPECT_TRUE(sentinel_test.Master(master_idx).WaitForFirstPingReply(kSentinelChangeHostsWaitingTime));
         }
 
@@ -114,7 +149,7 @@ UTEST(Redis, SentinelMastersChangingErrors) {
             }
             sentinel.ForceUpdateHosts();
             for (auto& handler : masters_handlers) {
-                EXPECT_TRUE(handler->WaitForFirstReply(kSmallPeriod));
+                EXPECT_TRUE(handler->WaitForFirstReply(kSuccessTimeout));
             }
             if (master_idx == bad_redis_idx) {
                 EXPECT_FALSE(sentinel_test.Master(master_idx).WaitForFirstPingReply(kSentinelChangeHostsWaitingTime));
@@ -138,8 +173,8 @@ UTEST(Redis, SentinelMasterAndSlave) {
     SentinelTest sentinel_test(sentinel_count, master_count, slave_count, magic_value_master, magic_value_slave);
     auto& sentinel = sentinel_test.SentinelClient();
 
-    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSmallPeriod));
-    EXPECT_TRUE(sentinel_test.Slave().WaitForFirstPingReply(kSmallPeriod));
+    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSuccessTimeout));
+    EXPECT_TRUE(sentinel_test.Slave().WaitForFirstPingReply(kSuccessTimeout));
 
     {
         auto res = MakeGetRequest(sentinel, "value").Get();
@@ -165,8 +200,8 @@ UTEST(Redis, SentinelCcRetryToMasterOnNilReply) {
     SentinelTest sentinel_test(sentinel_count, master_count, slave_count, magic_value_master);
     auto& sentinel = sentinel_test.SentinelClient();
 
-    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSmallPeriod));
-    EXPECT_TRUE(sentinel_test.Slave().WaitForFirstPingReply(kSmallPeriod));
+    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSuccessTimeout));
+    EXPECT_TRUE(sentinel_test.Slave().WaitForFirstPingReply(kSuccessTimeout));
 
     sentinel_test.Slave().RegisterNilReplyHandler("GET");
 
@@ -229,8 +264,8 @@ UTEST(Redis, SentinelClusterdown) {
     ClusterTest sentinel_test{master_count};
     auto& sentinel = sentinel_test.SentinelClient();
 
-    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSmallPeriod));
-    EXPECT_TRUE(sentinel_test.Slave().WaitForFirstPingReply(kSmallPeriod));
+    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSuccessTimeout));
+    EXPECT_TRUE(sentinel_test.Slave().WaitForFirstPingReply(kSuccessTimeout));
 
     for (auto& server : sentinel_test.Slaves()) {
         server->RegisterErrorReplyHandler("GET", "CLUSTERDOWN");
@@ -268,6 +303,38 @@ UTEST(Redis, SentinelForceShardIdx) {
         ASSERT_TRUE(res->data.IsInt());
         EXPECT_EQ(shard_idx, static_cast<size_t>(res->data.GetInt() - magic_value_add)) << " shard_idx=" << shard_idx;
     }
+}
+
+UTEST(Redis, SentinelUpdateSettings) {
+    // Verify that UpdateSettings switches the sentinel to a new sentinel server.
+    const size_t master_count = 1;
+    const size_t slave_count = 0;
+    const size_t sentinel_count = 1;
+    const int magic_value = 42;
+
+    SentinelTest sentinel_test(sentinel_count, master_count, slave_count, magic_value);
+    auto& sentinel = sentinel_test.SentinelClient();
+
+    EXPECT_TRUE(sentinel_test.Sentinel().WaitForFirstPingReply(kSuccessTimeout));
+    EXPECT_TRUE(sentinel_test.Master().WaitForFirstPingReply(kSuccessTimeout));
+
+    // Create a new sentinel server that will replace the old one.
+    auto new_sentinel = std::make_unique<MockRedisServer>("new-sentinel");
+    new_sentinel->RegisterPingHandler();
+    auto masters_handler =
+        new_sentinel
+            ->RegisterSentinelMastersHandler({{sentinel_test.RedisName(), kLocalhost, sentinel_test.Master().GetPort()}}
+            );
+    new_sentinel->RegisterSentinelSlavesHandler(sentinel_test.RedisName(), {});
+
+    // Build new settings pointing to the new sentinel server.
+    secdist::RedisSettings new_settings;
+    new_settings.shards = {sentinel_test.RedisName()};
+    new_settings.sentinels.emplace_back(kLocalhost, new_sentinel->GetPort());
+
+    sentinel.UpdateSettings(new_settings);
+
+    EXPECT_TRUE(masters_handler->WaitForFirstReply(kMaxTimeoutBeforeFirstReplyAfterUpdateSecdist));
 }
 
 USERVER_NAMESPACE_END

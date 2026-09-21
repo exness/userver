@@ -12,15 +12,12 @@
 #include <userver/engine/shared_mutex.hpp>
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/utils/assert.hpp>
+#include <userver/utils/resource_scopes_fwd.hpp>
 #include <userver/utils/statistics/entry.hpp>
 #include <userver/utils/statistics/request.hpp>
 #include <userver/utils/statistics/writer.hpp>
 
 USERVER_NAMESPACE_BEGIN
-
-namespace utils {
-class ResourceScopeStorage;
-}
 
 namespace utils::statistics {
 
@@ -62,11 +59,6 @@ public:
 
     Storage(const Storage&) = delete;
 
-    /// Creates new Json::Value and calls every deprecated registered extender function over it.
-    ///
-    /// @deprecated Use VisitMetrics instead.
-    formats::json::Value GetAsJson() const;
-
     /// Visits all the metrics and calls `out.HandleMetric` for each metric.
     void VisitMetrics(BaseFormatBuilder& out, const Request& request = {}) const;
 
@@ -78,11 +70,27 @@ public:
     /// @brief Add a writer function @b func. Note that `func` is called concurrently with
     /// other code, so it should be thread-safe.
     ///
+    /// Registration runs after construction via @ref ResourceScopeStorage::AfterConstruction.
+    /// Unregister runs in @ref ResourceScopeStorage::BeforeDestruction.
+    ///
+    /// In a component constructor prefer @ref RegisterWriterScope with @ref components::ComponentContext.
+    ///
+    /// @param scopes storage that owns the writer lifetime. In a component constructor pass `context.Scopes()`
+    /// or @ref components::GetResourceScopes.
     /// @param common_prefix prefix for the metric, for example "my.metric_name"
     /// @param func function that writes metrics to @ref utils::statistics::Writer
     /// @param add_labels common labels for the metric, for example {"database", "dbname"}
+    void RegisterWriter(
+        ResourceScopeStorage& scopes,
+        std::string common_prefix,
+        WriterFunc func,
+        std::vector<Label> add_labels = {}
+    );
+
+    /// @overload
+    /// @deprecated Use the overload that takes @ref utils::ResourceScopeStorage.
     ///
-    /// @note Prefer using @ref RegisterWriterScope instead.
+    /// Store the returned @ref Entry as a member and call `Unregister` explicitly.
     Entry RegisterWriter(std::string common_prefix, WriterFunc func, std::vector<Label> add_labels = {});
 
     /// @deprecated Use RegisterWriter instead.
@@ -91,6 +99,8 @@ public:
     void UnregisterExtender(impl::StorageIterator iterator, impl::UnregisteringKind kind) noexcept;
 
 private:
+    friend void DumpMetric(Writer& writer, const Storage& storage);
+
     Entry DoRegisterExtender(impl::MetricsSource&& source);
 
     std::atomic<bool> may_register_extenders_;
@@ -98,19 +108,11 @@ private:
     mutable engine::SharedMutex mutex_;
 };
 
-/// @brief Add a writer function to @ref Storage (usually obtained from @ref components::StatisticsStorage).
-/// It automatically calls @ref utils::statistics::Storage::RegisterWriter() just after the component
-/// construction and @ref utils::statistics::Entry::Unregister() just before the component
-/// destructor.
+/// @brief Dumps Writer-based metrics registered in @a storage.
 ///
-/// @see @ref Storage::RegisterWriter.
-void RegisterWriterScope(
-    ResourceScopeStorage& scope_storage,
-    Storage& storage,
-    std::string common_prefix,
-    WriterFunc func,
-    std::vector<Label> add_labels = {}
-);
+/// Legacy JSON extenders are skipped; @ref Storage::VisitMetrics dumps those
+/// as well.
+void DumpMetric(Writer& writer, const Storage& storage);
 
 }  // namespace utils::statistics
 

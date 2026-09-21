@@ -95,6 +95,12 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
+#if GOOGLE_PROTOBUF_VERSION >= 6033000
+constexpr bool kNanosSkipNativeCheck = false;
+#else
+constexpr bool kNanosSkipNativeCheck = true;
+#endif
+
 INSTANTIATE_TEST_SUITE_P(
     ,
     TimestampToJsonFailureTest,
@@ -114,22 +120,14 @@ INSTANTIATE_TEST_SUITE_P(
             PrintErrorCode::kInvalidValue,
             "field1",
             {},
-#if GOOGLE_PROTOBUF_VERSION >= 6033000
-            false
-#else
-            true
-#endif
+            kNanosSkipNativeCheck
         },
         TimestampToJsonFailureTestParam{
             TimestampMessageData{0, kMinTimestampNanos - 1},
             PrintErrorCode::kInvalidValue,
             "field1",
             {},
-#if GOOGLE_PROTOBUF_VERSION >= 6033000
-            false
-#else
-            true
-#endif
+            kNanosSkipNativeCheck
         }
     )
 );

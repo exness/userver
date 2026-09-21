@@ -23,6 +23,9 @@ struct FieldMaskFromJsonSuccessTestParam {
     std::string input = {};
     FieldMaskMessageData expected_message = {};
     ParseOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 struct FieldMaskFromJsonFailureTestParam {
@@ -55,10 +58,17 @@ INSTANTIATE_TEST_SUITE_P(
         FieldMaskFromJsonSuccessTestParam{R"({})", FieldMaskMessageData{}},
         FieldMaskFromJsonSuccessTestParam{R"({"field1":null})", FieldMaskMessageData{}},
         FieldMaskFromJsonSuccessTestParam{R"({"field1":""})", FieldMaskMessageData{std::vector<std::string>{}}},
-        FieldMaskFromJsonSuccessTestParam{R"({"field1":","})", FieldMaskMessageData{std::vector<std::string>{"", ""}}},
+        FieldMaskFromJsonSuccessTestParam{
+            R"({"field1":","})",
+            FieldMaskMessageData{std::vector<std::string>{"", ""}},
+            {},
+            !kIsModernProtoJson
+        },
         FieldMaskFromJsonSuccessTestParam{
             R"({"field1":",,,aaa,"})",
-            FieldMaskMessageData{std::vector<std::string>{"", "", "", "aaa", ""}}
+            FieldMaskMessageData{std::vector<std::string>{"", "", "", "aaa", ""}},
+            {},
+            !kIsModernProtoJson
         },
         FieldMaskFromJsonSuccessTestParam{
             R"({"field1":"someField.anotherField"})",
@@ -66,7 +76,9 @@ INSTANTIATE_TEST_SUITE_P(
         },
         FieldMaskFromJsonSuccessTestParam{
             R"({"field1":"someField.anotherField..oneMore,AB0C"})",
-            FieldMaskMessageData{std::vector<std::string>{"some_field.another_field..one_more", "_a_b0_c"}}
+            FieldMaskMessageData{std::vector<std::string>{"some_field.another_field..one_more", "_a_b0_c"}},
+            {},
+            !kIsModernProtoJson
         }
     )
 );
@@ -108,9 +120,12 @@ TEST_P(FieldMaskFromJsonSuccessTest, Test) {
     message.mutable_field1()->add_paths("dump");
 
     UASSERT_NO_THROW((message = JsonToMessage<proto_json::messages::FieldMaskMessage>(input, param.options)));
-    UASSERT_NO_THROW(InitSampleMessage(param.input, sample_message, param.options));
 
-    CheckMessageEqual(message, sample_message);
+    if (!param.skip_native_check) {
+        UASSERT_NO_THROW(InitSampleMessage(param.input, sample_message, param.options));
+        CheckMessageEqual(message, sample_message);
+    }
+
     CheckMessageEqual(message, expected_message);
 }
 
@@ -155,7 +170,9 @@ TEST(FieldMaskFromJsonAdditionalTest, InlinedNull) {
         Message message;
 
         EXPECT_PARSE_ERROR((message = JsonToMessage<Message>(json)), ParseErrorCode::kInvalidType, "/");
-        UEXPECT_THROW(InitSampleMessage("null", message), SampleError);
+        if (kIsModernProtoJson) {
+            UEXPECT_THROW(InitSampleMessage("null", message), SampleError);
+        }
     }
 
     {

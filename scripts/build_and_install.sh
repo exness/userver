@@ -4,6 +4,10 @@
 ### Provide additional CMake configuration options or override the
 ### existing ones via BUILD_OPTIONS and PACKAGE_OPTIONS variables.
 ###
+### Set PACKAGE_INSTALL_DIR to install the produced *.deb without root by
+### unpacking them into that prefix instead of `apt install`ing into the
+### system directories.
+###
 
 # Exit on any error and treat unset variables as errors, print all commands
 set -euox pipefail
@@ -44,8 +48,17 @@ for BUILD_TYPE in Debug Release; do
 done
 
 cpack -G DEB --config build_release/CPackConfig.cmake -D CPACK_INSTALL_CMAKE_PROJECTS="build_debug;userver;ALL;/;build_release;userver;ALL;/" ${PACKAGE_OPTIONS:-""}
-DEBIAN_FRONTEND=noninteractive apt update -y
-DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ./libuserver-all-dev*.deb
+
+if [ -n "${PACKAGE_INSTALL_DIR:-}" ]; then
+  # Root-less install: unpack the produced packages into a custom prefix.
+  mkdir -p "${PACKAGE_INSTALL_DIR}"
+  for deb in ./libuserver-*.deb; do
+    dpkg-deb -x "${deb}" "${PACKAGE_INSTALL_DIR}"
+  done
+else
+  DEBIAN_FRONTEND=noninteractive apt update -y
+  DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ./libuserver-*.deb
+fi
 
 rm -rf ./build_debug/ ./build_release/
 

@@ -33,29 +33,32 @@ public:
     Cookie& operator=(Cookie&&) noexcept;
     Cookie& operator=(const Cookie& cookie);
 
-    const std::string& Name() const;
-    const std::string& Value() const;
+    const std::string& Name() const noexcept;
+    const std::string& Value() const noexcept;
 
-    bool IsSecure() const;
-    Cookie& SetSecure();
+    bool IsSecure() const noexcept;
+    Cookie& SetSecure() noexcept;
 
-    std::chrono::system_clock::time_point Expires() const;
-    Cookie& SetExpires(std::chrono::system_clock::time_point value);
+    std::chrono::system_clock::time_point Expires() const noexcept;
+    Cookie& SetExpires(std::chrono::system_clock::time_point value) noexcept;
 
-    bool IsPermanent() const;
+    bool IsPermanent() const noexcept;
     Cookie& SetPermanent();
 
-    bool IsHttpOnly() const;
-    Cookie& SetHttpOnly();
+    bool IsHttpOnly() const noexcept;
+    Cookie& SetHttpOnly() noexcept;
 
-    const std::string& Path() const;
+    bool IsPartitioned() const noexcept;
+    Cookie& SetPartitioned() noexcept;
+
+    const std::string& Path() const noexcept;
     Cookie& SetPath(std::string value);
 
-    const std::string& Domain() const;
+    const std::string& Domain() const noexcept;
     Cookie& SetDomain(std::string value);
 
-    std::chrono::seconds MaxAge() const;
-    Cookie& SetMaxAge(std::chrono::seconds value);
+    std::chrono::seconds MaxAge() const noexcept;
+    Cookie& SetMaxAge(std::chrono::seconds value) noexcept;
 
     std::string SameSite() const;
     Cookie& SetSameSite(std::string value);

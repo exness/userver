@@ -1,3 +1,12 @@
+import pytest
+
+
+# NB: entrypoint for `make start-*`
+@pytest.mark.servicetest
+def test_service(service_client):
+    pass
+
+
 # /// [Functional test]
 async def test_postgres(service_client, pgsql):
     # POSTing 'key=hello&value=world'

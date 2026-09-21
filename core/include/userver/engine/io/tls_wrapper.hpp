@@ -3,6 +3,7 @@
 /// @file userver/engine/io/tls_wrapper.hpp
 /// @brief TLS socket wrappers
 
+#include <span>
 #include <string>
 #include <vector>
 
@@ -24,7 +25,7 @@ namespace engine::io {
 /// coroutines.
 ///
 /// Usage example:
-/// @snippet src/engine/io/tls_wrapper_test.cpp TLS wrapper usage
+/// @snippet core/src/engine/io/tls_wrapper_test.cpp TLS wrapper usage
 class [[nodiscard]] TlsWrapper final : public RwBase {
 public:
     /// Starts a TLS client on an opened socket
@@ -115,7 +116,11 @@ public:
         return SendAll(buf, len, deadline);
     }
 
-    [[nodiscard]] size_t WriteAll(std::initializer_list<IoData> list, Deadline deadline) override;
+    [[nodiscard]] size_t WriteAll(std::span<const IoData> list, Deadline deadline) override;
+
+    [[nodiscard]] size_t WriteAll(std::initializer_list<IoData> list, Deadline deadline) override {
+        return WriteAll(std::span<const IoData>{list.begin(), list.size()}, deadline);
+    }
 
     int GetRawFd();
 

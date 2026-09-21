@@ -4,7 +4,6 @@
 /// @brief @copybrief ydb::CredentialsProviderComponent
 
 #include <memory>
-#include <string>
 
 #include <userver/components/component_base.hpp>
 #include <userver/yaml_config/fwd.hpp>
@@ -15,8 +14,6 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ydb {
 
-// clang-format off
-
 /// @ingroup userver_components
 ///
 /// @brief Credentials provider component for creating custom credentials provider factory
@@ -25,9 +22,6 @@ namespace ydb {
 /// Required if `ydb::YdbComponent` comnponent config contains `databases.<dbname>.credentials`
 ///
 /// see https://ydb.tech/docs/en/concepts/auth
-
-// clang-format on
-
 class CredentialsProviderComponent : public components::ComponentBase {
 public:
     using components::ComponentBase::ComponentBase;

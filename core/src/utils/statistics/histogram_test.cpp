@@ -1,8 +1,7 @@
 #include <userver/utils/statistics/histogram.hpp>
 
 #include <limits>
-
-#include <boost/range/irange.hpp>
+#include <ranges>
 
 #include <userver/formats/json/serialize.hpp>
 #include <userver/utest/utest.hpp>
@@ -63,8 +62,8 @@ UTEST(StatisticsHistogram, AccountForEachBucketCount) {
     constexpr std::uint64_t kInfCount = 42;
 
     for (std::size_t i = 1; i < 100; ++i) {
-        const auto bounds = boost::irange(std::size_t{1}, i + 1);
-        utils::statistics::Histogram histogram{utils::AsContainer<std::vector<double>>(bounds)};
+        const auto bounds = std::views::iota(std::size_t{1}, i + 1);
+        utils::statistics::Histogram histogram{utils::impl::AsContainerViaInsert<std::vector<double>>(bounds)};
 
         ASSERT_EQ(histogram.GetView().GetBucketCount(), i);
         for (const auto bound : bounds) {
@@ -89,13 +88,7 @@ UTEST(StatisticsHistogram, Total) {
 
 UTEST(StatisticsHistogram, Sample) {
     /// [sample]
-    utils::statistics::Storage storage;
-
     utils::statistics::Histogram histogram{{1.5, 5, 42, 60}};
-
-    auto statistics_holder = storage.RegisterWriter("test", [&](utils::statistics::Writer& writer) {
-        writer = histogram;
-    });
 
     histogram.Account(10);
     histogram.Account(1.2);
@@ -103,8 +96,8 @@ UTEST(StatisticsHistogram, Sample) {
     histogram.Account(100);
     histogram.Account(30, 4);  // Account 4 times
 
-    const utils::statistics::Snapshot snapshot{storage};
-    EXPECT_EQ(fmt::to_string(snapshot.SingleMetric("test")), "[1.5]=1,[5]=1,[42]=5,[60]=0,[inf]=1");
+    const utils::statistics::Snapshot snapshot{histogram};
+    EXPECT_EQ(fmt::to_string(snapshot.SingleMetric({})), "[1.5]=1,[5]=1,[42]=5,[60]=0,[inf]=1");
     /// [sample]
 }
 

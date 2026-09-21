@@ -47,13 +47,13 @@ jobs:
                 -DUSERVER_FEATURE_PATCH_LIBPQ=0
 
         steps:
-          - uses: actions/checkout@v6
+          - uses: actions/checkout@v7
             with:
                 fetch-depth: 0
 
           - name: Restore cached directories
             id: restore-cache
-            uses: actions/cache/restore@v5
+            uses: actions/cache/restore@v6
             with:
                 path: |
                     ${{env.CCACHE_DIR}}
@@ -137,7 +137,7 @@ jobs:
                 cmake --build build_debug -j$(nproc)
 
           - name: Save cached directories
-            uses: actions/cache/save@v5
+            uses: actions/cache/save@v6
             with:
                 path: |
                     ${{env.CCACHE_DIR}}
@@ -154,4 +154,4 @@ jobs:
             if: ${{ false }}  # Not working yet
             run: |-
                 cd build_debug
-                ctest -V
+                ctest -j2 --output-on-failure

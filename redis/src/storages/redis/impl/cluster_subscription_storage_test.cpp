@@ -3,11 +3,20 @@
 #include "subscription_storage.hpp"
 
 #include <gtest/gtest.h>
+#include <engine/ev/thread_pool.hpp>
+#include <engine/ev/thread_pool_config.hpp>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 #include "command.hpp"
+#include "userver/engine/deadline.hpp"
+#include "userver/engine/task/cancel.hpp"
+#include "userver/engine/task/current_task.hpp"
+#include "userver/server/request/task_inherited_data.hpp"
 #include "userver/storages/redis/command_control.hpp"
+#include "userver/storages/redis/exception.hpp"
 #include "userver/storages/redis/reply.hpp"
+#include "userver/utest/utest.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
@@ -18,6 +27,24 @@ storages::redis::ServerId MakeServerId(std::string description) {
     return ret;
 }
 
+enum class CommandFate { kSent, kDroppedByDeadline };
+
+/// Mirrors Sentinel::AsyncCommand() (throws in a cancelled task) and SentinelImpl::AsyncCommand()
+/// (silently drops the command once the inherited deadline has expired)
+CommandFate SentinelCommandFate() {
+    if (!engine::current_task::IsTaskProcessorThread()) {
+        return CommandFate::kSent;
+    }
+    if (engine::current_task::ShouldCancel()) {
+        throw storages::redis::RequestCancelledException("task cancellation");
+    }
+    const auto deadline = server::request::GetTaskInheritedDeadline();
+    if (deadline.IsReachable() && deadline.IsReached()) {
+        return CommandFate::kDroppedByDeadline;
+    }
+    return CommandFate::kSent;
+}
+
 class SubscriptionTest : public ::testing::Test {
 public:
     static void SetUpTestSuite() {}
@@ -25,7 +52,8 @@ public:
     static void TearDownTestSuite() {}
 
     void SetUp() override {
-        storage_ = std::make_shared<storages::redis::impl::ClusterSubscriptionStorage>(kShardsCount_);
+        storage_ = std::make_shared<
+            storages::redis::impl::ClusterSubscriptionStorage>(thread_pool_.NextThread(), kShardsCount_);
         auto sharded_subscribe_callback = [&](const std::string& /*channel*/, storages::redis::impl::CommandPtr cmd) {
             ASSERT_TRUE(cmd->control.force_server_id);
             const auto& host = cmd->control.force_server_id->GetDescription();
@@ -34,8 +62,12 @@ public:
                 ssubscriptions_by_host_[host]++;
             }
         };
-        auto sharded_unsubscribe_callback = [&](const std::string& /*channel*/, storages::redis::impl::CommandPtr cmd) {
+        auto sharded_unsubscribe_callback = [&](const std::string& channel, storages::redis::impl::CommandPtr cmd) {
+            if (SentinelCommandFate() == CommandFate::kDroppedByDeadline) {
+                return;
+            }
             ASSERT_TRUE(cmd->control.force_server_id);
+            sunsubscribed_channels_.push_back(channel);
             const auto& host = cmd->control.force_server_id->GetDescription();
             if (!host.empty()) {
                 ssubscriptions_by_host_[host]--;
@@ -53,6 +85,9 @@ public:
             }
         };
         auto unsubscribe_callback = [&](size_t /*shard_idx*/, storages::redis::impl::CommandPtr cmd) {
+            if (SentinelCommandFate() == CommandFate::kDroppedByDeadline) {
+                return;
+            }
             ASSERT_TRUE(cmd->control.force_server_id);
             const auto& host = cmd->control.force_server_id->GetDescription();
             if (!host.empty()) {
@@ -79,28 +114,48 @@ public:
         auto token = storage_->Ssubscribe(channel_name, message_callback, {});
         tokens_.push_back(std::move(token));
     }
-    void ProcessCommands() {
-        for (auto& cmd : cmds_) {
+    void ProcessCommands() { ProcessCommands(server_ids_[0], true); }
+    void ProcessCommands(const storages::redis::ServerId& server_id, bool success) {
+        std::vector<storages::redis::impl::CommandPtr> commands;
+        commands.swap(cmds_);
+        for (auto& cmd : commands) {
             const auto& [command, channel] = cmd->args.GetCommandAndChannel();
-            storages::redis::ReplyData reply_data(storages::redis::ReplyData::Array{
-                storages::redis::ReplyData(command),
-                storages::redis::ReplyData(channel),
-                storages::redis::ReplyData(1)
-            });
-            const storages::redis::ReplyPtr
+            storages::redis::ReplyPtr reply;
+            if (success) {
+                storages::redis::ReplyData reply_data(storages::redis::ReplyData::Array{
+                    storages::redis::ReplyData(command),
+                    storages::redis::ReplyData(channel),
+                    storages::redis::ReplyData(1)
+                });
                 reply = std::make_shared<storages::redis::Reply>(command, std::move(reply_data));
-            reply->server_id = server_ids_[0];
+            } else {
+                reply = std::make_shared<storages::redis::Reply>(
+                    command,
+                    storages::redis::ReplyData::CreateError("network unavailable"),
+                    storages::redis::ReplyStatus::kEndOfFileError
+                );
+            }
+            reply->server_id = server_id;
             cmd->callback({}, reply);
         }
-        cmds_.clear();
     }
 
     void Rebalance(size_t shard) { storage_->DoRebalance(shard, weights_); }
+    void Rebalance(size_t shard, storages::redis::impl::SubscriptionStorageBase::ServerWeights weights) {
+        storage_->DoRebalance(shard, std::move(weights));
+    }
+    void Flush() { static_cast<void>(storage_->GetStatistics()); }
+
+    void ResetTokens() { tokens_.clear(); }
 
     const auto& GetSubscriptionsByHost() const { return subscriptions_by_host_; }
     const auto& GetShardedSubscriptionsByHost() const { return ssubscriptions_by_host_; }
+    const auto& GetSunsubscribedChannels() const { return sunsubscribed_channels_; }
+    const auto& GetPendingCommands() const { return cmds_; }
+    const auto& GetServerId(std::size_t index) const { return server_ids_.at(index); }
 
 private:
+    engine::ev::ThreadPool thread_pool_{engine::ev::ThreadPoolConfig{1, "redis_subscription_test"}};
     const std::vector<storages::redis::ServerId> server_ids_ = std::vector{
         MakeServerId("host0"),
         MakeServerId("host1"),
@@ -125,14 +180,18 @@ private:
     std::shared_ptr<storages::redis::impl::ClusterSubscriptionStorage> storage_;
     std::unordered_map<std::string, size_t> subscriptions_by_host_;
     std::unordered_map<std::string, size_t> ssubscriptions_by_host_;
+    std::vector<std::string> sunsubscribed_channels_;
     std::vector<storages::redis::impl::SubscriptionToken> tokens_;
     std::vector<storages::redis::impl::CommandPtr> cmds_;
 };
 
+/// A separate fixture class: gtest forbids mixing TEST_F and UTEST_F in one test suite
+class SubscriptionCancellationTest : public SubscriptionTest {};
+
 }  // namespace
 
 /// Test subscriptions are evenly distributed between connections
-TEST_F(SubscriptionTest, Base) {
+UTEST_F(SubscriptionTest, Base) {
     const std::unordered_map<std::string, size_t> expected = {
         /// {"host0", 1}, - no need to resubscribe host0  because it should be
         /// already have enough subscriptions.
@@ -162,7 +221,7 @@ TEST_F(SubscriptionTest, Base) {
 }
 
 /// Test subscriptions are evenly distributed between connections
-TEST_F(SubscriptionTest, Sharded) {
+UTEST_F(SubscriptionTest, Sharded) {
     const std::unordered_map<std::string, size_t> expected = {
         /// {"host0", 1}, - no need to resubscribe host0  because it should be
         /// already have enough subscriptions.
@@ -189,6 +248,56 @@ TEST_F(SubscriptionTest, Sharded) {
     /// Check balance
     EXPECT_EQ(5ull, subscriptions_by_host.size());
     EXPECT_EQ(expected, subscriptions_by_host);
+}
+
+/// Tokens are released while the task is cancelled: SUNSUBSCRIBE must still be sent
+/// instead of throwing out of ~SubscriptionToken()
+UTEST_F(SubscriptionCancellationTest, ShardedUnsubscribe) {
+    Ssubscribe("channel0");
+    ProcessCommands();
+
+    engine::current_task::RequestCancel();
+    ResetTokens();
+
+    EXPECT_EQ(GetSunsubscribedChannels(), std::vector<std::string>{"channel0"});
+}
+
+/// The same for an expired inherited deadline, which drops the command instead of throwing
+UTEST_F(SubscriptionCancellationTest, ShardedUnsubscribeWithExpiredDeadline) {
+    Ssubscribe("channel0");
+    ProcessCommands();
+
+    server::request::kTaskInheritedData.Set({
+        .path = {},
+        .method = {},
+        .start_time = {},
+        .deadline = engine::Deadline::Passed(),
+    });
+    ResetTokens();
+
+    EXPECT_EQ(GetSunsubscribedChannels(), std::vector<std::string>{"channel0"});
+}
+
+UTEST_F(SubscriptionTest, FailedRecoveryRetriesAnyServer) {
+    Subscribe("channel");
+    ProcessCommands();
+    Flush();
+
+    const auto& target_server = GetServerId(1);
+    Rebalance(0, {{target_server, 1}});
+    ASSERT_EQ(GetPendingCommands().size(), 1);
+    ASSERT_TRUE(GetPendingCommands().front()->control.force_server_id);
+    EXPECT_EQ(*GetPendingCommands().front()->control.force_server_id, target_server);
+
+    ProcessCommands(target_server, false);
+    Flush();
+    ASSERT_EQ(GetPendingCommands().size(), 1);
+    ASSERT_TRUE(GetPendingCommands().front()->control.force_server_id);
+    EXPECT_TRUE(GetPendingCommands().front()->control.force_server_id->IsAny());
+
+    ProcessCommands(target_server, true);
+    Flush();
+    EXPECT_TRUE(GetPendingCommands().empty());
 }
 
 USERVER_NAMESPACE_END

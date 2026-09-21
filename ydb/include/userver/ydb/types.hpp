@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/ydb/types.hpp
+/// @brief YDB primitive types and insert row column types
+
 #include <chrono>
 #include <cstdint>
 #include <string>

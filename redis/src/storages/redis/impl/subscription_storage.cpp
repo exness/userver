@@ -4,8 +4,12 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 
+#include <userver/engine/task/cancel.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/server/request/task_inherited_data.hpp>
 
 #include <storages/redis/impl/command.hpp>
 #include <storages/redis/impl/subscription_rebalance_scheduler.hpp>
@@ -15,6 +19,26 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis::impl {
+
+namespace {
+
+// Both blockers keep the UNSUBSCRIBE command itself alive: a cancelled task or an expired
+// inherited deadline stops it in Sentinel before it reaches Redis.
+void UnsubscribeNothrow(SubscriptionStorageBase& storage, SubscriptionId subscription_id) noexcept {
+    try {
+        if (!engine::current_task::IsTaskProcessorThread()) {
+            storage.Unsubscribe(subscription_id);
+            return;
+        }
+        const engine::TaskCancellationBlocker cancel_blocker;
+        const server::request::DeadlinePropagationBlocker deadline_blocker;
+        storage.Unsubscribe(subscription_id);
+    } catch (const std::exception& e) {
+        LOG_WARNING() << "Failed to unsubscribe id=" << subscription_id << ": " << e;
+    }
+}
+
+}  // namespace
 
 SubscriptionToken::SubscriptionToken(SubscriptionStorageBase& storage, SubscriptionId subscription_id)
     : storage_(storage),
@@ -34,12 +58,12 @@ SubscriptionToken& SubscriptionToken::operator=(SubscriptionToken&& token) noexc
     return *this;
 }
 
-void SubscriptionToken::Unsubscribe() {
-    if (subscription_id_ > 0) {
-        LOG_DEBUG() << "Unsubscribe id=" << subscription_id_;
-        storage_.Unsubscribe(subscription_id_);
-        subscription_id_ = 0;
+void SubscriptionToken::Unsubscribe() noexcept {
+    if (subscription_id_ == 0) {
+        return;
     }
+    LOG_DEBUG() << "Unsubscribe id=" << subscription_id_;
+    UnsubscribeNothrow(storage_, std::exchange(subscription_id_, SubscriptionId{0}));
 }
 
 SubscriptionToken::~SubscriptionToken() { Unsubscribe(); }
@@ -57,11 +81,21 @@ SubscriptionStorageBase::RebalanceState::RebalanceState(size_t shard_idx, Server
 }
 
 template <typename CallbackMap, typename PcallbackMap>
-void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::DoRebalance(
-    size_t shard_idx,
-    ServerWeights weights,
-    const std::lock_guard<std::mutex>& /*held_lock*/
-) {
+void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::Stop() {
+    if (!callback_admission_.Close()) {
+        return;
+    }
+    RunSync([this] {
+        callback_admission_.WaitForNoActivePermits();
+        ClearCallbackMaps();
+    });
+}
+
+template <typename CallbackMap, typename PcallbackMap>
+void SubscriptionStorageBase::SubscriptionStorageImpl<
+    CallbackMap,
+    PcallbackMap>::DoRebalance(size_t shard_idx, ServerWeights weights) {
+    AssertInEvThread();
     RebalanceState state(shard_idx, weights);
     if (!state.sum_weights) {
         return;
@@ -135,6 +169,7 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<
                 shard_subscriber::Event event;
                 event.type = shard_subscriber::Event::Type::kRebalanceRequested;
                 event.server_id = new_server_id;
+                event.current_server_available = state.weights.contains(fsm->GetCurrentServerId());
                 fsm->OnEvent(event);
                 ReadActions(fsm, channel_name);
 
@@ -145,20 +180,19 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<
 }
 
 template <typename CallbackMap, typename PcallbackMap>
-size_t SubscriptionStorageBase::SubscriptionStorageImpl<
-    CallbackMap,
-    PcallbackMap>::GetChannelsCountApprox(const std::lock_guard<std::mutex>& /*held_lock*/) const {
+size_t SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::GetChannelsCountApprox() const {
+    AssertInEvThread();
     return callback_map.size() + pattern_callback_map.size() + sharded_callback_map.size();
 }
 
 template <typename CallbackMap, typename PcallbackMap>
 RawPubsubClusterStatistics SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::GetStatistics()
     const {
+    AssertInEvThread();
     RawPubsubClusterStatistics cluster_stats;
 
-    const std::lock_guard lock{mutex};
-    for (size_t i = 0; i < GetShardsCount(lock); i++) {
-        cluster_stats.by_shard.push_back(GetShardStatistics(i, lock));
+    for (size_t i = 0; i < GetShardsCount(); i++) {
+        cluster_stats.by_shard.push_back(GetShardStatistics(i));
     }
     return cluster_stats;
 }
@@ -166,10 +200,11 @@ RawPubsubClusterStatistics SubscriptionStorageBase::SubscriptionStorageImpl<Call
 template <typename CallbackMap, typename PcallbackMap>
 PubsubShardStatistics SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
-    PcallbackMap>::GetShardStatistics(size_t shard_idx, const std::lock_guard<std::mutex>& held_lock) const {
+    PcallbackMap>::GetShardStatistics(size_t shard_idx) const {
+    AssertInEvThread();
     PubsubShardStatistics shard_stats;
     shard_stats.shard_name = implemented_.GetShardName(shard_idx);
-    shard_stats.by_channel.reserve(GetChannelsCountApprox(held_lock));
+    shard_stats.by_channel.reserve(GetChannelsCountApprox());
 
     for (const auto& channel_item : callback_map) {
         const auto& channel_info = channel_item.second;
@@ -205,6 +240,7 @@ template <typename CallbackMap, typename PcallbackMap>
 void SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
     PcallbackMap>::Unsubscribe(SubscriptionId subscription_id) {
+    AssertInEvThread();
     constexpr bool kNotSharded = false;
     constexpr bool kSharded = true;
     if (DoUnsubscribe(callback_map, subscription_id, kNotSharded)) {
@@ -294,14 +330,17 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
     ServerId server_id,
     shard_subscriber::Event::Type event_type
 ) {
-    UASSERT(fsm);
-    shard_subscriber::Event event;
-    event.type = event_type;
-    event.server_id = server_id;
-
-    const std::lock_guard<std::mutex> lock{mutex};
-    fsm->OnEvent(event);
-    ReadActions(fsm, channel_name);
+    RunAsync([this, fsm, channel_name, server_id, event_type] {
+        try {
+            shard_subscriber::Event event;
+            event.type = event_type;
+            event.server_id = server_id;
+            fsm->OnEvent(event);
+            ReadActions(fsm, channel_name);
+        } catch (const std::exception& ex) {
+            LOG_ERROR() << "Failed to process subscription state change: " << ex;
+        }
+    });
 }
 
 template <typename CallbackMap, typename PcallbackMap>
@@ -339,7 +378,7 @@ template <class Map>
 bool SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
     PcallbackMap>::DoUnsubscribe(Map& callback_map, SubscriptionId subscription_id, bool sharded) {
-    const std::lock_guard<std::mutex> lock(mutex);
+    AssertInEvThread();
     for (auto& it1 : callback_map) {
         const auto& key = it1.first;
         auto& m = it1.second;
@@ -464,13 +503,23 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
     const std::string& message,
     size_t shard_idx
 ) {
-    size_t discarded{0};
-    try {
-        const std::lock_guard<std::mutex> lock{mutex};
-        auto& m = callback_map.at(channel);
-        for (const auto& it : m.callbacks) {
+    RunAsync([this, server_id, channel, message, shard_idx] {
+        const auto map_it = callback_map.find(channel);
+        if (map_it == callback_map.end()) {
+            LOG_ERROR() << "Got MESSAGE while not subscribed on it, channel=" << channel;
+            return;
+        }
+
+        std::vector<Sentinel::UserMessageCallback> callbacks;
+        callbacks.reserve(map_it->second.callbacks.size());
+        for (const auto& [_, callback] : map_it->second.callbacks) {
+            callbacks.push_back(callback);
+        }
+
+        size_t discarded{0};
+        for (const auto& callback : callbacks) {
             try {
-                const auto result = it.second(channel, message);
+                const auto result = callback(channel, message);
                 switch (result) {
                     case SubscribedCallbackOutcome::kOk:
                         break;  // do nothing
@@ -483,12 +532,14 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
             }
         }
 
-        auto& info = m.GetInfo(shard_idx);
+        const auto current = callback_map.find(channel);
+        if (current == callback_map.end()) {
+            return;
+        }
+        auto& info = current->second.GetInfo(shard_idx);
         info.AccountMessage(server_id, message.size());
         info.AccountDiscardedByOverflow(discarded);
-    } catch (const std::out_of_range& e) {
-        LOG_ERROR() << "Got MESSAGE while not subscribed on it, channel=" << channel;
-    }
+    });
 }
 
 template <typename CallbackMap, typename PcallbackMap>
@@ -499,13 +550,23 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
     const std::string& message,
     size_t shard_idx
 ) {
-    size_t discarded{0};
-    try {
-        const std::lock_guard<std::mutex> lock{mutex};
-        auto& m = pattern_callback_map.at(pattern);
-        for (const auto& it : m.callbacks) {
+    RunAsync([this, server_id, pattern, channel, message, shard_idx] {
+        const auto map_it = pattern_callback_map.find(pattern);
+        if (map_it == pattern_callback_map.end()) {
+            LOG_ERROR() << "Got PMESSAGE while not subscribed on it, channel=" << channel;
+            return;
+        }
+
+        std::vector<Sentinel::UserPmessageCallback> callbacks;
+        callbacks.reserve(map_it->second.callbacks.size());
+        for (const auto& [_, callback] : map_it->second.callbacks) {
+            callbacks.push_back(callback);
+        }
+
+        size_t discarded{0};
+        for (const auto& callback : callbacks) {
             try {
-                const auto result = it.second(pattern, channel, message);
+                const auto result = callback(pattern, channel, message);
                 switch (result) {
                     case SubscribedCallbackOutcome::kOk:
                         break;  // do nothing
@@ -518,12 +579,14 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
             }
         }
 
-        auto& info = m.GetInfo(shard_idx);
+        const auto current = pattern_callback_map.find(pattern);
+        if (current == pattern_callback_map.end()) {
+            return;
+        }
+        auto& info = current->second.GetInfo(shard_idx);
         info.AccountMessage(server_id, message.size());
         info.AccountDiscardedByOverflow(discarded);
-    } catch (const std::out_of_range& e) {
-        LOG_ERROR() << "Got PMESSAGE while not subscribed on it, channel=" << channel;
-    }
+    });
 }
 
 template <typename CallbackMap, typename PcallbackMap>
@@ -533,13 +596,23 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
     const std::string& message,
     size_t shard_idx
 ) {
-    size_t discarded{0};
-    try {
-        const std::lock_guard<std::mutex> lock{mutex};
-        auto& m = sharded_callback_map.at(channel);
-        for (const auto& it : m.callbacks) {
+    RunAsync([this, server_id, channel, message, shard_idx] {
+        const auto map_it = sharded_callback_map.find(channel);
+        if (map_it == sharded_callback_map.end()) {
+            LOG_ERROR() << "Got SMESSAGE while not subscribed on it, channel=" << channel;
+            return;
+        }
+
+        std::vector<Sentinel::UserMessageCallback> callbacks;
+        callbacks.reserve(map_it->second.callbacks.size());
+        for (const auto& [_, callback] : map_it->second.callbacks) {
+            callbacks.push_back(callback);
+        }
+
+        size_t discarded{0};
+        for (const auto& callback : callbacks) {
             try {
-                const auto result = it.second(channel, message);
+                const auto result = callback(channel, message);
                 switch (result) {
                     case SubscribedCallbackOutcome::kOk:
                         break;  // do nothing
@@ -552,12 +625,14 @@ void SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>
             }
         }
 
-        auto& info = m.GetInfo(shard_idx);
+        const auto current = sharded_callback_map.find(channel);
+        if (current == sharded_callback_map.end()) {
+            return;
+        }
+        auto& info = current->second.GetInfo(shard_idx);
         info.AccountMessage(server_id, message.size());
         info.AccountDiscardedByOverflow(discarded);
-    } catch (const std::out_of_range& e) {
-        LOG_ERROR() << "Got MESSAGE while not subscribed on it, channel=" << channel;
-    }
+    });
 }
 
 void SubscriptionStorageBase::ShardChannelInfo::AccountMessage(ServerId server_id, size_t message_size) {
@@ -661,7 +736,7 @@ template <typename CallbackMap, typename PcallbackMap>
 void SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
     PcallbackMap>::SetCommandControl(const CommandControl& control) {
-    const std::lock_guard<std::mutex> lock{mutex};
+    AssertInEvThread();
     common_command_control_ = control;
     common_command_control_.max_retries = 1;
 }
@@ -670,11 +745,8 @@ template <typename CallbackMap, typename PcallbackMap>
 SubscriptionToken SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
     PcallbackMap>::Subscribe(const std::string& channel, Sentinel::UserMessageCallback cb, CommandControl control) {
-    size_t id = 0;
-    {
-        const std::lock_guard<std::mutex> lock{mutex};
-        id = GetNextSubscriptionId(lock);
-    }
+    AssertInEvThread();
+    const auto id = GetNextSubscriptionId();
     SubscriptionToken token(implemented_, id);
     LOG_DEBUG() << "Subscribe on channel=" << channel << " id=" << id;
     implemented_.SubscribeImpl(channel, std::move(cb), std::move(control), id);
@@ -685,11 +757,8 @@ template <typename CallbackMap, typename PcallbackMap>
 SubscriptionToken SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
     PcallbackMap>::Ssubscribe(const std::string& channel, Sentinel::UserMessageCallback cb, CommandControl control) {
-    size_t id = 0;
-    {
-        const std::lock_guard<std::mutex> lock{mutex};
-        id = GetNextSubscriptionId(lock);
-    }
+    AssertInEvThread();
+    const auto id = GetNextSubscriptionId();
     SubscriptionToken token(implemented_, id);
     LOG_DEBUG() << "Ssubscribe on channel=" << channel << " id=" << id;
     implemented_.SsubscribeImpl(channel, std::move(cb), std::move(control), id);
@@ -700,11 +769,8 @@ template <typename CallbackMap, typename PcallbackMap>
 SubscriptionToken SubscriptionStorageBase::SubscriptionStorageImpl<
     CallbackMap,
     PcallbackMap>::Psubscribe(const std::string& channel, Sentinel::UserPmessageCallback cb, CommandControl control) {
-    size_t id = 0;
-    {
-        const std::lock_guard<std::mutex> lock{mutex};
-        id = GetNextSubscriptionId(lock);
-    }
+    AssertInEvThread();
+    const auto id = GetNextSubscriptionId();
     SubscriptionToken token(implemented_, id);
     LOG_DEBUG() << "Psubscribe on channel=" << channel << " id=" << id;
     implemented_.PsubscribeImpl(channel, std::move(cb), std::move(control), id);
@@ -712,9 +778,8 @@ SubscriptionToken SubscriptionStorageBase::SubscriptionStorageImpl<
 }
 
 template <typename CallbackMap, typename PcallbackMap>
-SubscriptionId SubscriptionStorageBase::SubscriptionStorageImpl<
-    CallbackMap,
-    PcallbackMap>::GetNextSubscriptionId(const std::lock_guard<std::mutex>& /*held_lock*/) {
+SubscriptionId SubscriptionStorageBase::SubscriptionStorageImpl<CallbackMap, PcallbackMap>::GetNextSubscriptionId() {
+    AssertInEvThread();
     return next_subscription_id_++;
 }
 
@@ -737,12 +802,12 @@ template class SubscriptionStorageBase::SubscriptionStorageImpl<
     ClusterSubscriptionStorage::PcallbackMap>;
 
 SubscriptionStorage::SubscriptionStorage(
-    const std::shared_ptr<ThreadPools>& thread_pools,
+    const engine::ev::ThreadControl& thread_control,
     size_t shards_count,
     bool is_cluster_mode,
     std::shared_ptr<const std::vector<std::string>> shard_names
 )
-    : storage_impl_(shards_count, *this),
+    : storage_impl_(thread_control, shards_count, *this),
       shard_names_(std::move(shard_names)),
       is_cluster_mode_(is_cluster_mode),
       shard_rotate_counter_(utils::RandRange(shards_count))
@@ -750,36 +815,30 @@ SubscriptionStorage::SubscriptionStorage(
     UINVARIANT(!is_cluster_mode_, "Internal logic error with cluster mode setup");
     for (size_t shard_idx = 0; shard_idx < shards_count; shard_idx++) {
         rebalance_schedulers_
-            .emplace_back(std::make_unique<
-                          SubscriptionRebalanceScheduler>(thread_pools->GetSentinelThreadPool(), *this, shard_idx));
+            .emplace_back(std::make_unique<SubscriptionRebalanceScheduler>(thread_control, *this, shard_idx));
     }
 }
 
-SubscriptionStorage::SubscriptionStorage(
-    size_t shards_count,
-    bool is_cluster_mode,
-    std::shared_ptr<const std::vector<std::string>> shard_names
-)
-    : storage_impl_(shards_count, *this),
-      shard_names_(std::move(shard_names)),
-      is_cluster_mode_(is_cluster_mode),
-      shard_rotate_counter_(utils::RandRange(shards_count))
-{
-    UINVARIANT(!is_cluster_mode_, "Internal logic error with cluster mode setup");
+SubscriptionStorage::~SubscriptionStorage() { Stop(); }
+
+void SubscriptionStorage::SetSubscribeCallback(CommandCb cb) {
+    storage_impl_.RunSync([this, cb = std::move(cb)]() mutable { storage_impl_.subscribe_callback = std::move(cb); });
 }
 
-SubscriptionStorage::~SubscriptionStorage() = default;
-
-void SubscriptionStorage::SetSubscribeCallback(CommandCb cb) { storage_impl_.subscribe_callback = std::move(cb); }
-
-void SubscriptionStorage::SetUnsubscribeCallback(CommandCb cb) { storage_impl_.unsubscribe_callback = std::move(cb); }
+void SubscriptionStorage::SetUnsubscribeCallback(CommandCb cb) {
+    storage_impl_.RunSync([this, cb = std::move(cb)]() mutable { storage_impl_.unsubscribe_callback = std::move(cb); });
+}
 
 void SubscriptionStorage::SetShardedSubscribeCallback(ShardedCommandCb cb) {
-    storage_impl_.sharded_subscribe_callback = std::move(cb);
+    storage_impl_.RunSync([this, cb = std::move(cb)]() mutable {
+        storage_impl_.sharded_subscribe_callback = std::move(cb);
+    });
 }
 
 void SubscriptionStorage::SetShardedUnsubscribeCallback(ShardedCommandCb cb) {
-    storage_impl_.sharded_unsubscribe_callback = std::move(cb);
+    storage_impl_.RunSync([this, cb = std::move(cb)]() mutable {
+        storage_impl_.sharded_unsubscribe_callback = std::move(cb);
+    });
 }
 
 SubscriptionToken SubscriptionStorage::Subscribe(
@@ -787,7 +846,9 @@ SubscriptionToken SubscriptionStorage::Subscribe(
     Sentinel::UserMessageCallback cb,
     CommandControl control
 ) {
-    return storage_impl_.Subscribe(channel, std::move(cb), std::move(control));
+    return storage_impl_.RunSync([this, &channel, cb = std::move(cb), control = std::move(control)]() mutable {
+        return storage_impl_.Subscribe(channel, std::move(cb), std::move(control));
+    });
 }
 
 SubscriptionToken SubscriptionStorage::Ssubscribe(
@@ -803,21 +864,25 @@ SubscriptionToken SubscriptionStorage::Psubscribe(
     Sentinel::UserPmessageCallback cb,
     CommandControl control
 ) {
-    return storage_impl_.Psubscribe(pattern, std::move(cb), std::move(control));
+    return storage_impl_.RunSync([this, &pattern, cb = std::move(cb), control = std::move(control)]() mutable {
+        return storage_impl_.Psubscribe(pattern, std::move(cb), std::move(control));
+    });
 }
 
-void SubscriptionStorage::Unsubscribe(SubscriptionId subscription_id) { storage_impl_.Unsubscribe(subscription_id); }
+void SubscriptionStorage::Unsubscribe(SubscriptionId subscription_id) {
+    storage_impl_.RunSync([this, subscription_id] { storage_impl_.Unsubscribe(subscription_id); });
+}
 
 void SubscriptionStorage::Stop() {
-    storage_impl_.ClearCallbackMaps();
-
-    // rebalance_schedulers_ are accessed concurrently, do not clear() them here.
     for (auto& scheduler : rebalance_schedulers_) {
         scheduler->Stop();
     }
+    storage_impl_.Stop();
 }
 
-void SubscriptionStorage::SetCommandControl(const CommandControl& control) { storage_impl_.SetCommandControl(control); }
+void SubscriptionStorage::SetCommandControl(const CommandControl& control) {
+    storage_impl_.RunSync([this, control] { storage_impl_.SetCommandControl(control); });
+}
 
 void SubscriptionStorage::SetRebalanceMinInterval(std::chrono::milliseconds interval) {
     for (auto& scheduler : rebalance_schedulers_) {
@@ -830,19 +895,20 @@ void SubscriptionStorage::RequestRebalance(size_t shard_idx, ServerWeights weigh
 }
 
 void SubscriptionStorage::DoRebalance(size_t shard_idx, ServerWeights weights) {
-    /// Rebalances subscriptions between instances of shard
-    const std::lock_guard lock{storage_impl_.mutex};
-    if (shard_idx >= storage_impl_.GetShardsCount(lock)) {
-        throw std::runtime_error(
-            "requested rebalance for non-existing shard (" + std::to_string(shard_idx) +
-            " >= " + std::to_string(storage_impl_.GetShardsCount(lock)) + ')'
-        );
-    }
-
-    storage_impl_.DoRebalance(shard_idx, std::move(weights), lock);
+    storage_impl_.RunSync([this, shard_idx, weights = std::move(weights)]() mutable {
+        if (shard_idx >= storage_impl_.GetShardsCount()) {
+            throw std::runtime_error(
+                "requested rebalance for non-existing shard (" + std::to_string(shard_idx) +
+                " >= " + std::to_string(storage_impl_.GetShardsCount()) + ')'
+            );
+        }
+        storage_impl_.DoRebalance(shard_idx, std::move(weights));
+    });
 }
 
-RawPubsubClusterStatistics SubscriptionStorage::GetStatistics() const { return storage_impl_.GetStatistics(); }
+RawPubsubClusterStatistics SubscriptionStorage::GetStatistics() const {
+    return storage_impl_.RunSync([this] { return storage_impl_.GetStatistics(); });
+}
 
 void SubscriptionStorage::SubscribeImpl(
     const std::string& channel,
@@ -850,6 +916,7 @@ void SubscriptionStorage::SubscribeImpl(
     CommandControl control,
     SubscriptionId id
 ) {
+    storage_impl_.AssertInEvThread();
     /// In non cluster mode we are using our pubsub in specific environment
     /// where we actually use multiple non-clustered redises to prevent full
     /// connected network and save network bandwidth consumption (we do it so
@@ -857,12 +924,11 @@ void SubscriptionStorage::SubscribeImpl(
     /// have to subscribe to every shard to be able to receive published message.
     /// In cluster mode subscribe to only one shard because we do not use
     /// previously mentioned workaround. So each instance in cluster is connected
-    const std::lock_guard<std::mutex> lock(storage_impl_.mutex);
     auto insert_res = storage_impl_.callback_map.emplace(channel, ChannelInfo());
     auto& map_iter = *insert_res.first;
     auto& channel_info = map_iter.second;
     auto& infos = channel_info.info;
-    const auto shards_count = storage_impl_.GetShardsCount(lock);
+    const auto shards_count = storage_impl_.GetShardsCount();
     /// 1 fsm for cluster and shards_count fsms for non cluster
     channel_info.active_fsm_count = is_cluster_mode_ ? 1 : shards_count;
 
@@ -913,12 +979,12 @@ void SubscriptionStorage::PsubscribeImpl(
     CommandControl control,
     SubscriptionId id
 ) {
-    const std::lock_guard<std::mutex> lock(storage_impl_.mutex);
+    storage_impl_.AssertInEvThread();
     auto insert_res = storage_impl_.pattern_callback_map.emplace(pattern, PChannelInfo());
     auto& map_iter = *insert_res.first;
     auto& channel_info = map_iter.second;
     auto& infos = channel_info.info;
-    const auto shards_count = storage_impl_.GetShardsCount(lock);
+    const auto shards_count = storage_impl_.GetShardsCount();
     /// 1 fsm for cluster and shards_count fsms for non cluster
     channel_info.active_fsm_count = is_cluster_mode_ ? 1 : shards_count;
 

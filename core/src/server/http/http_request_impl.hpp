@@ -2,6 +2,8 @@
 
 #include <userver/server/http/http_request.hpp>
 
+#include <server/http/http_response_impl.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace server::http {
@@ -27,12 +29,7 @@ struct HttpRequest::Impl {
           response(http_request, data_accounter, start_time, cookies.hash_function())
     {}
 
-    std::chrono::steady_clock::time_point start_time;
-    std::chrono::steady_clock::time_point task_create_time;
-    std::chrono::steady_clock::time_point task_start_time;
-    std::chrono::steady_clock::time_point response_notify_time;
-    std::chrono::steady_clock::time_point start_send_response_time;
-    std::chrono::steady_clock::time_point finish_send_response_time;
+    const std::chrono::steady_clock::time_point start_time;
 
     HttpMethod method{HttpMethod::kUnknown};
     int http_major{1};
@@ -53,7 +50,7 @@ struct HttpRequest::Impl {
     // TODO
     mutable UpgradeCallback upgrade_websocket_cb;
 
-    mutable HttpResponse response;
+    mutable HttpResponseImpl response;
     engine::io::Sockaddr remote_address;
     engine::TaskProcessor* task_processor{nullptr};
     const handlers::HttpHandlerBase* handler{nullptr};

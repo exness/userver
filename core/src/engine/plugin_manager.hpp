@@ -1,8 +1,7 @@
 #pragma once
 
 #include <atomic>
-
-#include <boost/range/adaptor/reversed.hpp>
+#include <ranges>
 
 #include <userver/concurrent/variable.hpp>
 
@@ -51,7 +50,7 @@ public:
         }
     }
 
-    void HookTaskCreate(const impl::TaskContext& task) {
+    void HookTaskCreate(impl::TaskContext& task) {
         if (!has_any_plugin_) {
             return;
         }
@@ -67,7 +66,7 @@ public:
         }
     }
 
-    void HookTaskDestroy(const impl::TaskContext& task) {
+    void HookTaskDestroy(impl::TaskContext& task) {
         if (!has_any_plugin_) {
             return;
         }
@@ -83,7 +82,7 @@ public:
         }
     }
 
-    void HookBeforeSleep(const impl::TaskContext& task) {
+    void HookBeforeSleep(impl::TaskContext& task) {
         if (!has_any_plugin_) {
             return;
         }
@@ -94,25 +93,47 @@ public:
         }
     }
 
-    void HookAfterWakeup(const impl::TaskContext& task) {
+    void HookAfterWakeup(impl::TaskContext& task) {
         if (!has_any_plugin_) {
             return;
         }
 
         auto lock = mutex_set_.ReadLockFromCoroutine();
-        for (auto* const plugin : plugins_ | boost::adaptors::reversed) {
+        for (auto* const plugin : plugins_ | std::views::reverse) {
             plugin->HookAfterWakeup(task);
         }
     }
 
+    void HookTaskStart(impl::TaskContext& task) {
+        if (!has_any_plugin_) {
+            return;
+        }
+
+        auto lock = mutex_set_.ReadLockFromCoroutine();
+        for (auto* const plugin : plugins_) {
+            plugin->HookTaskStart(task);
+        }
+    }
+
+    void HookTaskStop(impl::TaskContext& task) {
+        if (!has_any_plugin_) {
+            return;
+        }
+
+        auto lock = mutex_set_.ReadLockFromCoroutine();
+        for (auto* const plugin : plugins_ | std::views::reverse) {
+            plugin->HookTaskStop(task);
+        }
+    }
+
 private:
-    void DoHookTaskDestroy(const impl::TaskContext& task) {
-        for (auto* const plugin : plugins_ | boost::adaptors::reversed) {
+    void DoHookTaskDestroy(impl::TaskContext& task) {
+        for (auto* const plugin : plugins_ | std::views::reverse) {
             plugin->HookTaskDestroy(task);
         }
     }
 
-    void DoHookTaskCreate(const impl::TaskContext& task) {
+    void DoHookTaskCreate(impl::TaskContext& task) {
         for (auto* const plugin : plugins_) {
             plugin->HookTaskCreate(task);
         }

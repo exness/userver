@@ -1,5 +1,9 @@
 #include "collection_mongotest.hpp"
 
+#include <userver/storages/mongo/operators.hpp>
+#include <userver/utils/statistics/rate.hpp>
+#include <userver/utils/statistics/testing.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace bson = formats::bson;
@@ -7,6 +11,8 @@ namespace mongo = storages::mongo;
 
 namespace {
 class Collection : public MongoPoolFixture {};
+
+const mongo::options::MaxServerTime kBulkWriteMaxServerTime{utest::kMaxTestWaitTime};
 }  // namespace
 
 UTEST_F(Collection, CollectionName) {
@@ -50,13 +56,13 @@ UTEST_F(Collection, Read) {
     EXPECT_EQ(3, coll.CountApprox());
     EXPECT_EQ(3, coll.Count({}));
     EXPECT_EQ(1, coll.Count(kFilter));
-    EXPECT_EQ(2, coll.Count(bson::MakeDoc("x", bson::MakeDoc("$gt", 1))));
+    EXPECT_EQ(2, coll.Count(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 1))));
 
     coll.InsertOne(kFilter);
     EXPECT_EQ(4, coll.CountApprox());
     EXPECT_EQ(4, coll.Count({}));
     EXPECT_EQ(2, coll.Count(kFilter));
-    EXPECT_EQ(2, coll.Count(bson::MakeDoc("x", bson::MakeDoc("$gt", 1))));
+    EXPECT_EQ(2, coll.Count(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 1))));
 
     auto other_coll = GetDefaultPool().GetCollection("read_other");
     EXPECT_EQ(0, other_coll.CountApprox());
@@ -75,8 +81,15 @@ UTEST_F(Collection, Read) {
     }
     {
         auto cursor = coll.Aggregate(MakeArray(bson::MakeDoc(
-            "$group",
-            bson::MakeDoc("_id", nullptr, "count", bson::MakeDoc("$sum", 1), "sum", bson::MakeDoc("$sum", "$x"))
+            mongo::operators::kGroup,
+            bson::MakeDoc(
+                "_id",
+                nullptr,
+                "count",
+                bson::MakeDoc(mongo::operators::kSum, 1),
+                "sum",
+                bson::MakeDoc(mongo::operators::kSum, "$x")
+            )
         )));
         auto doc = *cursor.begin();
         EXPECT_EQ(++cursor.begin(), cursor.end());
@@ -151,20 +164,17 @@ UTEST_F(Collection, InsertOne) {
 
     {
         auto result = coll.InsertOne(bson::MakeDoc("_id", 1));
-        EXPECT_EQ(1, result.InsertedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.inserted = 1});
+        ExpectNoWriteErrors(result);
     }
     UEXPECT_THROW(coll.InsertOne(bson::MakeDoc("_id", 1)), mongo::DuplicateKeyException);
     {
         auto result = coll.InsertOne(bson::MakeDoc("_id", 1), mongo::options::SuppressServerExceptions{});
-        EXPECT_EQ(0, result.InsertedCount());
+        ExpectWriteCounts(result, {});
         EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectSingleDuplicateKeyError(result);
 
         auto errors = result.ServerErrors();
-        ASSERT_EQ(1, errors.size());
-        EXPECT_EQ(11000, errors[0].Code());
-        EXPECT_TRUE(errors[0].IsServerError());
         UEXPECT_THROW(errors[0].Throw({}), mongo::DuplicateKeyException);
     }
 }
@@ -174,15 +184,13 @@ UTEST_F(Collection, InsertMany) {
 
     {
         auto result = coll.InsertMany({});
-        EXPECT_EQ(0, result.InsertedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {});
+        ExpectNoWriteErrors(result);
     }
     {
         auto result = coll.InsertMany({bson::MakeDoc("_id", 1)});
-        EXPECT_EQ(1, result.InsertedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.inserted = 1});
+        ExpectNoWriteErrors(result);
     }
     UEXPECT_THROW(coll.InsertMany({bson::MakeDoc("_id", 2), bson::MakeDoc("_id", 1)}), mongo::DuplicateKeyException);
     {
@@ -190,13 +198,10 @@ UTEST_F(Collection, InsertMany) {
             {bson::MakeDoc("_id", 3), bson::MakeDoc("_id", 2), bson::MakeDoc("_id", 1)},
             mongo::options::SuppressServerExceptions{}
         );
-        EXPECT_EQ(1, result.InsertedCount());
+        ExpectWriteCounts(result, {.inserted = 1});
         EXPECT_TRUE(result.WriteConcernErrors().empty());
-
-        auto errors = result.ServerErrors();
-        ASSERT_EQ(1, errors.size());
-        EXPECT_TRUE(errors[1].IsServerError());
-        EXPECT_EQ(11000, errors[1].Code());
+        ExpectSingleDuplicateKeyError(result);
+        EXPECT_EQ(1, result.ServerErrors().count(1));
     }
 }
 
@@ -205,48 +210,123 @@ UTEST_F(Collection, ReplaceOne) {
 
     coll.InsertOne(bson::MakeDoc("_id", 1));
     UEXPECT_THROW(
-        coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc("$set", bson::MakeDoc("x", 1))),
+        coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 1))),
         mongo::InvalidQueryArgumentException
     );
     {
         auto result = coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc("x", 1));
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
     }
     {
         auto result = coll.ReplaceOne(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 2));
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {});
+        ExpectNoWriteErrors(result);
     }
     {
         auto result = coll.ReplaceOne(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 2), mongo::options::Upsert{});
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        auto upserted_ids = result.UpsertedIds();
-        ASSERT_TRUE(upserted_ids[0].IsInt32());
-        EXPECT_EQ(2, upserted_ids[0].As<int>());
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 2);
     }
     {
         auto result = coll.ReplaceOne(bson::MakeDoc(), bson::MakeDoc("x", 3));
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
     }
     EXPECT_EQ(2, coll.CountApprox());
+}
+
+UTEST_F(Collection, ReplaceMaxServerTimeParity) {
+    auto native_coll = GetDefaultPool().GetCollection("replace_one_parity_native");
+    auto bulk_write_coll = GetDefaultPool().GetCollection("replace_one_parity_bulk_write");
+
+    for (auto* coll : {&native_coll, &bulk_write_coll}) {
+        coll->InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+    }
+
+    ExpectSameWriteCounts(
+        native_coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc("x", 2)),
+        bulk_write_coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc("x", 2), kBulkWriteMaxServerTime)
+    );
+
+    ExpectSameWriteCounts(
+        native_coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc("x", 2)),
+        bulk_write_coll.ReplaceOne(bson::MakeDoc("_id", 1), bson::MakeDoc("x", 2), kBulkWriteMaxServerTime)
+    );
+
+    ExpectSameWriteCounts(
+        native_coll.ReplaceOne(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 3)),
+        bulk_write_coll.ReplaceOne(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 3), kBulkWriteMaxServerTime)
+    );
+
+    const auto
+        native = native_coll.ReplaceOne(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 3), mongo::options::Upsert{});
+    const auto bulk_write = bulk_write_coll.ReplaceOne(
+        bson::MakeDoc("_id", 2),
+        bson::MakeDoc("x", 3),
+        mongo::options::Upsert{},
+        kBulkWriteMaxServerTime
+    );
+    ExpectSameWriteCounts(native, bulk_write);
+
+    ExpectSingleUpsertedId(bulk_write, 2);
+    ExpectNoWriteErrors(bulk_write);
+
+    EXPECT_EQ(native_coll.CountApprox(), bulk_write_coll.CountApprox());
+}
+
+UTEST_F(Collection, ReplaceMaxServerTimeDuplicateKey) {
+    auto coll = GetDefaultPool().GetCollection("replace_one_duplicate_key");
+
+    coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    const auto selector = bson::MakeDoc("_id", 1, "x", 2);
+    const auto replacement = bson::MakeDoc("x", 2);
+
+    UEXPECT_THROW(
+        coll.ReplaceOne(selector, replacement, mongo::options::Upsert{}, kBulkWriteMaxServerTime),
+        mongo::DuplicateKeyException
+    );
+
+    auto result = coll.ReplaceOne(
+        selector,
+        replacement,
+        mongo::options::Upsert{},
+        mongo::options::SuppressServerExceptions{},
+        kBulkWriteMaxServerTime
+    );
+    ExpectWriteCounts(result, {});
+    EXPECT_TRUE(result.WriteConcernErrors().empty());
+    ExpectSingleDuplicateKeyError(result);
+
+    EXPECT_EQ(1, coll.CountApprox());
+}
+
+UTEST_F(Collection, ReplaceMaxServerTimeUnacknowledged) {
+    auto explicit_coll = GetDefaultPool().GetCollection("replace_one_unacknowledged_explicit");
+    explicit_coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    UEXPECT_NO_THROW(explicit_coll.ReplaceOne(
+        bson::MakeDoc("_id", 1),
+        bson::MakeDoc("x", 2),
+        mongo::options::WriteConcern::kUnacknowledged,
+        mongo::options::SuppressServerExceptions{},
+        kBulkWriteMaxServerTime
+    ));
+
+    const std::string default_wc_collection_name = "replace_one_unacknowledged_default";
+    GetDefaultPool().GetCollection(default_wc_collection_name).InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    auto unacknowledged_pool = MakeUnacknowledgedPool();
+    auto default_wc_coll = unacknowledged_pool.GetCollection(default_wc_collection_name);
+
+    UEXPECT_NO_THROW(default_wc_coll.ReplaceOne(
+        bson::MakeDoc("_id", 1),
+        bson::MakeDoc("x", 2),
+        mongo::options::SuppressServerExceptions{},
+        kBulkWriteMaxServerTime
+    ));
 }
 
 UTEST_F(Collection, Update) {
@@ -262,72 +342,203 @@ UTEST_F(Collection, Update) {
     UpdateOneDoc(coll);
 
     {
-        auto result = coll.UpdateOne(bson::MakeDoc("_id", 1), bson::MakeDoc("$set", bson::MakeDoc("x", 10)));
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result =
+            coll.UpdateOne(bson::MakeDoc("_id", 1), bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 10)));
+        ExpectWriteCounts(result, {.matched = 1});
+        ExpectNoWriteErrors(result);
     }
     {
-        auto result = coll.UpdateOne(bson::MakeDoc("_id", 2), bson::MakeDoc("$set", bson::MakeDoc("x", 20)));
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result =
+            coll.UpdateOne(bson::MakeDoc("_id", 2), bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 20)));
+        ExpectWriteCounts(result, {});
+        ExpectNoWriteErrors(result);
     }
     {
         auto result = coll.UpdateOne(
             bson::MakeDoc("_id", 2),
-            bson::MakeDoc("$set", bson::MakeDoc("x", 20)),
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 20)),
             mongo::options::Upsert{}
         );
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        auto upserted_ids = result.UpsertedIds();
-        ASSERT_TRUE(upserted_ids[0].IsInt32());
-        EXPECT_EQ(2, upserted_ids[0].As<int>());
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 2);
     }
     {
-        auto result = coll.UpdateMany(bson::MakeDoc(), bson::MakeDoc("$set", bson::MakeDoc("x", 20)));
-        EXPECT_EQ(2, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result = coll.UpdateMany(bson::MakeDoc(), bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 20)));
+        ExpectWriteCounts(result, {.matched = 2, .modified = 1});
+        ExpectNoWriteErrors(result);
     }
     {
         auto result = coll.UpdateMany(
             bson::MakeDoc("_id", 3),
-            bson::MakeDoc("$set", bson::MakeDoc("x", 30)),
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 30)),
             mongo::options::Upsert{}
         );
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        auto upserted_ids = result.UpsertedIds();
-        ASSERT_TRUE(upserted_ids[0].IsInt32());
-        EXPECT_EQ(3, upserted_ids[0].As<int>());
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 3);
     }
     {
-        auto result = coll.UpdateOne(bson::MakeDoc(), bson::MakeDoc("$set", bson::MakeDoc("x", 40)));
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result = coll.UpdateOne(bson::MakeDoc(), bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 40)));
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
     }
     EXPECT_EQ(3, coll.CountApprox());
+}
+
+UTEST_F(Collection, UpdateMaxServerTimeParity) {
+    auto native_coll = GetDefaultPool().GetCollection("update_native");
+    auto bulk_write_coll = GetDefaultPool().GetCollection("update_bulk_write");
+
+    for (auto* coll : {&native_coll, &bulk_write_coll}) {
+        coll->InsertMany({bson::MakeDoc("_id", 1, "x", 1), bson::MakeDoc("_id", 2, "x", 1)});
+    }
+
+    {
+        static const auto kSelector = bson::MakeDoc("_id", 1);
+        static const auto kUpdate = bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 2));
+
+        auto native = native_coll.UpdateOne(kSelector, kUpdate);
+        auto bulk_write = bulk_write_coll.UpdateOne(kSelector, kUpdate, kBulkWriteMaxServerTime);
+        ExpectSameWriteCounts(native, bulk_write);
+        ExpectWriteCounts(bulk_write, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(bulk_write);
+    }
+    {
+        static const auto kSelector = bson::MakeDoc("_id", 42);
+        static const auto kUpdate = bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 3));
+
+        auto native = native_coll.UpdateOne(kSelector, kUpdate);
+        auto bulk_write = bulk_write_coll.UpdateOne(kSelector, kUpdate, kBulkWriteMaxServerTime);
+        ExpectSameWriteCounts(native, bulk_write);
+        ExpectWriteCounts(bulk_write, {});
+    }
+    {
+        static const auto kUpdate = bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 4));
+
+        auto native = native_coll.UpdateMany(bson::MakeDoc(), kUpdate);
+        auto bulk_write = bulk_write_coll.UpdateMany(bson::MakeDoc(), kUpdate, kBulkWriteMaxServerTime);
+        ExpectSameWriteCounts(native, bulk_write);
+        ExpectWriteCounts(bulk_write, {.matched = 2, .modified = 2});
+    }
+    {
+        static const auto kSelector = bson::MakeDoc("_id", 3);
+        static const auto kUpdate = bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 5));
+
+        auto native = native_coll.UpdateOne(kSelector, kUpdate, mongo::options::Upsert{});
+        auto bulk_write =
+            bulk_write_coll.UpdateOne(kSelector, kUpdate, mongo::options::Upsert{}, kBulkWriteMaxServerTime);
+        ExpectSameWriteCounts(native, bulk_write);
+        ExpectWriteCounts(bulk_write, {.upserted = 1});
+        ExpectSingleUpsertedId(bulk_write, 3);
+    }
+    EXPECT_EQ(native_coll.CountApprox(), bulk_write_coll.CountApprox());
+}
+
+UTEST_F(Collection, UpdateMaxServerTimeUpsertedIds) {
+    auto coll = GetDefaultPool().GetCollection("update_bulk_write_upsert");
+
+    {
+        auto result = coll.UpdateMany(
+            bson::MakeDoc("_id", 1),
+            bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 1)),
+            mongo::options::Upsert{},
+            kBulkWriteMaxServerTime
+        );
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 1);
+    }
+    EXPECT_EQ(1, coll.CountApprox());
+}
+
+UTEST_F(Collection, UpdateMaxServerTimeDuplicateKey) {
+    auto coll = GetDefaultPool().GetCollection("update_bulk_write_dupkey");
+
+    coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    static const auto kSelector = bson::MakeDoc("_id", 1, "x", 2);
+    static const auto kUpdate = bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("y", 1));
+
+    UEXPECT_THROW(
+        coll.UpdateOne(kSelector, kUpdate, mongo::options::Upsert{}, kBulkWriteMaxServerTime),
+        mongo::DuplicateKeyException
+    );
+
+    {
+        auto result = coll.UpdateOne(
+            kSelector,
+            kUpdate,
+            mongo::options::Upsert{},
+            kBulkWriteMaxServerTime,
+            mongo::options::SuppressServerExceptions{}
+        );
+        ExpectWriteCounts(result, {});
+        ExpectSingleDuplicateKeyError(result);
+    }
+    EXPECT_EQ(1, coll.CountApprox());
+}
+
+UTEST_F(Collection, UpdateMaxServerTimeRetryDuplicateKey) {
+    auto pool_config = MakeTestPoolConfig();
+    pool_config.stats_verbosity = mongo::StatsVerbosity::kFull;
+    auto pool = MakePool({}, pool_config);
+    auto coll = pool.GetCollection("update_bulk_write_retry_dupkey");
+
+    coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    mongo::operations::Update
+        op(mongo::operations::Update::Mode::kSingle,
+           bson::MakeDoc("_id", 1, "x", 2),
+           bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("y", 1)));
+    op.SetOption(mongo::options::Upsert{});
+    op.SetOption(mongo::options::RetryDuplicateKey{});
+    op.SetOption(mongo::options::SuppressServerExceptions{});
+    op.SetOption(mongo::options::MaxServerTime{utest::kMaxTestWaitTime});
+
+    auto result = coll.Execute(op);
+    ExpectSingleDuplicateKeyError(result);
+    EXPECT_EQ(1, coll.CountApprox());
+
+    const utils::statistics::Snapshot snapshot{pool};
+    EXPECT_EQ(
+        snapshot.SingleMetric(
+            "by-operation.errors",
+            {
+                {"mongo_collection", "update_bulk_write_retry_dupkey"},
+                {"mongo_operation", "update-one"},
+                {"mongo_direction", "write"},
+                {"mongo_error", "duplicate-key"},
+            }
+        ),
+        utils::statistics::Rate{2}
+    );
+}
+
+UTEST_F(Collection, UpdateMaxServerTimeUnacknowledged) {
+    auto explicit_coll = GetDefaultPool().GetCollection("update_unacknowledged_explicit");
+    explicit_coll.InsertOne(bson::MakeDoc("_id", 1, "x", 1));
+
+    UEXPECT_NO_THROW(explicit_coll.UpdateOne(
+        bson::MakeDoc("_id", 1),
+        bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 2)),
+        mongo::options::WriteConcern::kUnacknowledged,
+        kBulkWriteMaxServerTime
+    ));
+
+    const std::string default_wc_collection_name = "update_unacknowledged_default";
+    GetDefaultPool()
+        .GetCollection(default_wc_collection_name)
+        .InsertMany({bson::MakeDoc("_id", 1, "x", 1), bson::MakeDoc("_id", 2, "x", 1)});
+
+    auto unacknowledged_pool = MakeUnacknowledgedPool();
+    auto default_wc_coll = unacknowledged_pool.GetCollection(default_wc_collection_name);
+
+    UEXPECT_NO_THROW(default_wc_coll.UpdateMany(
+        bson::MakeDoc(),
+        bson::MakeDoc(mongo::operators::kSet, bson::MakeDoc("x", 2)),
+        kBulkWriteMaxServerTime
+    ));
 }
 
 UTEST_F(Collection, Delete) {
@@ -344,29 +555,25 @@ UTEST_F(Collection, Delete) {
 
     {
         auto result = coll.DeleteOne(bson::MakeDoc("x", 1));
-        EXPECT_EQ(1, result.DeletedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.deleted = 1});
+        ExpectNoWriteErrors(result);
         EXPECT_EQ(0, coll.Count(bson::MakeDoc("x", 1)));
     }
     {
-        auto result = coll.DeleteOne(bson::MakeDoc("x", bson::MakeDoc("$gt", 6)));
-        EXPECT_EQ(1, result.DeletedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        EXPECT_EQ(2, coll.Count(bson::MakeDoc("x", bson::MakeDoc("$gt", 6))));
+        auto result = coll.DeleteOne(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 6)));
+        ExpectWriteCounts(result, {.deleted = 1});
+        ExpectNoWriteErrors(result);
+        EXPECT_EQ(2, coll.Count(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 6))));
     }
     {
-        auto result = coll.DeleteMany(bson::MakeDoc("x", bson::MakeDoc("$gt", 10)));
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result = coll.DeleteMany(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kGt, 10)));
+        ExpectWriteCounts(result, {});
+        ExpectNoWriteErrors(result);
     }
     {
-        auto result = coll.DeleteMany(bson::MakeDoc("x", bson::MakeDoc("$lt", 5)));
-        EXPECT_EQ(4, result.DeletedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result = coll.DeleteMany(bson::MakeDoc("x", bson::MakeDoc(mongo::operators::kLt, 5)));
+        ExpectWriteCounts(result, {.deleted = 4});
+        ExpectNoWriteErrors(result);
     }
     EXPECT_EQ(4, coll.CountApprox());
 }
@@ -378,27 +585,16 @@ UTEST_F(Collection, FindAndModify) {
 
     {
         auto result = coll.FindAndModify(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 20));
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
+        ExpectWriteCounts(result, {});
+        ExpectNoWriteErrors(result);
         EXPECT_FALSE(result.FoundDocument());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
     }
     {
         auto result = coll.FindAndModify(bson::MakeDoc("_id", 2), bson::MakeDoc("x", 20), mongo::options::Upsert{});
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 2);
         EXPECT_FALSE(result.FoundDocument());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        auto upserted_ids = result.UpsertedIds();
-        ASSERT_TRUE(upserted_ids[0].IsInt32());
-        EXPECT_EQ(2, upserted_ids[0].As<int>());
     }
     {
         auto result = coll.FindAndModify(
@@ -407,29 +603,20 @@ UTEST_F(Collection, FindAndModify) {
             mongo::options::Upsert{},
             mongo::options::ReturnNew{}
         );
-        EXPECT_EQ(0, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(1, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
-        auto upserted_ids = result.UpsertedIds();
-        ASSERT_TRUE(upserted_ids[0].IsInt32());
-        EXPECT_EQ(3, upserted_ids[0].As<int>());
+        ExpectWriteCounts(result, {.upserted = 1});
+        ExpectNoWriteErrors(result);
+        ExpectSingleUpsertedId(result, 3);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
+        auto upserted_ids = result.UpsertedIds();
         EXPECT_EQ(doc["_id"], upserted_ids[0]);
         EXPECT_EQ(30, doc["x"].As<int>());
     }
     {
-        auto result = coll.FindAndModify(bson::MakeDoc("_id", 1), bson::MakeDoc("$inc", bson::MakeDoc("x", 2)));
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        auto result =
+            coll.FindAndModify(bson::MakeDoc("_id", 1), bson::MakeDoc(mongo::operators::kInc, bson::MakeDoc("x", 2)));
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
         EXPECT_EQ(1, doc["_id"].As<int>());
@@ -440,16 +627,11 @@ UTEST_F(Collection, FindAndModify) {
     {
         auto result = coll.FindAndModify(
             bson::MakeDoc("_id", 1),
-            bson::MakeDoc("$inc", bson::MakeDoc("x", 2)),
+            bson::MakeDoc(mongo::operators::kInc, bson::MakeDoc("x", 2)),
             mongo::options::ReturnNew{}
         );
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
         EXPECT_EQ(1, doc["_id"].As<int>());
@@ -458,16 +640,11 @@ UTEST_F(Collection, FindAndModify) {
     {
         auto result = coll.FindAndModify(
             bson::MakeDoc(),
-            bson::MakeDoc("$inc", bson::MakeDoc("x", -1)),
+            bson::MakeDoc(mongo::operators::kInc, bson::MakeDoc("x", -1)),
             mongo::options::Sort{{"x", mongo::options::Sort::kDescending}}
         );
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
         EXPECT_EQ(3, doc["_id"].As<int>());
@@ -476,17 +653,12 @@ UTEST_F(Collection, FindAndModify) {
     {
         auto result = coll.FindAndModify(
             bson::MakeDoc(),
-            bson::MakeDoc("$inc", bson::MakeDoc("x", -1)),
+            bson::MakeDoc(mongo::operators::kInc, bson::MakeDoc("x", -1)),
             mongo::options::Sort{{"x", mongo::options::Sort::kAscending}},
             mongo::options::Projection{"y"}
         );
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(1, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(0, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .modified = 1});
+        ExpectNoWriteErrors(result);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
         EXPECT_EQ(1, doc["_id"].As<int>());
@@ -498,13 +670,8 @@ UTEST_F(Collection, FindAndModify) {
             mongo::options::Sort{{"x", mongo::options::Sort::kAscending}},
             mongo::options::Projection{"y"}
         );
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(1, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .deleted = 1});
+        ExpectNoWriteErrors(result);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
         EXPECT_EQ(1, doc["_id"].As<int>());
@@ -516,13 +683,8 @@ UTEST_F(Collection, FindAndModify) {
             mongo::options::Sort{{"x", mongo::options::Sort::kDescending}},
             mongo::options::Projection{}.Exclude("_id")
         );
-        EXPECT_EQ(1, result.MatchedCount());
-        EXPECT_EQ(0, result.ModifiedCount());
-        EXPECT_EQ(0, result.UpsertedCount());
-        EXPECT_EQ(1, result.DeletedCount());
-        EXPECT_TRUE(result.UpsertedIds().empty());
-        EXPECT_TRUE(result.ServerErrors().empty());
-        EXPECT_TRUE(result.WriteConcernErrors().empty());
+        ExpectWriteCounts(result, {.matched = 1, .deleted = 1});
+        ExpectNoWriteErrors(result);
         ASSERT_TRUE(result.FoundDocument());
         auto doc = *result.FoundDocument();
         EXPECT_FALSE(doc.HasMember("_id"));
@@ -615,7 +777,7 @@ UTEST_F(Collection, ExecuteOps) {
 }
 
 std::vector<formats::bson::Value> SortBsonValues(std::vector<formats::bson::Value> values) {
-    std::sort(values.begin(), values.end(), [](const auto& a, const auto& b) {
+    std::ranges::sort(values, [](const auto& a, const auto& b) {
         if (a.IsString() && b.IsString()) {
             return a.template As<std::string>() < b.template As<std::string>();
         }
@@ -694,8 +856,9 @@ UTEST_F(Collection, Distinct) {
         }
 
         {
-            const auto sorted_result =
-                SortBsonValues(coll.Distinct("category", bson::MakeDoc("score", bson::MakeDoc("$gte", 80))));
+            const auto sorted_result = SortBsonValues(
+                coll.Distinct("category", bson::MakeDoc("score", bson::MakeDoc(mongo::operators::kGte, 80)))
+            );
 
             ASSERT_EQ(2, sorted_result.size());
             EXPECT_EQ("A", sorted_result[0].As<std::string>());
@@ -706,8 +869,11 @@ UTEST_F(Collection, Distinct) {
             const auto sorted_result = SortBsonValues(coll.Distinct(
                 "category",
                 bson::MakeDoc(
-                    "$and",
-                    bson::MakeArray(bson::MakeDoc("status", "active"), bson::MakeDoc("score", bson::MakeDoc("$gt", 80)))
+                    mongo::operators::kAnd,
+                    bson::MakeArray(
+                        bson::MakeDoc("status", "active"),
+                        bson::MakeDoc("score", bson::MakeDoc(mongo::operators::kGt, 80))
+                    )
                 )
             ));
             ASSERT_EQ(2, sorted_result.size());

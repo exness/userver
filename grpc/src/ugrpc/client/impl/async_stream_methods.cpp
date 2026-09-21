@@ -27,14 +27,15 @@ void SetErrorAndResetSpan(CallState& state, std::string_view error_message) noex
     state.ResetSpan();
 }
 
-void HandleCallStatistics(CallState& state, const grpc::Status& status) noexcept {
-    auto& stats = state.GetStatsScope();
-    if (grpc::StatusCode::DEADLINE_EXCEEDED == status.error_code() && state.IsDeadlinePropagated()) {
-        stats.OnCancelledByDeadlinePropagation();
-    } else {
-        stats.OnExplicitFinish(status.error_code());
+void TryRunMiddlewarePipeline(CallState& state, bool throw_on_error, const MiddlewareHooks& hooks) {
+    try {
+        RunMiddlewarePipeline(state, hooks);
+    } catch (std::exception& ex) {
+        LOG_WARNING() << "There is a caught exception in 'Finish': " << ex;
+        if (throw_on_error) {
+            throw;
+        }
     }
-    stats.Flush();
 }
 
 }  // namespace
@@ -66,55 +67,92 @@ void CheckOk(
 ) {
     if (wait_status == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kError) {
         state.SetFinished();
-        ThrowIfDeadlineIsExceeded(state.GetClientContext(), state.GetCallName());
-        ProcessNetworkError(state, stage);
-        throw RpcInterruptedError(state.GetCallName(), stage);
+        ProcessNetworkError(state, true, stage);
     } else if (wait_status == ugrpc::impl::AsyncMethodInvocation::WaitStatus::kCancelled) {
         state.SetFinished();
-        ProcessCancelled(state, stage);
-        throw RpcCancelledError(state.GetCallName(), stage);
+        if (impl::IsTaskCancelledByDeadlinePropagation()) {
+            ProcessTimeoutDeadlinePropagated(state, true, stage);
+        } else {
+            ProcessCancelled(state, true, stage);
+        }
     }
 }
 
 void ProcessFinish(
     StreamingCallState& state,
-    const CompletionStatus& completion_status,
+    bool throw_on_error,
+    CompletionStatus&& completion_status,
     const google::protobuf::Message* response
 ) {
     UINVARIANT(completion_status.has_value(), "ProcessFinish must be called only with grpc::Status completions");
-    const auto& status = completion_status.value();
+    auto& status = completion_status.value();
 
-    RunMiddlewarePipeline(state, MiddlewareHooks::FinishHooks(status, status.ok() ? response : nullptr));
-    impl::HandleCallStatistics(state, status);
+    TryRunMiddlewarePipeline(
+        state,
+        throw_on_error,
+        MiddlewareHooks::FinishHooks(status, status.ok() ? response : nullptr)
+    );
+
+    state.GetStatsScope().OnExplicitFinish(status.error_code());
+    state.GetStatsScope().Flush();
     SetStatusAndResetSpan(state, status);
+
+    if (throw_on_error && !status.ok()) {
+        ThrowErrorWithStatus(state.GetCallName(), std::move(status));
+    }
+}
+
+void ProcessTimeoutDeadlinePropagated(StreamingCallState& state, bool throw_on_error, std::string_view stage) {
+    TryRunMiddlewarePipeline(
+        state,
+        throw_on_error,
+        MiddlewareHooks::FinishHooks(utils::unexpected{SpecialCaseCompletionType::kTimeoutDeadlinePropagated}, nullptr)
+    );
+
+    state.GetStatsScope().OnCancelledByDeadlinePropagation();
+    state.GetStatsScope().Flush();
+    SetErrorAndResetSpan(state, fmt::format("Deadline propagated at '{}'", stage));
+
+    if (throw_on_error) {
+        throw RpcCancelledError(state.GetCallName(), fmt::format("{} (Deadline Propagation)", stage));
+    }
+}
+
+void ProcessCancelled(StreamingCallState& state, bool throw_on_error, std::string_view stage) {
+    CompletionStatus result{utils::unexpected{SpecialCaseCompletionType::kCancelled}};
+    TryRunMiddlewarePipeline(state, throw_on_error, MiddlewareHooks::FinishHooks(result, nullptr));
+
+    state.GetStatsScope().OnCancelled();
+    state.GetStatsScope().Flush();
+    SetErrorAndResetSpan(state, fmt::format("Task cancellation at '{}'", stage));
+
+    if (throw_on_error) {
+        throw RpcCancelledError(state.GetCallName(), stage);
+    }
+}
+
+void ProcessNetworkError(StreamingCallState& state, bool throw_on_error, std::string_view stage) {
+    CompletionStatus result{utils::unexpected{SpecialCaseCompletionType::kNetworkError}};
+    TryRunMiddlewarePipeline(state, throw_on_error, MiddlewareHooks::FinishHooks(result, nullptr));
+
+    state.GetStatsScope().OnNetworkError();
+    state.GetStatsScope().Flush();
+    SetErrorAndResetSpan(state, fmt::format("Network error at '{}'", stage));
+
+    if (throw_on_error) {
+        throw RpcInterruptedError(state.GetCallName(), stage);
+    }
 }
 
 void ProcessFinishAbandoned(StreamingCallState& state, const grpc::Status& status) noexcept {
-    RunMiddlewarePipeline(
+    TryRunMiddlewarePipeline(
         state,
+        false,
         MiddlewareHooks::FinishHooks(utils::unexpected{SpecialCaseCompletionType::kAbandoned}, nullptr)
     );
 
     // Nothing to do with statistics, `RpcStatisticsScope` automatically accounts "abandoned-error"
     SetStatusAndResetSpan(state, status);
-}
-
-void ProcessCancelled(StreamingCallState& state, std::string_view stage) noexcept {
-    CompletionStatus result{utils::unexpected{SpecialCaseCompletionType::kCancelled}};
-    RunMiddlewarePipeline(state, MiddlewareHooks::FinishHooks(result, nullptr));
-
-    state.GetStatsScope().OnCancelled();
-    state.GetStatsScope().Flush();
-    SetErrorAndResetSpan(state, fmt::format("Task cancellation at '{}'", stage));
-}
-
-void ProcessNetworkError(StreamingCallState& state, std::string_view stage) noexcept {
-    CompletionStatus result{utils::unexpected{SpecialCaseCompletionType::kNetworkError}};
-    RunMiddlewarePipeline(state, MiddlewareHooks::FinishHooks(result, nullptr));
-
-    state.GetStatsScope().OnNetworkError();
-    state.GetStatsScope().Flush();
-    SetErrorAndResetSpan(state, fmt::format("Network error at '{}'", stage));
 }
 
 }  // namespace ugrpc::client::impl

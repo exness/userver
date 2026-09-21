@@ -9,8 +9,8 @@
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
 
+#include <engine/impl/task_context_accessor.hpp>
 #include <engine/task/coro_unwinder.hpp>
-#include <engine/task/task_base_impl.hpp>
 #include <engine/task/task_context.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -59,9 +59,9 @@ void CancellationPoint() {
 
 void SetDeadline(Deadline deadline) { GetCurrentTaskContext().SetCancelDeadline(deadline); }
 
-TaskCancellationToken GetCancellationToken() { return TaskCancellationToken(GetCurrentTaskContext()); }
-
 void RequestCancel() { GetCurrentTaskContext().RequestCancel(TaskCancellationReason::kUserRequest); }
+
+TaskCancellationToken GetCancellationToken() { return TaskCancellationToken(GetCurrentTaskContext()); }
 
 }  // namespace current_task
 
@@ -101,7 +101,7 @@ TaskCancellationToken::TaskCancellationToken() noexcept = default;
 TaskCancellationToken::TaskCancellationToken(impl::TaskContext& context) noexcept : context_(&context) {}
 
 TaskCancellationToken::TaskCancellationToken(Task& task)
-    : context_(task.pimpl_->context)
+    : context_(impl::TaskContextAccessor::GetContext(task))
 {
     UASSERT(context_);
 }

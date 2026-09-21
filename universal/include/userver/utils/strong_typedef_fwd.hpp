@@ -1,5 +1,9 @@
 #pragma once
 
+/// @file userver/utils/strong_typedef_fwd.hpp
+/// @brief Forward declarations and options for StrongTypedef.
+/// @ingroup userver_universal
+
 #include <type_traits>
 
 USERVER_NAMESPACE_BEGIN

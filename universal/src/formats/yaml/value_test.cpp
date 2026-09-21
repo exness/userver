@@ -1,10 +1,12 @@
+#include <ranges>
+
+#include <gmock/gmock-matchers.h>
+
 #include <userver/formats/yaml/serialize.hpp>
 #include <userver/formats/yaml/serialize_container.hpp>
 #include <userver/formats/yaml/value.hpp>
 #include <userver/formats/yaml/value_builder.hpp>
 #include <userver/utest/literals.hpp>
-
-#include <gmock/gmock-matchers.h>
 
 #include <formats/common/value_test.hpp>
 
@@ -17,6 +19,11 @@ struct Parsing<formats::yaml::Value> : public ::testing::Test {
 };
 
 INSTANTIATE_TYPED_TEST_SUITE_P(FormatsYaml, Parsing, formats::yaml::Value);
+
+TEST(FormatsYaml, ValueIsForwardRange) {
+    static_assert(std::ranges::forward_range<formats::yaml::Value>);
+    static_assert(std::ranges::forward_range<const formats::yaml::Value>);
+}
 
 TEST(FormatsYaml, NullAsDefaulted) {
     using formats::yaml::FromString;

@@ -9,12 +9,14 @@
 #include <iterator>
 #include <optional>
 #include <type_traits>
-#include <vector>
+#include <utility>
 
+#include <userver/compiler/impl/nodebug.hpp>
 #include <userver/utils/meta_light.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
+/// @brief Metaprogramming utilities, concepts, and type traits helpers.
 namespace meta {
 
 namespace impl {
@@ -23,35 +25,20 @@ using std::begin;
 using std::end;
 
 template <typename T>
-using KeyType = typename T::key_type;
+concept IsRange = requires(T& t) {
+    {
+        begin(t)
+    };
+    {
+        end(t)
+    };
+};
+
+template <IsRange T>
+using IteratorType USERVER_IMPL_NODEBUG = decltype(begin(std::declval<T&>()));
 
 template <typename T>
-using MappedType = typename T::mapped_type;
-
-template <typename T>
-requires std::is_same_v<
-             std::decay_t<decltype(begin(std::declval<T&>()))>,
-             std::decay_t<decltype(end(std::declval<T&>()))>>
-using IsRange = void;
-
-template <typename T>
-requires IsDetected<IsRange, T>
-using IteratorType = decltype(begin(std::declval<T&>()));
-
-template <typename T>
-using RangeValueType = typename std::iterator_traits<DetectedType<IteratorType, T>>::value_type;
-
-template <typename T>
-using OstreamWriteResult = decltype(std::declval<std::ostream&>() << std::declval<const std::remove_reference_t<T>&>());
-
-template <typename T>
-using StdHashResult = decltype(std::hash<T>{}(std::declval<const T&>()));
-
-template <typename T>
-using AtResult = decltype(std::declval<const T&>().at(std::declval<typename T::key_type>()));
-
-template <typename T>
-using SubscriptOperatorResult = decltype(std::declval<T>()[std::declval<typename T::key_type>()]);
+using RangeValueType USERVER_IMPL_NODEBUG = typename std::iterator_traits<IteratorType<T>>::value_type;
 
 template <typename T>
 struct IsFixedSizeContainer : std::false_type {};
@@ -61,92 +48,93 @@ template <typename T, std::size_t Size, template <typename, std::size_t> typenam
 struct IsFixedSizeContainer<Array<T, Size>> : std::bool_constant<sizeof(Array<T, Size>) == sizeof(T) * Size> {};
 
 template <typename... Args>
-constexpr bool IsSingleRange() {
-    if constexpr (sizeof...(Args) == 1) {
-        return IsDetected<IsRange, Args...>;
-    } else {
-        return false;
-    }
-}
+concept IsSingleRange = (sizeof...(Args) == 1) && (impl::IsRange<Args> && ...);
 
 }  // namespace impl
 
-// NOLINTBEGIN(readability-identifier-naming)
-
+/// @warning Use std::ranges::range instead of this concept, except possibly in common headers
+/// where compilation time is a concern.
 template <typename T>
-concept kIsVector = kIsInstantiationOf<std::vector, T>;
-
-template <typename T>
-concept kIsRange = IsDetected<impl::IsRange, T>;
+concept IsRange = impl::IsRange<T>;
 
 /// Returns true if T is an ordered or unordered map or multimap
 template <typename T>
-concept kIsMap = IsDetected<impl::IsRange, T> && IsDetected<impl::KeyType, T> && IsDetected<impl::MappedType, T>;
+concept IsMap = IsRange<T> && requires {
+    typename T::key_type;
+    typename T::mapped_type;
+};
 
 /// Returns true if T is a map (but not a multimap!)
 template <typename T>
-concept kIsUniqueMap =
-    kIsMap<T> &&
-    IsDetected<
-        impl::SubscriptOperatorResult,
-        T>;  // no operator[] in multimaps
+concept IsUniqueMap = IsMap<T> && requires(T& map, typename T::key_type key) {
+    map[key];  // no operator[] in multimaps
+};
+
+template <IsMap T>
+using MapKeyType = typename T::key_type;
+
+template <IsMap T>
+using MapValueType = typename T::mapped_type;
+
+/// @warning Use std::ranges::range_value_t instead of this type, except possibly in common headers
+/// where compilation time is a concern.
+template <IsRange T>
+using RangeValueType = impl::RangeValueType<T>;
 
 template <typename T>
-using MapKeyType = DetectedType<impl::KeyType, T>;
+concept IsRecursiveRange = IsRange<T> && std::same_as<impl::RangeValueType<T>, T>;
 
 template <typename T>
-using MapValueType = DetectedType<impl::MappedType, T>;
+concept IsOptional = IsInstantiationOf<T, std::optional>;
 
 template <typename T>
-using RangeValueType = DetectedType<impl::RangeValueType, T>;
+concept IsOstreamWritable = requires(std::ostream& os, const std::remove_reference_t<T>& val) {
+    {
+        os << val
+    } -> std::same_as<std::ostream&>;
+};
 
 template <typename T>
-concept kIsRecursiveRange = std::is_same_v<DetectedType<impl::RangeValueType, T>, T>;
+concept IsStdHashable = requires(const T& val) {
+    {
+        std::hash<T>{}(val)
+    } -> std::same_as<std::size_t>;
+} && std::equality_comparable<T>;
 
+/// @brief Check if std::size is applicable to container
+/// @warning Use std::ranges::sized_range instead of this concept, except possibly in common headers
+/// where compilation time is a concern.
 template <typename T>
-concept kIsIterator = requires { typename std::iterator_traits<T>::iterator_category; };
-
-template <typename T>
-concept kIsOptional = kIsInstantiationOf<std::optional, T>;
-
-template <typename T>
-concept kIsOstreamWritable = std::is_same_v<DetectedType<impl::OstreamWriteResult, T>, std::ostream&>;
-
-template <typename T, typename U = T>
-concept kIsEqualityComparable = std::equality_comparable_with<T, U>;
-
-template <typename T>
-concept kIsStdHashable = std::is_same_v<DetectedType<impl::StdHashResult, T>, std::size_t> && kIsEqualityComparable<T>;
-
-/// @brief  Check if std::size is applicable to container
-template <typename T>
-concept kIsSizable = requires(T value) { std::size(value); };
+concept IsSizable = IsRange<T> && requires(T value) { std::size(value); };
 
 /// @brief Check if a container has `reserve`
 template <typename T>
-concept kIsReservable = requires(T value) { value.reserve(1); };
+concept IsReservable = IsSizable<T> && requires(T value) { value.reserve(1); };
 
 /// @brief Check if a container has 'push_back'
 template <typename T>
-concept kIsPushBackable = requires(T value) { value.push_back({}); };
+concept IsPushBackable = IsRange<T> && requires(T value, RangeValueType<T> element) {
+    value.push_back(std::move(element));
+};
 
-/// @brief Check if a container has fixed size (e.g. std::array)
+/// @brief Check if a container has fixed size (e.g. `std::array`)
 template <typename T>
-concept kIsFixedSizeContainer = impl::IsFixedSizeContainer<T>::value;
+concept IsFixedSizeContainer = IsRange<T> && impl::IsFixedSizeContainer<T>::value;
+
+template <typename T>
+concept IsVectorLike = IsRange<T> && std::default_initializable<T> && IsReservable<T> && IsPushBackable<T>;
 
 /// @brief Returns default inserter for a container
 template <typename T>
 auto Inserter(T& container) {
-    if constexpr (kIsPushBackable<T>) {
+    if constexpr (IsPushBackable<T>) {
         return std::back_inserter(container);
-    } else if constexpr (kIsFixedSizeContainer<T>) {
+    } else if constexpr (IsFixedSizeContainer<T>) {
         return container.begin();
     } else {
         return std::inserter(container, container.end());
     }
 }
-
-// NOLINTEND(readability-identifier-naming)
 
 }  // namespace meta
 

@@ -10,6 +10,8 @@
 #include <userver/engine/run_standalone.hpp>
 #include <userver/engine/shared_mutex.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/engine/task/cancel.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/utest/utest.hpp>
 #include <userver/utils/fixed_array.hpp>
 
@@ -40,13 +42,32 @@ UTEST(WaitTokenStorage, SingleToken) {
     utils::impl::WaitTokenStorage wts;
     std::atomic<bool> is_finished{false};
 
-    auto task = engine::AsyncNoSpan([&, token = wts.GetToken()] {
+    auto task = engine::AsyncNoTracing([&, token = wts.GetToken()] {
         engine::SleepFor(50ms);
         is_finished = true;
     });
 
     wts.WaitForAllTokens();
     EXPECT_TRUE(is_finished);
+}
+
+UTEST(WaitTokenStorage, WaitForAllTokensIgnoresCancel) {
+    utils::impl::WaitTokenStorage wts;
+    auto token = wts.GetToken();
+
+    auto waiter = engine::CriticalAsyncNoTracing([&] {
+        engine::current_task::RequestCancel();
+        EXPECT_TRUE(engine::current_task::IsCancelRequested());
+        // Must complete despite cancellation: WaitForAllTokens uses TaskCancellationBlocker.
+        wts.WaitForAllTokens();
+        EXPECT_TRUE(engine::current_task::IsCancelRequested());
+    });
+
+    engine::Yield();
+    EXPECT_FALSE(waiter.IsFinished());
+
+    token = {};
+    UEXPECT_NO_THROW(waiter.Get());
 }
 
 UTEST_MT(WaitTokenStorage, MultipleTokens, 4) {
@@ -63,14 +84,14 @@ UTEST_MT(WaitTokenStorage, MultipleTokens, 4) {
     launcher_tasks.reserve(kLauncherCount);
 
     for (std::size_t i = 0; i < kLauncherCount; ++i) {
-        launcher_tasks.push_back(engine::AsyncNoSpan([&] {
+        launcher_tasks.push_back(engine::AsyncNoTracing([&] {
             // Give all the launcher tasks time to start before the TaskProcessor is
             // clobbered by the detached tasks
             engine::SleepFor(1ms);
 
             for (std::size_t j = 0; j < kWorkersPerLauncher; ++j) {
                 // Note: the token is created in one task and moved into another one
-                engine::DetachUnscopedUnsafe(engine::AsyncNoSpan([&, token = wts.GetToken()] {
+                engine::DetachUnscopedUnsafe(engine::AsyncNoTracing([&, token = wts.GetToken()] {
                     const std::shared_lock allowed_to_finish_lock(allowed_to_finish);
                     ++workers_completed;
                 }));
@@ -99,7 +120,7 @@ UTEST_MT(WaitTokenStorage, TokenReleaseRace, 3) {
         std::atomic<int> allowed_to_finish{false};
 
         auto tasks = utils::GenerateFixedArray(kTokenOwnerCount, [&](std::size_t) {
-            return engine::AsyncNoSpan([&allowed_to_finish, token = wts.GetToken()] {
+            return engine::AsyncNoTracing([&allowed_to_finish, token = wts.GetToken()] {
                 while (!allowed_to_finish) {
                     // Spin.
                 }
@@ -121,11 +142,11 @@ UTEST_MT(WaitTokenStorage, TokenReleaseRace, 3) {
 }
 
 UTEST(WaitTokenStorage, AcquireTokenWhileWaiting) {
-    ASSERT_EQ(GetThreadCount(), 1);
+    ASSERT_EQ(engine::current_task::GetWorkerCount(), 1);
 
     utils::impl::WaitTokenStorage wts;
 
-    auto task = engine::AsyncNoSpan([&, token = wts.GetToken()]() mutable {
+    auto task = engine::AsyncNoTracing([&, token = wts.GetToken()]() mutable {
         engine::SleepFor(10ms);
 
         // WaitForAllTokens is waiting for us at this point, but we need to launch
@@ -151,7 +172,7 @@ UTEST_MT(WaitTokenStorage, SpuriousWakeup, 3) {
     {
         utils::impl::WaitTokenStorage wts1;
         for (std::size_t i = 0; i < kTokenOwnerCount; ++i) {
-            token_owner_tasks.push_back(engine::AsyncNoSpan([token = wts1.GetToken()] {}));
+            token_owner_tasks.push_back(engine::AsyncNoTracing([token = wts1.GetToken()] {}));
         }
 
         wts1.WaitForAllTokens();
@@ -164,7 +185,7 @@ UTEST_MT(WaitTokenStorage, SpuriousWakeup, 3) {
     utils::impl::WaitTokenStorage wts2;
 
     auto token = wts2.GetToken();
-    auto awaiter_task = engine::AsyncNoSpan([&wts2] { wts2.WaitForAllTokens(); });
+    auto awaiter_task = engine::AsyncNoTracing([&wts2] { wts2.WaitForAllTokens(); });
 
     engine::SleepFor(10ms);
     EXPECT_FALSE(awaiter_task.IsFinished());

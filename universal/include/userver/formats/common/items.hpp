@@ -4,6 +4,7 @@
 /// @brief @copybrief formats::common::Items()
 /// @ingroup userver_universal
 
+#include <concepts>
 #include <cstddef>
 #include <iterator>
 #include <string>
@@ -41,6 +42,8 @@ public:
         using pointer = void;
 
         /// @cond
+        Iterator() = default;
+
         explicit Iterator(RawIterator it)
             : it_(std::move(it))
         {}
@@ -66,8 +69,6 @@ public:
         }
 
         bool operator==(const Iterator& other) const { return it_ == other.it_; }
-
-        bool operator!=(const Iterator& other) const { return !(*this == other); }
 
     private:
         RawIterator it_;
@@ -100,17 +101,10 @@ private:
 
 /// @brief Wrapper for handy python-like iteration over a map
 ///
-/// @code
-/// for (const auto& [name, value]: Items(map)) ...
-/// @endcode
+/// @snippet universal/src/formats/common/items_test.cpp  Items const iteration
 ///
 /// To move out values:
-/// @code
-/// for (auto [name, value]: Items(map)) {
-///   vector.push_back(std::move(name));
-///   // value is a const reference and can not be moved
-/// }
-/// @endcode
+/// @snippet universal/src/formats/common/items_test.cpp  Items move values
 ///
 /// ## Example usage:
 ///

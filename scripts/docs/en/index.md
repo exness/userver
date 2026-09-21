@@ -15,7 +15,7 @@ Telegram support chats: [English-speaking](https://t.me/userver_en) |
 [Russian-speaking](https://t.me/userver_ru) | [News channel](https://t.me/userver_news).
 
 
-## Source codes and service templates at github
+## Source code
 
 Samples and the source codes of the framework itself are available at the
 [userver-framework at github](https://github.com/userver-framework/).
@@ -63,8 +63,11 @@ and make sure that it builds and passes tests.
 * @ref scripts/docs/en/userver/tutorial/grpc_middleware_service.md
 * @ref scripts/docs/en/userver/tutorial/postgres_service.md
 * @ref scripts/docs/en/userver/tutorial/mongo_service.md
+* @ref scripts/docs/en/userver/tutorial/scylla_service.md
 * @ref scripts/docs/en/userver/tutorial/redis_service.md
 * @ref scripts/docs/en/userver/tutorial/kafka_service.md
+* @ref scripts/docs/en/userver/tutorial/ydb_service.md
+* @ref scripts/docs/en/userver/tutorial/ydb_topic_writer_service.md
 * @ref scripts/docs/en/userver/tutorial/auth_postgres.md
 * @ref scripts/docs/en/userver/tutorial/digest_auth_postgres.md
 * @ref scripts/docs/en/userver/tutorial/websocket_service.md
@@ -79,7 +82,6 @@ and make sure that it builds and passes tests.
 * @ref scripts/docs/en/userver/component_system.md
     * @ref userver_clients "Clients"
     * @ref userver_http_handlers "HTTP Handlers"
-    * @ref userver_middlewares "HTTP Middlewares"
     * @ref userver_components "Other components"
 * @ref scripts/docs/en/userver/synchronization.md
 * @ref scripts/docs/en/userver/formats.md
@@ -96,6 +98,7 @@ and make sure that it builds and passes tests.
 ## Testing and Benchmarking
 * @ref scripts/docs/en/userver/testing.md
 * @ref scripts/docs/en/userver/functional_testing.md
+    * @ref scripts/docs/en/userver/metrics_migration.md
 * @ref scripts/docs/en/userver/chaos_testing.md
 * @ref scripts/docs/en/userver/profile_context_switches.md
 * @ref scripts/docs/en/userver/gdb_debugging.md
@@ -116,10 +119,12 @@ and make sure that it builds and passes tests.
 * HTTP:
     * @ref clients::http::Client "Client"
     * @ref scripts/docs/en/userver/http_server.md
-* @ref rabbitmq_driver
+    * @ref scripts/docs/en/userver/http_server_middlewares.md
+* @ref scripts/docs/en/userver/rabbitmq_driver.md
 * Low level:
     * @ref engine::io::TlsWrapper "TLS client and server socket"
     * @ref engine::io::Socket "TCP and UDP sockets"
+    * @ref engine::io::PrefixedRw "Prefixed stream wrapper"
     * @ref engine::subprocess::ProcessStarter "Subprocesses"
 
 
@@ -144,21 +149,21 @@ and make sure that it builds and passes tests.
 ## Caches
 * @ref scripts/docs/en/userver/caches.md
 * @ref scripts/docs/en/userver/cache_dumps.md
-* @ref pg_cache
+* @ref scripts/docs/en/userver/pg/cache.md
 * @ref scripts/docs/en/userver/lru_cache.md
 
 
 ## PostgreSQL
-* @ref scripts/docs/en/userver/pg_driver.md
-* @ref pg_transactions
-* @ref pg_run_queries
-* @ref pg_process_results
-* @ref scripts/docs/en/userver/pg_types.md
-* @ref pg_user_row_types
-* @ref pg_errors
-* @ref pg_topology
-* @ref scripts/docs/en/userver/pg_connlimit_mode_auto.md
-* @ref scripts/docs/en/userver/pg_user_types.md
+* @ref scripts/docs/en/userver/pg/driver.md
+* @ref scripts/docs/en/userver/pg/transactions.md
+* @ref scripts/docs/en/userver/pg/run_queries.md
+* @ref scripts/docs/en/userver/pg/process_results.md
+* @ref scripts/docs/en/userver/pg/types.md
+* @ref scripts/docs/en/userver/pg/user_row_types.md
+* @ref scripts/docs/en/userver/pg/errors.md
+* @ref scripts/docs/en/userver/pg/topology.md
+* @ref scripts/docs/en/userver/pg/connlimit_mode_auto.md
+* @ref scripts/docs/en/userver/pg/user_types.md
 
 
 ## MySQL
@@ -187,12 +192,14 @@ and make sure that it builds and passes tests.
 
 ## Non relational databases
 * @ref scripts/docs/en/userver/mongodb.md
+* @ref scripts/docs/en/userver/scylladb.md
 * @ref scripts/docs/en/userver/redis.md
-* @ref clickhouse_driver
+* @ref scripts/docs/en/userver/clickhouse/driver.md
 
 ## Libraries
 * @ref scripts/docs/en/userver/libraries/easy.md
 * @ref scripts/docs/en/userver/libraries/s3api.md
+* @ref scripts/docs/en/userver/libraries/sqs.md
 * @ref scripts/docs/en/userver/libraries/grpc-reflection.md
 * @ref scripts/docs/en/userver/libraries/multi_index_lru.md
 

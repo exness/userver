@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/kafka/rebalance_types.hpp
+/// @brief Kafka consumer rebalance callback types
+
 #include <cstdint>
 #include <functional>
 #include <optional>

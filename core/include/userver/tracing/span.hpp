@@ -147,13 +147,13 @@ public:
 
     /// Returns total time elapsed for a certain scope of this span.
     /// If there is no record for the scope, returns 0.
-    ScopeTime::Duration GetTotalDuration(const std::string& scope_name) const;
+    ScopeTime::Duration GetTotalDuration(std::string_view scope_name) const;
 
     /// Returns total time elapsed for a certain scope of this span.
     /// If there is no record for the scope, returns 0.
     ///
     /// Prefer using Span::GetTotalDuration()
-    ScopeTime::DurationMillis GetTotalElapsedTime(const std::string& scope_name) const;
+    ScopeTime::DurationMillis GetTotalElapsedTime(std::string_view scope_name) const;
 
     /// Add a tag that is used on each logging in this Span and all
     /// future children.
@@ -188,39 +188,30 @@ public:
     /// * nested logs are still written to the logging system;
     /// * they inherit `trace_id`, `link` and `span_id` of the nearest *written* `Span` object;
     /// * tags are still inherited from the *nearest* `Span` even if it is hidden;
-    ///    * this allows to use `Span`s as tag scopes regardless of their tracing purposes.
+    ///    * this allows you to use `Span`s as tag scopes regardless of their tracing purposes.
     ///
     /// Tracing systems use span's log level to highlight `warning` and `error` spans.
     void SetLogLevel(logging::Level log_level);
 
     /// See @ref tracing::Span::SetLogLevel.
-    logging::Level GetLogLevel() const;
+    logging::Level GetLogLevel() const noexcept;
 
-    /// @brief Sets an additional cutoff for the logs written in the scope of this `Span`,
-    /// and in nested scopes recursively.
+    /// @brief Sets the log level for the scope of this `Span` and nested scopes recursively.
+    ///
+    /// Overrides the global log level in both directions: can raise the threshold
+    /// (suppress logs) or lower it (enable debug logs even if the global level is higher).
     ///
     /// For example, if the global log level is `info`, and the current `Span` has
-    /// (own or inherited) local log level `warning`, then all `LOG_INFO`s within the current
-    /// scope will be thrown away.
+    /// local log level `debug`, then all `LOG_DEBUG`s within the current scope will be written.
     ///
     /// The cutoff also applies to the span itself. If the @ref tracing::Span::SetLogLevel "span's log level"
     /// is less than the local log level, then the span is not written to the tracing system.
     ///
     /// Local log level of child spans can override local log level of parent spans in both directions.
-    /// For example:
-    /// * if local log level of a parent `Span` is `warning`,
-    /// * and local log level of a child span is set `info`,
-    /// * then `info` logs within that `Span` will be written,
-    /// * as long as the global log level is not higher than `info`.
-    ///
-    /// Currently, local log level cannot override the global log level of the logger.
-    /// For example, if the global log level is `info`, and the current `Span` has
-    /// (own or inherited) local log level `debug`, then all `LOG_DEBUG`s within the current
-    /// scope will **still** be thrown away.
-    void SetLocalLogLevel(std::optional<logging::Level> log_level);
+    void SetLocalLogLevel(std::optional<logging::Level> log_level) noexcept;
 
     /// See @ref tracing::Span::SetLocalLogLevel.
-    std::optional<logging::Level> GetLocalLogLevel() const;
+    std::optional<logging::Level> GetLocalLogLevel() const noexcept;
 
     /// Set link - a request ID within a service. Can be called only once.
     ///
@@ -237,54 +228,69 @@ public:
     ///
     /// Propagates within a single service, but not from client to server. A new
     /// link is generated for the "root" request handling task.
-    std::string_view GetLink() const;
+    std::string_view GetLink() const noexcept;
 
     /// Set parent link - request ID of the upstream service. Can only be called once.
     ///
     /// Propagates within a single service.
-    std::string_view GetParentLink() const;
+    std::string_view GetParentLink() const noexcept;
 
     /// An ID of the request that does not change from service to service.
     ///
     /// Propagates both to sub-spans within a single service, and from client
     /// to server
-    std::string_view GetTraceId() const;
+    std::string_view GetTraceId() const noexcept;
 
     /// Identifies a specific span. It does not propagate.
-    std::string_view GetSpanId() const;
+    std::string_view GetSpanId() const noexcept;
 
     /// Span ID of the nearest loggable parent span, or empty string if none exists.
-    std::string_view GetParentId() const;
+    std::string_view GetParentId() const noexcept;
 
     /// Span ID of the nearest loggable span within the span chain, including the current span.
     /// If the current span and all parent spans will not be logged, returns `std::nullopt`.
-    std::optional<std::string_view> GetSpanIdForChildLogs() const;
+    std::optional<std::string_view> GetSpanIdForChildLogs() const noexcept;
 
     /// Get name the Span was created with
-    std::string_view GetName() const;
+    std::string_view GetName() const noexcept;
 
     /// @returns true if this span would be logged with the current local and
     /// global log levels to the default logger.
     bool ShouldLogDefault() const noexcept;
 
+    /// @returns true if this span is sampled. Defaults to true for root spans
+    /// and when the incoming sampled status is unknown. Unsampled spans are not
+    /// written to the tracing system. Inherited by child spans.
+    bool IsSampled() const noexcept;
+
+    /// Mark this span and all future child spans as sampled or unsampled.
+    /// Unsampled spans are not written to the tracing system.
+    ///
+    /// Called automatically by userver handler implementations when OTel trace
+    /// sampling is enabled (see `otel-trace-sampling-enabled` in
+    /// tracing::DefaultTracingManagerLocator). Can
+    /// also be called manually in periodics and other primary sources of a
+    /// request chain to control the fraction of traces written.
+    void SetSampled(bool sampled) noexcept;
+
     /// Detach the Span from current engine::Task so it is not
     /// returned by CurrentSpan() any more.
-    void DetachFromCoroStack();
+    void DetachFromCoroStack() noexcept;
 
     /// Attach the Span to current engine::Task so it is returned
     /// by CurrentSpan().
     void AttachToCoroStack();
 
-    std::chrono::system_clock::time_point GetStartSystemTime() const;
+    std::chrono::system_clock::time_point GetStartSystemTime() const noexcept;
 
-    std::chrono::steady_clock::time_point GetStartSteadyTime() const;
+    std::chrono::steady_clock::time_point GetStartSteadyTime() const noexcept;
 
     /// @cond
     // For internal use only.
     void AddTags(const logging::LogExtra&, utils::impl::InternalTag);
 
     // For internal use only.
-    impl::TimeStorage& GetTimeStorage(utils::impl::InternalTag);
+    impl::TimeStorage& GetTimeStorage(utils::impl::InternalTag) noexcept;
 
     // For internal use only.
     void LogTo(utils::impl::InternalTag, logging::impl::TagWriter writer) const;
@@ -299,7 +305,7 @@ private:
         static OptionalDeleter DoNotDelete() noexcept;
 
     private:
-        explicit OptionalDeleter(bool do_delete)
+        constexpr explicit OptionalDeleter(bool do_delete) noexcept
             : do_delete_(do_delete)
         {}
 

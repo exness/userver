@@ -3,12 +3,17 @@
 /// @file userver/fs/blocking/file_descriptor.hpp
 /// @brief @copybrief fs::blocking::FileDescriptor
 
-#include <string>
+#include <span>
 #include <string_view>
 
 #include <userver/utils/boost_filesystem_file_status.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 #include <userver/fs/blocking/open_mode.hpp>
+
+extern "C" {
+struct iovec;
+}
 
 USERVER_NAMESPACE_BEGIN
 
@@ -24,7 +29,7 @@ public:
     /// @brief Open a file using `::open`
     /// @throws std::runtime_error
     static FileDescriptor Open(
-        const std::string& path,
+        utils::zstring_view path,
         OpenMode flags,
         boost::filesystem::perms perms = boost::filesystem::perms::owner_read | boost::filesystem::perms::owner_write
     );
@@ -32,7 +37,7 @@ public:
     /// @brief Open a directory node
     /// @note The only valid operation for such a `FileDescriptor` is `FSync`.
     /// @throws std::runtime_error
-    static FileDescriptor OpenDirectory(const std::string& path);
+    static FileDescriptor OpenDirectory(utils::zstring_view path);
 
     /// @brief Use the file descriptor directly
     static FileDescriptor AdoptFd(int fd) noexcept;
@@ -50,29 +55,32 @@ public:
 
     /// @brief Checks if the file is open
     /// @note Operations can only be performed on an open `FileDescriptor`.
-    bool IsOpen() const;
+    bool IsOpen() const noexcept;
 
     /// @brief Closes the file manually
     /// @throws std::runtime_error
     void Close() &&;
 
     /// Returns the native file handle
-    int GetNative() const;
+    int GetNative() const noexcept;
 
     /// Passes the ownership of the file descriptor to the caller
     int Release() &&;
 
     /// @brief Writes data to the file
-    /// @warning Unless `FSync` is called, there is no guarantee the data
-    /// is stored on disk safely.
+    /// @warning Unless `FSync` is called, there is no guarantee the data is stored on disk safely.
     /// @throws std::runtime_error
     void Write(std::string_view contents);
 
-    /// @brief Reads data from the file at current offset
-    /// @returns The amount of bytes actually acquired, which can be equal
-    /// to `max_size`, or less on end-of-file
+    /// @brief Writes data to the file, has no IOV_MAX limits on contents.size()
+    /// @warning Unless `FSync` is called, there is no guarantee the data is stored on disk safely.
     /// @throws std::runtime_error
-    std::size_t Read(char* buffer, std::size_t max_size);
+    void Write(std::span<const struct iovec> contents);
+
+    /// @brief Reads data from the file at current offset
+    /// @returns The amount of bytes actually acquired, which can be equal to `max_size`, or less on end-of-file
+    /// @throws std::runtime_error
+    std::size_t Read(std::span<char> buffer);
 
     /// @brief Sets the file read/write offset from the beginning of the file
     /// @throws std::runtime_error

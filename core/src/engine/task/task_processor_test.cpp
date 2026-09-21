@@ -1,9 +1,20 @@
 #include <engine/task/task_processor.hpp>
 
+#include <atomic>
+#include <chrono>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include <engine/task/task_context.hpp>
 #include <engine/task/task_processor_config.hpp>
 #include <userver/engine/async.hpp>
+#include <userver/engine/impl/task_context_factory.hpp>
+#include <userver/engine/impl/task_context_holder.hpp>
 #include <userver/engine/run_standalone.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/engine/task/cancel.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/engine/task/task_base.hpp>
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/utest/utest.hpp>
@@ -22,7 +33,7 @@ UTEST(TaskProcessor, Overload) {
     tasks.reserve(kCreatedTasksCount);
 
     for (size_t i = 0; i < kCreatedTasksCount; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([]() {}));
+        tasks.push_back(engine::AsyncNoTracing([]() {}));
     }
 
     std::size_t canceled_tasks_count{0};
@@ -42,7 +53,7 @@ UTEST(TaskProcessor, Overload) {
     // Once the queue size goes down, new tasks should stop being cancelled.
     // This is achieved by updating queue size on every Schedule while overloaded.
     for (std::size_t i = 0; i < 10; ++i) {
-        auto task = engine::AsyncNoSpan([]() {});
+        auto task = engine::AsyncNoTracing([]() {});
         task.Wait();
         EXPECT_EQ(task.GetState(), engine::Task::State::kCompleted);
     }
@@ -54,7 +65,7 @@ UTEST_MT(TaskProcessor, MetricsAliveAndRunning, 2) {
     EXPECT_EQ(task_counter.GetRunningTasks(), 1);
 
     std::atomic<bool> ready{false};
-    auto task = engine::AsyncNoSpan([&ready] {
+    auto task = engine::AsyncNoTracing([&ready] {
         ready = true;
         // wait until end of test
         while (ready) {
@@ -77,6 +88,33 @@ UTEST_MT(TaskProcessor, MetricsAliveAndRunning, 2) {
     }
 
     EXPECT_EQ(task_counter.GetRunningTasks(), 1);
+}
+
+UTEST(TaskProcessor, CancellationBeforeBootstrapQueuesOnlyOnce) {
+    auto& processor = engine::current_task::GetTaskProcessor();
+    const auto queued_before = processor.GetTaskQueueSize();
+    auto holder = engine::impl::MakeTask({}, [] { FAIL() << "Cancelled task ran"; });
+    auto context = std::move(holder).Extract();
+    context->RequestCancel(engine::TaskCancellationReason::kUserRequest);
+    auto task = engine::TaskWithResult<void>{engine::impl::TaskContextHolder{std::move(context)}};
+
+    EXPECT_EQ(processor.GetTaskQueueSize(), queued_before + 1);
+    UEXPECT_THROW(task.Get(), engine::TaskCancelledException);
+}
+
+UTEST(TaskProcessor, CriticalTaskCancelledBeforeBootstrapQueuesOnlyOnce) {
+    auto& processor = engine::current_task::GetTaskProcessor();
+    const auto queued_before = processor.GetTaskQueueSize();
+    auto holder = engine::impl::MakeTask({.importance = engine::Task::Importance::kCritical}, [] {
+        EXPECT_TRUE(engine::current_task::ShouldCancel());
+        return 42;
+    });
+    auto context = std::move(holder).Extract();
+    context->RequestCancel(engine::TaskCancellationReason::kUserRequest);
+    auto task = engine::TaskWithResult<int>{engine::impl::TaskContextHolder{std::move(context)}};
+
+    EXPECT_EQ(processor.GetTaskQueueSize(), queued_before + 1);
+    EXPECT_EQ(task.Get(), 42);
 }
 
 USERVER_NAMESPACE_END

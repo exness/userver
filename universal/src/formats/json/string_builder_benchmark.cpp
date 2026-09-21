@@ -32,7 +32,7 @@ Value Build(int level) {
 void JsonSerialize(benchmark::State& state) {
     for ([[maybe_unused]] auto _ : state) {
         auto json = Build(state.range(0));
-        const auto res = ToString(json);
+        auto res = ToString(json);
         benchmark::DoNotOptimize(res);
     }
 }

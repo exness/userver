@@ -65,7 +65,7 @@ bool IsTestpointEnabled(std::string_view name) noexcept {
         return std::visit(
             utils::Overloaded{
                 [](const EnableAll&) { return true; },
-                [&](const EnableOnly& names) { return utils::impl::FindTransparent(names, name) != names.end(); }
+                [&](const EnableOnly& names) { return names.find(name) != names.end(); }
             },
             *enabled_names
         );
@@ -87,6 +87,7 @@ void ExecuteTestpointCoro(
     }
 
     const utils::trx_tracker::CheckDisabler disabler;
+    const engine::TaskCancellationBlocker task_cancellation_blocker;
     const server::request::DeadlinePropagationBlocker deadline_propagation_blocker;
     tp_scope.GetClient().Execute(name, json, callback);
 }
@@ -97,8 +98,13 @@ void ExecuteTestpointBlocking(
     TestpointClientBase::Callback callback,
     engine::TaskProcessor& task_processor
 ) {
-    auto task =
-        engine::CriticalAsyncNoSpan(task_processor, ExecuteTestpointCoro, name, std::cref(json), std::cref(callback));
+    auto task = engine::CriticalAsyncNoTracing(
+        task_processor,
+        ExecuteTestpointCoro,
+        name,
+        std::cref(json),
+        std::cref(callback)
+    );
     task.BlockingWait();
     task.Get();
 }

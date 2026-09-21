@@ -1,6 +1,8 @@
 #include <userver/testsuite/cache_control.hpp>
 
 #include <optional>
+#include <string_view>
+#include <unordered_map>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -17,15 +19,22 @@
 #include <userver/testsuite/testpoint.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/tracing/span.hpp>
-#include <userver/utils/algo.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
 #include <userver/utils/impl/intrusive_link_mode.hpp>
+#include <userver/utils/resource_scopes.hpp>
+#include <userver/utils/task_builder.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace testsuite {
 
-constexpr std::string_view kKnownReverseDependency = components::DynamicConfigClientUpdater::kName;
+namespace impl {
+
+CacheReverseDependencies GetDefaultCacheReverseDependencies() {
+    return {std::string{components::DynamicConfigClientUpdater::kName}};
+}
+
+}  // namespace impl
 
 struct CacheControl::CacheInfoNode final {
     CacheInfoNode() = default;
@@ -55,6 +64,14 @@ public:
         return node.dependencies.count(other.Name());
     }
 
+    void WaitForPreviousSameName(const CacheResetJob& previous) const {
+        UASSERT(Name() == previous.Name());
+        if (!previous.task.IsFinished()) {
+            LOG_DEBUG() << Name() << " cache update waits for previous same-name resetter";
+            previous.task.Wait();
+        }
+    }
+
     void WaitIfDependsOn(const CacheResetJob& other, components::State state) {
         if (&node == &other.node) {
             return;  // Cache can not depend on itself
@@ -68,12 +85,19 @@ public:
 
     CacheInfoNode& node;
     engine::SharedTaskWithResult<void> task{};
+    std::optional<std::size_t> previous_same_name_job;
 };
 
 struct CacheControl::Impl final {
-    Impl(impl::PeriodicUpdatesMode mode, ExecPolicy policy, std::optional<components::State> components_state)
+    Impl(
+        impl::PeriodicUpdatesMode mode,
+        ExecPolicy policy,
+        std::optional<components::State> components_state,
+        impl::CacheReverseDependencies reverse_dependencies
+    )
         : periodic_updates_mode(mode),
           execution_policy(policy),
+          reverse_dependencies(std::move(reverse_dependencies)),
           state(components_state)
     {
         UASSERT(execution_policy == ExecPolicy::kSequential || components_state);
@@ -90,16 +114,23 @@ struct CacheControl::Impl final {
 
     const impl::PeriodicUpdatesMode periodic_updates_mode;
     const ExecPolicy execution_policy;
+    const impl::CacheReverseDependencies reverse_dependencies;
     std::optional<components::State> state;
     concurrent::Variable<List> caches{};
 };
 
 CacheControl::CacheControl(impl::PeriodicUpdatesMode mode, UnitTests)
-    : impl_(std::make_unique<Impl>(mode, ExecPolicy::kSequential, std::nullopt))
+    : impl_(std::make_unique<
+            Impl>(mode, ExecPolicy::kSequential, std::nullopt, impl::GetDefaultCacheReverseDependencies()))
 {}
 
-CacheControl::CacheControl(impl::PeriodicUpdatesMode mode, ExecPolicy execution_policy, components::State state)
-    : impl_(std::make_unique<Impl>(mode, execution_policy, state))
+CacheControl::CacheControl(
+    impl::PeriodicUpdatesMode mode,
+    ExecPolicy execution_policy,
+    components::State state,
+    impl::CacheReverseDependencies reverse_dependencies
+)
+    : impl_(std::make_unique<Impl>(mode, execution_policy, std::move(state), std::move(reverse_dependencies)))
 {}
 
 CacheControl::~CacheControl() = default;
@@ -170,9 +201,26 @@ CacheResetRegistration CacheControl::RegisterPeriodicCache(cache::CacheUpdateTra
     return CacheResetRegistration(*this, std::move(iter));
 }
 
+CacheResetRegistration CacheControl::RegisterCache(
+    utils::impl::InternalTag,
+    std::string_view name,
+    std::function<void(cache::UpdateType)> reset
+) {
+    UASSERT(reset);
+
+    CacheInfo info{
+        .name = std::string{name},
+        .reset = std::move(reset),
+        .needs_span = true,
+    };
+
+    auto iter = DoRegisterCache(std::move(info));
+    return CacheResetRegistration(*this, std::move(iter));
+}
+
 void CacheControl::DoResetCaches(
     cache::UpdateType update_type,
-    std::unordered_set<std::string>* reset_only_names,
+    const std::unordered_set<std::string>* reset_only_names,
     const std::unordered_set<std::string>& force_incremental_names,
     const std::unordered_set<std::string>* exclude_names
 ) {
@@ -183,34 +231,47 @@ void CacheControl::DoResetCaches(
     // No concurrent updates for unit tests as we have no access to
     // component system in mocked environments.
     UASSERT(!(exclude_names && reset_only_names));
+    std::unordered_set<std::string> names_left_to_encounter;
+    if (reset_only_names) {
+        names_left_to_encounter = *reset_only_names;
+    }
+
     switch (impl_->execution_policy) {
         case ExecPolicy::kSequential: {
             auto caches = impl_->caches.Lock();
             for (auto& node : *caches) {
-                if (exclude_names && exclude_names->count(node.info.name)) {
+                if (exclude_names && exclude_names->contains(node.info.name)) {
                     continue;
                 }
-                if (reset_only_names && !reset_only_names->erase(node.info.name)) {
+                if (reset_only_names && !reset_only_names->contains(node.info.name)) {
                     continue;
                 }
+                names_left_to_encounter.erase(node.info.name);
 
                 DoResetSingleCache(node.info, update_type, force_incremental_names);
             }
         } break;
         case ExecPolicy::kConcurrent:
-            DoResetCachesConcurrently(update_type, reset_only_names, force_incremental_names, exclude_names);
+            DoResetCachesConcurrently(
+                update_type,
+                reset_only_names,
+                names_left_to_encounter,
+                force_incremental_names,
+                exclude_names
+            );
             break;
     }
 
     UINVARIANT(
-        !reset_only_names || reset_only_names->empty(),
-        fmt::format("Some of the requested caches do not exist: {}", fmt::join(*reset_only_names, ", "))
+        names_left_to_encounter.empty(),
+        fmt::format("Some of the requested caches do not exist: {}", fmt::join(names_left_to_encounter, ", "))
     );
 }
 
 void CacheControl::DoResetCachesConcurrently(
     cache::UpdateType update_type,
-    std::unordered_set<std::string>* reset_only_names,
+    const std::unordered_set<std::string>* reset_only_names,
+    std::unordered_set<std::string>& names_left_to_encounter,
     const std::unordered_set<std::string>& force_incremental_names,
     const std::unordered_set<std::string>* exclude_names
 ) {
@@ -222,37 +283,51 @@ void CacheControl::DoResetCachesConcurrently(
     engine::SharedMutex tasks_init_mutex;  // should go before async_jobs
     std::vector<CacheResetJob> async_jobs;
     async_jobs.reserve(reset_only_names ? reset_only_names->size() : caches->size());
+    std::unordered_map<std::string_view, std::size_t> last_job_by_name;
+    last_job_by_name.reserve(async_jobs.capacity());
     UASSERT(!(exclude_names && reset_only_names));
     for (auto& node : *caches) {
-        if (exclude_names && exclude_names->count(node.info.name)) {
+        if (exclude_names && exclude_names->contains(node.info.name)) {
             continue;
         }
-        if (reset_only_names && !reset_only_names->erase(node.info.name)) {
+        if (reset_only_names && !reset_only_names->contains(node.info.name)) {
             continue;
         }
+        names_left_to_encounter.erase(node.info.name);
 
-        if (node.info.name == kKnownReverseDependency) {
+        if (impl_->reverse_dependencies.contains(node.info.name)) {
             DoResetSingleCache(node.info, update_type, force_incremental_names);
         } else {
             async_jobs.emplace_back(node);
+            const auto job_index = async_jobs.size() - 1;
+            if (auto [it, inserted] = last_job_by_name.try_emplace(node.info.name, job_index); !inserted) {
+                async_jobs.back().previous_same_name_job = it->second;
+                it->second = job_index;
+            }
         }
     }
 
     {
         const std::lock_guard lock{tasks_init_mutex};
         for (std::size_t i = 0; i < async_jobs.size(); ++i) {
-            async_jobs[i].task = engine::SharedAsyncNoSpan(
-                [i, &async_jobs, &tasks_init_mutex, &force_incremental_names, update_type, state] {
-                    const std::shared_lock lock{tasks_init_mutex};
+            async_jobs[i].task =
+                utils::TaskBuilder{}
+                    .NoTracing()
+                    .Background()
+                    .BuildShared([i, &async_jobs, &tasks_init_mutex, &force_incremental_names, update_type, state] {
+                        const std::shared_lock lock{tasks_init_mutex};
 
-                    auto& job = async_jobs[i];
-                    for (auto& other_job : async_jobs) {
-                        job.WaitIfDependsOn(other_job, state);
-                    }
+                        auto& job = async_jobs[i];
+                        if (job.previous_same_name_job.has_value()) {
+                            job.WaitForPreviousSameName(async_jobs[job.previous_same_name_job.value()]);
+                        } else {
+                            for (auto& other_job : async_jobs) {
+                                job.WaitIfDependsOn(other_job, state);
+                            }
+                        }
 
-                    DoResetSingleCache(job.node.info, update_type, force_incremental_names);
-                }
-            );
+                        DoResetSingleCache(job.node.info, update_type, force_incremental_names);
+                    });
         }
     }
 
@@ -268,7 +343,6 @@ void CacheControl::DoResetCachesConcurrently(
 }
 
 auto CacheControl::DoRegisterCache(CacheInfo&& info) -> CacheInfoIterator {
-    // TODO: same component could be added more than once
     auto node = std::make_unique<CacheInfoNode>();
     node->info = std::move(info);
 
@@ -317,6 +391,18 @@ void CacheResetRegistration::Unregister() noexcept {
         cache_control_ = nullptr;
     }
 }
+
+namespace impl {
+
+void DoRegisterCacheScope(const components::ComponentContext& context, std::function<void(cache::UpdateType)> reset) {
+    auto& cc = testsuite::FindCacheControl(context);
+    auto name = std::string{components::GetCurrentComponentName(context)};
+    context.Scopes().Register([&cc, name = std::move(name), reset = std::move(reset)]() mutable {
+        return cc.RegisterCache(utils::impl::InternalTag{}, name, std::move(reset));
+    });
+}
+
+}  // namespace impl
 
 CacheControl& FindCacheControl(const components::ComponentContext& context) {
     return context.FindComponent<components::TestsuiteSupport>().GetCacheControl();

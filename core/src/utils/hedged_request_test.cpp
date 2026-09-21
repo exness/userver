@@ -32,7 +32,7 @@ struct TestFuture {
     {}
     TestFuture(TestFuture&&) noexcept = default;
     std::string Get() { return task.Get(); }
-    auto* TryGetContextAccessor() { return task.TryGetContextAccessor(); }
+    engine::AwaitableToken GetAwaitableToken() USERVER_IMPL_LIFETIME_BOUND { return task.GetAwaitableToken(); }
 
     engine::TaskWithResult<std::string> task;
     size_t attempt{0};

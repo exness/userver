@@ -4,7 +4,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::clickhouse::impl {
 
-BlockWrapper::BlockWrapper(clickhouse_cpp::Block&& block)
+BlockWrapper::BlockWrapper(clickhouse_cpp::Block block)
     : native_{std::move(block)}
 {}
 

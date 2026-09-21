@@ -10,18 +10,23 @@
 #include <type_traits>
 #include <utility>
 
-#include <fmt/format.h>
-#include <userver/utils/fmt_compat.hpp>
-
-#include <boost/functional/hash_fwd.hpp>
-
 #include <userver/compiler/impl/lifetime.hpp>
 #include <userver/formats/common/meta.hpp>
+#include <userver/utils/fmt_compat.hpp>
 #include <userver/utils/meta.hpp>
 #include <userver/utils/strong_typedef_fwd.hpp>
 #include <userver/utils/underlying_value.hpp>
-#include <userver/utils/void_t.hpp>
 
+// clang-format off
+#include <fmt/format.h>
+#include <boost/functional/hash_fwd.hpp>
+// clang-format on
+
+namespace boost::uuids {
+struct uuid;
+}
+
+/// @brief GoogleTest-related helpers used from headers in test-only paths.
 namespace testing {
 
 template <typename T>
@@ -48,14 +53,15 @@ constexpr auto operator|(StrongTypedefOps op1, StrongTypedefOps op2) noexcept {
 // Helpers
 namespace impl::strong_typedef {
 
-template <class T, class /*Enable*/ = void_t<>>
+template <class T>
 struct InitializerListImpl {
     struct DoNotMatch;
     using type = DoNotMatch;
 };
 
 template <class T>
-struct InitializerListImpl<T, void_t<typename T::value_type>> {
+requires requires { typename T::value_type; }
+struct InitializerListImpl<T> {
     using type = std::initializer_list<typename T::value_type>;
 };
 
@@ -94,7 +100,9 @@ const auto& UnwrapIfStrongTypedef(const T& value) {
 // For 'std::string', begin-end methods are not forwarded, because otherwise
 // it might get serialized as an array.
 template <typename T>
-concept Range = meta::kIsRange<T> && !meta::kIsInstantiationOf<std::basic_string, std::remove_const_t<T>>;
+concept Range =
+    meta::IsRange<T> && !meta::IsInstantiationOf<std::remove_const_t<T>, std::basic_string> &&
+    !meta::IsRecursiveRange<T> && !std::is_same_v<boost::uuids::uuid, std::remove_const_t<T>>;
 
 template <typename T>
 constexpr void CheckIfAllowsLogging() {
@@ -129,22 +137,13 @@ constexpr bool IsStrongToStrongConversion() noexcept {
 /// @brief Strong typedef for a type T.
 ///
 /// Typical usage:
-/// @code
-///   using MyString = utils::StrongTypedef<class MyStringTag, std::string>;
-/// @endcode
-///
-/// Or:
-/// @code
-///   struct MyString final : utils::StrongTypedef<MyString, std::string> {
-///     using StrongTypedef::StrongTypedef;
-///   };
-/// @endcode
+/// @snippet universal/src/utils/strong_typedef_test.cpp  StrongTypedef typical usage
 ///
 /// Has all the:
 /// * comparison (see "Operators" below)
 /// * hashing
 /// * streaming operators
-/// * optimizaed logging for LOG_XXX()
+/// * optimized logging for LOG_XXX()
 ///
 /// If used with container-like type also has common STL functions:
 /// * begin()
@@ -161,11 +160,11 @@ constexpr bool IsStrongToStrongConversion() noexcept {
 ///   argument of type StrongTypedefOps. See its docs for more info.
 template <class Tag, class T, StrongTypedefOps Ops>
 class StrongTypedef : public impl::strong_typedef::StrongTypedefTag {
-    static_assert(!std::is_reference<T>::value);
-    static_assert(!std::is_pointer<T>::value);
+    static_assert(!std::is_reference_v<T>);
+    static_assert(!std::is_pointer_v<T>);
 
-    static_assert(!std::is_reference<Tag>::value);
-    static_assert(!std::is_pointer<Tag>::value);
+    static_assert(!std::is_reference_v<Tag>);
+    static_assert(!std::is_pointer_v<Tag>);
 
 public:
     using UnderlyingType = T;
@@ -184,7 +183,7 @@ public:
 
     template <typename... Args>
     requires std::is_constructible_v<T, Args...>
-    explicit constexpr StrongTypedef(Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)))
+    constexpr explicit StrongTypedef(Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)))
         : data_(std::forward<Args>(args)...)
     {
         using impl::strong_typedef::IsStrongToStrongConversion;
@@ -195,9 +194,9 @@ public:
         );
     }
 
-    explicit constexpr operator const T&() const& noexcept USERVER_IMPL_LIFETIME_BOUND { return data_; }
-    explicit constexpr operator T() && noexcept { return std::move(data_); }
-    explicit constexpr operator T&() & noexcept USERVER_IMPL_LIFETIME_BOUND { return data_; }
+    constexpr explicit operator const T&() const& noexcept USERVER_IMPL_LIFETIME_BOUND { return data_; }
+    constexpr explicit operator T() && noexcept { return std::move(data_); }
+    constexpr explicit operator T&() & noexcept USERVER_IMPL_LIFETIME_BOUND { return data_; }
 
     constexpr const T& GetUnderlying() const& noexcept USERVER_IMPL_LIFETIME_BOUND { return data_; }
     constexpr T GetUnderlying() && noexcept { return std::move(data_); }
@@ -240,7 +239,7 @@ public:
     }
 
     auto size() const
-    requires meta::kIsSizable<T>
+    requires meta::IsSizable<T>
     {
         return std::size(data_);
     }
@@ -290,6 +289,9 @@ private:
         }                                                                                         \
     }
 
+// Replacing std::enable_if_t with constraints leads to the return type always being computed,
+// which results in infinite recursion for non-StrongTypedef types.
+// NOLINTBEGIN(modernize-use-constraints)
 UTILS_STRONG_TYPEDEF_REL_OP(==)
 UTILS_STRONG_TYPEDEF_REL_OP(!=)
 UTILS_STRONG_TYPEDEF_REL_OP(<)
@@ -297,6 +299,7 @@ UTILS_STRONG_TYPEDEF_REL_OP(>)
 UTILS_STRONG_TYPEDEF_REL_OP(<=)
 UTILS_STRONG_TYPEDEF_REL_OP(>=)
 UTILS_STRONG_TYPEDEF_REL_OP(<=>)
+// NOLINTEND(modernize-use-constraints)
 
 #undef UTILS_STRONG_TYPEDEF_REL_OP
 
@@ -329,7 +332,7 @@ constexpr bool IsStrongTypedefLoggable(StrongTypedefOps ops) { return !(ops & St
 
 // Serialization
 
-template <impl::strong_typedef::IsStrongTypedef T, formats::common::kIsFormatValue Value>
+template <impl::strong_typedef::IsStrongTypedef T, formats::common::IsFormatValue Value>
 T Parse(const Value& source, formats::parse::To<T>) {
     return T{source.template As<typename T::UnderlyingType>()};
 }
@@ -352,13 +355,13 @@ std::string ToString(const StrongTypedef<Tag, std::string, Ops>& object) {
     return object.GetUnderlying();
 }
 
-template <typename Tag, typename T, StrongTypedefOps Ops, std::enable_if_t<meta::kIsInteger<T>, bool> = true>
+template <typename Tag, meta::IsInteger T, StrongTypedefOps Ops>
 std::string ToString(const StrongTypedef<Tag, T, Ops>& object) {
     impl::strong_typedef::CheckIfAllowsLogging<StrongTypedef<Tag, std::string, Ops>>();
     return std::to_string(object.GetUnderlying());
 }
 
-template <typename Tag, typename T, StrongTypedefOps Ops, std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+template <typename Tag, std::floating_point T, StrongTypedefOps Ops>
 std::string ToString(const StrongTypedef<Tag, T, Ops>& object) {
     impl::strong_typedef::CheckIfAllowsLogging<StrongTypedef<Tag, std::string, Ops>>();
     return fmt::to_string(object.GetUnderlying());
@@ -405,7 +408,7 @@ void PrintTo(const StrongTypedef<Tag, T, Ops>& v, std::ostream* os) {
 /// A StrongTypedef for data that MUST NOT be logged or outputted in some other
 /// way. Also prevents the data from appearing in backtrace prints of debugger.
 ///
-/// @snippet storages/secdist/secdist_test.cpp UserPasswords
+/// @snippet core/src/storages/secdist/secdist_test.cpp UserPasswords
 template <class Tag, class T>
 using NonLoggable = StrongTypedef<Tag, T, StrongTypedefOps::kCompareStrong | StrongTypedefOps::kNonLoggable>;
 
@@ -424,6 +427,7 @@ struct std::hash<USERVER_NAMESPACE::utils::StrongTypedef<Tag, T, Ops>> : std::ha
 
 // fmt::format support
 template <USERVER_NAMESPACE::utils::impl::strong_typedef::IsStrongTypedef T, class Char>
+requires(!USERVER_NAMESPACE::utils::impl::strong_typedef::Range<T>)
 struct fmt::formatter<T, Char> : fmt::formatter<typename T::UnderlyingType, Char> {
     template <typename FormatContext>
     auto format(const T& v, FormatContext& ctx) USERVER_FMT_CONST {

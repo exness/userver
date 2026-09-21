@@ -1,12 +1,12 @@
 #pragma once
 
-/// @file
+/// @file userver/utils/zstring_view.hpp
 /// @brief @copybrief utils::zstring_view
 /// @ingroup userver_universal
 
+#include <concepts>
 #include <string>
 #include <string_view>
-#include <type_traits>
 
 #include <fmt/format.h>
 
@@ -48,6 +48,17 @@ public:
         return zstring_view{str, len};
     }
 
+    friend constexpr auto operator<=>(zstring_view lhs, zstring_view rhs) noexcept = default;
+
+    friend constexpr auto operator<=>(zstring_view lhs, const std::convertible_to<std::string_view> auto& rhs)
+        noexcept {
+        return std::string_view{lhs} <=> std::string_view{rhs};
+    }
+
+    friend constexpr bool operator==(zstring_view lhs, const std::convertible_to<std::string_view> auto& rhs) noexcept {
+        return std::string_view{lhs} == std::string_view{rhs};
+    }
+
 private:
     constexpr zstring_view(const char* str, std::size_t len) noexcept : std::string_view{str, len} {
 #ifndef NDEBUG
@@ -61,6 +72,11 @@ private:
 template <class Value>
 Value Serialize(zstring_view view, formats::serialize::To<Value>) {
     return typename Value::Builder(std::string_view{view}).ExtractValue();
+}
+
+template <typename StringBuilder>
+void WriteToStream(zstring_view view, StringBuilder& sw) {
+    WriteToStream(std::string_view{view}, sw);
 }
 
 }  // namespace utils

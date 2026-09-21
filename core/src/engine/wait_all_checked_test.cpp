@@ -4,6 +4,7 @@
 #include <userver/engine/future.hpp>
 #include <userver/engine/single_consumer_event.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/engine/wait_all_checked.hpp>
 #include <userver/utest/stress.hpp>
 #include <userver/utils/impl/userver_experiments.hpp>
@@ -16,7 +17,7 @@ USERVER_NAMESPACE_BEGIN
 namespace {
 
 engine::TaskWithResult<void> SlowSuccessfulTask() {
-    return engine::AsyncNoSpan([] {
+    return engine::AsyncNoTracing([] {
         engine::InterruptibleSleepFor(utest::kMaxTestWaitTime);
         engine::current_task::CancellationPoint();
         FAIL() << "This task should have been cancelled";
@@ -24,18 +25,18 @@ engine::TaskWithResult<void> SlowSuccessfulTask() {
 }
 
 engine::TaskWithResult<void> FastFailingTask() {
-    return engine::AsyncNoSpan([] {
+    return engine::AsyncNoTracing([] {
         engine::InterruptibleSleepFor(20ms);
         throw std::runtime_error{"failfast_exception"};
     });
 }
 
 engine::TaskWithResult<void> FastSuccessfulTask() {
-    return engine::AsyncNoSpan([] { engine::InterruptibleSleepFor(20ms); });
+    return engine::AsyncNoTracing([] { engine::InterruptibleSleepFor(20ms); });
 }
 
 engine::TaskWithResult<int> FastSuccessfulTask(int i) {
-    return engine::AsyncNoSpan([i] {
+    return engine::AsyncNoTracing([i] {
         engine::InterruptibleSleepFor(20ms);
         return i;
     });
@@ -43,15 +44,7 @@ engine::TaskWithResult<int> FastSuccessfulTask(int i) {
 
 }  // namespace
 
-class WaitAllChecked : public ::testing::Test {
-public:
-    void SetUp() override { scope_.Set(utils::impl::kWaitAllCheckedUpgradeExperiment, true); }
-
-private:
-    utils::impl::UserverExperimentsScope scope_;
-};
-
-UTEST_F(WaitAllChecked, JustWorksVectorTasks) {
+UTEST(WaitAllChecked, JustWorksVectorTasks) {
     static constexpr std::size_t kTaskCount = 4;
 
     std::vector<engine::TaskWithResult<void>> tasks;
@@ -69,7 +62,7 @@ UTEST_F(WaitAllChecked, JustWorksVectorTasks) {
     }
 }
 
-UTEST_F(WaitAllChecked, JustWorksVariadicTasks) {
+UTEST(WaitAllChecked, JustWorksVariadicTasks) {
     static constexpr std::size_t kTaskCount = 3;
 
     std::vector<engine::TaskWithResult<void>> tasks;
@@ -87,11 +80,11 @@ UTEST_F(WaitAllChecked, JustWorksVariadicTasks) {
     }
 }
 
-UTEST_F_MT(WaitAllChecked, EarlyThrow, 4) {
+UTEST_MT(WaitAllChecked, EarlyThrow, 4) {
     std::vector<engine::TaskWithResult<void>> tasks;
-    tasks.reserve(GetThreadCount() + 1);
+    tasks.reserve(engine::current_task::GetWorkerCount() + 1);
 
-    for (std::size_t i = 0; i < GetThreadCount(); ++i) {
+    for (std::size_t i = 0; i < engine::current_task::GetWorkerCount(); ++i) {
         tasks.push_back(SlowSuccessfulTask());
     }
     tasks.push_back(FastFailingTask());
@@ -99,13 +92,13 @@ UTEST_F_MT(WaitAllChecked, EarlyThrow, 4) {
     UEXPECT_THROW(engine::WaitAllChecked(tasks), std::runtime_error);
 }
 
-UTEST_F(WaitAllChecked, InvalidTask) {
+UTEST(WaitAllChecked, InvalidTask) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.emplace_back();
     UEXPECT_NO_THROW(engine::WaitAllChecked(tasks));
 }
 
-UTEST_F(WaitAllChecked, ValidAndInvalidTasks) {
+UTEST(WaitAllChecked, ValidAndInvalidTasks) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.push_back(FastSuccessfulTask());
     for (std::size_t i = 0; i < 3; ++i) {
@@ -116,7 +109,7 @@ UTEST_F(WaitAllChecked, ValidAndInvalidTasks) {
     EXPECT_TRUE(tasks[0].IsFinished());
 }
 
-UTEST_F(WaitAllChecked, Cancellation) {
+UTEST(WaitAllChecked, Cancellation) {
     constexpr std::size_t kTaskCount = 3;
 
     std::vector<engine::TaskWithResult<void>> tasks;
@@ -130,7 +123,7 @@ UTEST_F(WaitAllChecked, Cancellation) {
     UEXPECT_THROW(engine::WaitAllChecked(tasks), engine::WaitInterruptedException);
 }
 
-UTEST_F(WaitAllChecked, SequentialWakeups) {
+UTEST(WaitAllChecked, SequentialWakeups) {
     constexpr std::size_t kTaskCount = 10;
 
     engine::SingleConsumerEvent events[kTaskCount];
@@ -138,7 +131,7 @@ UTEST_F(WaitAllChecked, SequentialWakeups) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(kTaskCount);
     for (std::size_t i = 0; i < kTaskCount; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([i, &events] {
+        tasks.push_back(engine::AsyncNoTracing([i, &events] {
             if (i + 1 < kTaskCount) {
                 ASSERT_TRUE(events[i + 1].WaitForEventFor(utest::kMaxTestWaitTime));
             }
@@ -149,7 +142,7 @@ UTEST_F(WaitAllChecked, SequentialWakeups) {
     engine::WaitAllChecked(tasks);
 }
 
-UTEST_F(WaitAllChecked, TaskWithResult) {
+UTEST(WaitAllChecked, TaskWithResult) {
     constexpr std::size_t kTaskCount = 10;
 
     std::vector<engine::TaskWithResult<int>> tasks;
@@ -167,14 +160,14 @@ UTEST_F(WaitAllChecked, TaskWithResult) {
     }
 }
 
-UTEST_F(WaitAllChecked, HeterogenousWait) {
+UTEST(WaitAllChecked, HeterogenousWait) {
     constexpr int kExpectedValue = 42;
 
     auto task = FastSuccessfulTask();
     engine::Promise<int> promise;
     auto future = promise.get_future();
 
-    auto notifier_task = engine::AsyncNoSpan([&] {
+    auto notifier_task = engine::AsyncNoTracing([&] {
         engine::SleepFor(20ms);
         promise.set_value(kExpectedValue);
     });
@@ -187,31 +180,31 @@ UTEST_F(WaitAllChecked, HeterogenousWait) {
     EXPECT_EQ(future.get(), kExpectedValue);
 }
 
-UTEST_F(WaitAllChecked, DeadlineSuccess) {
+UTEST(WaitAllChecked, DeadlineSuccess) {
     auto task = FastSuccessfulTask();
     EXPECT_EQ(engine::WaitAllCheckedFor(utest::kMaxTestWaitTime, task), engine::FutureStatus::kReady);
     EXPECT_TRUE(task.IsFinished());
 }
 
-UTEST_F(WaitAllChecked, DeadlineTimeout) {
+UTEST(WaitAllChecked, DeadlineTimeout) {
     auto task = SlowSuccessfulTask();
     EXPECT_EQ(engine::WaitAllCheckedFor(10ms, task), engine::FutureStatus::kTimeout);
     EXPECT_FALSE(task.IsFinished());
 }
 
-UTEST_F(WaitAllChecked, DeadlineCancelled) {
+UTEST(WaitAllChecked, DeadlineCancelled) {
     auto task = SlowSuccessfulTask();
     engine::current_task::SetDeadline(engine::Deadline::FromDuration(10ms));
     EXPECT_EQ(engine::WaitAllCheckedFor(utest::kMaxTestWaitTime, task), engine::FutureStatus::kCancelled);
 }
 
-UTEST_F(WaitAllChecked, DeadlineCancelledBefore) {
+UTEST(WaitAllChecked, DeadlineCancelledBefore) {
     auto task = SlowSuccessfulTask();
     engine::current_task::SetDeadline(engine::Deadline::Passed());
     EXPECT_EQ(engine::WaitAllCheckedFor(utest::kMaxTestWaitTime, task), engine::FutureStatus::kCancelled);
 }
 
-UTEST_F(WaitAllChecked, DeadlineTimeoutUntil) {
+UTEST(WaitAllChecked, DeadlineTimeoutUntil) {
     auto task = SlowSuccessfulTask();
     EXPECT_EQ(
         engine::WaitAllCheckedUntil(std::chrono::steady_clock::now() + 10ms, task),
@@ -219,8 +212,7 @@ UTEST_F(WaitAllChecked, DeadlineTimeoutUntil) {
     );
 }
 
-UTEST_F_MT(WaitAllChecked, ExceptionStressTest, 16) {
-    ASSERT_TRUE(utils::impl::kWaitAllCheckedUpgradeExperiment.IsEnabled());
+UTEST_MT(WaitAllChecked, ExceptionStressTest, 16) {
     for (auto _ : utest::StressLoop()) {
         const std::size_t task_count = utils::RandRange(100u, 500u);
         const std::size_t failing = utils::RandRange(std::size_t{0}, task_count);

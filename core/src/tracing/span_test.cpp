@@ -5,8 +5,11 @@
 #include <logging/logging_test.hpp>
 #include <userver/engine/sleep.hpp>
 #include <userver/formats/json/serialize.hpp>
+#include <userver/formats/json/value.hpp>
+#include <userver/tracing/manager.hpp>
 #include <userver/tracing/opentelemetry.hpp>
 #include <userver/tracing/span.hpp>
+#include <userver/tracing/span_builder.hpp>
 #include <userver/tracing/span_event.hpp>
 #include <userver/tracing/tags.hpp>
 #include <userver/tracing/tracer.hpp>
@@ -48,6 +51,7 @@ UTEST_F(Span, LogFormat) {
         R"(module=[\w\d ():./]+\t)"
         R"(trace_id=[0-9a-f]+\t)"
         R"(span_id=[0-9a-f]+\t)"
+        R"(trace_sampled=1\t)"
         R"(parent_id=[0-9a-f]+\t)"
         R"(link=[0-9a-f]+\t)"
         R"(stopwatch_name=span_name\t)"
@@ -263,13 +267,12 @@ UTEST_F(Span, LowerLocalLogLevel) {
 
 UTEST_F(Span, LocalLogLevelLowerThanGlobal) {
     tracing::Span span("parent_span");
-    // This currently cannot overcome global log level, which is "info" for this test.
     span.SetLocalLogLevel(logging::Level::kDebug);
 
-    LOG_DEBUG() << "message";
+    LOG_DEBUG() << "debug_message";
     logging::LogFlush();
 
-    EXPECT_THAT(GetStreamString(), Not(HasSubstr("message")));
+    EXPECT_THAT(GetStreamString(), HasSubstr("debug_message"));
 }
 
 UTEST_F(Span, SpanLogLevelLowerThanGlobal) {
@@ -813,6 +816,166 @@ UTEST_F(Span, MakeSpanEventWithAttributes) {
     EXPECT_THAT(logs_raw, HasSubstr(R"("int":123)"));
     EXPECT_THAT(logs_raw, HasSubstr(R"("float":123.456)"));
     EXPECT_THAT(logs_raw, HasSubstr(R"("bool":true)"));
+}
+
+UTEST_F(Span, TraceSampledLogTagFollowsCurrentDecision) {
+    tracing::Span span("root");
+    for (const bool sampled : {true, false, true}) {
+        span.SetSampled(sampled);
+        LOG_INFO() << "sampling decision";
+        logging::LogFlush();
+        EXPECT_EQ(GetRecordsCount(), 1);
+        EXPECT_THAT(GetStreamString(), HasSubstr(sampled ? "trace_sampled=1\t" : "trace_sampled=0\t"));
+        ClearLog();
+    }
+}
+
+UTEST_F(Span, TraceSampledLogTagUsesCurrentChild) {
+    tracing::Span parent("parent");
+    parent.SetSampled(false);
+    {
+        tracing::Span child("child");
+        LOG_INFO() << "inherited decision";
+        logging::LogFlush();
+        EXPECT_THAT(GetStreamString(), HasSubstr("trace_sampled=0\t"));
+        ClearLog();
+
+        child.SetSampled(true);
+        LOG_INFO() << "child decision";
+        logging::LogFlush();
+        EXPECT_THAT(GetStreamString(), HasSubstr("trace_sampled=1\t"));
+    }
+    logging::LogFlush();
+    ClearLog();
+    LOG_INFO() << "parent decision";
+    logging::LogFlush();
+    EXPECT_THAT(GetStreamString(), HasSubstr("trace_sampled=0\t"));
+}
+
+UTEST_F(Span, TraceSampledLogTagAbsentWithoutSpan) {
+    const tracing::impl::DetachLocalSpansScope detached;
+    ASSERT_EQ(tracing::Span::CurrentSpanUnchecked(), nullptr);
+    LOG_INFO() << "no trace context";
+    logging::LogFlush();
+    EXPECT_THAT(GetStreamString(), Not(HasSubstr("trace_sampled=")));
+}
+
+class SpanJson : public LoggingJsonTest {};
+
+UTEST_F(SpanJson, TraceSampledLogTagIsBoolean) {
+    tracing::Span span("root");
+    for (const bool sampled : {true, false}) {
+        span.SetSampled(sampled);
+        LOG_INFO() << "sampling decision";
+        logging::LogFlush();
+        const auto record = formats::json::FromString(GetStreamString());
+        EXPECT_EQ(record["trace_sampled"].As<bool>(), sampled);
+        ClearLog();
+    }
+}
+
+UTEST_F(Span, IsSampledDefaultTrue) {
+    const tracing::Span root("root");
+    EXPECT_TRUE(root.IsSampled());
+
+    const tracing::Span child("child");
+    EXPECT_TRUE(child.IsSampled());
+}
+
+UTEST_F(Span, IsSampledTrueExplicitlyInherited) {
+    tracing::Span root("root");
+    root.SetSampled(true);
+    EXPECT_TRUE(root.IsSampled());
+
+    const tracing::Span child("child");
+    EXPECT_TRUE(child.IsSampled());
+}
+
+UTEST_F(Span, IsSampledFalseExplicitlyInherited) {
+    tracing::Span root("root");
+    root.SetSampled(false);
+    EXPECT_FALSE(root.IsSampled());
+
+    const tracing::Span child("child");
+    EXPECT_FALSE(child.IsSampled());
+}
+
+UTEST_F(Span, IsSampledNotRetroactiveForExistingChild) {
+    tracing::Span root("root");
+    EXPECT_TRUE(root.IsSampled());
+
+    tracing::Span child("child");
+    EXPECT_TRUE(child.IsSampled());
+
+    root.SetSampled(false);
+    EXPECT_FALSE(root.IsSampled());
+    EXPECT_TRUE(child.IsSampled());
+}
+
+UTEST_F(Span, IsSampledGrandchildInherits) {
+    tracing::Span root("root");
+    root.SetSampled(false);
+    EXPECT_FALSE(root.IsSampled());
+
+    tracing::Span child("child");
+    EXPECT_FALSE(child.IsSampled());
+
+    const tracing::Span grandchild("grandchild");
+    EXPECT_FALSE(grandchild.IsSampled());
+}
+
+UTEST_F(Span, SpanBuilderSetSampledDefaultTrue) {
+    tracing::SpanBuilder builder("root");
+    auto span = std::move(builder).Build();
+    EXPECT_TRUE(span.IsSampled());
+}
+
+UTEST_F(Span, SpanBuilderSetSampledFalse) {
+    tracing::SpanBuilder builder("root");
+    builder.SetSampled(false);
+    auto span = std::move(builder).Build();
+    EXPECT_FALSE(span.IsSampled());
+}
+
+UTEST_F(Span, SpanBuilderSetSampledTrue) {
+    tracing::SpanBuilder builder("root");
+    builder.SetSampled(true);
+    auto span = std::move(builder).Build();
+    EXPECT_TRUE(span.IsSampled());
+}
+
+UTEST_F(Span, SpanBuilderSetSampledFalseChildInherits) {
+    tracing::SpanBuilder builder("root");
+    builder.SetSampled(false);
+    auto span = std::move(builder).Build();
+    EXPECT_FALSE(span.IsSampled());
+
+    const tracing::Span child("child");
+    EXPECT_FALSE(child.IsSampled());
+}
+
+UTEST_F(Span, OtelTraceFlagsDefaultSampledWhenAbsent) {
+    EXPECT_EQ(tracing::GetInheritedOtelTraceFlags(), tracing::OtelTraceFlags::kSampled);
+}
+
+UTEST_F(Span, OtelTraceFlagsValidSampled) {
+    tracing::SetInheritedOtelTracingData("", "01");
+    EXPECT_EQ(tracing::GetInheritedOtelTraceFlags(), tracing::OtelTraceFlags::kSampled);
+}
+
+UTEST_F(Span, OtelTraceFlagsValidUnsampled) {
+    tracing::SetInheritedOtelTracingData("", "00");
+    EXPECT_EQ(tracing::GetInheritedOtelTraceFlags(), tracing::OtelTraceFlags::kNoTracing);
+}
+
+UTEST_F(Span, OtelTraceFlagsInvalidHexDefaultsSampled) {
+    tracing::SetInheritedOtelTracingData("", "gg");
+    EXPECT_EQ(tracing::GetInheritedOtelTraceFlags(), tracing::OtelTraceFlags::kSampled);
+}
+
+UTEST_F(Span, OtelTraceFlagsEmptyStringDefaultsSampled) {
+    tracing::SetInheritedOtelTracingData("", "");
+    EXPECT_EQ(tracing::GetInheritedOtelTraceFlags(), tracing::OtelTraceFlags::kSampled);
 }
 
 UTEST_F(Span, IsCompatibleWithOpentelemetry) {

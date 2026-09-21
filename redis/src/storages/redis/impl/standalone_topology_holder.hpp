@@ -1,7 +1,7 @@
 #pragma once
 
 #include <storages/redis/impl/topology_holder_base.hpp>
-#include <userver/concurrent/variable.hpp>
+#include <userver/engine/pulse_event.hpp>
 #include <userver/rcu/rcu.hpp>
 #include <userver/storages/redis/redis_state.hpp>
 
@@ -19,7 +19,7 @@ public:
         const engine::ev::ThreadControl& sentinel_thread_control,
         const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
         const std::string& shard_group_name,
-        const Password& password,
+        const Credentials& credentials,
         std::size_t database_index,
         ConnectionInfo conn
     );
@@ -33,8 +33,9 @@ public:
     void Stop() override;
 
     bool WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) override;
+    bool IsReady(const HealthCheckParams& params) const override;
 
-    rcu::ReadablePtr<ClusterTopology, rcu::BlockingRcuTraits> GetTopology() const override;
+    rcu::ReadablePtr<ClusterTopology, rcu::ExclusiveRcuTraits> GetTopology() const override;
 
     void SendUpdateClusterTopology() override;
 
@@ -54,9 +55,9 @@ public:
 
     boost::signals2::signal<void(size_t)>& GetSignalTopologyChanged() override;
 
-    void UpdatePassword(const Password& password) override;
+    void UpdateCredentials(const Credentials& credentials) override;
 
-    Password GetPassword() override;
+    Credentials GetCredentials() override;
 
     std::string GetReadinessInfo() const override;
 
@@ -73,18 +74,17 @@ private:
     engine::ev::ThreadControl ev_thread_;
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
     const std::string shard_group_name_;
-    concurrent::Variable<Password, std::mutex> password_;
+    Credentials credentials_;
     const std::size_t database_index_;
 
     ///{ Wait ready
-    std::mutex mutex_;
-    engine::impl::ConditionVariableAny<std::mutex> cv_;
+    engine::PulseEvent readiness_event_;
     ConnectionInfoInt conn_to_create_;
     std::atomic<bool> is_nodes_received_{false};
 
     StatisticsHolder statistics_holder_;
-    rcu::Variable<std::optional<Node>, rcu::BlockingRcuTraits> node_;
-    rcu::Variable<ClusterTopology, rcu::BlockingRcuTraits> topology_;
+    rcu::Variable<std::optional<Node>, rcu::ExclusiveRcuTraits> node_;
+    rcu::Variable<ClusterTopology, rcu::ExclusiveRcuTraits> topology_;
     std::atomic_size_t current_topology_version_{0};
 
     engine::ev::AsyncWatcher create_node_watch_;
@@ -93,9 +93,9 @@ private:
     boost::signals2::signal<void(HostPort, Redis::State)> signal_node_state_change_;
     boost::signals2::signal<void(size_t shards_count)> signal_topology_changed_;
 
-    concurrent::Variable<std::optional<CommandsBufferingSettings>, std::mutex> commands_buffering_settings_;
-    concurrent::Variable<ReplicationMonitoringSettings, std::mutex> monitoring_settings_;
-    concurrent::Variable<utils::RetryBudgetSettings, std::mutex> retry_budget_settings_;
+    std::optional<CommandsBufferingSettings> commands_buffering_settings_;
+    ReplicationMonitoringSettings monitoring_settings_;
+    utils::RetryBudgetSettings retry_budget_settings_;
 };
 
 }  // namespace storages::redis::impl

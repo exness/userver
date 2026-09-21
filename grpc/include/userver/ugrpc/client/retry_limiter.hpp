@@ -53,7 +53,7 @@ struct RetryLimiterSettings final {
 ///
 /// @brief Abstract factory for creating @ref RetryLimiter instances.
 ///
-/// Should be registered as a component and referenced via `retry-throttler` option in
+/// Should be registered as a component and referenced via `retry-limiter` option in
 /// static configuration of @ref ugrpc::client::CommonComponent.
 ///
 /// @see @ref RetryLimiter

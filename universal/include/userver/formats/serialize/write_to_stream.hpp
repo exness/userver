@@ -86,15 +86,15 @@ requires(!std::is_arithmetic_v<T> && !std::is_convertible_v<T&, utils::impl::str
 void WriteToStream(const T& value, StringBuilder& sw) {
     using Value = typename StringBuilder::Value;
 
-    if constexpr (meta::kIsMap<T>) {
+    if constexpr (meta::IsMap<T>) {
         impl::WriteToStreamDict(value, sw);
-    } else if constexpr (meta::kIsRange<T>) {
+    } else if constexpr (meta::IsRange<T>) {
         static_assert(
             !std::is_same_v<T, boost::uuids::uuid>,
             "Include <userver/formats/serialize/boost_uuid.hpp> to serialize 'boost::uuids::uuid"
         );
         static_assert(
-            !meta::kIsRecursiveRange<T>,
+            !meta::IsRecursiveRange<T>,
             "Trying to log a recursive range, which can be dangerous. "
             "(boost::filesystem::path?) Please implement WriteToStream for your type"
         );

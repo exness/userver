@@ -6,7 +6,6 @@
 
 #include <userver/components/component.hpp>
 #include <userver/components/statistics_storage.hpp>
-#include <userver/concurrent/async_event_channel.hpp>
 #include <userver/dynamic_config/storage/component.hpp>
 #include <userver/dynamic_config/value.hpp>
 #include <userver/hostinfo/cpu_limit.hpp>
@@ -45,8 +44,14 @@ void FormatStats(const Controller& c, size_t activated_factor, utils::statistics
         builder_states["no-limit"] = stats.no_limit;
         builder_states["not-overloaded-no-pressure"] = stats.not_overload_no_pressure;
         builder_states["not-overloaded-under-pressure"] = stats.not_overload_pressure;
-        builder_states["overloaded-no-pressure"] = stats.overload_no_pressure;
-        builder_states["overloaded-under-pressure"] = stats.overload_pressure;
+
+        // "overloaded-*" states are used in production alerts that rely on the
+        // legacy GAUGE + non_negative_derivative pattern, so keep the legacy value alongside
+        // the new RATE ".v2" metric until the alerts are migrated.
+        builder_states["overloaded-no-pressure"] = stats.overload_no_pressure.Load().value;
+        builder_states["overloaded-no-pressure"]["v2"] = stats.overload_no_pressure;
+        builder_states["overloaded-under-pressure"] = stats.overload_pressure.Load().value;
+        builder_states["overloaded-under-pressure"]["v2"] = stats.overload_pressure;
     }
 
     auto diff = std::chrono::steady_clock::now().time_since_epoch() - stats.last_overload_pressure.load();
@@ -70,7 +75,6 @@ struct Component::Impl {
 
     // These subscriptions and tasks must be the last fields!
     Watchdog wd;
-    concurrent::AsyncEventSubscriberScope config_subscription;
     // See the comment above before adding new fields.
 
     Impl(dynamic_config::Source dynamic_config, server::Server& server, engine::TaskProcessor& tp, bool fake_mode)
@@ -125,14 +129,14 @@ Component::Component(const components::ComponentConfig& config, const components
 
     pimpl_->wd.Register({pimpl_->server_sensor, pimpl_->server_limiter, pimpl_->server_controller});
 
-    pimpl_->config_subscription = pimpl_->dynamic_config.UpdateAndListen(this, kName, &Component::OnConfigUpdate);
+    pimpl_->dynamic_config.UpdateAndListen(context.Scopes(), this, kName, &Component::OnConfigUpdate);
 
     utils::statistics::RegisterWriterScope(context, std::string{kName}, [this](utils::statistics::Writer& writer) {
         ExtendWriter(writer);
     });
 }
 
-Component::~Component() { pimpl_->config_subscription.Unsubscribe(); }
+Component::~Component() = default;
 
 void Component::OnConfigUpdate(const dynamic_config::Snapshot& cfg) {
     const bool is_enabled_dynamic = cfg[::dynamic_config::USERVER_RPS_CCONTROL_ENABLED];

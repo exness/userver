@@ -1,5 +1,15 @@
 FROM ghcr.io/userver-framework/ubuntu-22.04-userver-base:latest
 
+COPY scripts/clickhouse/ubuntu-install-clickhouse.sh /userver_tmp/
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && mkdir -p /usr/local/share/ca-certificates/Yandex \
+    && curl -fsSL https://crls.yandex.net/YandexInternalRootCA.crt \
+       -o /usr/local/share/ca-certificates/Yandex/YandexInternalRootCA.crt \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Apply the following:
 # * fix for porto layers
 # * set up ramdisk symlink for working tmpfs directory in tests
@@ -15,7 +25,6 @@ RUN \
   DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
     $PORTO_WORKAROUND \
     net-tools \
-    clickhouse-server \
     mariadb-server \
     mongodb-org \
     postgresql-14 \
@@ -27,6 +36,8 @@ RUN \
     g++-11 gcc-11 \
     g++-13 gcc-13 \
     && \
+  /userver_tmp/ubuntu-install-clickhouse.sh server && \
+  rm -rf /userver_tmp && \
   pip3 install pep8 && \
   apt clean all && \
   curl -fsSL https://raw.githubusercontent.com/pressly/goose/master/install.sh | sh && \

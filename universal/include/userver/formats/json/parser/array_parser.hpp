@@ -1,14 +1,21 @@
 #pragma once
 
+/// @file userver/formats/json/parser/array_parser.hpp
+/// @brief @copybrief formats::json::parser::ArrayParser
+/// @ingroup userver_universal
+
+#include <vector>
+
 #include <userver/formats/common/path.hpp>
 #include <userver/formats/json/parser/typed_parser.hpp>
 #include <userver/utils/meta.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
+/// @brief Streaming JSON SAX parsers and parser stack.
 namespace formats::json::parser {
 
-// Parser for array -> vector/set/unordered_set
+/// @brief SAX parser that fills arrays or sets from JSON arrays.
 template <typename Item, typename ItemParser, typename Array = std::vector<Item>>
 class ArrayParser final : public TypedParser<Array>, public Subscriber<Item> {
 public:
@@ -23,7 +30,7 @@ public:
         state_ = State::kStart;
         storage_.clear();
 
-        if constexpr (meta::kIsVector<Array>) {
+        if constexpr (meta::IsVectorLike<Array>) {
             /*
              * Heuristics:
              * STL impls have a small initial capacity of vector.
@@ -98,7 +105,7 @@ protected:
     }
 
     void OnSend(Item&& item) override {
-        if constexpr (!meta::kIsVector<Array>) {
+        if constexpr (!meta::IsVectorLike<Array>) {
             this->storage_.insert(std::move(item));
         } else {
             this->storage_.push_back(std::move(item));

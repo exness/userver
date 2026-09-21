@@ -17,24 +17,25 @@
 
 namespace {
 
-inline constexpr std::string_view kCreateTable = R"~(
-    CREATE TABLE IF NOT EXISTS key_value_table (
-    key TEXT PRIMARY KEY,
-    value TEXT
-    )
-)~";
+const storages::sqlite::Query kCreateTable(
+    "CREATE TABLE IF NOT EXISTS key_value_table (key TEXT PRIMARY KEY, value TEXT)",
+    storages::sqlite::Query::NameLiteral{"create"}
+);
 
-inline constexpr std::string_view kSelectValueByKey = R"~(
-    SELECT value FROM key_value_table WHERE key = ?
-)~";
+const storages::sqlite::Query kSelectValueByKey(
+    "SELECT value FROM key_value_table WHERE key = ?",
+    storages::sqlite::Query::NameLiteral{"select_by_key"}
+);
 
-inline constexpr std::string_view kInsertKeyValue = R"~(
-    INSERT OR IGNORE INTO key_value_table (key, value) VALUES (?, ?)
-)~";
+const storages::sqlite::Query kInsertKeyValue(
+    "INSERT OR IGNORE INTO key_value_table (key, value) VALUES (?, ?)",
+    storages::sqlite::Query::NameLiteral{"insert_kv"}
+);
 
-inline constexpr std::string_view kDeleteKeyValue = R"~(
-    DELETE FROM key_value_table WHERE key = ?
-)~";
+const storages::sqlite::Query kDeleteKeyValue(
+    "DELETE FROM key_value_table WHERE key = ?",
+    storages::sqlite::Query::NameLiteral{"delete_kv"}
+);
 
 }  // namespace
 
@@ -66,7 +67,7 @@ KeyValue::KeyValue(const components::ComponentConfig& config, const components::
     : HttpHandlerBase(config, context),
       sqlite_client_(context.FindComponent<components::SQLite>("key-value-database").GetClient())
 {
-    sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, kCreateTable.data());
+    sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, kCreateTable);
 }
 /// [SQLite service sample - component constructor]
 
@@ -95,7 +96,7 @@ std::string KeyValue::HandleRequest(server::http::HttpRequest& request, server::
 /// [SQLite service sample - GetValue]
 std::string KeyValue::GetValue(std::string_view key, const server::http::HttpRequest& request) const {
     auto res =
-        sqlite_client_->Execute(storages::sqlite::OperationType::kReadOnly, kSelectValueByKey.data(), key)
+        sqlite_client_->Execute(storages::sqlite::OperationType::kReadOnly, kSelectValueByKey, key)
             .AsOptionalSingleField<std::string>();
     if (!res.has_value()) {
         request.SetResponseStatus(server::http::HttpStatus::kNotFound);
@@ -112,14 +113,14 @@ std::string KeyValue::PostValue(std::string_view key, const server::http::HttpRe
 
     storages::sqlite::Transaction transaction = sqlite_client_->Begin(storages::sqlite::OperationType::kReadWrite, {});
 
-    auto res = transaction.Execute(kInsertKeyValue.data(), key, value).AsExecutionResult();
+    auto res = transaction.Execute(kInsertKeyValue, key, value).AsExecutionResult();
     if (res.rows_affected) {
         transaction.Commit();
         request.SetResponseStatus(server::http::HttpStatus::kCreated);
         return std::string{value};
     }
 
-    auto trx_res = transaction.Execute(kSelectValueByKey.data(), key).AsSingleField<std::string>();
+    auto trx_res = transaction.Execute(kSelectValueByKey, key).AsSingleField<std::string>();
     transaction.Rollback();
     if (value != trx_res) {
         request.SetResponseStatus(server::http::HttpStatus::kConflict);
@@ -130,10 +131,8 @@ std::string KeyValue::PostValue(std::string_view key, const server::http::HttpRe
 
 /// [SQLite service sample - DeleteValue]
 std::string KeyValue::DeleteValue(std::string_view key) const {
-    const storages::sqlite::Query kDeleteValue{kDeleteKeyValue.data()};
-
     auto res =
-        sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, kDeleteValue, key).AsExecutionResult();
+        sqlite_client_->Execute(storages::sqlite::OperationType::kReadWrite, kDeleteKeyValue, key).AsExecutionResult();
     return std::to_string(res.rows_affected);
 }
 /// [SQLite service sample - DeleteValue]

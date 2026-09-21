@@ -26,11 +26,9 @@ class CongestionControlTest
     : public ugrpc::tests::ServiceWithClientFixture<UnitTestService, sample::ugrpc::UnitTestServiceClient> {
 public:
     CongestionControlTest()
-        : ugrpc::tests::ServiceWithClientFixture<UnitTestService, sample::ugrpc::UnitTestServiceClient>(
-              ugrpc::server::ServerConfig{},
-              ugrpc::server::Middlewares{MakeMiddleware()},
-              ugrpc::client::Middlewares{}
-          )
+        : ugrpc::tests::ServiceWithClientFixture<
+              UnitTestService,
+              sample::ugrpc::UnitTestServiceClient>({.server_middlewares = {MakeMiddleware()}})
     {}
 
 private:
@@ -49,11 +47,9 @@ class CongestionControlCustomCodeTest
     : public ugrpc::tests::ServiceWithClientFixture<UnitTestService, sample::ugrpc::UnitTestServiceClient> {
 public:
     CongestionControlCustomCodeTest()
-        : ugrpc::tests::ServiceWithClientFixture<UnitTestService, sample::ugrpc::UnitTestServiceClient>(
-              ugrpc::server::ServerConfig{},
-              ugrpc::server::Middlewares{MakeMiddleware()},
-              ugrpc::client::Middlewares{}
-          )
+        : ugrpc::tests::ServiceWithClientFixture<
+              UnitTestService,
+              sample::ugrpc::UnitTestServiceClient>({.server_middlewares = {MakeMiddleware()}})
     {}
 
 private:

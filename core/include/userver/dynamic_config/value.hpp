@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/dynamic_config/value.hpp
+/// @brief @copybrief dynamic_config::DocsMap
+
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -15,6 +18,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace dynamic_config {
 
+/// @brief In-memory map of dynamic configuration documents
 class DocsMap final {
 public:
     /* Returns config item or throws an exception if key is missing */
@@ -24,7 +28,7 @@ public:
     void Set(std::string name, formats::json::Value);
     void Parse(std::string_view json_string, bool empty_ok);
     void Parse(formats::json::Value json, bool empty_ok);
-    void Remove(const std::string& name);
+    void Remove(std::string_view name);
     size_t Size() const;
 
     void MergeOrAssign(DocsMap&& source);

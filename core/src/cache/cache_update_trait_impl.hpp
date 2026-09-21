@@ -8,7 +8,6 @@
 #include <string>
 
 #include <userver/components/component_fwd.hpp>
-#include <userver/concurrent/async_event_channel.hpp>
 #include <userver/dynamic_config/fwd.hpp>
 #include <userver/engine/mutex.hpp>
 #include <userver/rcu/rcu.hpp>
@@ -40,7 +39,7 @@ public:
 
     void UpdateSyncDebug(UpdateType update_type);
 
-    const std::string& Name() const;
+    const std::string& Name() const noexcept;
 
     AllowedUpdateTypes GetAllowedUpdateTypes() const;
 
@@ -48,17 +47,17 @@ public:
 
     void StopPeriodicUpdates();
 
-    void OnCacheModified();
+    void OnCacheModified() noexcept;
 
-    bool HasPreAssignCheck() const;
+    bool HasPreAssignCheck() const noexcept;
 
-    bool IsSafeDataLifetime() const;
+    bool IsSafeDataLifetime() const noexcept;
 
     void SetDataSizeStatistic(std::size_t size) noexcept;
 
     rcu::ReadablePtr<Config> GetConfig() const;
 
-    engine::TaskProcessor& GetCacheTaskProcessor() const;
+    engine::TaskProcessor& GetCacheTaskProcessor() const noexcept;
 
 private:
     class DumpableEntityProxy final : public dump::DumpableEntity {
@@ -125,13 +124,6 @@ private:
     // `force_full_update_` is true, the `kIncremental` update will be performed.
     std::optional<UpdateType> dump_first_update_type_;
     std::atomic<bool> force_full_update_{false};
-
-    // Subscriptions must be the last fields. They need to be destroyed first to
-    // ensure that callbacks don't use fields above after their destruction.
-    utils::statistics::Entry statistics_holder_;
-    concurrent::AsyncEventSubscriberScope config_subscription_;
-    testsuite::CacheResetRegistration cache_reset_registration_;
-    // See the comment above before adding new fields.
 };
 
 }  // namespace cache

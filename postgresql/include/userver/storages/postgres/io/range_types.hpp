@@ -53,15 +53,18 @@ public:
     Range(UnboundedType, UnboundedType) noexcept : data_{RangeData{}} {}
 
     /// Bounded range
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<std::decay_t<U>, T>>>
+    template <typename U>
+    requires std::is_convertible_v<std::decay_t<U>, T>
     Range(U&& lower, U&& upper, RangeBounds bounds = RangeBound::kLower);
 
     /// Range with a lower bound
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<std::decay_t<U>, T>>>
+    template <typename U>
+    requires std::is_convertible_v<std::decay_t<U>, T>
     Range(U&& lower, UnboundedType ub, RangeBounds bounds = RangeBound::kLower) noexcept(kNothrowValueCopy);
 
     /// Range with an upper bound
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<std::decay_t<U>, T>>>
+    template <typename U>
+    requires std::is_convertible_v<std::decay_t<U>, T>
     Range(UnboundedType ub, U&& upper, RangeBounds bounds = RangeBound::kNone) noexcept(kNothrowValueCopy);
 
     Range(const OptionalValue& lower, const OptionalValue& upper, RangeBounds bounds);
@@ -69,12 +72,11 @@ public:
     /// Convert from a range of different type.
     ///
     /// Intentionally implicit
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<U, T>>>
+    template <typename U>
+    requires std::is_convertible_v<U, T>
     Range(const Range<U>& rhs);
 
     bool operator==(const Range& rhs) const;
-
-    bool operator!=(const Range& rhs) const { return !(*this == rhs); }
 
     bool Empty() const { return !data_; }
 
@@ -139,8 +141,6 @@ private:
         bool operator==(const RangeData& rhs) const {
             return BoundEqual(rhs, RangeBound::kLower) && BoundEqual(rhs, RangeBound::kUpper);
         }
-
-        bool operator!=(const RangeData& rhs) const { return !(*this == rhs); }
 
         bool HasBound(RangeBounds side) const;
 
@@ -221,14 +221,14 @@ public:
 
     BoundedRange() noexcept(kNothrowValueCtor);
 
-    template <typename U, typename = std::enable_if_t<std::is_convertible_v<std::decay_t<U>, T>>>
+    template <typename U>
+    requires std::is_convertible_v<std::decay_t<U>, T>
     BoundedRange(U&& lower, U&& upper, RangeBounds bounds = RangeBound::kLower);
 
     template <typename U>
     explicit BoundedRange(Range<U>&&);
 
     bool operator==(const BoundedRange& rhs) const;
-    bool operator!=(const BoundedRange& rhs) const { return !(*this == rhs); }
 
     const ValueType& GetLowerBound() const { return *value_.GetLowerBound(); }
     bool IsLowerBoundIncluded() const { return value_.IsLowerBoundIncluded(); }
@@ -430,7 +430,8 @@ struct CppToSystemPg<BoundedBigintRange> : PredefinedOid<PredefinedOids::kInt8Ra
 namespace storages::postgres {
 
 template <typename T>
-template <typename U, typename>
+template <typename U>
+requires std::is_convertible_v<std::decay_t<U>, T>
 Range<T>::Range(U&& lower, U&& upper, RangeBounds bounds)
     : data_{RangeData{std::forward<U>(lower), std::forward<U>(upper), bounds}}
 {
@@ -441,13 +442,15 @@ Range<T>::Range(U&& lower, U&& upper, RangeBounds bounds)
 }
 
 template <typename T>
-template <typename U, typename>
+template <typename U>
+requires std::is_convertible_v<std::decay_t<U>, T>
 Range<T>::Range(U&& lower, UnboundedType ub, RangeBounds bounds) noexcept(kNothrowValueCopy)
     : data_{RangeData{std::forward<U>(lower), ub, bounds}}
 {}
 
 template <typename T>
-template <typename U, typename>
+template <typename U>
+requires std::is_convertible_v<std::decay_t<U>, T>
 Range<T>::Range(UnboundedType ub, U&& upper, RangeBounds bounds) noexcept(kNothrowValueCopy)
     : data_{RangeData{ub, std::forward<U>(upper), bounds}}
 {}
@@ -458,7 +461,8 @@ Range<T>::Range(const OptionalValue& lower, const OptionalValue& upper, RangeBou
 {}
 
 template <typename T>
-template <typename U, typename>
+template <typename U>
+requires std::is_convertible_v<U, T>
 Range<T>::Range(const Range<U>& rhs)
     : data_{ConvertData(rhs)}
 {}
@@ -540,7 +544,8 @@ BoundedRange<T>::BoundedRange() noexcept(kNothrowValueCtor)
 {}
 
 template <typename T>
-template <typename U, typename>
+template <typename U>
+requires std::is_convertible_v<std::decay_t<U>, T>
 BoundedRange<T>::BoundedRange(U&& lower, U&& upper, RangeBounds bounds)
     : value_{std::forward<U>(lower), std::forward<U>(upper), bounds}
 {}

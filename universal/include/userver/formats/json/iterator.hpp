@@ -25,6 +25,8 @@ public:
 
     using ContainerType = typename Traits::ContainerType;
 
+    Iterator();
+
     Iterator(ContainerType container, int pos);
 
     Iterator(const Iterator& other);
@@ -44,6 +46,7 @@ public:
 
     /// @brief Returns name of the referenced field
     /// @throws `TypeMismatchException` if iterated value is not an object
+    /// @deprecated Prefer @ref formats::common::Items "formats::common::Items()" for object iteration.
     template <typename T = void>
     std::string GetName() const {
         static_assert(
@@ -56,9 +59,12 @@ public:
 
     /// @brief Returns index of the referenced field
     /// @throws `TypeMismatchException` if iterated value is not an array
+    /// @deprecated Prefer @ref utils::enumerate for array iteration.
+    /// @see @ref scripts/docs/en/userver/formats.md
     size_t GetIndex() const;
 
 private:
+    bool IsValid() const;
     std::string GetNameImpl() const;
     Iterator(ContainerType&& container, int type, int pos) noexcept;
 

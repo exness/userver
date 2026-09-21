@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string_view>
-
 #include <userver/logging/format.hpp>
 #include <userver/logging/impl/formatters/base.hpp>
 #include <userver/logging/impl/logger_base.hpp>
@@ -18,6 +16,7 @@ class Tskv;
 
 using TskvPtr = utils::Box<formatters::Tskv>;
 
+/// @brief Formats LogExtra fields as TSKV log lines.
 class LogExtraTskvFormatter final {
 public:
     explicit LogExtraTskvFormatter(logging::Format format);

@@ -11,6 +11,7 @@
 #include <userver/ydb/query.hpp>
 #include <userver/ydb/table.hpp>
 
+#include <ydb/impl/connection.hpp>
 #include <ydb/impl/operation_settings.hpp>
 #include <ydb/impl/stats.hpp>
 
@@ -26,7 +27,8 @@ template <typename Settings>
 class RequestContext final {
 public:
     RequestContext(
-        TableClient& client,
+        Connection& connection,
+        TableClient& table_client,
         const Query& query,
         Settings&& settings,
         IsStreaming is_streaming = IsStreaming{false},
@@ -35,11 +37,16 @@ public:
         const utils::impl::SourceLocation& location = utils::impl::SourceLocation::Current()
     );
 
+    RequestContext(const RequestContext&) = delete;
+    RequestContext(RequestContext&&) = delete;
+    RequestContext& operator=(const RequestContext&) = delete;
+    RequestContext& operator=(RequestContext&&) = delete;
+
     void HandleError(const NYdb::TStatus& status);
 
     ~RequestContext();
 
-    TableClient& table_client;
+    Connection& connection;
     Settings settings;
     const int initial_uncaught_exceptions;
     StatsScope stats_scope;

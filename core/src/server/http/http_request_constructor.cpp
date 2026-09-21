@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include <server/http/http_response_impl.hpp>
 #include <userver/http/common_headers.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/server/http/http_status.hpp>
@@ -35,7 +36,7 @@ void StripDuplicateStartingSlashes(std::string& s) {
         return;
     }
 
-    s = s.substr(non_slash_pos - 1);
+    s.erase(0, non_slash_pos - 1);
 }
 
 }  // namespace
@@ -65,12 +66,16 @@ void HttpRequestConstructor::SetHttpMajor(unsigned short http_major) { builder_.
 
 void HttpRequestConstructor::SetHttpMinor(unsigned short http_minor) { builder_.SetHttpMinor(http_minor); }
 
-void HttpRequestConstructor::AppendUrl(const char* data, size_t size) {
+void HttpRequestConstructor::AppendUrl(std::string_view data) {
     // using common limits in checks
-    AccountUrlSize(size);
-    AccountRequestSize(size);
+    AccountUrlSize(data.size());
+    AccountRequestSize(data.size());
 
-    url_.append(data, size);
+    url_.append(data);
+}
+
+bool HttpRequestConstructor::IsUrlReadyToParse() const {
+    return !url_.empty() && builder_.GetRef().GetMethod() != HttpMethod::kUnknown;
 }
 
 void HttpRequestConstructor::ParseUrl() {
@@ -143,32 +148,32 @@ void HttpRequestConstructor::ParseUrl() {
     url_parsed_ = true;
 }
 
-void HttpRequestConstructor::AppendHeaderField(const char* data, size_t size) {
+void HttpRequestConstructor::AppendHeaderField(std::string_view data) {
     if (header_value_flag_) {
         AddHeader();
         header_value_flag_ = false;
     }
     header_field_flag_ = true;
 
-    AccountHeadersSize(size);
-    AccountRequestSize(size);
+    AccountHeadersSize(data.size());
+    AccountRequestSize(data.size());
 
-    header_field_.append(data, size);
+    header_field_.append(data);
 }
 
-void HttpRequestConstructor::AppendHeaderValue(const char* data, size_t size) {
+void HttpRequestConstructor::AppendHeaderValue(std::string_view data) {
     UASSERT(header_field_flag_);
     header_value_flag_ = true;
 
-    AccountHeadersSize(size);
-    AccountRequestSize(size);
+    AccountHeadersSize(data.size());
+    AccountRequestSize(data.size());
 
-    header_value_.append(data, size);
+    header_value_.append(data);
 }
 
-void HttpRequestConstructor::AppendBody(const char* data, size_t size) {
-    AccountRequestSize(size);
-    body_ += std::string_view{data, size};
+void HttpRequestConstructor::AppendBody(std::string_view data) {
+    AccountRequestSize(data.size());
+    body_ += data;
 }
 
 void HttpRequestConstructor::SetIsFinal(bool is_final) { builder_.SetIsFinal(is_final); }
@@ -205,7 +210,7 @@ void HttpRequestConstructor::FinalizeImpl() {
         ParseArgs(*parsed_url_pimpl_);
         if (config_.parse_args_from_body) {
             if (!config_.decompress_request || !request.IsBodyCompressed()) {
-                ParseArgs(request.RequestBody().data(), request.RequestBody().size());
+                ParseArgs(request.RequestBody());
             }
         }
     } catch (const std::exception& ex) {
@@ -234,15 +239,15 @@ void HttpRequestConstructor::FinalizeImpl() {
 void HttpRequestConstructor::ParseArgs(const HttpParserUrl& url) {
     if (url.parsed_url.field_set & (1 << http_parser_url_fields::UF_QUERY)) {
         const auto& str_info = url.parsed_url.field_data[http_parser_url_fields::UF_QUERY];
-        ParseArgs(builder_.GetRef().GetUrl().data() + str_info.off, str_info.len);
+        const auto query = std::string_view{builder_.GetRef().GetUrl()}.substr(str_info.off, str_info.len);
+        ParseArgs(query);
     }
 }
 
-void HttpRequestConstructor::ParseArgs(const char* data, size_t size) {
-    USERVER_NAMESPACE::http::parser::ParseAndConsumeArgs(
-        std::string_view(data, size),
-        [this](std::string&& key, std::string&& value) { builder_.AddRequestArg(std::move(key), std::move(value)); }
-    );
+void HttpRequestConstructor::ParseArgs(std::string_view data) {
+    USERVER_NAMESPACE::http::parser::ParseAndConsumeArgs(data, [this](std::string&& key, std::string&& value) {
+        builder_.AddRequestArg(std::move(key), std::move(value));
+    });
 }
 
 void HttpRequestConstructor::AddHeader() {
@@ -308,48 +313,48 @@ void HttpRequestConstructor::CheckStatus() {
         case Status::kBadRequest:
             builder_.SetResponseStatus(HttpStatus::kBadRequest);
             builder_.GetHttpResponse().SetData("bad request");
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kUriTooLong:
             builder_.SetResponseStatus(HttpStatus::kUriTooLong);
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kParseUrlError:
             builder_.SetResponseStatus(HttpStatus::kBadRequest);
             builder_.GetHttpResponse().SetData("invalid url");
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kHandlerNotFound:
             builder_.SetResponseStatus(HttpStatus::kNotFound);
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kMethodNotAllowed:
             builder_.SetResponseStatus(HttpStatus::kMethodNotAllowed);
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kHeadersTooLarge:
             builder_.SetResponseStatus(HttpStatus::kRequestHeaderFieldsTooLarge);
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kRequestTooLarge:
             builder_.SetResponseStatus(HttpStatus::kPayloadTooLarge);
             builder_.GetHttpResponse().SetData("too large request");
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kParseArgsError:
             builder_.SetResponseStatus(HttpStatus::kBadRequest);
             builder_.GetHttpResponse().SetData("invalid args");
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kParseCookiesError:
             builder_.SetResponseStatus(HttpStatus::kBadRequest);
             builder_.GetHttpResponse().SetData("invalid cookies");
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
         case Status::kParseMultipartFormDataError:
             builder_.SetResponseStatus(HttpStatus::kBadRequest);
             builder_.GetHttpResponse().SetData("invalid body of multipart/form-data request");
-            builder_.GetHttpResponse().SetReady();
+            GetHttpResponseImpl(builder_.GetHttpResponse()).SetReady();
             break;
     }
 }

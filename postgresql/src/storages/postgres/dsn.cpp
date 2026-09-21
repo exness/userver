@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <sstream>
+#include <string_view>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -26,7 +27,7 @@ namespace {
 const std::string kPostgreSQLDefaultHost = "localhost";
 const std::string kPostgreSQLDefaultPort = "5432";
 
-std::vector<std::string> SplitDsnValue(const std::string& value) {
+std::vector<std::string> SplitDsnValue(std::string_view value) {
     return USERVER_NAMESPACE::utils::text::Split(value, ",", USERVER_NAMESPACE::utils::text::SplitFlags::kNone);
 }
 
@@ -196,14 +197,10 @@ std::string MakeDsnNick(const Dsn& dsn, bool escape) {
     }
 
     if (escape) {
-        dsn_str.erase(
-            std::remove_if(
-                dsn_str.begin(),
-                dsn_str.end(),
-                [](char c) { return !std::isalpha(c) && !std::isdigit(c) && c != '_'; }
-            ),
-            dsn_str.end()
-        );
+        const auto garbage = std::ranges::remove_if(dsn_str, [](char c) {
+            return !std::isalpha(c) && !std::isdigit(c) && c != '_';
+        });
+        dsn_str.erase(garbage.begin(), garbage.end());
     }
     return dsn_str;
 }
@@ -258,7 +255,7 @@ std::string DsnMaskPassword(const Dsn& dsn) {
     static constexpr std::string_view pg_url_start = "postgresql://";
     static constexpr USERVER_NAMESPACE::utils::Re2Replacement url_replace{"\\1***\\2"};
     static constexpr USERVER_NAMESPACE::utils::Re2Replacement option_replace{"\\1***"};
-    if (USERVER_NAMESPACE::utils::text::StartsWith(dsn.GetUnderlying(), pg_url_start)) {
+    if (dsn.GetUnderlying().starts_with(pg_url_start)) {
         static const USERVER_NAMESPACE::utils::regex kUrlRe("^(postgresql://[^:]*:)[^@]+(@)");
         static const USERVER_NAMESPACE::utils::regex kOptionRe("\\b(password=)[^&]+");
         auto masked = regex_replace(dsn.GetUnderlying(), kUrlRe, url_replace);

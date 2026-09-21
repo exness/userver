@@ -11,6 +11,7 @@
 #include <userver/storages/secdist/exceptions.hpp>
 #include <userver/utils/async.hpp>
 #include <userver/utils/periodic_task.hpp>
+#include <userver/utils/resource_scopes.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -69,13 +70,20 @@ public:
     explicit Impl(SecdistConfig::Settings settings);
     ~Impl();
 
-    const storages::secdist::SecdistConfig& Get() const;
+    const storages::secdist::SecdistConfig& Get() const noexcept;
 
     rcu::ReadablePtr<storages::secdist::SecdistConfig> GetSnapshot() const;
 
     bool IsPeriodicUpdateEnabled() const;
 
     concurrent::AsyncEventSubscriberScope DoUpdateAndListen(
+        concurrent::FunctionId id,
+        std::string_view name,
+        EventSource::Function&& func
+    );
+
+    void DoUpdateAndListen(
+        utils::ResourceScopeStorage& scopes,
         concurrent::FunctionId id,
         std::string_view name,
         EventSource::Function&& func
@@ -117,7 +125,7 @@ Secdist::Impl::~Impl() {
     }
 }
 
-const SecdistConfig& Secdist::Impl::Get() const { return secdist_config_; }
+const SecdistConfig& Secdist::Impl::Get() const noexcept { return secdist_config_; }
 
 rcu::ReadablePtr<SecdistConfig> Secdist::Impl::GetSnapshot() const { return dynamic_secdist_config_.Read(); }
 
@@ -135,6 +143,19 @@ concurrent::AsyncEventSubscriberScope Secdist::Impl::DoUpdateAndListen(
         const auto snapshot = GetSnapshot();
         func_copy(*snapshot);
     });
+}
+
+void Secdist::Impl::DoUpdateAndListen(
+    utils::ResourceScopeStorage& scopes,
+    concurrent::FunctionId id,
+    std::string_view name,
+    EventSource::Function&& func
+) {
+    auto updater = [this, func_copy = func] {
+        const auto snapshot = GetSnapshot();
+        func_copy(*snapshot);
+    };
+    channel_.DoUpdateAndListenScoped(scopes, id, name, std::move(func), std::move(updater));
 }
 
 void Secdist::Impl::StartUpdateTask() {
@@ -161,7 +182,7 @@ const SecdistConfig& Secdist::Get() const { return impl_->Get(); }
 
 rcu::ReadablePtr<SecdistConfig> Secdist::GetSnapshot() const { return impl_->GetSnapshot(); }
 
-bool Secdist::IsPeriodicUpdateEnabled() const { return impl_->IsPeriodicUpdateEnabled(); }
+bool Secdist::IsPeriodicUpdateEnabled() const noexcept { return impl_->IsPeriodicUpdateEnabled(); }
 
 concurrent::AsyncEventSubscriberScope Secdist::DoUpdateAndListen(
     concurrent::FunctionId id,
@@ -169,6 +190,15 @@ concurrent::AsyncEventSubscriberScope Secdist::DoUpdateAndListen(
     EventSource::Function&& func
 ) {
     return impl_->DoUpdateAndListen(id, name, std::move(func));
+}
+
+void Secdist::DoUpdateAndListen(
+    utils::ResourceScopeStorage& scopes,
+    concurrent::FunctionId id,
+    std::string_view name,
+    EventSource::Function&& func
+) {
+    impl_->DoUpdateAndListen(scopes, id, name, std::move(func));
 }
 
 }  // namespace storages::secdist

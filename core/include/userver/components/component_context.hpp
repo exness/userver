@@ -11,11 +11,11 @@
 #include <userver/components/raw_component_base.hpp>
 #include <userver/engine/task/task_processor_fwd.hpp>
 #include <userver/utils/impl/internal_tag.hpp>
+#include <userver/utils/resource_scopes_fwd.hpp>
 
 // TODO remove extra includes
 #include <functional>
 #include <memory>
-#include <string>
 #include <vector>
 
 USERVER_NAMESPACE_BEGIN
@@ -23,10 +23,6 @@ USERVER_NAMESPACE_BEGIN
 namespace engine::impl {
 class TaskContext;
 }  // namespace engine::impl
-
-namespace utils {
-class ResourceScopeStorage;
-}  // namespace utils
 
 namespace components {
 

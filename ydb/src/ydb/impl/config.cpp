@@ -3,7 +3,6 @@
 #include <userver/formats/json/serialize.hpp>
 #include <userver/formats/json/value.hpp>
 #include <userver/formats/parse/common_containers.hpp>
-#include <userver/utils/retry_budget.hpp>
 #include <userver/yaml_config/yaml_config.hpp>
 
 #include <ydb/impl/secdist.hpp>
@@ -42,6 +41,8 @@ TableSettings ParseTableSettings(const yaml_config::YamlConfig& dbconfig, const 
     result
         .get_session_retry_limit = dbconfig["get_session_retry_limit"].As<std::uint32_t>(result.get_session_retry_limit
     );
+    result.use_deferred_session_creation =
+        dbconfig["use_deferred_session_creation"].As<bool>(result.use_deferred_session_creation);
     result.keep_in_query_cache = dbconfig["keep-in-query-cache"].As<bool>(result.keep_in_query_cache);
 
     result.sync_start = dbconfig["sync_start"].As<bool>(result.sync_start);
@@ -97,11 +98,6 @@ DriverSettings ParseDriverSettings(
 
     return result;
 }
-
-const dynamic_config::Key<std::unordered_map<std::string, utils::RetryBudgetSettings>> kRetryBudgetSettings(
-    "YDB_RETRY_BUDGET",
-    dynamic_config::DefaultAsJsonString("{}")
-);
 
 }  // namespace ydb::impl
 

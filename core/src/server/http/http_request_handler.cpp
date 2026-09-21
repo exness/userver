@@ -7,6 +7,7 @@
 
 #include <server/handlers/http_handler_base_statistics.hpp>
 #include <server/handlers/http_server_settings.hpp>
+#include <server/http/http_response_impl.hpp>
 #include <server/request/task_inherited_request_impl.hpp>
 #include <userver/components/statistics_storage.hpp>
 #include <userver/dynamic_config/storage/component.hpp>
@@ -57,13 +58,13 @@ engine::TaskWithResult<void> HttpRequestHandler::StartFailsafeTask(std::shared_p
 ) const {
     const auto* handler = http_request->GetHttpHandler();
 
-    return engine::AsyncNoSpan([request = std::move(http_request), handler]() {
-        request->SetTaskStartTime();
+    return engine::AsyncNoTracing([request = std::move(http_request), handler]() {
         if (handler) {
             handler->ReportMalformedRequest(*request);
         }
-        request->SetResponseNotifyTime();
-        request->GetHttpResponse().SetReady();
+        auto& response = GetHttpResponseImpl(*request);
+        response.SetHeadersEnd();
+        response.SetReady();
     });
 }
 
@@ -77,19 +78,16 @@ utils::statistics::MetricTag<std::atomic<size_t>> kCcStatusCodeIsCustom{
 
 engine::TaskWithResult<void> HttpRequestHandler::StartRequestTask(std::shared_ptr<http::HttpRequest> http_request
 ) const {
-    auto& http_response = http_request->GetHttpResponse();
+    auto& http_response = GetHttpResponseImpl(*http_request);
     http_response.SetHeader(USERVER_NAMESPACE::http::headers::kServer, server_name_);
     if (http_response.IsReady()) {
         // Request is broken somehow, user handler must not be called
-        http_request->SetTaskCreateTime();
         return StartFailsafeTask(std::move(http_request));
     }
 
     if (new_request_hook_) {
         new_request_hook_(http_request);
     }
-
-    http_request->SetTaskCreateTime();
 
     auto* task_processor = http_request->GetTaskProcessor();
     const auto* handler = http_request->GetHttpHandler();
@@ -108,8 +106,7 @@ engine::TaskWithResult<void> HttpRequestHandler::StartRequestTask(std::shared_pt
         );
 
         http_request->SetResponseStatus(HttpStatus::kTooManyRequests);
-        http_request->GetHttpResponse().SetReady();
-        http_request->SetTaskCreateTime();
+        GetHttpResponseImpl(*http_request).SetReady();
         LOG_LIMITED_ERROR()
             << "Request throttled (too many pending responses, "
                "limit via 'server.max_response_size_in_flight')";
@@ -148,28 +145,20 @@ engine::TaskWithResult<void> HttpRequestHandler::StartRequestTask(std::shared_pt
         return StartFailsafeTask(std::move(http_request));
     }
 
-    request::RequestContext context;
-    if (handler->IsStreamed(*std::move(http_request), context)) {
-        http_response.SetStreamBody();
-    }
-
     auto payload = [request = std::move(http_request), handler] {
         server::request::kTaskInheritedRequest.Set(std::static_pointer_cast<HttpRequest>(request));
-
-        request->SetTaskStartTime();
 
         request::RequestContext context;
         handler->PrepareAndHandleRequest(*request, context);
 
         const auto now = std::chrono::steady_clock::now();
-        request->SetResponseNotifyTime(now);
-        request->GetHttpResponse().SetReady(now);
+        GetHttpResponseImpl(*request).SetReady(now);
     };
 
     if (!is_monitor_ && throttling_enabled) {
-        return engine::AsyncNoSpan(*task_processor, std::move(payload));
+        return engine::AsyncNoTracing(*task_processor, std::move(payload));
     } else {
-        return engine::CriticalAsyncNoSpan(*task_processor, std::move(payload));
+        return engine::CriticalAsyncNoTracing(*task_processor, std::move(payload));
     }
 }  // namespace http
 

@@ -6,6 +6,17 @@ import samples.greeter_pb2_grpc as greeter_pb2_grpc
 
 pytest_plugins = ['pytest_userver.plugins.grpc']
 
+USERVER_CONFIG_HOOKS = ['_prepare_service_config']
+
+
+@pytest.fixture(scope='session')
+def _prepare_service_config(grpc_mockserver_endpoint):
+    def patch_config(config, config_vars):
+        components = config['components_manager']['components']
+        components['greeter-client']['endpoint'] = grpc_mockserver_endpoint
+
+    return patch_config
+
 
 @pytest.fixture(scope='session')
 def service_env():

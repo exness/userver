@@ -1,30 +1,34 @@
 #pragma once
 
+/// @file userver/server/http/http_response_body_stream.hpp
+/// @brief @copybrief server::http::ResponseBodyStream
+
 #include <string>
 
 #include <userver/server/http/http_response.hpp>
-#include <userver/server/request/response_base.hpp>
+#include <userver/utils/fast_pimpl.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
-namespace server::handlers {
-class HttpHandlerBase;
-}
-
 namespace server::http {
 
+/// @brief Streaming HTTP response body writer that is passed to
+/// @ref server::handlers::HttpHandlerBase::HandleStreamRequest() overloads.
+///
+/// @see @ref scripts/docs/en/userver/http_server.md
 class ResponseBodyStream final {
 public:
+    /// Constructor that can be used in @ref server::handlers::HttpHandlerBase::HandleHttpRequest
+    explicit ResponseBodyStream(HttpResponse& http_response);
+
     ResponseBodyStream(ResponseBodyStream&&) = default;
     ~ResponseBodyStream();
 
-    // Send a chunk of response data. It may NOT generate
-    // exactly one HTTP chunk per call to PushBodyChunk().
-    // May not be called after SetBody().
+    /// Send a chunk of response data; should not be called after SetBody().
+    /// It may NOT generate exactly one HTTP chunk per call to @ref PushBodyChunk().
     void PushBodyChunk(std::string&& chunk, engine::Deadline deadline);
 
-    // Set full response body instead of sending chunks.
-    // May not be called after PushBodyChunk().
+    /// Set full response body instead of sending chunks; should not be called after @ref PushBodyChunk()
     void SetBody(std::string&& body);
 
     void SetHeader(const std::string&, const std::string&);
@@ -33,18 +37,18 @@ public:
 
     void SetEndOfHeaders();
 
+    /// Set the HTTP status code; should not be called after @ref PushBodyChunk() as the result will be ignored.
     void SetStatusCode(int status_code);
 
+    /// @overload
     void SetStatusCode(HttpStatus status);
 
 private:
-    friend class server::handlers::HttpHandlerBase;
-
-    ResponseBodyStream(HttpResponse::Producer&& queue_producer, HttpResponse& http_response);
+    struct BodyProducer;
 
     bool headers_ended_{false};
     bool headers_end_sent_{false};
-    HttpResponse::Producer queue_producer_;
+    utils::FastPimpl<BodyProducer, 40, 8> body_producer_;
     HttpResponse& http_response_;
 };
 

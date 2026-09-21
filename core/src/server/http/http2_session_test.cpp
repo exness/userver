@@ -1,6 +1,7 @@
 #include <server/http/handler_info_index.hpp>
 #include <server/http/http2_session.hpp>
 #include <server/http/http_request_parser.hpp>
+#include <server/http/http_response_impl.hpp>
 #include <server/net/stats.hpp>
 
 #include <fmt/format.h>
@@ -49,10 +50,10 @@ public:
               [this](ParsedRequestPtr&& request) { NewRequestCallback(std::move(request)); },
               USERVER_NAMESPACE::http::HttpVersion::k11
           )),
-          server_([this](const MockHttpRequest& request) -> MockHttpResponse { return ServerHandler(request); }),
           client_ptr_(utest::CreateHttpClient()),
           queue_(RequestsQueue::Create()),
-          producer_(queue_->GetProducer())
+          producer_(queue_->GetProducer()),
+          server_([this](const MockHttpRequest& request) -> MockHttpResponse { return ServerHandler(request); })
     {
         [[maybe_unused]] const auto response =
             client_ptr_->CreateRequest()
@@ -78,8 +79,8 @@ private:
             dynamic_cast<Http2Session*>(parser_http2_.get())->UpgradeToHttp2(h);
             return;
         }
-        UASSERT(request->GetHttpResponse().GetStreamId().has_value());
-        cur_stream_id_ = *request->GetHttpResponse().GetStreamId();
+        UASSERT(GetHttpResponseImpl(*request).GetStreamId().has_value());
+        cur_stream_id_ = *GetHttpResponseImpl(*request).GetStreamId();
         EXPECT_TRUE(producer_.Push(std::move(request)));
     }
 
@@ -156,13 +157,13 @@ private:
     std::shared_ptr<request::RequestParser> parser_http2_;
     std::shared_ptr<request::RequestParser> parser_http11_;
 
-    const utest::SimpleServer server_;
-
     std::shared_ptr<clients::http::Client> client_ptr_;
 
     bool is_upgrade_http_{false};
     std::shared_ptr<RequestsQueue> queue_;
     RequestsQueue::Producer producer_;
+
+    const utest::SimpleServer server_;
 };
 
 UTEST_F(Http2SessionTest, SimpleRequest) {

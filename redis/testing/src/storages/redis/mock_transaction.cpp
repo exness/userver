@@ -80,9 +80,9 @@ public:
         return nullptr;
     }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
         UASSERT_MSG(false, "not supported in mocked request");
-        return nullptr;
+        return engine::AwaitableToken{};
     }
 
 private:
@@ -249,6 +249,11 @@ RequestGet MockTransaction::Get(std::string key) {
     return AddSubrequest(impl_->Get(std::move(key)));
 }
 
+RequestGetdel MockTransaction::Getdel(std::string key) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Getdel(std::move(key)));
+}
+
 RequestGetset MockTransaction::Getset(std::string key, std::string value) {
     UpdateShard(key);
     return AddSubrequest(impl_->Getset(std::move(key), std::move(value)));
@@ -389,6 +394,19 @@ RequestMset MockTransaction::Mset(std::vector<std::pair<std::string, std::string
     return AddSubrequest(impl_->Mset(std::move(key_values)));
 }
 
+RequestMsetex MockTransaction::Msetex(std::vector<std::pair<std::string, std::string>> key_values) {
+    UpdateShard(key_values);
+    return AddSubrequest(impl_->Msetex(std::move(key_values)));
+}
+
+RequestMsetex MockTransaction::Msetex(
+    std::vector<std::pair<std::string, std::string>> key_values,
+    MsetexOptions options
+) {
+    UpdateShard(key_values);
+    return AddSubrequest(impl_->Msetex(std::move(key_values), options));
+}
+
 RequestPersist MockTransaction::Persist(std::string key) {
     UpdateShard(key);
     return AddSubrequest(impl_->Persist(std::move(key)));
@@ -497,6 +515,15 @@ RequestSetIfNotExistOrGet MockTransaction::SetIfNotExistOrGet(
 RequestSetex MockTransaction::Setex(std::string key, std::chrono::seconds seconds, std::string value) {
     UpdateShard(key);
     return AddSubrequest(impl_->Setex(std::move(key), seconds, std::move(value)));
+}
+
+RequestSetAndGetPrevious MockTransaction::SetAndGetPrevious(
+    std::string key,
+    std::string value,
+    std::chrono::milliseconds ttl
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->SetAndGetPrevious(std::move(key), std::move(value), ttl));
 }
 
 RequestSismember MockTransaction::Sismember(std::string key, std::string member) {
@@ -695,6 +722,173 @@ RequestZremrangebyscore MockTransaction::Zremrangebyscore(std::string key, std::
 RequestZscore MockTransaction::Zscore(std::string key, std::string member) {
     UpdateShard(key);
     return AddSubrequest(impl_->Zscore(std::move(key), std::move(member)));
+}
+
+RequestHexpire MockTransaction::Hexpire(std::string key, std::chrono::seconds ttl, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hexpire(std::move(key), ttl, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hexpire(
+    std::string key,
+    std::chrono::seconds ttl,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hexpire(std::move(key), ttl, options, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hpexpire(
+    std::string key,
+    std::chrono::milliseconds ttl,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpexpire(std::move(key), ttl, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hpexpire(
+    std::string key,
+    std::chrono::milliseconds ttl,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpexpire(std::move(key), ttl, options, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hexpireat(std::move(key), deadline, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hexpireat(std::move(key), deadline, options, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hpexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpexpireat(std::move(key), deadline, std::move(fields)));
+}
+
+RequestHexpire MockTransaction::Hpexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpexpireat(std::move(key), deadline, options, std::move(fields)));
+}
+
+RequestHexpiretime MockTransaction::Hexpiretime(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hexpiretime(std::move(key), std::move(fields)));
+}
+
+RequestHpexpiretime MockTransaction::Hpexpiretime(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpexpiretime(std::move(key), std::move(fields)));
+}
+
+RequestHttl MockTransaction::Httl(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Httl(std::move(key), std::move(fields)));
+}
+
+RequestHpttl MockTransaction::Hpttl(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpttl(std::move(key), std::move(fields)));
+}
+
+RequestHpersist MockTransaction::Hpersist(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hpersist(std::move(key), std::move(fields)));
+}
+
+RequestHgetex MockTransaction::Hgetex(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hgetex(std::move(key), std::move(fields)));
+}
+
+RequestHgetex MockTransaction::Hgetex(std::string key, HgetexOptions options, std::vector<std::string> fields) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hgetex(std::move(key), options, std::move(fields)));
+}
+
+RequestHsetex MockTransaction::Hsetex(std::string key, std::vector<HsetexFieldValue> field_values) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hsetex(std::move(key), std::move(field_values)));
+}
+
+RequestHsetex MockTransaction::Hsetex(
+    std::string key,
+    HsetexOptions options,
+    std::vector<HsetexFieldValue> field_values
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->Hsetex(std::move(key), options, std::move(field_values)));
+}
+
+RequestJsonSet MockTransaction::JsonSet(std::string key, std::string path, formats::json::Value value) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->JsonSet(std::move(key), std::move(path), std::move(value)));
+}
+
+RequestJsonSetIfNotExist MockTransaction::JsonSetIfNotExist(
+    std::string key,
+    std::string path,
+    formats::json::Value value
+) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->JsonSetIfNotExist(std::move(key), std::move(path), std::move(value)));
+}
+
+RequestJsonSetIfExist MockTransaction::JsonSetIfExist(std::string key, std::string path, formats::json::Value value) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->JsonSetIfExist(std::move(key), std::move(path), std::move(value)));
+}
+
+RequestJsonGet MockTransaction::JsonGet(std::string key) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->JsonGet(std::move(key)));
+}
+
+RequestJsonGet MockTransaction::JsonGet(std::string key, std::string path) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->JsonGet(std::move(key), std::move(path)));
+}
+
+RequestJsonGet MockTransaction::JsonGet(std::string key, std::vector<std::string> paths) {
+    UpdateShard(key);
+    return AddSubrequest(impl_->JsonGet(std::move(key), std::move(paths)));
+}
+
+RequestJsonMget MockTransaction::JsonMget(std::vector<std::string> keys, std::string path) {
+    UpdateShard(keys);
+    return AddSubrequest(impl_->JsonMget(std::move(keys), std::move(path)));
+}
+
+RequestJsonMset MockTransaction::JsonMset(std::vector<JsonKeyPathValue> key_path_values) {
+    for (const auto& kpv : key_path_values) {
+        UpdateShard(kpv.key);
+    }
+    return AddSubrequest(impl_->JsonMset(std::move(key_path_values)));
 }
 
 // end of redis commands

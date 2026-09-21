@@ -34,7 +34,7 @@ class ValueBuilder;
 ///
 /// ## Example usage:
 ///
-/// @snippet formats/bson/value_test.cpp  Sample formats::bson::Value usage
+/// @snippet mongo/src/formats/bson/value_test.cpp  Sample formats::bson::Value usage
 ///
 /// @see @ref scripts/docs/en/userver/formats.md
 ///
@@ -127,7 +127,6 @@ public:
     std::string GetPath() const;
 
     bool operator==(const Value&) const;
-    bool operator!=(const Value&) const;
 
     /// @brief Checks whether the selected element exists
     /// @note MemberMissingException is throws on nonexisting element access
@@ -156,18 +155,13 @@ public:
     bool IsObject() const { return IsDocument(); }
     /// @}
 
-    // clang-format off
-
-  /// Extracts the specified type with strict type checks
-  ///
-  /// ## Example usage:
-  ///
-  /// @snippet formats/bson/value_test.cpp  Sample formats::bson::Value::As<T>() usage
-  ///
-  /// @see @ref scripts/docs/en/userver/formats.md
-
-    // clang-format on
-
+    /// Extracts the specified type with strict type checks
+    ///
+    /// ## Example usage:
+    ///
+    /// @snippet mongo/src/formats/bson/value_test.cpp  Sample formats::bson::Value::As<T>() usage
+    ///
+    /// @see @ref scripts/docs/en/userver/formats.md
     template <typename T>
     auto As() const {
         static_assert(
@@ -256,10 +250,10 @@ public:
     /// @brief Returns an array as its internal representation (BSON document),
     /// internal use only
     Document GetInternalArrayDocument() const;
-    /// @endcond
 
-protected:
+    /// Native type access, internal use only
     const impl::BsonHolder& GetBson() const;
+    /// @endcond
 
 private:
     friend class ValueBuilder;
@@ -322,9 +316,7 @@ std::string Value::ConvertTo<std::string>() const;
 
 /// @brief Wrapper for handy python-like iteration over a map
 ///
-/// @code
-///   for (const auto& [name, value]: Items(map)) ...
-/// @endcode
+/// @snippet universal/src/formats/common/items_test.cpp  Items const iteration
 using formats::common::Items;
 
 }  // namespace formats::bson

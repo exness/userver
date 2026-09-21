@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/ydb/builder.hpp
+/// @brief @copybrief ydb::PreparedArgsBuilder
+
 #include <ydb-cpp-sdk/client/params/params.h>
 
 #include <string>
@@ -16,6 +19,7 @@ namespace ydb {
 class TableClient;
 class Transaction;
 
+/// @brief Builder for prepared query parameters
 class PreparedArgsBuilder final {
 public:
     PreparedArgsBuilder() = default;

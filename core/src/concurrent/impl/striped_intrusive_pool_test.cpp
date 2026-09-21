@@ -2,18 +2,19 @@
 
 #include <atomic>
 #include <cstddef>
+#include <ranges>
 #include <thread>
 #include <unordered_set>
 #include <vector>
 
 #include <gmock/gmock.h>
-#include <boost/range/algorithm/copy.hpp>
-#include <boost/range/irange.hpp>
 
 #include <userver/engine/async.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/utest/utest.hpp>
+#include <userver/utils/algo.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/fixed_array.hpp>
 
@@ -77,7 +78,7 @@ TEST(StripedIntrusivePool, CanHoldSingle) {
 }
 
 TEST(StripedIntrusivePool, WalkUnsafe) {
-    const auto node_values = boost::irange(1, 1024);
+    const auto node_values = std::views::iota(1, 1024);
     CheckedIntPool pool;
 
     for (const auto value : node_values) {
@@ -87,8 +88,7 @@ TEST(StripedIntrusivePool, WalkUnsafe) {
 
     EXPECT_EQ(pool.GetSizeUnsafe(), node_values.size());
 
-    std::unordered_set<int> values;
-    boost::copy(node_values, std::inserter(values, values.begin()));
+    auto values = utils::impl::AsContainerViaInsert<std::unordered_set<int>>(node_values);
     pool.WalkUnsafe([&](const CheckedInt& node) { EXPECT_EQ(values.erase(node.x), 1); });
     EXPECT_THAT(values, testing::IsEmpty());
 
@@ -97,17 +97,17 @@ TEST(StripedIntrusivePool, WalkUnsafe) {
 
 UTEST_MT(StripedIntrusivePool, TortureTest, 12) {
     // 'nodes' must outlive 'stack'
-    utils::FixedArray<CheckedInt> nodes(GetThreadCount() * 2);
+    utils::FixedArray<CheckedInt> nodes(engine::current_task::GetWorkerCount() * 2);
 
     constexpr std::size_t kMinNodesPerTask = 2;
     CheckedIntPool pool;
 
     std::atomic<bool> keep_running{true};
     std::vector<engine::TaskWithResult<std::size_t>> tasks;
-    tasks.reserve(GetThreadCount() - 1);
+    tasks.reserve(engine::current_task::GetWorkerCount() - 1);
 
-    for (std::size_t i = 0; i < GetThreadCount() - 1; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
+    for (std::size_t i = 0; i < engine::current_task::GetWorkerCount() - 1; ++i) {
+        tasks.push_back(engine::AsyncNoTracing([&] {
             std::size_t nodes_created = 0;
             std::vector<std::unique_ptr<CheckedInt>> nodes_we_could_pop;
 

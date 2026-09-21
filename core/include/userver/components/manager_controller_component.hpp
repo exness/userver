@@ -5,7 +5,6 @@
 
 #include <userver/components/component_fwd.hpp>
 #include <userver/components/raw_component_base.hpp>
-#include <userver/concurrent/async_event_source.hpp>
 #include <userver/dynamic_config/snapshot.hpp>
 #include <userver/engine/task/task_processor_fwd.hpp>
 #include <userver/utils/statistics/entry.hpp>
@@ -49,7 +48,8 @@ class Manager;
 /// static_config_validation.validate_all_components | whether to validate static config according to schema; should be `true` for all new services | true
 /// preheat_stacktrace_collector | whether to collect a dummy stacktrace at server start up (usable to avoid loading debug info at random point at runtime) | true
 /// userver_experiments.*NAME* | whether to enable certain userver experiments; these are gradually enabled by userver team, for internal use only | false
-/// graceful_shutdown_interval | at shutdown, first hang for this duration with /ping 5xx to give the balancer a chance to redirect new requests to other hosts | 0s
+/// graceful_shutdown_continue_accepting_requests_interval | at shutdown, first hang for this duration with /ping 5xx to give the balancer a chance to redirect new requests to other hosts and to give the service a chance to finish handling old requests | 0s
+/// graceful_shutdown_pending_requests_completion_interval | at shutdown, when the graceful_shutdown_continue_accepting_requests_interval has expired, all listeners are closed, but already accepted requests continue to be processed until this interval ends | graceful_shutdown_continue_accepting_requests_interval
 /// enable_trx_tracker | Enable checking of heavy operations (like http calls) while having active database transactions. | true
 /// enable_component_load_tracing | whether trace all components coroutines during boot, and dump alive coroutines stacktraces on slow boot. Can slow down service startup. | false
 /// component_load_print_interval | how often to print "still loading components: ..." log message during startup | 10s
@@ -73,7 +73,7 @@ class Manager;
 ///
 /// ## Static configuration example:
 ///
-/// @snippet components/common_component_list_test.cpp  Sample components manager config component config
+/// @snippet core/src/components/common_component_list_test.cpp  Sample components manager config component config
 
 // clang-format on
 class ManagerControllerComponent final : public RawComponentBase {
@@ -84,15 +84,12 @@ public:
 
     ManagerControllerComponent(const components::ComponentConfig& config, const components::ComponentContext& context);
 
-    ~ManagerControllerComponent() override;
-
 private:
     void WriteStatistics(utils::statistics::Writer& writer);
 
     void OnConfigUpdate(const dynamic_config::Snapshot& cfg);
 
     const components::impl::Manager& components_manager_;
-    concurrent::AsyncEventSubscriberScope config_subscription_;
 };
 
 template <>

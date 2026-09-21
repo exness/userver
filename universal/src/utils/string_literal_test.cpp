@@ -1,11 +1,11 @@
 #include <userver/utils/string_literal.hpp>
 
-#ifdef __cpp_concepts
 #include <concepts>
-#endif
-
+#include <iterator>
+#include <ranges>
 #include <type_traits>
 
+#include <fmt/ranges.h>
 #include <gtest/gtest.h>
 
 USERVER_NAMESPACE_BEGIN
@@ -22,7 +22,6 @@ static_assert(!std::is_assignable_v<utils::StringLiteral, utils::zstring_view>);
 static_assert(std::is_assignable_v<std::string_view, utils::StringLiteral>);
 static_assert(std::is_assignable_v<utils::zstring_view, utils::StringLiteral>);
 
-#ifdef __cpp_concepts
 template <typename T>
 concept SuffixRemovable = requires(T t) { t.remove_suffix(10); };
 
@@ -30,7 +29,6 @@ static_assert(std::swappable<utils::StringLiteral>);
 static_assert(!std::swappable_with<utils::StringLiteral, utils::zstring_view>);
 static_assert(!std::swappable_with<utils::StringLiteral, std::string_view>);
 static_assert(!SuffixRemovable<utils::StringLiteral>);
-#endif
 
 static constexpr utils::StringLiteral kLongString = "some long long long long long long long long long string";
 
@@ -68,6 +66,47 @@ TEST(StringLiteral, Swap) {
 
     EXPECT_EQ(v1, kLongString);
     EXPECT_EQ(v2, kShortString);
+}
+
+TEST(StringLiteral, FormatRange) {
+    constexpr utils::StringLiteral kValues[] = {"first", "second"};
+    const auto values =
+        std::views::iota(std::size_t{0}, std::size(kValues)) |
+        std::views::transform([&](std::size_t index) { return kValues[index]; });
+
+    EXPECT_EQ(fmt::format("{}", kValues[0]), "first");
+    EXPECT_EQ(fmt::format("{}", fmt::join(values, ", ")), "first, second");
+}
+
+template <typename T, typename U>
+// NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
+static constexpr bool AreEqualInEveryWay(T&& lhs, U&& rhs) {
+    return lhs == rhs && rhs == lhs &&        //
+           !(lhs != rhs) && !(rhs != lhs) &&  //
+           !(lhs < rhs) && !(rhs < lhs) &&    //
+           !(lhs > rhs) && !(rhs > lhs) &&    //
+           (lhs <= rhs) && (rhs <= lhs) &&    //
+           (lhs >= rhs) && (rhs >= lhs) &&    //
+           (lhs <=> rhs) == std::strong_ordering::equal && (rhs <=> lhs) == std::strong_ordering::equal;
+}
+
+template <typename StringLike>
+class StringLikeComparisonTest : public testing::Test {};
+
+using StringLikeComparisonTypes = ::testing::Types<utils::StringLiteral, utils::zstring_view>;
+
+TYPED_TEST_SUITE(StringLikeComparisonTest, StringLikeComparisonTypes);
+
+TYPED_TEST(StringLikeComparisonTest, Comparison) {
+    static constexpr TypeParam kCmp = "ab";
+
+    static_assert(AreEqualInEveryWay(kCmp, kCmp));
+    static_assert(AreEqualInEveryWay(kCmp, "ab"));
+    static_assert(AreEqualInEveryWay(kCmp, static_cast<const char(&)[3]>("ab")));
+    static_assert(AreEqualInEveryWay(kCmp, static_cast<const char*>("ab")));
+    static_assert(AreEqualInEveryWay(kCmp, std::string_view{"ab"}));
+    static_assert(AreEqualInEveryWay(kCmp, utils::zstring_view{"ab"}));
+    static_assert(AreEqualInEveryWay(kCmp, utils::StringLiteral{"ab"}));
 }
 
 USERVER_NAMESPACE_END

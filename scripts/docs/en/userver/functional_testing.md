@@ -214,10 +214,10 @@ This component must be disabled for production.
 ### Features
 
 The essential parts of the testsuite are
-@ref service_client "pytest_userver.plugins.service_client.service_client" and
+@ref pytest_userver.plugins.service_client.service_client "service_client" and
 pytest_userver.plugins.service_client.monitor_client fixtures that give you
 access to the pytest_userver.client.Client and
-pytest_userver.client.ClientMonitor respectively. Those types allow to interact
+pytest_userver.client.ClientMonitor respectively. Those types allow you to interact
 with a running service.
 
 Testsuite functions reference could be found at @ref userver_testsuite.
@@ -240,7 +240,7 @@ Example usage:
 
 #### Service client
 
-Fixture @ref "service_client"
+Fixture @ref pytest_userver.plugins.service_client.service_client "service_client"
 is used to access the service being tested:
 
 @snippet samples/testsuite-support/tests/test_ping.py service_client
@@ -276,10 +276,10 @@ usually you do not need to manually register any dependencies.
 
 #### Mockserver
 
-[Mockserver](https://yandex.github.io/yandex-taxi-testsuite/mockserver/) allows to mock external
+[Mockserver](https://yandex.github.io/yandex-taxi-testsuite/mockserver/) allows you to mock external
 HTTP handlers. It starts its own HTTP server that receives HTTP traffic from
 the service being tested.
-And allows to install custom HTTP handlers within testsuite.
+It also allows you to install custom HTTP handlers within testsuite.
 In order to use it all HTTP clients must be pointed to mockserver address.
 
 Mockserver usage example:
@@ -317,7 +317,7 @@ Example usage:
 
 @snippet samples/testsuite-support/tests/test_mocked_time.py mocked_time
 
-Example are available here:
+Examples are available here:
 
 * C++ code: @ref samples/testsuite-support/src/now.cpp
 * Testcase: @ref samples/testsuite-support/tests/test_mocked_time.py
@@ -352,7 +352,7 @@ Then you can use testpoint from testcase:
 
 In order to eliminate unnecessary testpoint requests userver keeps track of testpoints
 that have testsuite handlers installed. Usually testpoint handlers are declared before
-first call to @ref service_client which implicitly updates userver's list of testpoint.
+first call to @ref pytest_userver.plugins.service_client.service_client "service_client" which implicitly updates userver's list of testpoint.
 Sometimes it might be required to manually update server state.
 This can be achieved using `service_client.update_server_state()` method e.g.:
 
@@ -388,7 +388,7 @@ Example on logs capture usage could be found here:
 @anchor TESTSUITE_TASKS
 #### Testsuite tasks
 
-Testsuite tasks facility allows to register a custom function and call it by name from testsuite.
+Testsuite tasks facility allows you to register a custom function and call it by name from testsuite.
 It's useful for testing components that perform periodic job not related to its own HTTP handler.
 
 You can use `testsuite::TestsuiteTasks` to register your own task:
@@ -416,7 +416,7 @@ Testsuite provides access to userver metrics written by @ref utils::statistics::
 @ref pytest_userver.plugins.service_client.monitor_client "monitor_client"
 , see @ref tutorial_metrics "tutorial on configuration".
 
-It allows to:
+It allows you to:
 
 - retrieve specific service metric by path and (optionally) labels:
   @ref pytest_userver.client.ClientMonitor.single_metric "await monitor_client.single_metric(path, labels)"
@@ -426,6 +426,9 @@ It allows to:
   @ref pytest_userver.client.ClientMonitor.single_metric_optional "await monitor_client.single_metric_optional(path, labels)"
 - diff of metrics: @ref pytest_userver.client.ClientMonitor.metrics_diff "await monitor_client.metrics_diff()"
 - reset metrics (discouraged): @ref pytest_userver.client.Client.reset_metrics "await service_client.reset_metrics()"
+
+For migrating tests from the removed legacy metrics API, see
+@ref scripts/docs/en/userver/metrics_migration.md "Migrating tests from the removed legacy metrics API".
 
 Example usage:
 
@@ -444,6 +447,11 @@ the metrics could be checked in the following way:
 For metrics with labels, they could be retrieved in the following way:
 
 @snippet samples/testsuite-support/tests/test_metrics.py metrics labels
+
+@note To avoid repeating a common path prefix and common labels in every subsequent call, pass
+`sliced=True` to @ref pytest_userver.client.ClientMonitor.metrics "monitor_client.metrics()".
+See @ref pytest_userver.client.ClientMonitor.metrics "metrics()" and
+@ref pytest_userver.metrics.MetricsSnapshot.sliced "MetricsSnapshot.sliced()" for details.
 
 The @ref pytest_userver.metrics.Metric "Metric" python type is hashable and
 comparable:
@@ -505,7 +513,7 @@ def test_service(service_client):
 @anchor uservice_oneshot
 #### uservice_oneshot testsuite tests
 
-Testsuite allows to create tests that start a new service instance for the test and stop it on test finish:
+Testsuite allows you to create tests that start a new service instance for the test and stop it on test finish:
 
 @snippet samples/testsuite-support/tests/test_metrics.py  uservice_oneshot sample
 
@@ -520,7 +528,7 @@ For per-daemon fixtures see @ref pytest_userver.plugins.service.daemon_scoped_ma
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/testing.md | @ref scripts/docs/en/userver/chaos_testing.md ⇨
+⇦ @ref scripts/docs/en/userver/testing.md | @ref scripts/docs/en/userver/metrics_migration.md ⇨
 @htmlonly </div> @endhtmlonly
 
 @example cmake/UserverTestsuite.cmake

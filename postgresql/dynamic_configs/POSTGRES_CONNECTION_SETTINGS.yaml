@@ -45,7 +45,7 @@ schema:
                     description: Check on startup that all user types have been loaded.
                 max-prepared-cache-size:
                     type: integer
-                    minimum: 1
+                    minimum: 3
                     default: 5000
                     x-usrv-cpp-type: std::size_t
                     description: Prepared statements cache size limit.
@@ -73,4 +73,12 @@ schema:
                     type: boolean
                     default: true
                     description: Whether statement timeout is affected by deadline propagation
+                pooler-mode:
+                    type: string
+                    enum:
+                      - session
+                      - transaction
+                    default: session
+                    description: Pooler mode. `session` (default) for session poolers; `transaction` for Odyssey transaction pooler
+                        only
 

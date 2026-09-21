@@ -6,13 +6,11 @@
 #include <chrono>
 
 #include <userver/components/component_base.hpp>
-#include <userver/concurrent/async_event_source.hpp>
 #include <userver/dynamic_config/snapshot.hpp>
 #include <userver/engine/mutex.hpp>
-#include <userver/storages/secdist/secdist.hpp>
-#include <userver/utils/statistics/entry.hpp>
-
 #include <userver/storages/postgres/database.hpp>
+#include <userver/storages/secdist/secdist.hpp>
+#include <userver/utils/statistics/fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -33,6 +31,7 @@ namespace components {
 /// * @ref POSTGRES_CONNECTION_SETTINGS
 /// * @ref POSTGRES_STATEMENT_METRICS_SETTINGS
 /// * @ref POSTGRES_CONNLIMIT_MODE_AUTO_ENABLED
+/// * @ref POSTGRES_RTT_THRESHOLD_ENABLED
 ///
 /// ## Static configuration example:
 ///
@@ -62,6 +61,13 @@ namespace components {
 /// Once the replica lag exceeds this value it will be automatically disabled.
 /// Note, however, that client-size lag detection is not precise in nature
 /// and can only provide the precision of couple seconds.
+///
+/// `rtt_threshold` limits how much slower than the fastest eligible host a host may be to remain preferred when no
+/// selection strategy is specified or when `kRoundRobin` is requested. It defaults to 20ms. Slower hosts remain
+/// available and are used when no eligible host has a known RTT. Zero is a valid threshold, and the maximum is one
+/// minute. @ref POSTGRES_RTT_THRESHOLD_ENABLED is enabled by default and controls whether the preference is applied.
+/// RTT is an exponentially weighted moving average with latest-sample weight 0.2, and the same RTT estimate is used
+/// by nearest selection and metrics.
 ///
 /// ## Secdist format
 ///
@@ -163,11 +169,6 @@ private:
     storages::postgres::ClusterSettings initial_settings_;
     storages::postgres::DatabasePtr database_;
 
-    // Subscriptions must be the last fields, because the fields above are used
-    // from callbacks.
-    concurrent::AsyncEventSubscriberScope config_subscription_;
-    concurrent::AsyncEventSubscriberScope secdist_subscription_;
-    utils::statistics::Entry statistics_holder_;
     dynamic_config::Source config_source_;
 };
 

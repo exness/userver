@@ -1,5 +1,6 @@
 #include <userver/utest/http_server_mock.hpp>
 
+#include <gmock/gmock.h>
 #include <llhttp.h>
 #include <boost/algorithm/string/split.hpp>
 
@@ -76,6 +77,7 @@ private:
     std::string header_name_;
     std::string header_value_;
     bool reading_header_name_{true};
+    std::size_t parsed_offset_{0};
 };
 
 int HttpConnection::OnUrl(llhttp_t* p, const char* data, size_t size) {
@@ -129,7 +131,7 @@ int HttpConnection::DoOnHeadersComplete() {
 }
 
 int HttpConnection::DoOnBody(const char* data, size_t size) {
-    http_request_.body = std::string(data, size);
+    http_request_.body += std::string(data, size);
     return 0;
 }
 
@@ -144,7 +146,7 @@ int HttpConnection::DoOnMessageComplete() {
             boost::split(query_values, query, [](char c) { return c == '&'; });
             for (const auto& value : query_values) {
                 auto eq_pos = value.find('=');
-                EXPECT_NE(std::string::npos, eq_pos) << "Bad query: " << query;
+                EXPECT_THAT(value, testing::HasSubstr("=")) << "Bad query: " << query;
                 if (eq_pos != std::string::npos) {
                     http_request_.query.emplace(value.substr(0, eq_pos), value.substr(eq_pos + 1));
                 }
@@ -189,11 +191,13 @@ HttpConnection::HttpConnection(const HttpConnection& other)
 {}
 
 SimpleServer::Response HttpConnection::operator()(const SimpleServer::Request& request) {
-    auto size = request.size();
-    const auto err = llhttp_execute(&parser_, request.data(), size);
+    const auto* const chunk = request.data() + parsed_offset_;
+    const auto new_size = request.size() - parsed_offset_;
+    parsed_offset_ = request.size();
+    const auto err = llhttp_execute(&parser_, chunk, new_size);
     if (err != HPE_OK) {
-        const auto parsed = static_cast<size_t>(llhttp_get_error_pos(&parser_) - request.data() + 1);
-        ADD_FAILURE() << "parsed=" << parsed << " size=" << size << " error_description=" << llhttp_errno_name(err);
+        const auto parsed = static_cast<size_t>(llhttp_get_error_pos(&parser_) - chunk + 1);
+        ADD_FAILURE() << "parsed=" << parsed << " size=" << new_size << " error_description=" << llhttp_errno_name(err);
         return {"", SimpleServer::Response::kWriteAndClose};
     }
     if (parser_.upgrade) {
@@ -222,6 +226,7 @@ void HttpConnection::Reset() {
 
     http_request_ = {};
     http_response_ = {};
+    parsed_offset_ = 0;
 }
 
 HttpServerMock::HttpServerMock(HttpHandler http_handler, SimpleServer::Protocol protocol)
@@ -230,6 +235,8 @@ HttpServerMock::HttpServerMock(HttpHandler http_handler, SimpleServer::Protocol 
 {}
 
 std::string HttpServerMock::GetBaseUrl() const { return server_.GetBaseUrl(); }
+
+SimpleServer::Port HttpServerMock::GetPort() const { return server_.GetPort(); }
 
 std::uint64_t HttpServerMock::GetConnectionsOpenedCount() const { return server_.GetConnectionsOpenedCount(); }
 

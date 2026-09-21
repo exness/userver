@@ -3,7 +3,7 @@
 /// @file userver/tracing/manager_component.hpp
 /// @brief TracingManager base and default components
 
-#include <string>
+#include <string_view>
 
 #include <userver/components/component_base.hpp>
 #include <userver/tracing/manager.hpp>
@@ -54,9 +54,12 @@ public:
 
     const TracingManagerBase& GetTracingManager() const;
 
+    bool IsOtelTraceSamplingEnabled() const noexcept;
+
     static yaml_config::Schema GetStaticConfigSchema();
 
 private:
+    const GenericTracingManager::SamplingEnabled otel_sampling_;
     GenericTracingManager default_manager_;
     const TracingManagerBase& tracing_manager_;
 };

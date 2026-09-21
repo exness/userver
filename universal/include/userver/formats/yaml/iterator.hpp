@@ -24,6 +24,7 @@ public:
     using reference = typename IterTraits::reference;
     using pointer = typename IterTraits::pointer;
 
+    Iterator();
     Iterator(const typename IterTraits::native_iter& iter, int index, const formats::yaml::Path& path);
     Iterator(const Iterator& other);
     Iterator(Iterator&& other) noexcept;
@@ -41,9 +42,12 @@ public:
 
     /// @brief Returns name of the referenced field
     /// @throws `TypeMismatchException` if iterated value is not an object
+    /// @deprecated Prefer @ref formats::common::Items "formats::common::Items()" for object iteration.
     std::string GetName() const;
     /// @brief Returns index of the referenced field
     /// @throws `TypeMismatchException` if iterated value is not an array
+    /// @deprecated Prefer @ref utils::enumerate for array iteration.
+    /// @see @ref scripts/docs/en/userver/formats.md
     uint32_t GetIndex() const;
 
     /// @brief Returns whether iterator is over array or over object

@@ -7,7 +7,6 @@
 
 #include <boost/algorithm/string/split.hpp>
 #include <boost/crc.hpp>
-#include <boost/range/algorithm/for_each.hpp>
 
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
@@ -63,6 +62,13 @@ void GetRedisKey(const std::string& key, size_t* key_start, size_t* key_len) {
     *key_len = end - start - 1;
 }
 
+size_t HashSlot(const std::string& key) {
+    size_t start = 0;
+    size_t len = 0;
+    GetRedisKey(key, &start, &len);
+    return std::for_each(key.data() + start, key.data() + start + len, boost::crc_optimal<16, 0x1021>())() & 0x3fff;
+}
+
 KeyShardTaximeterCrc32::KeyShardTaximeterCrc32(size_t shard_count)
     : shard_count_(shard_count),
       converter_(kRawKeyEncoding, kTaximeterCrcKeyEncoding)
@@ -93,7 +99,8 @@ size_t KeyShardTaximeterCrc32::ShardByKey(const std::string& key) const {
     GetRedisKey(key, &start, &len);
 
     std::vector<char> converted;
-    if (NeedConvertEncoding(key, start, len) && converter_.Convert(key.data() + start, len, converted)) {
+    if (NeedConvertEncoding(key, start, len) && converter_.Convert(std::string_view(key).substr(start, len), converted))
+    {
         return std::for_each(converted.begin(), converted.end(), boost::crc_32_type())() % shard_count_;
     } else {
         return std::for_each(key.data() + start, key.data() + start + len, boost::crc_32_type())() % shard_count_;
@@ -103,8 +110,7 @@ size_t KeyShardTaximeterCrc32::ShardByKey(const std::string& key) const {
 size_t KeyShardGpsStorageDriver::ShardByKey(const std::string& key) const {
     const auto path = Parse(key);
     const auto& driver_id = path.value_or(key);
-    const boost::crc_32_type crc{};
-    return boost::for_each(driver_id, crc)() % shard_count_;
+    return std::for_each(driver_id.begin(), driver_id.end(), boost::crc_32_type{})() % shard_count_;
 }
 
 std::optional<std::string> KeyShardGpsStorageDriver::Parse(const std::string& s) {

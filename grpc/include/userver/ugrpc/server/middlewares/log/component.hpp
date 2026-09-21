@@ -19,6 +19,12 @@ namespace ugrpc::server::middlewares::log {
 /// `google::protobuf::Message` fields with the option `[debug_redact = true]` are logged as `[REDACTED]` string
 /// to avoid print secrets in logs. `debug_redact` is available in protobuf version >= 22.
 ///
+/// @warning Before Protobuf v35 (which contains the `TextFormat` early-termination fix
+/// https://github.com/protocolbuffers/protobuf/pull/26237), each logged message is serialized in full regardless of
+/// the `msg-size-log-limit` option, and only then the result is truncated. For large messages this may consume a
+/// significant amount of CPU. If this becomes a problem, disable this middleware,
+/// see @ref scripts/docs/en/userver/grpc/middlewares_toggle.md
+///
 /// @warning Logs are currently written with log level `debug` by default, which typically means that they are not
 /// written in production. See details below.
 ///

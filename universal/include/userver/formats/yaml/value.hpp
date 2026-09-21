@@ -32,7 +32,7 @@ formats::yaml::Value FromStringAllowRepeatedKeys(const std::string& doc);
 ///
 /// ## Example usage:
 ///
-/// @snippet formats/yaml/value_test.cpp  Sample formats::yaml::Value usage
+/// @snippet universal/src/formats/yaml/value_test.cpp  Sample formats::yaml::Value usage
 ///
 /// @see @ref scripts/docs/en/userver/formats.md
 ///
@@ -110,7 +110,6 @@ public:
     /// @brief Compares values.
     /// @throw MemberMissingException if `*this` or `other` is missing.
     bool operator==(const Value& other) const;
-    bool operator!=(const Value& other) const;
 
     /// @brief Returns true if *this holds nothing. When `IsMissing()` returns
     /// `true` any attempt to get the actual value or iterate over *this will
@@ -144,20 +143,15 @@ public:
     /// @brief Returns true if *this is a map (Type::kObject).
     bool IsObject() const noexcept;
 
-    // clang-format off
-
-  /// @brief Returns value of *this converted to the result type of
-  ///        Parse(const Value&, parse::To<T>). Almost always it is T.
-  /// @throw Anything derived from std::exception.
-  ///
-  /// ## Example usage:
-  ///
-  /// @snippet formats/yaml/value_test.cpp  Sample formats::yaml::Value::As<T>() usage
-  ///
-  /// @see @ref scripts/docs/en/userver/formats.md
-
-    // clang-format on
-
+    /// @brief Returns value of *this converted to the result type of
+    ///        Parse(const Value&, parse::To<T>). Almost always it is T.
+    /// @throw Anything derived from std::exception.
+    ///
+    /// ## Example usage:
+    ///
+    /// @snippet universal/src/formats/yaml/value_test.cpp  Sample formats::yaml::Value::As<T>() usage
+    ///
+    /// @see @ref scripts/docs/en/userver/formats.md
     template <typename T>
     auto As() const;
 
@@ -337,9 +331,7 @@ auto Value::As(Value::DefaultConstructed) const {
 
 /// @brief Wrapper for handy python-like iteration over a map
 ///
-/// @code
-///   for (const auto& [name, value]: Items(map)) ...
-/// @endcode
+/// @snippet universal/src/formats/common/items_test.cpp  Items const iteration
 using formats::common::Items;
 
 }  // namespace formats::yaml

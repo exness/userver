@@ -2,7 +2,7 @@
 
 ### April 2024
 
-* Initial CPack support. Now `userver-all.deb` packages could be build via:
+* Initial CPack support. Now `userver-all.deb` packages could be built via:
   ```
   git clone --depth 1 https://github.com/userver-framework/userver.git
   docker run --rm -it --network ip6net -v $(pwd):/home/user -w /home/user/userver \
@@ -91,7 +91,7 @@
 
 * Optimizations:
   * Switched from unmaintained `http_parser` to a 156% faster `llhttp`.
-  * Implemented a concurrent::StripedCounter that allows to have a per-cpu data
+  * Implemented a concurrent::StripedCounter that allows you to have a per-cpu data
     in user space with kernel-provided transactional guarantees. Works
     at least x2 faster than std::atomic on a single thread and scales
     linearly (unlike std::atomic). As a result gives more than x10 performance
@@ -175,7 +175,7 @@
 
 * Documentation and Diagnostics:
   * Added fix hints for storages::postgres::InvalidParserCategory.
-  * Clarify @ref scripts/docs/en/userver/pg_user_types.md
+  * Clarify @ref scripts/docs/en/userver/pg/user_types.md
   * More references and info for the metrics documentation.
   * More documentation for dynamic_config::ValueDict `__default__` behavior,
     and for dynamic configs.
@@ -292,7 +292,7 @@
   were implemented. Many thanks to [Aleksej Kamenev](https://github.com/ishiku) for
   the PR!
 * PostgreSQL driver now auto detects the max pool size, see
-  @ref scripts/docs/en/userver/pg_connlimit_mode_auto.md
+  @ref scripts/docs/en/userver/pg/connlimit_mode_auto.md
 * server::http::HttpRequest:GetMethod() now can return
   server::http::HttpMethod::kHEAD. Thanks
   to [Kirill Zimnikov](https://github.com/lirik90) for the bugreport and PR!
@@ -465,7 +465,7 @@ Detailed descriptions could be found below.
   [Konstantin Antoniadi](https://github.com/KonstantinAntoniadi),
   [Mingaripov Niyaz](https://github.com/mnink275),
   [Ilya Golosov](https://github.com/bookWorm21) and all the participants
-  for the the great work and PRs!
+  for the great work and PRs!
 
 * Build:
   * New versions of `yaml-cpp` library are now supported. Thanks to
@@ -561,7 +561,7 @@ Detailed descriptions could be found below.
 
 ### Beta (July 2023)
 
-* server::http::CustomHandlerException now allows to provide a custom HTTP
+* server::http::CustomHandlerException now allows you to provide a custom HTTP
   status that is not mapped to protocol-agnostic
   server::handlers::HandlerErrorCode.
 * Non-coroutine `userver-universal` CMake target was refactored and is now used
@@ -624,7 +624,7 @@ Detailed descriptions could be found below.
     low-level vector sends. Mongo driver now uses the new function, resulting in
     smaller CPU and memory consumption.
   * clients::http::Form::AddContent now instead of `const std::string&`
-    parameters accepts `std::string_view` parameters that allow to copy less
+    parameters accepts `std::string_view` parameters that allow you to copy less
     data.
 
 * Docs and diagnostics:
@@ -671,7 +671,7 @@ Detailed descriptions could be found below.
   * TSKV escaping was optimized via SIMD, resulting in up to x10 speedup on
     long logs.
   * `mlock_debug_info` static configuration option of
-    components::ManagerControllerComponent now allows to lock exception
+    components::ManagerControllerComponent now allows you to lock exception
     unwinding information in memory. It improves responsiveness of the
     service under heavy load on low memory and bad hard drives.
 
@@ -827,7 +827,7 @@ Detailed descriptions could be found below.
   @ref static-configs-validation "Static configs validation" now could use
   `minimum` and `maximum`.
 * gRPC clients now have ReadAsync() functions, that return a future and
-  allow to request multiple results from different RPCs at the same moment.
+  allow you to request multiple results from different RPCs at the same moment.
 * ugrpc::server::Server now can return a vector of gRPC service names.
 * To aid in asynchronous drivers development the engine::io::FdPoller is now
   a part of the public API.

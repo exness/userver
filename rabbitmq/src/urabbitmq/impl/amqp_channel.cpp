@@ -106,7 +106,9 @@ AMQP::Table CreateHeadersForPublish(const Envelope& envelope) {
 
 }  // namespace
 
-AmqpChannel::AmqpChannel(AmqpConnection& conn) : conn_{conn} {}
+AmqpChannel::AmqpChannel(AmqpConnection& conn)
+    : conn_{conn}
+{}
 
 AmqpChannel::~AmqpChannel() = default;
 
@@ -130,13 +132,19 @@ ResponseAwaiter AmqpChannel::DeclareExchange(
 ResponseAwaiter AmqpChannel::DeclareQueue(
     const Queue& queue,
     utils::Flags<Queue::Flags> flags,
+    const std::unordered_map<std::string, HeaderValue>& headers,
+    QueueDeclareResponse& response,
     engine::Deadline deadline
 ) {
     auto awaiter = conn_.GetAwaiter(deadline);
 
     {
         auto channel = conn_.GetChannel(deadline);
-        awaiter.GetWrapper()->Wrap(channel->declareQueue(queue.GetUnderlying(), Convert(flags)));
+        AMQP::Table table;
+        AddHeadersToTable(table, headers);
+        awaiter.GetWrapper()->WrapDeclareQueue(
+            channel->declareQueue(queue.GetUnderlying(), Convert(flags), table), response
+        );
     }
 
     return awaiter;
@@ -270,7 +278,9 @@ void AmqpChannel::CancelConsumer(const std::optional<std::string>& consumer_tag)
 
 void AmqpChannel::AccountMessageConsumed() { conn_.GetStatistics().AccountMessageConsumed(); }
 
-AmqpReliableChannel::AmqpReliableChannel(AmqpConnection& conn) : conn_{conn} {}
+AmqpReliableChannel::AmqpReliableChannel(AmqpConnection& conn)
+    : conn_{conn}
+{}
 
 AmqpReliableChannel::~AmqpReliableChannel() = default;
 

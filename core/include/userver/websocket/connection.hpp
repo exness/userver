@@ -1,7 +1,7 @@
 #pragma once
 
-/// @file userver/server/websocket/server.hpp
-/// @brief @copybrief server::websocket::WebSocketConnection
+/// @file userver/websocket/connection.hpp
+/// @brief @copybrief websocket::WebSocketConnection
 
 #include <memory>
 
@@ -9,6 +9,7 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/utils/span.hpp>
+#include <userver/utils/statistics/rate_counter.hpp>
 #include <userver/websocket/message.hpp>
 #include <userver/yaml_config/fwd.hpp>
 
@@ -26,10 +27,10 @@ struct Config final {
 Config Parse(const yaml_config::YamlConfig&, formats::parse::To<Config>);
 
 struct Statistics final {
-    std::atomic<int64_t> msg_sent{0};
-    std::atomic<int64_t> msg_recv{0};
-    std::atomic<int64_t> bytes_sent{0};
-    std::atomic<int64_t> bytes_recv{0};
+    utils::statistics::RateCounter msg_sent{};
+    utils::statistics::RateCounter msg_recv{};
+    utils::statistics::RateCounter bytes_sent{};
+    utils::statistics::RateCounter bytes_recv{};
 };
 
 /// @brief Main class for Websocket connection
@@ -54,9 +55,9 @@ public:
     /// at once if TLS is used. Consider using Send()+TryRecv() from the same coroutine instead.
     virtual void Recv(Message& message) = 0;
 
-    /// @brief Behaves in the same way as Recv(), but in case of first bytes of
-    /// message are not yet ready to receive gives the control up to a client.
-    /// @returns false in case of messages absence, otherwise true and behaves
+    /// @brief Behaves in the same way as Recv(), but if the first bytes of the
+    /// message are not yet ready to receive, yields control to the client.
+    /// @returns false if no message is available, otherwise true and behaves
     /// like Recv()
     virtual bool TryRecv(Message& message) = 0;
 

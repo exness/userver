@@ -163,6 +163,13 @@ target_compile_definitions(
            "USERVER_NAMESPACE_END=${USERVER_NAMESPACE_END}" "USERVER=1"
 )
 
+set(VERSION_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/include/userver/version.hpp)
+math(EXPR USERVER_VERSION_FULL "10000 * ${USERVER_MAJOR_VERSION} + 100 * ${USERVER_MINOR_VERSION}")
+if(USERVER_RELEASE_CANDIDATE)
+    math(EXPR USERVER_VERSION_FULL "${USERVER_VERSION_FULL} - 1")
+endif()
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.hpp.in ${VERSION_CONFIG} ESCAPE_QUOTES @ONLY)
+
 # https://github.com/jemalloc/jemalloc/issues/820
 if(USERVER_FEATURE_JEMALLOC
    AND NOT USERVER_SANITIZE
@@ -268,7 +275,6 @@ endif()
 target_include_directories(
     ${PROJECT_NAME}
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-           $<BUILD_INTERFACE:${USERVER_THIRD_PARTY_DIRS}/date/include>
            $<BUILD_INTERFACE:${USERVER_THIRD_PARTY_DIRS}/function_backports/include>
            $<BUILD_INTERFACE:${USERVER_THIRD_PARTY_DIRS}/move_only_function_backport/include>
            $<INSTALL_INTERFACE:include/userver/third_party>
@@ -283,12 +289,12 @@ gen_gdb_printers(${PROJECT_NAME} "formats/json")
 _userver_directory_install(
     COMPONENT universal
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/.. PATTERN "*pp" # ignore .gitignore in userver/third_party
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/..
+    PATTERN "*pp" # ignore .gitignore in userver/third_party
 )
 _userver_directory_install(
     COMPONENT universal
-    DIRECTORY ${USERVER_THIRD_PARTY_DIRS}/date/include/date
-              ${USERVER_THIRD_PARTY_DIRS}/function_backports/include/function_backports
+    DIRECTORY ${USERVER_THIRD_PARTY_DIRS}/function_backports/include/function_backports
               ${USERVER_THIRD_PARTY_DIRS}/move_only_function_backport/include/function_backports
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/userver/third_party/
 )
@@ -325,9 +331,7 @@ if(USERVER_BUILD_TESTS)
     target_include_directories(
         ${PROJECT_NAME}-benchmark SYSTEM PRIVATE $<TARGET_PROPERTY:${PROJECT_NAME},INCLUDE_DIRECTORIES>
     )
-    target_link_libraries(
-        ${PROJECT_NAME}-benchmark PUBLIC ${PROJECT_NAME} ${PROJECT_NAME}-internal-ubench
-    )
+    target_link_libraries(${PROJECT_NAME}-benchmark PUBLIC ${PROJECT_NAME} ${PROJECT_NAME}-internal-ubench)
 
     option(USERVER_HEADER_MAP_AGAINST_OTHERS_BENCHMARK "build HeaderMap benchmarks against abseil and boost" OFF)
     if(USERVER_HEADER_MAP_AGAINST_OTHERS_BENCHMARK)
@@ -339,15 +343,11 @@ if(USERVER_BUILD_TESTS)
     add_google_benchmark_tests(${PROJECT_NAME}-benchmark)
 
     add_library(${PROJECT_NAME}-compile-fail EXCLUDE_FROM_ALL ${COMPILEFAIL_TEST_SOURCES})
-    target_link_libraries(
-        ${PROJECT_NAME}-compile-fail
-        PUBLIC ${PROJECT_NAME}
-    )
+    target_link_libraries(${PROJECT_NAME}-compile-fail PUBLIC ${PROJECT_NAME})
     add_test(
-	NAME ${PROJECT_NAME}-compile-err-msg-test
-	COMMAND
-	    python3 ${USERVER_ROOT_DIR}/scripts/compile_fail_test.py ${CMAKE_CURRENT_SOURCE_DIR}
-	WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        NAME ${PROJECT_NAME}-compile-err-msg-test
+        COMMAND python3 ${USERVER_ROOT_DIR}/scripts/compile_fail_test.py ${CMAKE_CURRENT_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
 endif()
 
@@ -377,9 +377,9 @@ _userver_directory_install(
           "${USERVER_ROOT_DIR}/cmake/UserverEmbedFile.cmake"
           "${USERVER_ROOT_DIR}/cmake/UserverPreferStaticLibs.cmake"
           "${USERVER_ROOT_DIR}/cmake/embedded_config.cmake"
-          "${USERVER_ROOT_DIR}/cmake/install/userver-universal-config.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver
 )
+_userver_install_component_config(universal)
 _userver_directory_install(
     COMPONENT universal
     FILES "${USERVER_ROOT_DIR}/cmake/modules/Findcryptopp.cmake"
@@ -398,6 +398,6 @@ _userver_directory_install(
     DESTINATION ${CMAKE_INSTALL_DATADIR}/userver
 )
 
-_userver_install_component(MODULE universal)
+_userver_install_component(COMPONENT universal)
 
 include(UserverEmbedFile)

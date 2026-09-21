@@ -11,20 +11,20 @@
 #include <userver/storages/redis/base.hpp>
 
 #include <storages/redis/impl/cluster_shard.hpp>
-#include <storages/redis/impl/sentinel_query.hpp>
+#include <storages/redis/impl/cluster_slots_query.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis::impl {
 
 template <typename K>
-struct StdMutexRcuMapTraits : rcu::DefaultRcuMapTraits<K> {
-    using MutexType = std::mutex;
+struct SingleWriterRcuMapTraits : rcu::DefaultRcuMapTraits<K> {
+    using MutexType = rcu::ExclusiveRcuTraits::MutexType;
     using DeleterType = rcu::SyncDeleter;
 };
 
 class RedisConnectionHolder;
-using NodesStorage = rcu::RcuMap<std::string, RedisConnectionHolder, StdMutexRcuMapTraits<std::string>>;
+using NodesStorage = rcu::RcuMap<std::string, RedisConnectionHolder, SingleWriterRcuMapTraits<std::string>>;
 
 class ClusterTopology {
 public:
@@ -68,7 +68,7 @@ public:
         return cluster_shards_.at(index);
     }
 
-    bool IsReady(WaitConnectedMode mode) const;
+    bool IsReady(const HealthCheckParams& params) const;
     std::string GetReadinessInfo() const;
 
     bool HasSameInfos(const ClusterShardHostInfos& infos) const;

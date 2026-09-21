@@ -71,8 +71,8 @@ Now you are ready for fast and comfortable creation of C++ microservices, servic
 If you use @ref devcontainers "Dev Containers", or if you @ref userver_cpm "use CPM to download userver",
 run this script to get `userver-create-service` command:
 
-* Linux, macOS, BSD: @ref service-template/userver-create-service.sh
-* Windows: @ref service-template/userver-create-service.bat
+* Linux, macOS, BSD: @ref scripts/docs/examples/service-template/userver-create-service.sh
+* Windows: @ref scripts/docs/examples/service-template/userver-create-service.bat
 
 In the script, replace `vMAJOR.MINOR` with the actual userver version, or use `develop` to get bleeding-edge features
 at your own risk.
@@ -113,7 +113,7 @@ find_package(userver COMPONENTS core kafka QUIET)
 
 Then add the corresponding option to @ref service_templates_presets "cmake presets",
 e.g. `"USERVER_FEATURE_GRPC": "ON"`.
-(This allows to use @ref userver_cpm "CPM" with the service project.)
+(This allows you to use @ref userver_cpm "CPM" with the service project.)
 
 @see @ref userver_libraries
 
@@ -149,7 +149,7 @@ then it should be added to `CMakePresets.json`:
 If an option only configures local build (should NOT be committed to VCS and applied in CI),
 then it should instead be added to `CMakeUserPresets.json`:
 
-* @ref service-template/CMakeUserPresets.json.example
+* @ref scripts/docs/examples/service-template/CMakeUserPresets.json.example
 
 Service's `Makefile` supports custom presets through additional targets like
 `cmake-debug-custom`, `cmake-release-custom`, `build-debug-custom`, etc.
@@ -251,7 +251,7 @@ When acquiring userver via CPM, you first need to install build dependencies. Th
 
 To use a @ref service_templates "service template" with CPM, run this script to get `userver-create-service` command:
 
-@ref service-template/userver-create-service.sh
+@ref scripts/docs/examples/service-template/userver-create-service.sh
 
 Make sure to @ref service_templates_presets "enable" the CMake options to build userver libraries you need,
 then link to those libraries.
@@ -404,7 +404,7 @@ sudo ./scripts/build_and_install_all.sh
 
 Alternatively see @ref userver_install "userver install"
 
-@note The above image is build from `scripts/docker/ubuntu-22.04-pg.dockerfile`,
+@note The above image is built from `scripts/docker/ubuntu-22.04-pg.dockerfile`,
    `scripts/docker/ubuntu-22.04.dockerfile`
    and `scripts/docker/base-ubuntu-22.04.dockerfile` respectively.
    See `scripts/docker/` directory and `scripts/docker/Readme.md` for more
@@ -533,6 +533,6 @@ Guideline for documentation authors:
 ⇦ @ref scripts/docs/en/userver/faq.md | @ref scripts/docs/en/userver/build/dependencies.md ⇨
 @htmlonly </div> @endhtmlonly
 
-@example service-template/CMakeUserPresets.json.example
-@example service-template/userver-create-service.sh
-@example service-template/userver-create-service.bat
+@example scripts/docs/examples/service-template/CMakeUserPresets.json.example
+@example scripts/docs/examples/service-template/userver-create-service.sh
+@example scripts/docs/examples/service-template/userver-create-service.bat

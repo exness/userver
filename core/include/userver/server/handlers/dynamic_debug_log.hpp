@@ -11,8 +11,6 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace server::handlers {
-// clang-format off
-
 /// @ingroup userver_components userver_http_handlers
 ///
 /// @brief Handler for forcing specific lines logging. Feature also known as
@@ -23,7 +21,7 @@ namespace server::handlers {
 ///
 /// ## Static configuration example:
 ///
-/// @snippet components/common_server_component_list_test.cpp  Sample handler dynamic debug log component config
+/// @snippet core/src/components/common_server_component_list_test.cpp  dynamic-debug-log config
 ///
 /// ## Scheme
 ///
@@ -58,8 +56,6 @@ namespace server::handlers {
 /// be specified in the `location=` argument in URL.
 ///
 /// @see @ref scripts/docs/en/userver/log_level_running_service.md
-
-// clang-format on
 class DynamicDebugLog final : public HttpHandlerBase {
 public:
     DynamicDebugLog(const components::ComponentConfig& config, const components::ComponentContext& component_context);

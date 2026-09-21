@@ -32,7 +32,7 @@ namespace utils {
 /// @param Hash2 the second callable hash struct
 ///
 /// Example:
-/// @snippet src/utils/filter_bloom_test.cpp  Sample filter bloom usage
+/// @snippet universal/src/utils/filter_bloom_test.cpp  Sample filter bloom usage
 template <typename T, typename Counter = unsigned, typename Hash1 = boost::hash<T>, typename Hash2 = std::hash<T>>
 class FilterBloom final {
 public:
@@ -68,8 +68,8 @@ private:
     Counter MinFrequency(const HashedType& hashed_value_1, const HashedType& hashed_value_2) const;
 
     utils::FixedArray<Counter> counters_;
-    const Hash1 hasher_1_;
-    const Hash2 hasher_2_;
+    [[no_unique_address]] const Hash1 hasher_1_;
+    [[no_unique_address]] const Hash2 hasher_2_;
 
     static constexpr std::size_t kHashFunctionsCount = 4;
 };

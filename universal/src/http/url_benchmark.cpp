@@ -10,7 +10,7 @@ void MakeUrl(benchmark::State& state, std::size_t size) {
     std::string latins(size, 'a');
     std::string latins_with_spaces = spaces + latins;
     for ([[maybe_unused]] auto _ : state) {
-        const auto result = http::MakeUrl(path, {{"a", latins}, {"b", spaces}, {"c", latins_with_spaces}, {"d", ""}});
+        auto result = http::MakeUrl(path, {{"a", latins}, {"b", spaces}, {"c", latins_with_spaces}, {"d", ""}});
         benchmark::DoNotOptimize(result);
     }
 }
@@ -32,7 +32,7 @@ void MakeQuery(benchmark::State& state) {
         query_args[str] = str;
     }
     for ([[maybe_unused]] auto _ : state) {
-        const auto result = http::MakeQuery(query_args);
+        auto result = http::MakeQuery(query_args);
         benchmark::DoNotOptimize(result);
     }
 }
@@ -46,7 +46,7 @@ void MakeUrlWithPathArgsValueSizes(benchmark::State& state, std::size_t size) {
     http::Args query_args = {{"param", large_value}};
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto result = http::MakeUrlWithPathArgs(path_template, path_args, query_args);
+        auto result = http::MakeUrlWithPathArgs(path_template, path_args, query_args);
         benchmark::DoNotOptimize(result);
     }
 }
@@ -74,7 +74,7 @@ void MakeUrlWithPathArgsTemplateComplexity(benchmark::State& state) {
     }
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto result = http::MakeUrlWithPathArgs(path_template, path_args);
+        auto result = http::MakeUrlWithPathArgs(path_template, path_args);
         benchmark::DoNotOptimize(result);
     }
 }

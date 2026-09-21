@@ -133,7 +133,7 @@ requires traits::ProtoStruct<std::remove_cvref_t<TStruct>>
     if (!msg.SerializeToString(&binary_data)) {
         throw WriteError("", "serializing protobuf message to binary data failed");
     };
-    return binary_data;
+    return protobuf::impl::ToString(std::move(binary_data));
 }
 
 }  // namespace proto_structs

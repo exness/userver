@@ -5,6 +5,7 @@
 
 #include <server/http/http2_session.hpp>
 #include <server/http/http_cached_date.hpp>
+#include <server/http/http_response_impl.hpp>
 
 #include <userver/http/common_headers.hpp>
 #include <userver/http/predefined_header.hpp>
@@ -97,13 +98,13 @@ private:
 
 class Http2ResponseWriter final {
 public:
-    Http2ResponseWriter(HttpResponse& response, Http2Session& session)
+    Http2ResponseWriter(HttpResponseImpl& response, Http2Session& session)
         : response_(response),
           http2_session_(session)
     {}
 
     void WriteHttpResponse() {
-        auto data = response_.ExtractData();
+        const auto& data = response_.GetData();
 
         auto headers = GetHeaders();
         const bool is_body_forbidden = IsBodyForbiddenForStatus(response_.status_);
@@ -120,10 +121,10 @@ public:
 
         std::size_t bytes = headers.GetSize();
         nghttp2_data_provider* provider{nullptr};
-        if (response_.request_.GetMethod() != HttpMethod::kHead && !is_body_forbidden) {
+        if (!response_.is_head_request_ && !is_body_forbidden) {
             if (!stream.IsStreaming()) {
                 bytes += data.size();
-                stream.PushChunk(std::move(data));
+                stream.PushChunk(response_.ExtractData());
             }
             provider = stream.GetNativeProvider();
         }
@@ -138,7 +139,7 @@ public:
         }
 
         http2_session_.WriteWhileWant();
-        response_.SetSent(bytes, std::chrono::steady_clock::now());
+        response_.SetSent(bytes);
     }
 
 private:
@@ -178,12 +179,12 @@ private:
         return header_writer;
     }
 
-    HttpResponse& response_;
+    HttpResponseImpl& response_;
     Http2Session& http2_session_;
 };
 
 void WriteHttp2ResponseToSocket(HttpResponse& response, Http2Session& session) {
-    Http2ResponseWriter w{response, session};
+    Http2ResponseWriter w{GetHttpResponseImpl(response), session};
     w.WriteHttpResponse();
 }
 

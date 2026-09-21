@@ -20,9 +20,8 @@ if(NOT EXISTS ${api-common-protos_SOURCE_DIR})
     include(DownloadUsingCPM)
     cpmaddpackage(
         NAME api-common-protos
-        GITHUB_REPOSITORY googleapis/api-common-protos
-        GIT_TAG main
-        GIT_SHALLOW TRUE
+        URL https://github.com/googleapis/api-common-protos/archive/3332dec527759859840a3a2ff108c67a54708130.tar.gz
+        URL_HASH SHA256=87e7426a92d252e01123be3b714a4f0cb711e5cb9b9477c099f653dc072a7321
         DOWNLOAD_ONLY YES
     )
 endif()
@@ -37,18 +36,12 @@ file(GLOB SOURCES ${api-common-protos_SOURCE_DIR}/google/api/*.proto ${api-commo
 
 include(UserverGrpcTargets)
 userver_generate_grpc_files(
-    PROTOS
-    ${SOURCES}
-    INCLUDE_DIRECTORIES
-    ${api-common-protos_SOURCE_DIR}
-    SOURCE_PATH
-    ${api-common-protos_SOURCE_DIR}
-    GENERATED_INCLUDES
-    include_paths
-    CPP_FILES
-    generated_sources
-    CPP_USRV_FILES
-    generated_usrv_sources
+    PROTOS ${SOURCES}
+    INCLUDE_DIRECTORIES ${api-common-protos_SOURCE_DIR}
+    SOURCE_PATH ${api-common-protos_SOURCE_DIR}
+    GENERATED_INCLUDES include_paths
+    CPP_FILES generated_sources
+    CPP_USRV_FILES generated_usrv_sources
 )
 
 add_library(userver-api-common-protos STATIC ${generated_sources})
@@ -59,7 +52,8 @@ target_link_libraries(userver-api-common-protos PUBLIC userver-grpc-deps)
 _userver_directory_install(
     COMPONENT grpc
     DIRECTORY ${include_paths}/google
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/userver/third_party PATTERN "*.pb.h"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/userver/third_party
+    PATTERN "*.pb.h"
 )
 
 set(api-common-proto_LIBRARY userver-api-common-protos)

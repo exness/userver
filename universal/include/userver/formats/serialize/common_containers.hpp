@@ -28,7 +28,7 @@ namespace impl {
 
 template <typename T>
 concept RangeNotMap =
-    meta::kIsRange<T> && !meta::kIsMap<T> && !std::is_same_v<T, boost::uuids::uuid> &&
+    meta::IsRange<T> && !meta::IsMap<T> && !std::is_same_v<T, boost::uuids::uuid> &&
     !std::is_convertible_v<T&, utils::impl::strong_typedef::StrongTypedefTag&>;
 
 }
@@ -45,7 +45,7 @@ Value Serialize(const T& value, To<Value>) {
 }
 
 /// Mappings serialization
-template <meta::kIsUniqueMap T, typename Value>
+template <meta::IsUniqueMap T, typename Value>
 Value Serialize(const T& value, To<Value>) {
     typename Value::Builder builder(formats::common::Type::kObject);
     for (const auto& [key, value] : value) {

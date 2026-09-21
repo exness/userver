@@ -2,6 +2,7 @@
 
 #include <sys/types.h>
 #include <csignal>
+#include <latch>
 
 #if __has_include(<util/system/progname.h>)
 #define ARCADIA
@@ -11,7 +12,6 @@
 
 #include <fmt/format.h>
 
-#include <concurrent/impl/latch.hpp>
 #include <userver/compiler/impl/tsan.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
@@ -119,7 +119,7 @@ auto MakeTaskQueue(TaskProcessorConfig config) {
         case TaskQueueType::kGlobalTaskQueue:
             return TaskQueueVariant{std::in_place_type<TaskQueue>, std::move(config)};
         case TaskQueueType::kWorkStealingTaskQueue:
-            return TaskQueueVariant{std::in_place_type<WorkStealingTaskQueue>, std::move(config)};
+            return TaskQueueVariant{std::in_place_type<fast::Queue>, std::move(config)};
         case TaskQueueType::kPullPinTaskQueue:
             return TaskQueueVariant{std::in_place_type<TaskQueuePullPin>, std::move(config)};
         case TaskQueueType::kTSanTaskQueue:
@@ -143,7 +143,7 @@ TaskProcessor::TaskProcessor(TaskProcessorConfig config, std::shared_ptr<impl::T
         LOG_INFO()
             << "creating task_processor " << Name() << " "
             << "worker_threads=" << config_.worker_threads << " thread_name=" << config_.thread_name;
-        concurrent::impl::Latch workers_left{static_cast<std::ptrdiff_t>(config_.worker_threads)};
+        std::latch workers_left{static_cast<std::ptrdiff_t>(config_.worker_threads)};
         workers_.reserve(config_.worker_threads);
         for (std::size_t i = 0; i < config_.worker_threads; ++i) {
             workers_.emplace_back([this, i, &workers_left] {
@@ -164,9 +164,14 @@ TaskProcessor::TaskProcessor(TaskProcessorConfig config, std::shared_ptr<impl::T
     if (config_.trace_coroutines) {
         RegisterPlugin(trace_plugin_);
     }
+    if (config_.task_trace_max_csw > 0 && !config_.task_trace_logger_name.empty()) {
+        RegisterPlugin(trace_state_transition_plugin_);
+    }
 }
 
 TaskProcessor::~TaskProcessor() {
+    UnregisterPlugin(profiler_execution_plugin_);
+    UnregisterPlugin(trace_state_transition_plugin_);
     UnregisterPlugin(trace_plugin_);
     Cleanup();
 }
@@ -267,6 +272,7 @@ void TaskProcessor::SetSettings(
     if (threshold.count() > 0) {
         auto old_threshold = task_profiler_threshold_.exchange(threshold);
         if (old_threshold.count() == 0) {
+            RegisterPlugin(profiler_execution_plugin_);
             LOG_WARNING() << fmt::format(
                 "Task profiling is now enabled for task processor '{}' "
                 "(threshold={}us), you may "
@@ -279,6 +285,7 @@ void TaskProcessor::SetSettings(
     } else {
         auto old_threshold = task_profiler_threshold_.exchange(std::chrono::microseconds(0));
         if (old_threshold.count() > 0) {
+            UnregisterPlugin(profiler_execution_plugin_);
             LOG_WARNING() << fmt::format(
                 "Task profiling is now disabled for task processor '{}', you may "
                 "enable it in USERVER_TASK_PROCESSOR_PROFILER_DEBUG config",
@@ -341,13 +348,17 @@ std::size_t GetQueueSize(const TaskProcessor& task_processor) noexcept { return 
 
 std::size_t GetWorkerCount(const TaskProcessor& task_processor) noexcept { return task_processor.GetWorkerCount(); }
 
-void TaskProcessor::HookBeforeSleep(const impl::TaskContext& task) noexcept { plugin_manager_.HookBeforeSleep(task); }
+void TaskProcessor::HookBeforeSleep(impl::TaskContext& task) noexcept { plugin_manager_.HookBeforeSleep(task); }
 
-void TaskProcessor::HookAfterWakeup(const impl::TaskContext& task) noexcept { plugin_manager_.HookAfterWakeup(task); }
+void TaskProcessor::HookAfterWakeup(impl::TaskContext& task) noexcept { plugin_manager_.HookAfterWakeup(task); }
 
-void TaskProcessor::HookTaskCreate(const impl::TaskContext& task) noexcept { plugin_manager_.HookTaskCreate(task); }
+void TaskProcessor::HookTaskCreate(impl::TaskContext& task) noexcept { plugin_manager_.HookTaskCreate(task); }
 
-void TaskProcessor::HookTaskDestroy(const impl::TaskContext& task) noexcept { plugin_manager_.HookTaskDestroy(task); }
+void TaskProcessor::HookTaskDestroy(impl::TaskContext& task) noexcept { plugin_manager_.HookTaskDestroy(task); }
+
+void TaskProcessor::HookTaskStart(impl::TaskContext& task) noexcept { plugin_manager_.HookTaskStart(task); }
+
+void TaskProcessor::HookTaskStop(impl::TaskContext& task) noexcept { plugin_manager_.HookTaskStop(task); }
 
 void TaskProcessor::RegisterPlugin(PluginBase& plugin) { plugin_manager_.RegisterPlugin(plugin); }
 
@@ -398,7 +409,7 @@ void TaskProcessor::ProcessTasks() noexcept {
 
         try {
             const impl::TaskCounter::RunningToken token{GetTaskCounter()};
-            context->DoStep();
+            context->DoStep(std::move(context));
         } catch (const std::exception& ex) {
             LOG_ERROR() << "uncaught exception from DoStep: " << ex;
         }

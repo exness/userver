@@ -3,6 +3,8 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+#include <vector>
+
 #include <clickhouse/base/input.h>
 #include <clickhouse/base/output.h>
 #include <clickhouse/base/socket.h>
@@ -12,6 +14,7 @@
 #include <userver/engine/io/socket.hpp>
 #include <userver/engine/io/tls_wrapper.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/logging/log.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/utils/assert.hpp>
 
@@ -130,9 +133,9 @@ private:
 
 class ClickhouseTlsSocketAdapter : public clickhouse_cpp::SocketBase {
 public:
-    ClickhouseTlsSocketAdapter(engine::io::Sockaddr addr, engine::Deadline& deadline)
+    ClickhouseTlsSocketAdapter(engine::io::Sockaddr addr, const std::string& server_name, engine::Deadline& deadline)
         : deadline_{deadline},
-          tls_socket_{engine::io::TlsWrapper::StartTlsClient(CreateSocket(addr, deadline_), {}, deadline_)}
+          tls_socket_{engine::io::TlsWrapper::StartTlsClient(CreateSocket(addr, deadline_), server_name, deadline_)}
     {}
 
     std::unique_ptr<clickhouse_cpp::InputStream> makeInputStream() const override {
@@ -192,6 +195,8 @@ public:
 private:
     std::unique_ptr<clickhouse_cpp::SocketBase> DoConnect(const clickhouse_cpp::ClientOptions& opts) override {
         auto addrs = resolver_.Resolve(opts.host, operations_deadline_);
+        std::vector<std::string> errors;
+        errors.reserve(addrs.size());
 
         for (auto&& current_addr : addrs) {
             current_addr.SetPort(static_cast<int>(opts.port));
@@ -205,15 +210,20 @@ private:
                     case ConnectionMode::kNonSecure:
                         return std::make_unique<ClickhouseSocketAdapter>(current_addr, operations_deadline_);
                     case ConnectionMode::kSecure:
-                        return std::make_unique<ClickhouseTlsSocketAdapter>(current_addr, operations_deadline_);
+                        return std::make_unique<
+                            ClickhouseTlsSocketAdapter>(current_addr, opts.host, operations_deadline_);
                 }
-            } catch (const std::exception&) {
+            } catch (const std::exception& e) {
+                LOG_WARNING() << "Failed to connect to ClickHouse at " << current_addr << ": " << e;
+                errors.push_back(fmt::format("{}: {}", current_addr, e.what()));
             }
         }
 
-        throw std::runtime_error{
-            fmt::format("Could not connect to any of the resolved addresses: {}", fmt::join(addrs, ", "))
-        };
+        auto message = fmt::format("Could not connect to any of the resolved addresses: {}", fmt::join(addrs, ", "));
+        if (!errors.empty()) {
+            message = fmt::format("{}. Errors: {}", message, fmt::join(errors, "; "));
+        }
+        throw std::runtime_error{std::move(message)};
     }
 
     clients::dns::Resolver& resolver_;

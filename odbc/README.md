@@ -1,3 +1,4 @@
-# userver: ODBC Driver Wrapper [WIP]
+# userver ODBC driver
 
-Under heavy development. Come back later
+The driver documentation is maintained in
+[`scripts/docs/en/userver/odbc.md`](../scripts/docs/en/userver/odbc.md).

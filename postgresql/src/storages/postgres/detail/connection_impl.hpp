@@ -17,6 +17,7 @@
 #include <userver/testsuite/postgres_control.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/utils/statistics/fwd.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 #include <storages/postgres/default_command_controls.hpp>
 #include <storages/postgres/detail/connection.hpp>
@@ -65,10 +66,12 @@ public:
     bool IsConnected() const;
     bool IsIdle() const;
     bool IsInTransaction() const;
-    bool IsPipelineActive() const;
+    void AssertPipelineActive() const;
     bool ArePreparedStatementsEnabled() const;
     bool IsBroken() const;
     bool IsExpired() const;
+    bool IsSessionPooler() const noexcept;
+    bool IsTransactionPooler() const noexcept;
     const ConnectionSettings& GetSettings() const;
 
     CommandControl GetDefaultCommandControl() const;
@@ -91,7 +94,7 @@ public:
     );
     void AddIntoPipeline(
         CommandControl cc,
-        const std::string& meta_statement_name,
+        USERVER_NAMESPACE::utils::zstring_view meta_statement_name,
         const detail::QueryParameters& params,
         const ResultSet& description,
         tracing::ScopeTime& scope
@@ -111,14 +114,14 @@ public:
 
     Connection::StatementId PortalBind(
         const Query& query,
-        const std::string& portal_name,
+        USERVER_NAMESPACE::utils::zstring_view portal_name,
         const detail::QueryParameters& params,
         OptionalCommandControl statement_cmd_ctl
     );
 
     ResultSet PortalExecute(
         Connection::StatementId statement_id,
-        const std::string& portal_name,
+        USERVER_NAMESPACE::utils::zstring_view portal_name,
         std::uint32_t n_rows,
         OptionalCommandControl statement_cmd_ctl
     );
@@ -158,11 +161,23 @@ private:
 
     bool PreparedStatementsEnabled(OptionalCommandControl cmd_ctl) const;
 
-    void SetConnectionStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline);
+    void SetConnectionStatementTimeout(
+        TimeoutDuration timeout,
+        TimeoutDuration network_timeout,
+        engine::Deadline deadline
+    );
 
-    void SetStatementTimeout(TimeoutDuration timeout, engine::Deadline deadline);
+    void SetStatementTimeout(TimeoutDuration timeout, TimeoutDuration network_timeout, engine::Deadline deadline);
 
     void SetStatementTimeout(OptionalCommandControl cmd_ctl);
+
+    TimeoutDuration NormalizeStatementTimeout(TimeoutDuration timeout, TimeoutDuration network_timeout);
+
+    void ApplyStatementTimeoutIfItChanged(
+        TimeoutDuration timeout,
+        Connection::ParameterScope scope,
+        engine::Deadline deadline
+    );
 
     const PreparedStatementInfo& DoPrepareStatement(
         const Query& query,
@@ -172,7 +187,7 @@ private:
         tracing::ScopeTime& scope
     );
     void DiscardOldPreparedStatements(engine::Deadline deadline);
-    void DiscardPreparedStatement(const PreparedStatementInfo& info, engine::Deadline deadline);
+    void DiscardPreparedStatement(std::string_view meta_statement_name, engine::Deadline deadline);
 
     ResultSet ExecuteCommand(
         const Query& query,
@@ -221,11 +236,12 @@ private:
         const ResultSet* description_ptr
     );
 
+    void Rollback(std::optional<engine::Deadline> deadline);
     void Cancel();
 
     void ReportStatement(std::string_view name);
 
-    bool IsOmitDescribeInExecuteEnabled() const;
+    bool ShouldWrapInAutoTransaction(std::string_view statement) const noexcept;
 
     const std::string uuid_;
     Connection::Statistics stats_;

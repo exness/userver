@@ -1,6 +1,7 @@
 #include "sentinel_topology_holder.hpp"
 
 #include <atomic>
+#include <utility>
 
 #include <storages/redis/impl/cluster_topology.hpp>
 #include <storages/redis/impl/redis.hpp>
@@ -41,7 +42,7 @@ SentinelTopologyHolder::SentinelTopologyHolder(
     const engine::ev::ThreadControl& sentinel_thread_control,
     const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
     const std::string& shard_group_name,
-    const Password& password,
+    const Credentials& credentials,
     std::size_t database_index,
     const std::vector<std::string>& shard_names,
     const std::vector<ConnectionInfo>& conns,
@@ -50,7 +51,7 @@ SentinelTopologyHolder::SentinelTopologyHolder(
     : ev_thread_(sentinel_thread_control),
       redis_thread_pool_(redis_thread_pool),
       shard_group_name_(shard_group_name),
-      password_(password),
+      credentials_(credentials),
       database_index_(database_index),
       name_by_shard_(shard_names),
       conns_(conns),
@@ -111,29 +112,39 @@ SentinelTopologyHolder::SentinelTopologyHolder(
 SentinelTopologyHolder::~SentinelTopologyHolder() = default;
 
 void SentinelTopologyHolder::Init() {
+    const auto callback_token = GetCallbackToken();
     const constexpr bool kClusterMode = true;
     Shard::Options shard_options;
     shard_options.shard_name = "(sentinel)";
     shard_options.shard_group_name = shard_group_name_;
     shard_options.cluster_mode = kClusterMode;
-    shard_options.connection_infos = conns_.ReadCopy();
-    shard_options.ready_change_callback = [this](bool ready) {
+    shard_options.connection_infos = conns_;
+    shard_options.ready_change_callback = [this, callback_token](bool ready) {
+        if (!AreCallbacksEnabled(callback_token)) {
+            return;
+        }
         if (ready) {
             sentinels_process_creation_watch_.Send();
             SendUpdateClusterTopology();
         }
     };
 
-    sentinels_ = std::make_shared<Shard>(std::move(shard_options));
+    sentinels_ = std::make_shared<Shard>(std::move(shard_options), ev_thread_);
 
-    sentinels_->SignalInstanceStateChange().connect([this](ServerId id, Redis::State state) {
+    sentinels_->SignalInstanceStateChange().connect([this, callback_token](ServerId id, Redis::State state) {
+        if (!AreCallbacksEnabled(callback_token)) {
+            return;
+        }
         LOG_TRACE() << log_extra_ << "Signaled server " << id.GetDescription() << " state=" << StateToString(state);
         if (state != Redis::State::kInit) {
             sentinels_process_state_update_watch_.Send();
         }
     });
-    sentinels_->SignalInstanceReady().connect([this](ServerId, bool /*readonly*/) {
-        if (!first_entry_point_connected_.exchange(true)) {
+    sentinels_->SignalInstanceReady().connect([this, callback_token](ServerId, bool /*readonly*/) {
+        if (!AreCallbacksEnabled(callback_token)) {
+            return;
+        }
+        if (!std::exchange(first_entry_point_connected_, true)) {
             update_topology_watch_.Send();
         }
     });
@@ -150,34 +161,36 @@ void SentinelTopologyHolder::Start() {
 }
 
 void SentinelTopologyHolder::Stop() {
+    DisableCallbacks();
     signal_node_state_change_.disconnect_all_slots();
     signal_topology_changed_.disconnect_all_slots();
 
-    ev_thread_.RunInEvLoopBlocking([this] {
-        update_topology_watch_.Stop();
-        create_instances_and_update_topology_watch_.Stop();
+    update_topology_watch_.Stop();
+    create_instances_and_update_topology_watch_.Stop();
 
-        update_topology_timer_.Stop();
-        sentinels_process_creation_timer_.Stop();
-    });
+    update_topology_timer_.Stop();
+    sentinels_process_creation_timer_.Stop();
 
     sentinels_->Clean();
-    topology_.Cleanup();
+    topology_.Assign(ClusterTopology{});
     nodes_.Clear();
 }
 
 bool SentinelTopologyHolder::WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) {
-    std::unique_lock lock{mutex_};
-    return cv_.WaitUntil(lock, deadline, [this, mode]() {
-        if (!IsInitialized()) {
-            return false;
-        }
-        auto ptr = topology_.Read();
-        return ptr->IsReady(mode);
-    });
+    return readiness_event_.WaitUntil(deadline, [this, mode] {
+        return IsReady(HealthCheckParams{mode, 0, 0});
+    }) == engine::FutureStatus::kReady;
 }
 
-rcu::ReadablePtr<ClusterTopology, rcu::BlockingRcuTraits> SentinelTopologyHolder::GetTopology() const {
+bool SentinelTopologyHolder::IsReady(const HealthCheckParams& params) const {
+    if (!is_topology_received_.load()) {
+        return false;
+    }
+    auto ptr = topology_.Read();
+    return ptr->IsReady(params);
+}
+
+rcu::ReadablePtr<ClusterTopology, rcu::ExclusiveRcuTraits> SentinelTopologyHolder::GetTopology() const {
     return topology_.Read();
 }
 
@@ -216,33 +229,27 @@ void SentinelTopologyHolder::GetStatistics(SentinelStatistics& stats, const Metr
 }
 
 void SentinelTopologyHolder::SetCommandsBufferingSettings(CommandsBufferingSettings settings) {
-    {
-        auto settings_ptr = commands_buffering_settings_.Lock();
-        if (*settings_ptr == settings) {
-            return;
-        }
-        *settings_ptr = settings;
+    UASSERT(ev_thread_.IsInEvThread());
+    if (commands_buffering_settings_ == settings) {
+        return;
     }
+    commands_buffering_settings_ = settings;
     for (const auto& node : nodes_) {
         node.second->SetCommandsBufferingSettings(settings);
     }
 }
 
 void SentinelTopologyHolder::SetReplicationMonitoringSettings(ReplicationMonitoringSettings settings) {
-    {
-        auto settings_ptr = monitoring_settings_.Lock();
-        *settings_ptr = settings;
-    }
+    UASSERT(ev_thread_.IsInEvThread());
+    monitoring_settings_ = settings;
     for (const auto& node : nodes_) {
         node.second->SetReplicationMonitoringSettings(settings);
     }
 }
 
 void SentinelTopologyHolder::SetRetryBudgetSettings(const utils::RetryBudgetSettings& settings) {
-    {
-        auto settings_ptr = retry_budget_settings_.Lock();
-        *settings_ptr = settings;
-    }
+    UASSERT(ev_thread_.IsInEvThread());
+    retry_budget_settings_ = settings;
     for (const auto& node : nodes_) {
         node.second->SetRetryBudgetSettings(settings);
     }
@@ -261,14 +268,14 @@ boost::signals2::signal<void(size_t)>& SentinelTopologyHolder::GetSignalTopology
     return signal_topology_changed_;
 }
 
-void SentinelTopologyHolder::UpdatePassword(const Password& password) {
-    auto lock = password_.UniqueLock();
-    *lock = password;
+void SentinelTopologyHolder::UpdateCredentials(const Credentials& credentials) {
+    UASSERT(ev_thread_.IsInEvThread());
+    credentials_ = credentials;
 }
 
-Password SentinelTopologyHolder::GetPassword() {
-    const auto lock = password_.Lock();
-    return *lock;
+Credentials SentinelTopologyHolder::GetCredentials() {
+    UASSERT(ev_thread_.IsInEvThread());
+    return credentials_;
 }
 
 std::string SentinelTopologyHolder::GetReadinessInfo() const {
@@ -276,14 +283,12 @@ std::string SentinelTopologyHolder::GetReadinessInfo() const {
 }
 
 std::shared_ptr<RedisConnectionHolder> SentinelTopologyHolder::CreateRedisInstance(const std::string& host_port) {
+    UASSERT(ev_thread_.IsInEvThread());
     const auto port_it = host_port.rfind(':');
     UINVARIANT(port_it != std::string::npos, "port must be delimited by ':'");
     const auto port_str = host_port.substr(port_it + 1);
     const auto port = std::stoi(port_str);
     const auto host = host_port.substr(0, port_it);
-    const auto buffering_settings_ptr = commands_buffering_settings_.Lock();
-    const auto replication_monitoring_settings_ptr = monitoring_settings_.Lock();
-    const auto retry_budget_settings_ptr = retry_budget_settings_.Lock();
     LOG_DEBUG() << log_extra_ << "Create new redis instance " << host_port;
     auto creation_settings = RedisConnectionHolder::makeSentinelNodeRedisCreationSettings();
     creation_settings.connection_security = connection_security_;
@@ -293,35 +298,34 @@ std::shared_ptr<RedisConnectionHolder> SentinelTopologyHolder::CreateRedisInstan
         shard_group_name_,
         host,
         port,
-        GetPassword(),
+        GetCredentials(),
         database_index_,
-        buffering_settings_ptr->value_or(CommandsBufferingSettings{}),
-        *replication_monitoring_settings_ptr,
-        *retry_budget_settings_ptr,
+        commands_buffering_settings_.value_or(CommandsBufferingSettings{}),
+        monitoring_settings_,
+        retry_budget_settings_,
         statistics_holder_.MakeInstanceStats(),
         creation_settings
     );
 }
 
 void SentinelTopologyHolder::CreateInstancesAndUpdateTopology() {
+    UASSERT(ev_thread_.IsInEvThread());
     auto release_on_exit_scope = std::move(this->update_topology_guard_);
     ClusterShardHostInfos info;
-    {
-        auto ptr = new_shard_host_info_.Lock();
-        std::swap(*ptr, info);
-    }
+    std::swap(new_shard_host_info_, info);
     // Create missing nodes
     for (const auto& i : info) {
         const auto& host_port = i.master.Fulltext();
         const auto& node = nodes_.Get(host_port);
         if (!node) {
             auto instance = CreateRedisInstance(host_port);
-            instance->signal_state_change.connect([host_port, this](redis::RedisState state) {
+            const auto callback_token = GetCallbackToken();
+            instance->signal_state_change.connect([host_port, this, callback_token](redis::RedisState state) {
+                if (!AreCallbacksEnabled(callback_token)) {
+                    return;
+                }
                 GetSignalNodeStateChanged()(host_port, state);
-                {
-                    const std::lock_guard lock{mutex_};
-                }  // do not lose the notify
-                cv_.NotifyAll();
+                readiness_event_.Send();
             });
             nodes_.Insert(host_port, instance);
         }
@@ -330,12 +334,13 @@ void SentinelTopologyHolder::CreateInstancesAndUpdateTopology() {
             const auto& node = nodes_.Get(host_port);
             if (!node) {
                 auto instance = CreateRedisInstance(host_port);
-                instance->signal_state_change.connect([host_port, this](redis::RedisState state) {
+                const auto callback_token = GetCallbackToken();
+                instance->signal_state_change.connect([host_port, this, callback_token](redis::RedisState state) {
+                    if (!AreCallbacksEnabled(callback_token)) {
+                        return;
+                    }
                     GetSignalNodeStateChanged()(host_port, state);
-                    {
-                        const std::lock_guard lock{mutex_};
-                    }  // do not lose the notify
-                    cv_.NotifyAll();
+                    readiness_event_.Send();
                 });
                 nodes_.Insert(host_port, instance);
             }
@@ -377,26 +382,18 @@ void SentinelTopologyHolder::CreateInstancesAndUpdateTopology() {
         }
     };
 
-    /// Run in ev_thread because topology_.Assign can free some old
-    /// topologies with their related redis connections, and these
-    /// connections must be freed on "sentinel" thread.
-    ev_thread_.RunInEvLoopAsync([this, topology{std::move(topology)}]() mutable {
-        try {
-            const auto new_shards_count = topology.GetShardsCount();
-            topology_.Assign(std::move(topology));
-            signal_topology_changed_(new_shards_count);
-        } catch (const rcu::MissingKeyException& e) {
-            LOG_WARNING() << log_extra_ << "Failed to update cluster topology: " << e;
-            return;
-        }
-        is_topology_received_ = true;
-        {
-            const std::lock_guard lock{mutex_};
-        }  // do not lose the notify
-        cv_.NotifyAll();
+    try {
+        const auto new_shards_count = topology.GetShardsCount();
+        topology_.Assign(std::move(topology));
+        signal_topology_changed_(new_shards_count);
+    } catch (const rcu::MissingKeyException& e) {
+        LOG_WARNING() << log_extra_ << "Failed to update cluster topology: " << e;
+        return;
+    }
+    is_topology_received_ = true;
+    readiness_event_.Send();
 
-        LOG_DEBUG() << log_extra_ << "Cluster topology updated to version" << current_topology_version_.load();
-    });
+    LOG_DEBUG() << log_extra_ << "Cluster topology updated to version" << current_topology_version_.load();
 }
 
 /// Method that updates topology_ similar to method in userver/redis/src/storages/redis/cluster_sentinel_impl.cpp but
@@ -404,17 +401,24 @@ void SentinelTopologyHolder::CreateInstancesAndUpdateTopology() {
 /// userver/redis/src/storages/redis/impl/sentinel_impl.cpp because it is method for redis with sentinels and we want to
 /// know what nodes does it have.
 void SentinelTopologyHolder::UpdateClusterTopology() {
-    if (update_topology_flag_.exchange(true)) {
+    UASSERT(ev_thread_.IsInEvThread());
+    if (update_topology_flag_->exchange(true)) {
         return;
     }
 
-    auto reset_update_topology_flag = MakeSharedScopeGuard([&]() { update_topology_flag_ = false; });
+    const auto callback_token = GetCallbackToken();
+    auto reset_update_topology_flag = MakeSharedScopeGuard([flag = update_topology_flag_]() { flag->store(false); });
 
     ProcessGetHostsRequest(
-        GetHostsRequest::QuerySentinelMasters(*sentinels_, GetPassword()),
+        ev_thread_,
+        GetHostsRequest::QuerySentinelMasters(*sentinels_, GetCredentials()),
         [this,
+         callback_token,
          reset{std::move(reset_update_topology_flag)
          }](const ConnInfoByShard& info, size_t requests_sent, size_t responses_parsed) mutable {
+            if (!AreCallbacksEnabled(callback_token)) {
+                return;
+            }
             if (!CheckQuorum(requests_sent, responses_parsed)) {
                 LOG_WARNING()
                     << log_extra_ << "Too many 'sentinel masters' requests failed: requests_sent=" << requests_sent
@@ -428,7 +432,6 @@ void SentinelTopologyHolder::UpdateClusterTopology() {
             }
 
             struct WatchContext {
-                std::mutex mutex;
                 ClusterShardHostInfos host_infos;
                 int counter{0};
             };
@@ -469,12 +472,17 @@ void SentinelTopologyHolder::UpdateClusterTopology() {
             for (auto& shard_conn : watcher->host_infos) {
                 const auto& shard_name = shard_conn.master.Name();
                 ProcessGetHostsRequest(
-                    GetHostsRequest::QuerySentinelSlaves(*sentinels_, shard_name, GetPassword()),
+                    ev_thread_,
+                    GetHostsRequest::QuerySentinelSlaves(*sentinels_, shard_name, GetCredentials()),
                     [this,
+                     callback_token,
                      watcher,
                      shard_name,
                      &shard_conn,
                      reset](const ConnInfoByShard& info, size_t requests_sent, size_t responses_parsed) mutable {
+                        if (!AreCallbacksEnabled(callback_token)) {
+                            return;
+                        }
                         if (!CheckQuorum(requests_sent, responses_parsed)) {
                             LOG_WARNING()
                                 << log_extra_
@@ -491,7 +499,6 @@ void SentinelTopologyHolder::UpdateClusterTopology() {
                             return;
                         }
 
-                        const std::lock_guard<std::mutex> lock(watcher->mutex);
                         for (auto replica_conn : info) {
                             replica_conn.SetName(shard_name);
                             replica_conn.SetReadOnly(true);
@@ -503,10 +510,7 @@ void SentinelTopologyHolder::UpdateClusterTopology() {
                         if (!--watcher->counter) {
                             const auto cur_topo = topology_.Read();
                             if (!cur_topo.Get() || !cur_topo->HasSameInfos(watcher->host_infos)) {
-                                {
-                                    auto ptr = new_shard_host_info_.Lock();
-                                    std::swap(*ptr, watcher->host_infos);
-                                }
+                                std::swap(new_shard_host_info_, watcher->host_infos);
                                 this->update_topology_guard_ = reset;
                                 create_instances_and_update_topology_watch_.Send();
                             }

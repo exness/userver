@@ -2,12 +2,14 @@
 
 #include <server/handlers/http_handler_base_statistics.hpp>
 #include <server/http/http_request_impl.hpp>
+#include <server/http/http_response_impl.hpp>
 #include <userver/engine/io/socket.hpp>
 #include <userver/engine/task/task.hpp>
 #include <userver/http/common_headers.hpp>
 #include <userver/http/parser/http_request_parse_args.hpp>
 #include <userver/logging/impl/logger_base.hpp>
 #include <userver/logging/logger.hpp>
+#include <userver/utils/algo.hpp>
 #include <userver/utils/datetime.hpp>
 #include <userver/utils/encoding/tskv.hpp>
 
@@ -72,6 +74,11 @@ std::string EscapeForAccessTskvLog(std::string_view str) {
     return encoded_str;
 }
 
+std::chrono::duration<double> GetRequestTime(std::chrono::steady_clock::time_point start_time) {
+    // Measure time from request start to the current time
+    return std::chrono::steady_clock::now() - start_time;
+}
+
 const std::string kEmptyString{};
 const std::vector<std::string> kEmptyVector{};
 
@@ -97,12 +104,8 @@ const std::string& HttpRequest::GetUrl() const { return pimpl_->url; }
 
 const std::string& HttpRequest::GetRequestPath() const { return pimpl_->request_path; }
 
-std::chrono::duration<double> HttpRequest::GetRequestTime() const {
-    return GetHttpResponse().SentTime() - GetStartTime();
-}
-
 std::chrono::duration<double> HttpRequest::GetResponseTime() const {
-    return GetHttpResponse().ReadyTime() - GetStartTime();
+    return GetHttpResponseImpl(*this).GetReadyTime() - GetStartTime();
 }
 
 const std::string& HttpRequest::GetHost() const { return GetHeader(USERVER_NAMESPACE::http::headers::kHost); }
@@ -113,7 +116,7 @@ const std::string& HttpRequest::GetArg(std::string_view arg_name) const {
 #ifndef NDEBUG
     pimpl_->args_referenced = true;
 #endif
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->request_args, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->request_args, arg_name);
     if (!ptr) {
         return kEmptyString;
     }
@@ -124,7 +127,7 @@ const std::vector<std::string>& HttpRequest::GetArgVector(std::string_view arg_n
 #ifndef NDEBUG
     pimpl_->args_referenced = true;
 #endif
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->request_args, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->request_args, arg_name);
     if (!ptr) {
         return kEmptyVector;
     }
@@ -132,7 +135,7 @@ const std::vector<std::string>& HttpRequest::GetArgVector(std::string_view arg_n
 }
 
 bool HttpRequest::HasArg(std::string_view arg_name) const {
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->request_args, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->request_args, arg_name);
     return !!ptr;
 }
 
@@ -150,7 +153,7 @@ std::vector<std::string> HttpRequest::ArgNames() const {
 const FormDataArg& HttpRequest::GetFormDataArg(std::string_view arg_name) const {
     static const FormDataArg kEmptyFormDataArg{};
 
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->form_data_args, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->form_data_args, arg_name);
     if (!ptr) {
         return kEmptyFormDataArg;
     }
@@ -160,7 +163,7 @@ const FormDataArg& HttpRequest::GetFormDataArg(std::string_view arg_name) const 
 const std::vector<FormDataArg>& HttpRequest::GetFormDataArgVector(std::string_view arg_name) const {
     static const std::vector<FormDataArg> kEmptyFormDataArgVector{};
 
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->form_data_args, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->form_data_args, arg_name);
     if (!ptr) {
         return kEmptyFormDataArgVector;
     }
@@ -168,7 +171,7 @@ const std::vector<FormDataArg>& HttpRequest::GetFormDataArgVector(std::string_vi
 }
 
 bool HttpRequest::HasFormDataArg(std::string_view arg_name) const {
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->form_data_args, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->form_data_args, arg_name);
     return !!ptr;
 }
 
@@ -184,7 +187,7 @@ std::vector<std::string> HttpRequest::FormDataArgNames() const {
 }
 
 const std::string& HttpRequest::GetPathArg(std::string_view arg_name) const {
-    const auto* ptr = utils::impl::FindTransparentOrNullptr(pimpl_->path_args_by_name_index, arg_name);
+    const auto* ptr = utils::FindOrNullptr(pimpl_->path_args_by_name_index, arg_name);
     if (!ptr) {
         return kEmptyString;
     }
@@ -197,7 +200,7 @@ const std::string& HttpRequest::GetPathArg(size_t index) const {
 }
 
 bool HttpRequest::HasPathArg(std::string_view arg_name) const {
-    return !!utils::impl::FindTransparentOrNullptr(pimpl_->path_args_by_name_index, arg_name);
+    return !!utils::FindOrNullptr(pimpl_->path_args_by_name_index, arg_name);
 }
 
 bool HttpRequest::HasPathArg(size_t index) const { return index < PathArgCount(); }
@@ -313,9 +316,13 @@ void HttpRequest::SetPathArgs(std::vector<std::pair<std::string, std::string>> a
 
 void HttpRequest::MarkAsInternalServerError() const {
     // TODO : refactor, this being here is a bit ridiculous
-    pimpl_->response.SetStatus(http::HttpStatus::kInternalServerError);
-    pimpl_->response.SetData({});
-    pimpl_->response.ClearUserHeaders();
+    auto& response = pimpl_->response;
+    if (response.IsHeadersEnd() || response.IsSent()) {
+        return;
+    }
+    response.SetStatus(http::HttpStatus::kInternalServerError);
+    response.SetData({});
+    response.ClearUserHeaders();
 }
 
 void HttpRequest::SetHttpHandler(const handlers::HttpHandlerBase& handler) { pimpl_->handler = &handler; }
@@ -331,22 +338,6 @@ void HttpRequest::SetResponseStreamId(std::int32_t stream_id) { pimpl_->response
 void HttpRequest::SetStreamProducer(impl::Http2StreamEventProducer&& producer) {
     pimpl_->response.SetStreamProdicer(std::move(producer));
 }
-
-void HttpRequest::SetTaskCreateTime() { pimpl_->task_create_time = std::chrono::steady_clock::now(); }
-
-void HttpRequest::SetTaskStartTime() { pimpl_->task_start_time = std::chrono::steady_clock::now(); }
-
-void HttpRequest::SetResponseNotifyTime() { SetResponseNotifyTime(std::chrono::steady_clock::now()); }
-
-void HttpRequest::SetResponseNotifyTime(std::chrono::steady_clock::time_point now) {
-    pimpl_->response_notify_time = now;
-}
-
-void HttpRequest::SetStartSendResponseTime() noexcept {
-    pimpl_->start_send_response_time = std::chrono::steady_clock::now();
-}
-
-void HttpRequest::SetFinishSendResponseTime() { pimpl_->finish_send_response_time = std::chrono::steady_clock::now(); }
 
 void HttpRequest::WriteAccessLogs(
     const logging::TextLoggerPtr& logger_access,
@@ -385,8 +376,8 @@ void HttpRequest::WriteAccessLog(
             EscapeForAccessLog(GetHeader("Referer")),
             EscapeForAccessLog(GetHeader("User-Agent")),
             EscapeForAccessLog(GetHeader("Cookie")),
-            GetRequestTime().count(),
-            GetHttpResponse().BytesSent(),
+            GetRequestTime(GetStartTime()).count(),
+            GetHttpResponseImpl(*this).GetBytesSent(),
             GetResponseTime().count()
         ),
     };
@@ -438,7 +429,7 @@ void HttpRequest::WriteAccessTskvLog(
         EscapeForAccessTskvLog(GetHeader("X-YaRequestId")),
         EscapeForAccessTskvLog(GetHost()),
         EscapeForAccessTskvLog(remote_address),
-        GetRequestTime().count(),
+        GetRequestTime(GetStartTime()).count(),
         GetResponseTime().count(),
         EscapeForAccessTskvLog(RequestBody())
     )};

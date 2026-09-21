@@ -5,12 +5,14 @@
 #include <exception>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <typeindex>
 #include <typeinfo>
 #include <vector>
 
 #include <userver/dynamic_config/fwd.hpp>
+#include <userver/dynamic_config/registered_config_meta.hpp>
 #include <userver/formats/json_fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -25,7 +27,23 @@ formats::json::Value DocsMapGet(const DocsMap&, std::string_view key);
 
 using ConfigId = std::size_t;
 
-ConfigId Register(std::string&& name, Factory factory, std::string&& default_docs_map_string);
+struct ConfigMetadata final {
+    std::string name;
+    std::string schema_hash;
+    std::string default_as_json_string;
+};
+
+/// @brief Registers a dynamic config variable.
+/// Zero config items represent a constant; one item also supplies the variable name.
+ConfigId Register(Factory factory, std::vector<ConfigMetadata>&& config_metadata);
+
+/// @brief Registers an internal derived value that is not a dynamic config item.
+ConfigId RegisterInternal(std::string&& name, Factory factory);
+
+/// @brief Returns metadata of every config item registered in this binary.
+/// Repeated registrations of the same name are preserved, not deduplicated.
+/// Must be called after static initialization completes.
+std::vector<dynamic_config::RegisteredConfigMeta> GetRegisteredConfigsMeta();
 
 struct InternalTag final {
     explicit InternalTag() = default;

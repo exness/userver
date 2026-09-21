@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -14,8 +15,6 @@
 #include <userver/fs/blocking/read.hpp>
 #include <userver/storages/secdist/helpers.hpp>
 #include <userver/utils/assert.hpp>
-
-#include <boost/range/adaptor/map.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -121,7 +120,8 @@ ClientSettings::ClientSettings() = default;
 ClientSettings::ClientSettings(const components::ComponentConfig& config, const RabbitEndpoints& rabbit_endpoints)
     : pool_settings{config.As<PoolSettings>()},
       endpoints{rabbit_endpoints},
-      use_secure_connection{config["use_secure_connection"].As<bool>(true)} {}
+      use_secure_connection{config["use_secure_connection"].As<bool>(true)}
+{}
 
 RabbitEndpointsMulti::RabbitEndpointsMulti(const formats::json::Value& doc) {
     const auto rabbitmq_settings = doc["rabbitmq_settings"];
@@ -136,7 +136,7 @@ const RabbitEndpoints& RabbitEndpointsMulti::Get(const std::string& name) const 
         throw std::runtime_error{fmt::format(
             "RMQ broken '{}' is not found in secdist. Available endpoints: [{}]",
             name,
-            fmt::join(endpoints_ | boost::adaptors::map_keys, ", ")
+            fmt::join(endpoints_ | std::views::keys, ", ")
         )};
     }
 

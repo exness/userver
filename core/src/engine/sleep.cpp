@@ -1,5 +1,7 @@
 #include <userver/engine/sleep.hpp>
 
+#include <utility>
+
 #include <userver/engine/task/cancel.hpp>
 
 #include <engine/task/task_context.hpp>
@@ -11,13 +13,26 @@ namespace engine {
 
 namespace impl {
 namespace {
-class CommonSleepWaitStrategy final : public WaitStrategy {
+class UnreachableAwaitable final : public AwaitableBase {
 public:
-    CommonSleepWaitStrategy() = default;
+    UnreachableAwaitable() = default;
 
-    EarlyNotify SetupWakeups() override { return EarlyNotify{false}; }
+    bool IsReady() const noexcept override { return false; }
 
-    void DisableWakeups() noexcept override {}
+    void TryAppendAwaiter(impl::AwaiterPtr& awaiter, std::uintptr_t context) override {
+        awaiter_ = std::move(awaiter);
+        UASSERT(std::exchange(context_, context) == 0);
+    }
+
+    impl::AwaiterPtr RemoveAwaiter(impl::Awaiter& awaiter, std::uintptr_t context) noexcept override {
+        UASSERT(awaiter_.get() == &awaiter);
+        UASSERT(std::exchange(context_, 0) == context);
+        return std::move(awaiter_);
+    }
+
+private:
+    impl::AwaiterPtr awaiter_;
+    std::uintptr_t context_{0};
 };
 }  // namespace
 }  // namespace impl
@@ -29,8 +44,8 @@ void InterruptibleSleepUntil(Deadline deadline) {
             current.SetBackground(previous_background_flag);
         });
     current.SetBackground(true);
-    impl::CommonSleepWaitStrategy wait_manager{};
-    current.Sleep(wait_manager, deadline);
+    impl::UnreachableAwaitable awaitable{};
+    current.Sleep(awaitable, deadline);
 }
 
 void SleepUntil(Deadline deadline) {

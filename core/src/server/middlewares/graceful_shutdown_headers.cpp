@@ -28,7 +28,7 @@ GracefulShutdownHeaders::GracefulShutdownHeaders(
 void GracefulShutdownHeaders::HandleRequest(http::HttpRequest& request, request::RequestContext& context) const {
     Next(request, context);
 
-    if (state_.GetServiceLifetimeStage() == components::ServiceLifetimeStage::kGracefulShutdown) {
+    if (state_.IsInGracefulShutdown()) {
         const auto config = config_source_.GetSnapshot();
         auto graceful_shutdown_headers = config[::dynamic_config::GRACEFUL_SHUTDOWN_HEADERS];
         if (graceful_shutdown_headers.enabled) {

@@ -13,7 +13,7 @@ synchronization often uses mutexes, other synchronization primitives and event
 waiting mechanisms that block the current thread. When using userver, this
 results in the current thread not being able to be used to execute other
 coroutines. As a result, the number of threads executing coroutines decreases.
-This can lead to a huge performance drops and increased latencies.
+This can lead to huge performance drops and increased latencies.
 
 For the reasons described above, the use of synchronization primitives or IO
 operations of the C++ standard library and libc in the
@@ -58,8 +58,8 @@ ______
 ## Tasks
 
 The asynchronous **task** (@ref engine::Task, @ref engine::TaskWithResult) can return
-a result (possibly in form of an exception) or return nothing. In any case, the
-task has the semantics of future, i.e. you can wait for it and get the result
+a result (possibly in the form of an exception) or return nothing. In any case, the
+task has the semantics of a future, i.e. you can wait for it and get the result
 from it.
 
 To create a task call the @ref utils::Async function. It accepts the name of a
@@ -97,9 +97,10 @@ By shared-ness:
 
 * By default, functions return @ref engine::TaskWithResult, which can be awaited
   from 1 task at once. This is a reasonable choice for most cases.
-* Functions from `utils::Shared*Async*` and `engine::Shared*AsyncNoSpan`
-  families return @ref engine::SharedTaskWithResult, which can be awaited
-  from multiple tasks at the same time, at the cost of some overhead.
+* Functions from `utils::Shared*Async*` family return @ref engine::SharedTaskWithResult,
+  which can be awaited from multiple tasks at the same time, at the cost of some overhead.
+  For tasks without tracing, the same shared-ness is available via
+  `engine::TaskBuilder::NoTracing().BuildShared(...)`.
 
 By @ref engine::TaskBase::Importance ("critical-ness"):
 
@@ -108,7 +109,7 @@ By @ref engine::TaskBase::Importance ("critical-ness"):
   run at all.
 * If the whole service's health (not just one request) depends on the task
   being run, then functions from `utils::*CriticalAsync*` and
-  `engine::*CriticalAsyncNoSpan*` families can be used. There, execution of
+  `engine::*CriticalAsyncNoTracing*` families can be used. There, execution of
   the function is guaranteed to start regardless of @ref engine::TaskProcessor
   load limits
 
@@ -118,7 +119,7 @@ By tracing::Span:
   create tracing::Span with inherited `trace_id` and `link`, a new `span_id`
   and the specified `stopwatch_name`, which ensures that logs from the task
   are categorized correctly and will not get lost.
-* Functions from `engine::*AsyncNoSpan*` family create span-less tasks:
+* Functions from `engine::*AsyncNoTracing*` family create tasks without tracing:
     * A possible usage scenario is to create a task that will mostly wait
       in the background and do various unrelated work every now and then.
       In this case it might make sense to trace execution of work items,
@@ -132,7 +133,7 @@ By the propagation of @ref engine::TaskInheritedVariable instances:
 
 * Functions from `utils::*Async*` family (which you should use by default)
   inherit all task-inherited variables from the parent task.
-* Functions from `engine::*AsyncNoSpan*` family do not inherit any
+* Functions from `engine::*AsyncNoTracing*` family do not inherit any
   task-inherited variables.
 
 By deadline: some `utils::*Async*` functions accept an @ref engine::Deadline
@@ -283,7 +284,7 @@ Another way to cancel a task it to drop the @ref engine::TaskWithResult without 
 In the example above, `child_task` is cancelled and awaited due to stack unwinding. In any case, the child task's
 execution is guaranteed to be finished once its @ref engine::TaskWithResult handle is destroyed.
 
-Tasks can be cancelled due to @ref engine::TaskProcessor overload, if configured. This is a last-ditch effort to avoid OOM due to a spam of tasks. Read more in @ref utils::Async and @ref engine::TaskBase::Importance. Tasks started with @ref engine::CriticalAsync are excepted from cancellations due to `TaskProcessor` overload.
+Tasks can be cancelled due to @ref engine::TaskProcessor overload, if configured. This is a last-ditch effort to avoid OOM due to a spam of tasks. Read more in @ref utils::Async and @ref engine::TaskBase::Importance. Tasks started with @ref utils::CriticalAsync are excepted from cancellations due to `TaskProcessor` overload.
 
 ### How the task sees its cancellation
 
@@ -294,7 +295,7 @@ How some synchronization primitives react to cancellations:
   * @ref engine::TaskWithResult::Get and @ref engine::TaskBase::Wait throw @ref engine::WaitInterruptedException, which typically leads to the destruction of the child task during stack unwinding, cancelling and awaiting it;
   * @ref engine::ConditionVariable::Wait and @ref engine::Future::wait return a status code;
   * @ref engine::SingleConsumerEvent::WaitForEvent returns `false`;
-  * @ref engine::SingleConsumerEvent::WaitForEventFor returns `false` and needs an additional @ref engine::current_task::ShouldCancel check;
+  * @ref engine::SingleConsumerEvent::WaitForEvent "engine::SingleConsumerEvent::WaitForEventFor" returns `false` and needs an additional @ref engine::current_task::ShouldCancel check;
   * @ref engine::InterruptibleSleepFor needs an additional @ref engine::current_task::ShouldCancel check;
   * @ref engine::CancellableSemaphore returns `false` or throws engine::SemaphoreLockCancelledError.
 
@@ -323,7 +324,7 @@ If the child task got cancelled without the parent being cancelled, then:
   * @ref engine::TaskWithResult::Get will return or throw whatever the child task has returned or thrown, which is practically meaningless (because why else would someone cancel a task?);
   * @ref engine::TaskBase::Wait will return upon completion;
   * @ref engine::TaskBase::IsFinished will return `true` upon completion;
-  * @ref engine::TaskBase::GetStatus will return @ref engine::TaskBase::Status::kCancelled upon completion.
+  * @ref engine::TaskBase::GetState will return @ref engine::TaskBase::State::kCancelled upon completion.
 
 @anchor task_cancellation_before_start
 ### What happens to tasks that are cancelled before they start running

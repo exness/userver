@@ -34,6 +34,7 @@ jobs:
                         -DCPM_SOURCE_CACHE=/userver/.cpm
                         -DUSERVER_NO_WERROR=0
                         -DUSERVER_BUILD_ALL_COMPONENTS=1
+                        -DUSERVER_FEATURE_YDB=0
                         -DUSERVER_FEATURE_ROCKS=0
                         -DUSERVER_BUILD_SAMPLES=1
                         -DUSERVER_BUILD_TESTS=1
@@ -78,7 +79,7 @@ jobs:
         runs-on: ubuntu-latest
         name: '${{ matrix.info }}'
         steps:
-          - uses: actions/checkout@v6
+          - uses: actions/checkout@v7
 
           - name: Install packages
             run: |
@@ -86,7 +87,7 @@ jobs:
 
           - name: Restore cached directories
             id: restore-cache
-            uses: actions/cache/restore@v5
+            uses: actions/cache/restore@v6
             with:
                 path: |
                     .ccache
@@ -126,7 +127,7 @@ jobs:
                 'cd /userver && cmake --build build -j $(nproc)'
 
           - name: Save cached directories
-            uses: actions/cache/save@v5
+            uses: actions/cache/save@v6
             with:
                 path: |
                     .ccache
@@ -150,4 +151,4 @@ jobs:
                 docker-compose -f .github/docker-compose.yml
                 run --rm ${{ matrix.image}} bash -c
                 'cd /userver/build && ulimit -n 4096 && GTEST_FILTER="${{ matrix.gtest-filter
-                }}" TESTSUITE_REDIS_HOSTNAME=::1 ctest -V'
+                }}" TESTSUITE_REDIS_HOSTNAME=::1 ctest -j2 --output-on-failure'

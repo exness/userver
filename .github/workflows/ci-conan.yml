@@ -51,12 +51,18 @@ jobs:
             if: matrix.os == 'macos-14'
             run: |
                 brew update
+                brew trust --formula azure/bicep/bicep
+                brew trust --formula hashicorp/tap/packer
+                brew trust mongodb/brew
+                brew trust aws/tap
                 brew tap mongodb/brew
                 brew install clang-format postgresql redis kafka rabbitmq mongodb-community
+                mkdir -p "$(brew --prefix)/etc/rabbitmq/conf.d"
+                echo 'deprecated_features.permit.transient_nonexcl_queues = true' > "$(brew --prefix)/etc/rabbitmq/conf.d/10-userver-ci.conf"
                 brew install python@3.11
 
           - name: Checkout
-            uses: actions/checkout@v6
+            uses: actions/checkout@v7
 
           - name: Change permissions
             if: matrix.container == 'ubuntu:22.04'
@@ -94,9 +100,9 @@ jobs:
 
           - name: Test userver conan package
             run: |-
-                mv libraries/easy/samples/0_hello_world samples/
-                mv libraries/easy/samples/1_hi samples/
-                mv libraries/easy/samples/3_json samples/
+                mv samples/easy/0_hello_world samples/
+                mv samples/easy/1_hi samples/
+                mv samples/easy/3_json samples/
                 mv scripts/tests/conanfile.py samples/
                 rm -rf userver/cmake/
                 cd samples/

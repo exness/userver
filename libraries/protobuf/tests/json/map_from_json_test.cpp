@@ -25,6 +25,9 @@ struct MapFromJsonFailureTestParam {
     ParseErrorCode expected_errc = {};
     std::string expected_path = {};
     ParseOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 void PrintTo(const MapFromJsonSuccessTestParam& param, std::ostream* os) {
@@ -100,7 +103,14 @@ INSTANTIATE_TEST_SUITE_P(
             "field3.10x"
         },
         MapFromJsonFailureTestParam{R"({"field4":{"1.5":"hello"}})", ParseErrorCode::kInvalidValue, "field4.'1.5'"},
-        MapFromJsonFailureTestParam{R"({"field5":{"TRUE":0}})", ParseErrorCode::kInvalidValue, "field5.TRUE"},
+        MapFromJsonFailureTestParam{
+            R"({"field5":{"TRUE":0}})",
+            ParseErrorCode::kInvalidValue,
+            "field5.TRUE",
+            {},
+            // Old protobuf versions use case-insensitive comparison for bool value.
+            !kIsModernProtoJson
+        },
         MapFromJsonFailureTestParam{R"({"field7":{"aaa":"oops"}})", ParseErrorCode::kInvalidValue, "field7.aaa"}
     )
 );
@@ -130,7 +140,10 @@ TEST_P(MapFromJsonFailureTest, Test) {
     formats::json::Value input = PrepareJsonTestData(param.input);
 
     EXPECT_PARSE_ERROR((void)JsonToMessage<Message>(input, param.options), param.expected_errc, param.expected_path);
-    UEXPECT_THROW(InitSampleMessage(param.input, sample, param.options), SampleError);
+
+    if (!param.skip_native_check) {
+        UEXPECT_THROW(InitSampleMessage(param.input, sample, param.options), SampleError);
+    }
 }
 
 }  // namespace protobuf::json::tests

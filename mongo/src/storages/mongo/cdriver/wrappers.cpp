@@ -29,6 +29,11 @@ GlobalInitializer::GlobalInitializer() {
 
 GlobalInitializer::~GlobalInitializer() { mongoc_cleanup(); }
 
+// mongoc_init uses pthread_once and calls getenv. getenv is not ASan-safe on a
+// ucontext coroutine stack (including the blocking task processor). Initialize
+// before main, while other threads do not exist yet.
+const GlobalInitializer kInitMongoc;
+
 void GlobalInitializer::LogInitWarningsOnce() {
     static std::once_flag once_flag;
     std::call_once(once_flag, [] {
@@ -74,6 +79,25 @@ void ReadPrefsPtr::Reset() noexcept {
     if (read_prefs_) {
         mongoc_read_prefs_destroy(std::exchange(read_prefs_, nullptr));
     }
+}
+
+ReadPrefsPtr MakeReadPrefsWithDefaultMaxStaleness(
+    const ReadPrefsPtr& read_prefs,
+    const std::optional<std::chrono::seconds>& default_max_staleness
+) {
+    if (!read_prefs) {
+        return {};
+    }
+
+    ReadPrefsPtr effective_read_prefs{read_prefs};
+    if (!default_max_staleness || mongoc_read_prefs_get_mode(effective_read_prefs.Get()) == MONGOC_READ_PRIMARY ||
+        mongoc_read_prefs_get_max_staleness_seconds(effective_read_prefs.Get()) != MONGOC_NO_MAX_STALENESS)
+    {
+        return effective_read_prefs;
+    }
+
+    mongoc_read_prefs_set_max_staleness_seconds(effective_read_prefs.Get(), default_max_staleness->count());
+    return effective_read_prefs;
 }
 
 }  // namespace storages::mongo::impl::cdriver

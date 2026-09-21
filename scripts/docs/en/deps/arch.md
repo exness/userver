@@ -1,3 +1,4 @@
+aws-sdk-cpp
 benchmark
 boost
 c-ares
@@ -15,6 +16,7 @@ hiredis
 jemalloc
 krb5
 libev
+liburing
 libunwind
 libnghttp2
 librdkafka

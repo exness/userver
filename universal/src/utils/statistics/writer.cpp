@@ -1,12 +1,13 @@
 #include <userver/utils/statistics/writer.hpp>
 
 #include <algorithm>
+#include <ranges>
 
 #include <fmt/format.h>
 
+#include <userver/utils/algo.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/numeric_cast.hpp>
-#include <userver/utils/text_light.hpp>
 
 #include <utils/statistics/writer_state.hpp>
 
@@ -21,7 +22,7 @@ constexpr std::string_view kFixitHint = "Destroy the last Writer object before u
 template <class ContainerRight>
 bool LeftContainsRight(LabelsSpan left, const ContainerRight& right) {
     for (const auto& value : right) {
-        if (std::find(left.begin(), left.end(), LabelView{value}) == left.end()) {
+        if (std::ranges::find(left, LabelView{value}) == left.end()) {
             return false;
         }
     }
@@ -46,7 +47,7 @@ bool CanSubPathSucceedExactMatch(
 
     UASSERT(current_path.size() < required.size());
     return required[current_path.size()] == Writer::kDelimiter &&
-           utils::text::StartsWith(required.substr(initial_path_size), current_path.substr(initial_path_size));
+           required.substr(initial_path_size).starts_with(current_path.substr(initial_path_size));
 }
 
 bool CanSubPathSucceedStartsWith(
@@ -61,12 +62,12 @@ bool CanSubPathSucceedStartsWith(
     }
 
     if (current_path.size() >= required.size()) {
-        return utils::text::StartsWith(current_path.substr(initial_path_size), required.substr(initial_path_size));
+        return current_path.substr(initial_path_size).starts_with(required.substr(initial_path_size));
     }
 
     UASSERT(current_path.size() < required.size());
     return required[current_path.size()] == Writer::kDelimiter &&
-           utils::text::StartsWith(required.substr(initial_path_size), current_path.substr(initial_path_size));
+           required.substr(initial_path_size).starts_with(current_path.substr(initial_path_size));
 }
 
 void CheckAndWrite(impl::WriterState& state, MetricValue value) {
@@ -285,6 +286,20 @@ void Writer::AppendLabelsSpan(LabelsSpan labels) {
 
     state_->add_labels.insert(state_->add_labels.end(), labels.begin(), labels.end());
     current_labels_size_ = state_->add_labels.size();
+}
+
+void VisitMetrics(WriterFuncRef func, BaseFormatBuilder& out, const Request& request) {
+    impl::WriterState state{
+        .builder = out,
+        .request = request,
+        .path = {},
+        .add_labels = utils::AsContainer<std::vector<
+            LabelView>>(request.add_labels | std::views::transform([](const auto& label) {
+                            return LabelView{label.first, label.second};
+                        })),
+    };
+    Writer writer{&state};
+    func(writer);
 }
 
 }  // namespace utils::statistics

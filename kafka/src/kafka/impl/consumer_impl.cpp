@@ -300,6 +300,28 @@ void ConsumerImpl::ErrorCallback(rd_kafka_resp_err_t error, const char* reason, 
     {
         ++stats_.connections_error;
     }
+
+    if (is_fatal) {
+        RequestRestartAfterFatalError(error, reason);
+    }
+}
+
+void ConsumerImpl::RequestRestartAfterFatalError(rd_kafka_resp_err_t error, const char* reason) {
+    LOG_CRITICAL() << fmt::format(
+        "Fatal librdkafka consumer error {} ('{}'): {}; consumer restart required",
+        static_cast<int>(error),
+        reason ? reason : "",
+        rd_kafka_err2str(error)
+    );
+
+    restart_after_fatal_error_ = true;
+}
+
+void ConsumerImpl::ThrowIfRestartRequired() {
+    bool expected = true;
+    if (restart_after_fatal_error_.compare_exchange_strong(expected, false)) {
+        throw ConsumerRestartRequiredException{"Consumer restart required after fatal librdkafka error"};
+    }
 }
 
 void ConsumerImpl::LogCallback(const char* facility, const char* message, int log_level) {
@@ -467,6 +489,7 @@ void ConsumerImpl::StopConsuming() {
     while (!rd_kafka_consumer_closed(consumer_.GetHandle())) {
         if (const EventHolder event = PollEvent()) {
             DispatchEvent(event);
+            ThrowIfRestartRequired();
         }
     }
 }
@@ -636,6 +659,7 @@ std::optional<Message> ConsumerImpl::PollMessage(engine::Deadline deadline) {
                 return TakeEventMessage(std::move(event));
             } else {
                 DispatchEvent(event);
+                ThrowIfRestartRequired();
             }
         } else {
             LOG(execution_params_.debug_info_log_level) << fmt::format(
@@ -660,11 +684,14 @@ ConsumerImpl::MessageBatch ConsumerImpl::PollBatch(std::size_t max_batch_size, e
     MessageBatch batch;
     while (batch.size() < max_batch_size) {
         auto message = PollMessage(deadline);
+        ThrowIfRestartRequired();
         if (!message.has_value()) {
             break;
         }
         batch.push_back(std::move(*message));
     }
+
+    ThrowIfRestartRequired();
 
     if (!batch.empty()) {
         LOG(execution_params_.debug_info_log_level) << fmt::format("Polled batch of {} messages", batch.size());

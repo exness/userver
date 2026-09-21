@@ -42,7 +42,7 @@ Middleware::Middleware(const components::State& state, dynamic_config::Source so
 {}
 
 void Middleware::OnCallStart(MiddlewareCallContext& context) const {
-    if (state_.GetServiceLifetimeStage() != components::ServiceLifetimeStage::kGracefulShutdown) {
+    if (!state_.IsInGracefulShutdown()) {
         return;
     }
     if (SetHeadersIfNeeded(context.GetInitialDynamicConfig(), context, &grpc::ServerContext::AddInitialMetadata)) {
@@ -51,7 +51,7 @@ void Middleware::OnCallStart(MiddlewareCallContext& context) const {
 }
 
 void Middleware::PreSendStatus(MiddlewareCallContext& context, grpc::Status&) const {
-    if (state_.GetServiceLifetimeStage() != components::ServiceLifetimeStage::kGracefulShutdown) {
+    if (!state_.IsInGracefulShutdown()) {
         return;
     }
     if (context.GetStorageContext().GetOptional(kGracefulShutdownHeadersSet) != nullptr) {

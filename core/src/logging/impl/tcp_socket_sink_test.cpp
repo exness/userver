@@ -14,31 +14,31 @@ USERVER_NAMESPACE_BEGIN
 UTEST(TcpSocketSink, SocketConnectErrorLocalhost) {
     auto addrs = net::blocking::GetAddrInfo("localhost", "8111");
     auto socket_sink = logging::impl::TcpSocketSink(addrs);
-    EXPECT_THROW(socket_sink.Log({"msg", logging::Level::kWarning}), engine::io::IoSystemError);
+    EXPECT_THROW(socket_sink.Log("msg"), engine::io::IoSystemError);
 }
 
 UTEST(TcpSocketSink, SocketConnectErrorIpV6) {
     auto addrs = net::blocking::GetAddrInfo("::1", "8222");
     auto socket_sink = logging::impl::TcpSocketSink(addrs);
-    EXPECT_THROW(socket_sink.Log({"msg", logging::Level::kWarning}), engine::io::IoSystemError);
+    EXPECT_THROW(socket_sink.Log("msg"), engine::io::IoSystemError);
 }
 
 UTEST(TcpSocketSink, SocketConnectErrorIpV4) {
     auto addrs = net::blocking::GetAddrInfo("127.0.0.1", "8333");
     auto socket_sink = logging::impl::TcpSocketSink(addrs);
-    EXPECT_THROW(socket_sink.Log({"msg", logging::Level::kWarning}), engine::io::IoSystemError);
+    EXPECT_THROW(socket_sink.Log("msg"), engine::io::IoSystemError);
 }
 
 UTEST(TcpSocketSink, SocketConnectV4) {
     const engine::io::tests::TcpListener listener(engine::io::tests::IpVersion::kV4);
     auto socket_sink = logging::impl::TcpSocketSink({listener.addr});
-    EXPECT_NO_THROW(socket_sink.Log({"msg", logging::Level::kWarning}));
+    EXPECT_NO_THROW(socket_sink.Log("msg"));
 }
 
 UTEST(TcpSocketSink, SocketConnectV6) {
     const engine::io::tests::TcpListener listener(engine::io::tests::IpVersion::kV6);
     auto socket_sink = logging::impl::TcpSocketSink({listener.addr});
-    EXPECT_NO_THROW(socket_sink.Log({"msg", logging::Level::kWarning}));
+    EXPECT_NO_THROW(socket_sink.Log("msg"));
 }
 
 UTEST(TcpSocketSink, SinkReadOnceV4) {
@@ -47,14 +47,14 @@ UTEST(TcpSocketSink, SinkReadOnceV4) {
     engine::io::tests::TcpListener listener(engine::io::tests::IpVersion::kV4);
     auto socket_sink = logging::impl::TcpSocketSink({listener.addr});
 
-    auto listen_task = engine::AsyncNoSpan([&listener, &deadline] {
+    auto listen_task = engine::AsyncNoTracing([&listener, &deadline] {
         auto sock = listener.socket.Accept(deadline);
         const auto data = test::ReadFromSocket(std::move(sock));
         ASSERT_EQ(data.size(), 1);
         EXPECT_EQ(data[0], "message");
     });
 
-    EXPECT_NO_THROW(socket_sink.Log({"message\n", logging::Level::kWarning}));
+    EXPECT_NO_THROW(socket_sink.Log("message\n"));
 
     socket_sink.Close();
     listen_task.Get();
@@ -66,7 +66,7 @@ UTEST(TcpSocketSink, SinkReadMoreV4) {
     engine::io::tests::TcpListener listener(engine::io::tests::IpVersion::kV4);
     auto socket_sink = logging::impl::TcpSocketSink({listener.addr});
 
-    auto listen_task = engine::AsyncNoSpan([&listener, &deadline] {
+    auto listen_task = engine::AsyncNoTracing([&listener, &deadline] {
         auto sock = listener.socket.Accept(deadline);
         const auto logs = test::ReadFromSocket(std::move(sock));
         ASSERT_EQ(logs.size(), 3);
@@ -75,9 +75,9 @@ UTEST(TcpSocketSink, SinkReadMoreV4) {
         EXPECT_EQ(logs[2], "message 3");
     });
 
-    EXPECT_NO_THROW(socket_sink.Log({"message\n", logging::Level::kWarning}));
-    EXPECT_NO_THROW(socket_sink.Log({"message 2\n", logging::Level::kInfo}));
-    EXPECT_NO_THROW(socket_sink.Log({"message 3\n", logging::Level::kCritical}));
+    EXPECT_NO_THROW(socket_sink.Log("message\n"));
+    EXPECT_NO_THROW(socket_sink.Log("message 2\n"));
+    EXPECT_NO_THROW(socket_sink.Log("message 3\n"));
     socket_sink.Close();
     listen_task.Get();
 }
@@ -86,11 +86,11 @@ UTEST_MT(TcpSocketSink, ConcurrentClose, 4) {
     const engine::io::tests::TcpListener listener(engine::io::tests::IpVersion::kV4);
     auto socket_sink = logging::impl::TcpSocketSink({listener.addr});
 
-    auto log_task_1 = engine::AsyncNoSpan([&socket_sink] { EXPECT_NO_THROW(socket_sink.Close()); });
+    auto log_task_1 = engine::AsyncNoTracing([&socket_sink] { EXPECT_NO_THROW(socket_sink.Close()); });
 
-    auto log_task_2 = engine::AsyncNoSpan([&socket_sink] { EXPECT_NO_THROW(socket_sink.Close()); });
+    auto log_task_2 = engine::AsyncNoTracing([&socket_sink] { EXPECT_NO_THROW(socket_sink.Close()); });
 
-    auto log_task_3 = engine::AsyncNoSpan([&socket_sink] { EXPECT_NO_THROW(socket_sink.Close()); });
+    auto log_task_3 = engine::AsyncNoTracing([&socket_sink] { EXPECT_NO_THROW(socket_sink.Close()); });
 
     log_task_1.Get();
     log_task_2.Get();

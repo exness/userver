@@ -176,12 +176,16 @@ INSTANTIATE_TEST_SUITE_P(
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T10:10:10+02:0"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T10:10:10+2:00"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T10:10:10Z+02:00"})",
@@ -191,22 +195,30 @@ INSTANTIATE_TEST_SUITE_P(
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T10:10:1Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T10:1:10Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T1:10:10Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10T1:10:10Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-10t10:10:10Z"})",
@@ -221,17 +233,23 @@ INSTANTIATE_TEST_SUITE_P(
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-10-1T10:10:10Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"2010-1-10T10:10:10Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"201-10-10T10:10:10Z"})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            !kIsModernProtoJson
         },
         TimestampFromJsonFailureTestParam{
             R"({"field1":"201A-10-10T10:10:10Z"})",

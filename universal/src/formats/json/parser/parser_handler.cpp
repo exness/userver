@@ -63,7 +63,7 @@ bool ParserHandler::String(const char* c, size_t size, bool) {
 
 // no, this is a trait member function
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-bool ParserHandler::RawNumber(const char*, size_t, bool) { return false; }
+bool ParserHandler::RawNumber(const char*, size_t, bool) noexcept { return false; }
 
 }  // namespace formats::json::parser
 

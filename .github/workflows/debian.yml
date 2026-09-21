@@ -21,21 +21,11 @@ jobs:
             fail-fast: false
             matrix:
                 include:
-                  # TODO: debian-11 fails to compile core
-                  #
-                  # - cmake-flags: >-
-                  #     -DUSERVER_FORCE_DOWNLOAD_GTEST=ON
-                  #     -DCMAKE_CC_COMPILER=clang-11
-                  #     -DCMAKE_CXX_COMPILER=clang++-11
-                  #   image: debian:11
-                  #   info: Debian 11
-                  #   deps-file: debian-11.md
-
                   - cmake-flags: >-
-                        -DCMAKE_CC_COMPILER=clang-14
-                        -DCMAKE_CXX_COMPILER=clang++-14
+                        -DCMAKE_C_COMPILER=gcc-12
+                        -DCMAKE_CXX_COMPILER=g++-12
                     image: debian:12
-                    info: Debian 12
+                    info: Debian 12 + gcc-12
                     deps-file: debian-12.md
 
                 # TODO: fails with:
@@ -62,8 +52,7 @@ jobs:
             CMAKE_FLAGS: >-
                 -DCMAKE_BUILD_TYPE=Debug
                 -DCMAKE_CXX_STANDARD=20
-                -DUSERVER_USE_LD=lld
-                -DUSERVER_NO_WERROR=OFF
+                -DUSERVER_NO_WERROR=ON
                 -DUSERVER_BUILD_ALL_COMPONENTS=1
                 -DUSERVER_BUILD_SAMPLES=1
                 -DUSERVER_BUILD_TESTS=1
@@ -78,13 +67,13 @@ jobs:
                 -DUSERVER_CHAOTIC_GOLDEN_TESTS=OFF
 
         steps:
-          - uses: actions/checkout@v6
+          - uses: actions/checkout@v7
             with:
                 fetch-depth: 0
 
           - name: Restore cached directories
             id: restore-cache
-            uses: actions/cache/restore@v5
+            uses: actions/cache/restore@v6
             with:
                 path: |
                     ${{env.CCACHE_DIR}}
@@ -102,13 +91,8 @@ jobs:
           - name: Install dependencies
             run: |
                 apt-get update
-                apt-get install -y lsb-release wget gnupg
-
-                # Install clang and lld
-                apt-get install -y clang lld
-
                 # Install project dependencies
-                apt-get install -y $(cat scripts/docs/en/deps/${{ matrix.deps-file }})
+                apt-get install -y build-essential $(cat scripts/docs/en/deps/${{ matrix.deps-file }})
 
           - name: Install test dependencies
             if: ${{ false }}
@@ -142,7 +126,7 @@ jobs:
                 cmake --build build_debug --parallel $(nproc)
 
           - name: Save cached directories
-            uses: actions/cache/save@v5
+            uses: actions/cache/save@v6
             with:
                 path: |
                     ${{env.CCACHE_DIR}}
@@ -159,4 +143,4 @@ jobs:
             if: ${{ false }}
             run: |-
                 cd build_debug
-                ctest -V
+                ctest -j2 --output-on-failure

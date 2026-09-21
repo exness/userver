@@ -3,6 +3,7 @@
 /// @file userver/formats/yaml/value_builder.hpp
 /// @brief @copybrief formats::yaml::ValueBuilder
 
+#include <userver/compiler/impl/nodebug.hpp>
 #include <userver/formats/common/transfer_tag.hpp>
 #include <userver/formats/serialize/to.hpp>
 #include <userver/formats/yaml/value.hpp>
@@ -11,8 +12,6 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace formats::yaml {
-
-// clang-format off
 
 /// @ingroup userver_universal userver_containers userver_formats
 ///
@@ -23,16 +22,13 @@ namespace formats::yaml {
 ///
 /// ## Example usage:
 ///
-/// @snippet formats/yaml/value_builder_test.cpp  Sample formats::yaml::ValueBuilder usage
+/// @snippet universal/src/formats/yaml/value_builder_test.cpp  Sample formats::yaml::ValueBuilder usage
 ///
 /// ## Customization example:
 ///
-/// @snippet formats/json/value_builder_test.cpp  Sample Customization formats::json::ValueBuilder usage
+/// @snippet universal/src/formats/json/value_builder_test.cpp  Sample Customization formats::json::ValueBuilder usage
 ///
 /// @see @ref scripts/docs/en/userver/formats.md
-
-// clang-format on
-
 class ValueBuilder final {
 public:
     struct IterTraits {
@@ -187,26 +183,23 @@ private:
     void NodeDataAssign(const formats::yaml::Value& from);
 
     template <typename T>
-    static Value DoSerialize(const T& t);
+    USERVER_IMPL_NODEBUG_INLINE_FUNC static Value DoSerialize(const T& t) {
+        static_assert(
+            formats::common::impl::HasSerialize<Value, T>,
+            "There is no `Serialize(const T&, formats::serialize::To<yaml::Value>)` "
+            "in namespace of `T` or `formats::serialize`. "
+            ""
+            "Probably you forgot to include the <userver/formats/serialize/common_containers.hpp> or you "
+            "have not provided a `Serialize` function overload."
+        );
+
+        return Serialize(t, formats::serialize::To<Value>());
+    }
 
     formats::yaml::Value value_;
 
     friend class Iterator<IterTraits>;
 };
-
-template <typename T>
-Value ValueBuilder::DoSerialize(const T& t) {
-    static_assert(
-        formats::common::impl::HasSerialize<Value, T>,
-        "There is no `Serialize(const T&, formats::serialize::To<yaml::Value>)` "
-        "in namespace of `T` or `formats::serialize`. "
-        ""
-        "Probably you forgot to include the <userver/formats/serialize/common_containers.hpp> or you "
-        "have not provided a `Serialize` function overload."
-    );
-
-    return Serialize(t, formats::serialize::To<Value>());
-}
 
 template <typename T>
 requires(std::is_integral<T>::value && sizeof(T) <= sizeof(long long))

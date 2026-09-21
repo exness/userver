@@ -46,7 +46,7 @@ struct CppToPg<Null<T>> : CppToPg<T> {};
 
 template <typename T>
 struct BufferFormatter<Null<T>> {
-    explicit BufferFormatter(const Null<T>&) {}
+    constexpr explicit BufferFormatter(const Null<T>&) {}
 
     template <typename Buffer>
     void operator()(const UserTypes&, Buffer&) const {}

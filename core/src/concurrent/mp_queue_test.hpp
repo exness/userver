@@ -268,7 +268,7 @@ TYPED_UTEST_P(TypedQueueFixture, NotMovedValueOnFalse) {
     // NOLINTNEXTLINE(bugprone-use-after-move)
     EXPECT_TRUE(this->CheckWasNotMovedOut(value));
 
-    engine::current_task::GetCancellationToken().RequestCancel();
+    engine::current_task::RequestCancel();
     EXPECT_FALSE(producer.Push(std::move(value)));
     // NOLINTNEXTLINE(bugprone-use-after-move)
     EXPECT_TRUE(this->CheckWasNotMovedOut(value));
@@ -396,7 +396,7 @@ TYPED_UTEST_P_MT(QueueFixture, ManyProducers, 4) {
         task.Get();
     }
 
-    ASSERT_TRUE(std::all_of(consumed_messages.begin(), consumed_messages.end(), [](auto item) { return (item == 1); }));
+    ASSERT_TRUE(std::ranges::all_of(consumed_messages, [](auto item) { return (item == 1); }));
     EXPECT_EQ(queue->GetSizeApproximate(), 0);
 }
 
@@ -433,7 +433,7 @@ TYPED_UTEST_P_MT(QueueFixture, MultiProducerToken, 4) {
         task.Get();
     }
 
-    ASSERT_TRUE(std::all_of(consumed_messages.begin(), consumed_messages.end(), [](auto item) { return (item == 1); }));
+    ASSERT_TRUE(std::ranges::all_of(consumed_messages, [](auto item) { return (item == 1); }));
     EXPECT_EQ(queue->GetSizeApproximate(), 0);
 }
 

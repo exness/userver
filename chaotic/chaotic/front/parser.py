@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 import os
 import re
+import typing
 from typing import Any
 from typing import NoReturn
 
@@ -41,10 +42,6 @@ ERROR_MESSAGES = {
     'bool_type': 'Boolean type is expected, {input} is found',
     'int_type': 'Integer type is expected, {input} is found',
 }
-
-
-def missing_field_msg(field: str) -> str:
-    return ERROR_MESSAGES['missing'].format(field=field)
 
 
 def convert_error(
@@ -132,8 +129,15 @@ class SchemaParser:
             return self._parse_allof(input__['allOf'], input__)
         elif 'oneOf' in input__:
             return self._parse_oneof(input__['oneOf'], input__)
+        elif _is_empty_schema(input__):
+            return self._parse_any_value(input__)
+        elif 'const' in input__:
+            return self._parse_const(input__)
         else:
             self._raise('"type" is missing')
+
+    def _parse_any_value(self, input_: dict) -> types.AnyValue:
+        return types.AnyValue(**input_)
 
     def _parse_allof(self, variants: list, input__: dict) -> types.AllOf:
         fields = input__.copy()
@@ -340,13 +344,16 @@ class SchemaParser:
                     new_props[prop] = value
         fields.pop('properties', None)
 
-        add_props: bool | types.Schema | types.Ref
+        add_props: bool | types.Schema | types.Ref | None
         with self._path_enter('additionalProperties') as _:
-            additional_properties = fields.get('additionalProperties', False)
-            if isinstance(additional_properties, bool):
-                add_props = additional_properties
+            if 'additionalProperties' not in fields:
+                add_props = None
             else:
-                add_props = self._parse_schema(additional_properties)
+                additional_properties = fields['additionalProperties']
+                if isinstance(additional_properties, bool):
+                    add_props = additional_properties
+                else:
+                    add_props = self._parse_schema(additional_properties)
         fields.pop('additionalProperties', None)
 
         obj = types.SchemaObject(
@@ -356,10 +363,36 @@ class SchemaParser:
         )
         return obj
 
-    def _parse_boolean(self, input_: dict) -> types.Boolean:
+    def _parse_boolean(self, input_: dict) -> types.Boolean | types.ConstSchema:
+        if 'const' in input_:
+            return self._parse_typed_const(
+                input_,
+                types.ConstType.BOOLEAN,
+                bool,
+                'boolean',
+            )
         return types.Boolean(**input_)
 
-    def _parse_int(self, input_: dict) -> types.Integer:
+    def _parse_int(self, input_: dict) -> types.Integer | types.ConstSchema:
+        if 'const' in input_:
+            format_str = input_.get('format')
+            if format_str == 'int32':
+                const_type = types.ConstType.INTEGER32
+            elif format_str == 'int64':
+                const_type = types.ConstType.INTEGER64
+            else:
+                const_type = types.ConstType.INTEGER
+            # bool is a subtype of int in Python — reject boolean const values
+            value = input_['const']
+            if isinstance(value, bool):
+                with self._path_enter('const') as _:
+                    self._raise('const value must be an integer, got boolean')
+            return self._parse_typed_const(
+                input_,
+                const_type,
+                int,
+                'integer',
+            )
         fields = input_.copy()
         format_str = fields.pop('format', None)
 
@@ -376,7 +409,14 @@ class SchemaParser:
             self._raise(f'Unknown "format" ({number.format})')
         return number
 
-    def _parse_string(self, input_: dict) -> types.String:
+    def _parse_string(self, input_: dict) -> types.String | types.ConstSchema:
+        if 'const' in input_:
+            return self._parse_typed_const(
+                input_,
+                types.ConstType.STRING,
+                str,
+                'string',
+            )
         fields = input_.copy()
         format_str = fields.pop('format', None)
         fmt: types.StringFormat | None
@@ -386,7 +426,48 @@ class SchemaParser:
             fmt = None
         return types.String(**fields, format=fmt)
 
-    def _parse_file(self, input_: dict) -> types.String:
+    def _parse_const(self, input_: dict) -> types.ConstSchema:
+        try:
+            value = types.CONST_TYPE_ADAPTER.validate_python(input_['const'])
+        except pydantic.ValidationError:
+            with self._path_enter('const') as _:
+                self._raise(
+                    f'Unsupported const value type ({type(input_["const"]).__name__}), '
+                    'only string, integer, and boolean are supported',
+                )
+        const_type = types.CONST_PYTHON_TYPE_TO_TYPE[type(value)]
+        extra = {k: v for k, v in input_.items() if k != 'const'}
+        return types.ConstSchema(const=value, const_type=const_type, **extra)
+
+    def _parse_typed_const(
+        self,
+        input_: dict,
+        expected_const_type: types.ConstType,
+        expected_python_type: type,
+        type_name: str,
+    ) -> types.ConstSchema:
+        value = input_['const']
+        if not isinstance(value, expected_python_type):
+            with self._path_enter('const') as _:
+                self._raise(
+                    f'const value must be a {type_name}, got {type(value).__name__}',
+                )
+        value = typing.cast(types.ConstValue, value)
+        allowed_fields = types.ConstSchema.allowed_input_fields()
+        unsupported = {field for field in input_ if field not in allowed_fields and not field.startswith('x-')}
+        if unsupported:
+            with self._path_enter('const') as _:
+                self._raise(
+                    f'"const" cannot be combined with: {sorted(unsupported)}',
+                )
+        extra = {k: v for k, v in input_.items() if k not in ('const', 'type', 'format')}
+        return types.ConstSchema(
+            const=value,
+            const_type=expected_const_type,
+            **extra,
+        )
+
+    def _parse_file(self, input_: dict) -> types.String | types.ConstSchema:
         if not self._config.allow_file:
             with self._path_enter('type') as _:
                 self._raise('"file" type is not allowed')
@@ -458,6 +539,22 @@ class SchemaParser:
     def parsed_schemas(self) -> types.ParsedSchemas:
         assert self._state
         return types.ParsedSchemas(self._state.schemas)
+
+
+# Keys that are allowed in a structurally empty ("any value") schema.
+# A schema is considered empty if it contains only metadata fields and x- extensions.
+_ANY_VALUE_ALLOWED_KEYS = frozenset({'title', 'description', 'example'})
+
+
+def _is_empty_schema(input_: dict) -> bool:
+    """Returns True iff the schema has no structural type constraints."""
+    for key in input_:
+        if key in _ANY_VALUE_ALLOWED_KEYS:
+            continue
+        if key.startswith('x-'):
+            continue
+        return False
+    return True
 
 
 # pylint: disable=protected-access

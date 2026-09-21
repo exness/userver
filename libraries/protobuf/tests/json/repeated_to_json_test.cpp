@@ -87,7 +87,7 @@ INSTANTIATE_TEST_SUITE_P(
     RepeatedToJsonFailureTest,
     ::testing::Values(RepeatedToJsonFailureTestParam{
         RepeatedMessageData{
-            .field3 = {{.seconds = 1, .nanos = 1}, {.seconds = 1, .nanos = -1}, {.seconds = 0, .nanos = 1}}
+            .field3 = {{.seconds = 1, .nanos = 1}, {.seconds = -1, .nanos = 1}, {.seconds = 0, .nanos = 1}}
         },
         PrintErrorCode::kInvalidValue,
         "field3[1]"

@@ -12,9 +12,6 @@
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/storages/redis/reply.hpp>
-#include <userver/storages/secdist/component.hpp>
-#include <userver/storages/secdist/exceptions.hpp>
-#include <userver/storages/secdist/secdist.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/retry_budget.hpp>
 #include <userver/utils/statistics/writer.hpp>
@@ -23,17 +20,9 @@
 
 #include <userver/storages/redis/client.hpp>
 #include <userver/storages/redis/redis_config.hpp>
-#include <userver/storages/redis/subscribe_client.hpp>
 
-#include <storages/redis/impl/keyshard_impl.hpp>
-#include <storages/redis/impl/sentinel.hpp>
-#include <storages/redis/impl/subscribe_sentinel.hpp>
-
-#include "redis_secdist.hpp"
 #include "userver/storages/redis/base.hpp"
 #include "userver/storages/redis/wait_connected_mode.hpp"
-
-#include <boost/range/adaptor/map.hpp>
 
 #ifndef ARCADIA_ROOT
 #include "generated/src/storages/redis/dynamic_component.yaml.hpp"  // Y_IGNORE
@@ -45,58 +34,11 @@ namespace {
 
 const auto kStatisticsName = "redis";
 
-template <typename RedisGroup>
-USERVER_NAMESPACE::secdist::RedisSettings GetSecdistSettings(
-    components::Secdist& secdist_component,
-    const RedisGroup& redis_group
-) {
-    try {
-        return secdist_component.Get().Get<storages::secdist::RedisMapSettings>().GetSettings(redis_group.config_name);
-    } catch (const storages::secdist::SecdistError& ex) {
-        LOG_ERROR()
-            << "Failed to load redis config (db=" << redis_group.db << " config_name=" << redis_group.config_name
-            << "): " << ex;
-        throw;
-    }
-}
-
 }  // namespace
 
 namespace components {
 
-struct RedisGroup {
-    std::string db;
-    std::string config_name;
-    storages::redis::ShardingStrategy sharding_strategy{storages::redis::ShardingStrategy::kKeyShardTaximeterCrc32};
-    bool allow_reads_from_master{false};
-};
-
-RedisGroup Parse(const yaml_config::YamlConfig& value, formats::parse::To<RedisGroup>) {
-    RedisGroup config;
-    config.db = value["db"].As<std::string>();
-    config.config_name = value["config_name"].As<std::string>();
-    config.sharding_strategy =
-        storages::redis::ToShardingStrategy(value["sharding_strategy"].As<std::string>("KeyShardTaximeterCrc32"));
-    config.allow_reads_from_master = value["allow_reads_from_master"].As<bool>(false);
-    return config;
-}
-
-struct SubscribeRedisGroup {
-    std::string db;
-    std::string config_name;
-    storages::redis::ShardingStrategy sharding_strategy{storages::redis::ShardingStrategy::kKeyShardTaximeterCrc32};
-    bool allow_reads_from_master{false};
-};
-
-SubscribeRedisGroup Parse(const yaml_config::YamlConfig& value, formats::parse::To<SubscribeRedisGroup>) {
-    SubscribeRedisGroup config;
-    config.db = value["db"].As<std::string>();
-    config.config_name = value["config_name"].As<std::string>();
-    config.sharding_strategy =
-        storages::redis::ToShardingStrategy(value["sharding_strategy"].As<std::string>("KeyShardTaximeterCrc32"));
-    config.allow_reads_from_master = value["allow_reads_from_master"].As<bool>(false);
-    return config;
-}
+namespace {
 
 struct RedisPools {
     int sentinel_thread_pool_size;
@@ -110,6 +52,8 @@ RedisPools Parse(const yaml_config::YamlConfig& value, formats::parse::To<RedisP
     return pools;
 }
 
+}  // namespace
+
 DynamicRedis::DynamicRedis(const ComponentConfig& config, const ComponentContext& component_context)
     : ComponentBase(config, component_context),
       testsuite_redis_control_(component_context.FindComponent<components::TestsuiteSupport>().GetRedisControl()),
@@ -121,18 +65,15 @@ DynamicRedis::DynamicRedis(const ComponentConfig& config, const ComponentContext
         storages::redis::impl::ThreadPools>(redis_pools.sentinel_thread_pool_size, redis_pools.redis_thread_pool_size);
     dynamic_redis_.Init(thread_pools_, testsuite_redis_control_);
 
-    config_subscription_ = config_.UpdateAndListen(this, "dynamic-redis", &DynamicRedis::OnConfigUpdate);
-    auto& statistics_storage = component_context.FindComponent<components::StatisticsStorage>().GetStorage();
-
-    statistics_holder_ = statistics_storage.RegisterWriter(kStatisticsName, [this](utils::statistics::Writer& writer) {
-        WriteStatistics(writer);
-    });
+    config_.UpdateAndListen(component_context.Scopes(), this, "dynamic-redis", &DynamicRedis::OnConfigUpdate);
+    utils::statistics::RegisterWriterScope(
+        component_context,
+        kStatisticsName,
+        [this](utils::statistics::Writer& writer) { WriteStatistics(writer); }
+    );
 }
 
-DynamicRedis::~DynamicRedis() {
-    statistics_holder_.Unregister();
-    config_subscription_.Unsubscribe();
-}
+DynamicRedis::~DynamicRedis() = default;
 
 bool DynamicRedis::AddClient(const std::string& name, const storages::redis::DynamicSettings& dyn_settings) {
     return dynamic_redis_.AddClient(name, dyn_settings, config_);

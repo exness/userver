@@ -8,7 +8,7 @@ Make sure that you can compile and run framework tests as described at
 
 ## Step by step guide
 
-The userver framework allows to use it's non-coroutine parts by using the
+The userver framework allows you to use its non-coroutine parts by using the
 `userver::universal` CMake target. It provides useful utilities like
 utils::FastPimpl, utils::TrivialBiMap,
 @ref scripts/docs/en/userver/formats.md "JSON and YAML formats", utils::AnyMovable,
@@ -84,7 +84,8 @@ Python with `pytest`:
   with `pytest` installed. Pass the path to the CMake built binary to venv:
   @snippet samples/json2yaml/CMakeLists.txt  add_test
 
-* Add a fixture to `conftest.py` to get the path to the CMake built binary:
+* Add a fixture to `conftest.py` to get the path to the CMake built binary using the
+  @ref pytest_userver.plugins.base.service_binary "service_binary" fixture:
   @snippet samples/json2yaml/testsuite/conftest.py  pytest
 
 * Write the test:

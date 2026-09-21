@@ -3,9 +3,8 @@
 /// @file userver/server/handlers/auth/digest/auth_checker_settings_component.hpp
 /// @brief @copybrief server::handlers::auth::digest::AuthCheckerSettingsComponent
 
-#include <chrono>
 #include <optional>
-#include <string>
+#include <string_view>
 
 #include <userver/components/component_base.hpp>
 #include <userver/dynamic_config/source.hpp>
@@ -31,8 +30,7 @@ namespace server::handlers::auth::digest {
 class AuthCheckerSettingsComponent : public components::ComponentBase {
 public:
     /// @ingroup userver_component_names
-    /// @brief The default name of
-    /// server::handlers::auth::digest::AuthCheckerSettingsComponent
+    /// @brief The default name of @ref server::handlers::auth::digest::AuthCheckerSettingsComponent
     static constexpr std::string_view kName = "auth-digest-checker-settings";
 
     AuthCheckerSettingsComponent(

@@ -13,12 +13,8 @@ if(${CMAKE_SOURCE_DIR}/.git/HEAD IS_NEWER_THAN ${BUILD_CONFIG})
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/build_config.hpp.in ${BUILD_CONFIG} ESCAPE_QUOTES @ONLY)
 endif()
 
-file(
-    GLOB_RECURSE
-    SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
 )
 
 file(GLOB_RECURSE UNIT_TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/*_test.cpp)
@@ -35,6 +31,21 @@ find_package(Iconv REQUIRED)
 
 find_package(libev REQUIRED)
 find_package(libnghttp2 REQUIRED)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(USERVER_CONAN)
+        find_package(liburing REQUIRED CONFIG)
+        # Conan exports liburing::liburing. CMake forbids ALIAS-of-ALIAS, so
+        # both convenience names must alias the real imported target.
+        if(NOT TARGET liburing::uring)
+            add_library(liburing::uring ALIAS liburing::liburing)
+        endif()
+        if(NOT TARGET uring::uring)
+            add_library(uring::uring ALIAS liburing::liburing)
+        endif()
+    else()
+        find_package(liburing REQUIRED)
+    endif()
+endif()
 
 if(USERVER_CONAN)
     find_package(c-ares REQUIRED)
@@ -153,7 +164,11 @@ list(
 
 foreach(FILE ${EMBED_FILES})
     string(MAKE_C_IDENTIFIER "${PROJECT_NAME}-embed_${FILE}" EMBED_TARGET_NAME)
-    userver_embed_file(${EMBED_TARGET_NAME} FILEPATH "${FILE}" HPP_FILENAME "${FILE}")
+    userver_embed_file(
+        ${EMBED_TARGET_NAME}
+        FILEPATH "${FILE}"
+        HPP_FILENAME "${FILE}"
+    )
     target_link_libraries(${PROJECT_NAME} PRIVATE "$<BUILD_INTERFACE:${EMBED_TARGET_NAME}>")
 endforeach()
 
@@ -202,6 +217,10 @@ target_link_libraries(
     PUBLIC c-ares::cares
     PRIVATE cryptopp::cryptopp libev::libev libnghttp2::nghttp2
 )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(${PROJECT_NAME} PRIVATE liburing::uring)
+endif()
 
 if(USERVER_CONAN)
     target_link_libraries(${PROJECT_NAME} PUBLIC concurrentqueue::concurrentqueue)
@@ -262,10 +281,13 @@ target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAME}-dynamic-configs)
 # TODO: move to generator(?)
 userver_target_generate_chaotic(
     ${PROJECT_NAME}-static-config-dns-client
-    INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../chaotic/include LAYOUT "/=userver::static_config::DnsClient"
-    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/static_configs OUTPUT_PREFIX userver/static_config
+    INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../chaotic/include
+    LAYOUT "/=userver::static_config::DnsClient"
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/static_configs
+    OUTPUT_PREFIX userver/static_config
     SCHEMAS ${CMAKE_CURRENT_SOURCE_DIR}/static_configs/dns_client.yaml
-    RELATIVE_TO ${CMAKE_CURRENT_SOURCE_DIR}/static_configs INSTALL_INCLUDES_COMPONENT core
+    RELATIVE_TO ${CMAKE_CURRENT_SOURCE_DIR}/static_configs
+    INSTALL_INCLUDES_COMPONENT core
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAME}-static-config-dns-client)
 
@@ -289,10 +311,7 @@ if(USERVER_FEATURE_UTEST)
     add_library(userver-ubench ${LIBUBENCH_SOURCES})
     target_include_directories(userver-ubench PUBLIC $<TARGET_PROPERTY:${PROJECT_NAME},INCLUDE_DIRECTORIES>)
     target_compile_definitions(userver-ubench PUBLIC $<TARGET_PROPERTY:${PROJECT_NAME},COMPILE_DEFINITIONS>)
-    target_link_libraries(
-        userver-ubench
-        PUBLIC ${PROJECT_NAME} userver-universal-internal-ubench
-    )
+    target_link_libraries(userver-ubench PUBLIC ${PROJECT_NAME} userver-universal-internal-ubench)
     _userver_install_targets(COMPONENT core TARGETS userver-ubench userver-universal-internal-ubench)
 endif()
 
@@ -315,13 +334,15 @@ _userver_directory_install(
 _userver_directory_install(
     COMPONENT core
     FILES "${USERVER_ROOT_DIR}/cmake/UserverTestsuite.cmake"
-          "${USERVER_ROOT_DIR}/cmake/install/userver-core-config.cmake"
+          "${USERVER_ROOT_DIR}/cmake/UserverTestsuiteDbRegistry.cmake"
+          "${USERVER_ROOT_DIR}/cmake/UserverTestsuiteVenv.cmake" "${USERVER_ROOT_DIR}/cmake/TargetIteration.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver
 )
+_userver_install_component_config(core)
 _userver_directory_install(
     COMPONENT core
     FILES "${USERVER_ROOT_DIR}/cmake/modules/Findc-ares.cmake" "${USERVER_ROOT_DIR}/cmake/modules/Findlibnghttp2.cmake"
-          "${USERVER_ROOT_DIR}/cmake/modules/Findlibev.cmake"
+          "${USERVER_ROOT_DIR}/cmake/modules/Findlibev.cmake" "${USERVER_ROOT_DIR}/cmake/modules/Findliburing.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/modules
 )
 
@@ -345,10 +366,4 @@ _userver_directory_install(
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/testsuite/pytest_plugins/
 )
 
-_userver_directory_install(
-    COMPONENT core
-    DIRECTORY "${USERVER_ROOT_DIR}/testsuite/include_tests/"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/userver/testsuite/include_tests/
-)
-
-_userver_install_component(MODULE core DEPENDS chaotic)
+_userver_install_component(COMPONENT core DEPENDS chaotic)

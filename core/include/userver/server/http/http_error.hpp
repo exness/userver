@@ -4,7 +4,6 @@
 /// @brief @copybrief server::http::GetHttpStatus
 
 #include <stdexcept>
-#include <string>
 
 #include <userver/server/handlers/exceptions.hpp>
 #include <userver/server/http/http_status.hpp>
@@ -37,7 +36,7 @@ class CustomHandlerException : public handlers::CustomHandlerException {
 public:
     /// @see server::handlers::CustomHandlerException for the description of how
     /// `args` that can augment error messages.
-    /// @snippet server/handlers/exceptions_test.cpp  Sample construction HTTP
+    /// @snippet core/src/server/handlers/exceptions_test.cpp  Sample construction HTTP
     template <typename... Args>
     CustomHandlerException(handlers::HandlerErrorCode error_code, HttpStatus http_status, Args&&... args)
         : handlers::CustomHandlerException(error_code, std::forward<Args>(args)...),

@@ -52,6 +52,7 @@ public:
 
     /// @brief Sets maximum replication lag for eligible replica.
     /// @note Must be at least 90 seconds, cannot be used with kPrimary mode.
+    /// @note `std::nullopt` resets the operation override, allowing the pool default to apply.
     ReadPreference& SetMaxStaleness(std::optional<std::chrono::seconds> max_staleness);
 
     /// @brief Adds a tag to the tag set.
@@ -135,7 +136,7 @@ class ReturnNew {};
 /// Specifies the number of documents to skip
 class Skip {
 public:
-    explicit Skip(size_t value)
+    constexpr explicit Skip(size_t value)
         : value_(value)
     {}
 
@@ -149,7 +150,22 @@ private:
 /// @note The value of `0` means "no limit".
 class Limit {
 public:
-    explicit Limit(size_t value)
+    constexpr explicit Limit(size_t value)
+        : value_(value)
+    {}
+
+    size_t Value() const { return value_; }
+
+private:
+    size_t value_;
+};
+
+/// @brief Specifies the number of documents per wire-protocol batch.
+/// Controls both the initial find or aggregate batch and subsequent getMore batches.
+/// @note The value of `0` means "use server default".
+class BatchSize {
+public:
+    explicit BatchSize(size_t value)
         : value_(value)
     {}
 
@@ -260,10 +276,8 @@ public:
     explicit ArrayFilters(std::initializer_list<formats::bson::Document>);
 
     /// Specifies list of filters by container iterators
-    template <
-        typename Iterator,
-        typename = std::enable_if_t<
-            std::is_convertible_v<typename std::iterator_traits<Iterator>::value_type, formats::bson::Document>>>
+    template <typename Iterator>
+    requires std::is_convertible_v<typename std::iterator_traits<Iterator>::value_type, formats::bson::Document>
     ArrayFilters(Iterator first, Iterator last) {
         formats::bson::ValueBuilder builder{formats::common::Type::kArray};
         for (auto it = first; it != last; ++it) {
@@ -286,6 +300,8 @@ class AllowPartialResults {};
 
 /// @brief Disables exception throw on server errors, should be checked manually
 /// in WriteResult
+/// @note Always check the OperationError method in WriteResult. If the error is not empty,
+/// then there is a possibility that the bulk was not fully executed.
 class SuppressServerExceptions {};
 
 /// @brief Enables tailable cursor, which block at the end of capped collections
@@ -308,7 +324,7 @@ private:
 /// @warning This does not set any client-side timeouts.
 class MaxServerTime {
 public:
-    explicit MaxServerTime(const std::chrono::milliseconds& value)
+    constexpr explicit MaxServerTime(const std::chrono::milliseconds& value)
         : value_(value)
     {}
 

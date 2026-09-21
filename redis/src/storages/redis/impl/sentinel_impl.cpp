@@ -1,10 +1,10 @@
 #include "sentinel_impl.hpp"
 
+#include <algorithm>
 #include <atomic>
 
 #include <fmt/format.h>
 #include <boost/container_hash/hash.hpp>
-#include <boost/crc.hpp>
 
 #include <userver/concurrent/variable.hpp>
 #include <userver/logging/log.hpp>
@@ -25,8 +25,6 @@
 #include <storages/redis/impl/sentinel_topology_holder.hpp>
 #include <storages/redis/impl/standalone_topology_holder.hpp>
 #include <storages/redis/impl/topology_holder_base.hpp>
-
-#include <dynamic_config/variables/REDIS_DEADLINE_PROPAGATION_VERSION.hpp>
 
 #include "command_control_impl.hpp"
 
@@ -54,36 +52,46 @@ std::optional<std::chrono::milliseconds> GetDeadlineTimeLeft() {
     return inherited_timeout;
 }
 
-bool AdjustDeadline(const SentinelImpl::SentinelCommand& scommand, const dynamic_config::Snapshot& config) {
+enum class DeadlineAdjustResult : std::uint8_t {
+    /// No inherited deadline and deadline not yet expired — command proceeds.
+    kNotAdjusted,
+    /// Deadline was capped by inherited deadline
+    kAdjusted,
+    /// Inherited deadline was already expired — command must be rejected.
+    kExpired,
+};
+
+// AdjustDeadline must live here in SentinelImpl rather than in Request because
+// SentinelImpl::AsyncCommand is the single dispatch point for ALL commands —
+// including those issued by subscribe_sentinel, cluster_topology_holder,
+// cluster_slots_query, cluster_shards_query, and sentinel_query, which bypass
+// Request entirely. Moving the capping to Request would leave those paths
+// uncapped.
+DeadlineAdjustResult AdjustDeadline(const SentinelImpl::SentinelCommand& scommand) {
     const auto inherited_deadline = GetDeadlineTimeLeft();
     if (!inherited_deadline) {
-        return true;
-    }
-
-    if (config[::dynamic_config::REDIS_DEADLINE_PROPAGATION_VERSION] != kDeadlinePropagationExperimentVersion) {
-        return true;
+        return DeadlineAdjustResult::kNotAdjusted;
     }
 
     if (*inherited_deadline <= std::chrono::seconds{0}) {
-        return false;
+        return DeadlineAdjustResult::kExpired;
     }
 
     auto& cc = scommand.command->control;
-    if (!cc.timeout_single || *cc.timeout_single > *inherited_deadline) {
+    const bool timeout_single_capped = !cc.timeout_single || *cc.timeout_single > *inherited_deadline;
+    const bool timeout_all_capped = !cc.timeout_all || *cc.timeout_all > *inherited_deadline;
+    if (timeout_single_capped) {
         cc.timeout_single = *inherited_deadline;
     }
-    if (!cc.timeout_all || *cc.timeout_all > *inherited_deadline) {
+    if (timeout_all_capped) {
         cc.timeout_all = *inherited_deadline;
     }
 
-    return true;
-}
+    if (timeout_single_capped || timeout_all_capped) {
+        return DeadlineAdjustResult::kAdjusted;
+    }
 
-size_t HashSlot(const std::string& key) {
-    size_t start = 0;
-    size_t len = 0;
-    GetRedisKey(key, &start, &len);
-    return std::for_each(key.data() + start, key.data() + start + len, boost::crc_optimal<16, 0x1021>())() & 0x3fff;
+    return DeadlineAdjustResult::kNotAdjusted;
 }
 
 std::string ParseMovedShard(const std::string& err_string) {
@@ -160,10 +168,9 @@ void InvokeCommand(CommandPtr command, ReplyPtr&& reply, const logging::LogExtra
 
 void SentinelImpl::ProcessWaitingCommands() {
     std::vector<SentinelCommand> waiting_commands;
-
-    {
-        const std::lock_guard<std::mutex> lock(command_mutex_);
-        waiting_commands.swap(commands_);
+    SentinelCommand command;
+    while (commands_consumer_.PopNoblock(command)) {
+        waiting_commands.push_back(std::move(command));
     }
     if (!waiting_commands.empty()) {
         LOG_INFO()
@@ -193,10 +200,9 @@ void SentinelImpl::ProcessWaitingCommands() {
 
 void SentinelImpl::ProcessWaitingCommandsOnStop() {
     std::vector<SentinelCommand> waiting_commands;
-
-    {
-        const std::lock_guard<std::mutex> lock(command_mutex_);
-        waiting_commands.swap(commands_);
+    SentinelCommand command;
+    while (commands_consumer_.PopNoblock(command)) {
+        waiting_commands.push_back(std::move(command));
     }
 
     for (const SentinelCommand& scommand : waiting_commands) {
@@ -220,31 +226,34 @@ SentinelImpl::SentinelImpl(
     const std::vector<std::string>& shards,
     const std::vector<ConnectionInfo>& conns,
     std::string shard_group_name,
-    const std::string& client_name,
-    const Password& password,
+    const Credentials& credentials,
     ConnectionSecurity connection_security,
-    KeyShardFactory&& key_shard_factory,
+    SentinelStaticConfig creation_config,
     dynamic_config::Source dynamic_config_source,
     std::size_t database_index
 )
     : sentinel_obj_(sentinel),
       ev_thread_(sentinel_thread_control),
+      commands_queue_(CommandQueue::Create()),
+      commands_producer_(commands_queue_->GetMultiProducer()),
+      commands_consumer_(commands_queue_->GetConsumer()),
       process_waiting_commands_timer_(std::make_unique<engine::ev::PeriodicWatcher>(
           ev_thread_,
           [this] { ProcessWaitingCommands(); },
           kSentinelGetHostsCheckInterval
       )),
-      key_shard_factory_(std::move(key_shard_factory)),
+      key_shard_factory_(std::move(creation_config.key_shard_factory)),
       key_shard_(key_shard_factory_(shards.size())),
       shard_group_name_(std::move(shard_group_name)),
       conns_(conns),
       redis_thread_pool_(redis_thread_pool),
-      client_name_(client_name),
+      client_name_(std::move(creation_config.client_name)),
       dynamic_config_source_(std::move(dynamic_config_source)),
       database_index_(database_index)
 {
     log_extra_.Extend("shard_group_name", shard_group_name_);
 
+    const auto topology_update_method = creation_config.topology_update_method;
     const auto& key_shard_type = key_shard_factory_.GetShardingStrategy();
     topology_holder_ = [&]() -> std::unique_ptr<TopologyHolderBase> {
         if (key_shard_type == ShardingStrategy::kRedisCluster) {
@@ -252,10 +261,15 @@ SentinelImpl::SentinelImpl(
                 ev_thread_,
                 redis_thread_pool,
                 shard_group_name_,
-                password,
+                credentials,
                 shards,
                 conns,
-                connection_security
+                connection_security,
+                topology_update_method,
+                creation_config.required_mode == storages::redis::WaitConnectedMode::kNoWait
+                    ? Hysteresis::Config()
+                    : Hysteresis::Config{.consecutive_failures = 3, .consecutive_ok = 5},
+                creation_config.max_disconnect_time
             );
         } else if (key_shard_type == ShardingStrategy::kRedisStandalone) {
             LOG_DEBUG() << log_extra_ << "Construct Standalone topology holder";
@@ -265,7 +279,7 @@ SentinelImpl::SentinelImpl(
                 ev_thread_,
                 redis_thread_pool,
                 shard_group_name_,
-                password,
+                credentials,
                 database_index_,
                 conns.front()
             );
@@ -275,7 +289,7 @@ SentinelImpl::SentinelImpl(
             ev_thread_,
             redis_thread_pool,
             shard_group_name_,
-            password,
+            credentials,
             database_index_,
             shards,
             conns,
@@ -287,6 +301,7 @@ SentinelImpl::SentinelImpl(
 SentinelImpl::~SentinelImpl() {
     delete_started_ = true;
     Stop();
+    topology_holder_.reset();
 }
 
 std::unordered_map<ServerId, size_t, ServerIdHasher> SentinelImpl::GetAvailableServersWeighted(
@@ -303,7 +318,10 @@ std::unordered_map<ServerId, size_t, ServerIdHasher> SentinelImpl::GetAvailableS
 
 void SentinelImpl::WaitConnectedDebug(bool allow_empty_slaves) {
     const auto mode = allow_empty_slaves ? WaitConnectedMode::kMaster : WaitConnectedMode::kMasterAndSlave;
-    const RedisWaitConnected wait_connected{mode, true, kRedisWaitConnectedDefaultTimeout};
+
+    const auto config = dynamic_config_source_.GetSnapshot();
+    const auto& wait_settings = config[storages::redis::kConfig].redis_wait_connected;
+    const RedisWaitConnected wait_connected{mode, /*throw_on_fail=*/true, wait_settings.timeout};
     WaitConnectedOnce(wait_connected);
 }
 
@@ -328,6 +346,8 @@ void SentinelImpl::WaitConnectedOnce(RedisWaitConnected wait_connected) {
     }
 }
 
+bool SentinelImpl::IsReady(const HealthCheckParams& params) const { return topology_holder_->IsReady(params); }
+
 void SentinelImpl::ForceUpdateHosts() { topology_holder_->SendUpdateClusterTopology(); }
 
 void SentinelImpl::Init() {
@@ -350,7 +370,9 @@ void SentinelImpl::Init() {
 }
 
 void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_instance_idx) {
-    if (!AdjustDeadline(scommand, dynamic_config_source_.GetSnapshot())) {
+    const auto deadline_adjust_result = AdjustDeadline(scommand);
+    if (deadline_adjust_result == DeadlineAdjustResult::kExpired) {
+        server::request::MarkTaskInheritedDeadlineExpired();
         auto reply = std::make_shared<
             Reply>("", ReplyData::CreateError("Deadline propagation"), ReplyStatus::kTimeoutError);
         InvokeCommand(scommand.command, std::move(reply), log_extra_);
@@ -364,7 +386,13 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
     const auto counter = command->counter;
     const CommandPtr command_check_errors(PrepareCommand(
         std::move(command->args),
-        [this, shard, master, start, counter, command](const CommandPtr& ccommand, ReplyPtr reply) {
+        [this,
+         shard,
+         master,
+         start,
+         counter,
+         command,
+         deadline_adjust_result](const CommandPtr& ccommand, ReplyPtr reply) {
             if (counter != command->counter) {
                 return;
             }
@@ -455,6 +483,14 @@ void SentinelImpl::AsyncCommand(const SentinelCommand& scommand, size_t prev_ins
             const std::chrono::duration<double> time = now - start;
             reply->time = time.count();
             command->args = std::move(ccommand->args);
+            // NOTE: We cannot call MarkTaskInheritedDeadlineExpired() here because
+            // this callback is invoked from the redis ev-thread, not from a coroutine.
+            // kTaskInheritedData is a TaskInheritedVariable bound to the current coroutine,
+            // so GetOptional() returns nullptr in the ev-thread and the call would be a no-op.
+            // The deadline signal is set in Request::Get() instead, which runs in the user's coroutine.
+            if (deadline_adjust_result == DeadlineAdjustResult::kAdjusted) {
+                reply->deadline_propagation_meta.SetDeadlinePropagationCapped(utils::impl::InternalTag{});
+            }
             InvokeCommand(command, std::move(reply), log_extra_);
             ccommand->args = std::move(command->args);
         },
@@ -506,29 +542,39 @@ void SentinelImpl::AsyncCommandFailed(const SentinelCommand& scommand) {
 
 void SentinelImpl::Stop() {
     UASSERT(engine::current_task::IsTaskProcessorThread());
-    topology_holder_->Stop();
-    ev_thread_.RunInEvLoopBlocking([this] {
+    if (!StartClosingCommandQueue()) {
+        return;
+    }
+    ev_thread_.RunInEvLoopSyncWithResult([this] {
+        WaitForCommandProducers();
+        topology_holder_->Stop();
         process_waiting_commands_timer_->Stop();
         ProcessWaitingCommandsOnStop();
     });
 }
 
 void SentinelImpl::SetCommandsBufferingSettings(CommandsBufferingSettings commands_buffering_settings) {
-    if (topology_holder_) {
-        topology_holder_->SetCommandsBufferingSettings(commands_buffering_settings);
-    }
+    ev_thread_.RunInEvLoopAsync([this, commands_buffering_settings] {
+        if (topology_holder_) {
+            topology_holder_->SetCommandsBufferingSettings(commands_buffering_settings);
+        }
+    });
 }
 
 void SentinelImpl::SetReplicationMonitoringSettings(const ReplicationMonitoringSettings& monitoring_settings) {
-    if (topology_holder_) {
-        topology_holder_->SetReplicationMonitoringSettings(monitoring_settings);
-    }
+    ev_thread_.RunInEvLoopAsync([this, monitoring_settings] {
+        if (topology_holder_) {
+            topology_holder_->SetReplicationMonitoringSettings(monitoring_settings);
+        }
+    });
 }
 
 void SentinelImpl::SetRetryBudgetSettings(const utils::RetryBudgetSettings& settings) {
-    if (topology_holder_) {
-        topology_holder_->SetRetryBudgetSettings(settings);
-    }
+    ev_thread_.RunInEvLoopAsync([this, settings] {
+        if (topology_holder_) {
+            topology_holder_->SetRetryBudgetSettings(settings);
+        }
+    });
 }
 
 std::unique_ptr<SentinelStatistics> SentinelImpl::GetStatistics(const MetricsSettings& settings) const {
@@ -541,9 +587,22 @@ std::unique_ptr<SentinelStatistics> SentinelImpl::GetStatistics(const MetricsSet
     return stats;
 }
 
-void SentinelImpl::EnqueueCommand(const SentinelCommand& command) {
-    const std::lock_guard<std::mutex> lock(command_mutex_);
-    commands_.push_back(command);
+bool SentinelImpl::StartClosingCommandQueue() {
+    delete_started_ = true;
+    return command_admission_.Close();
+}
+
+void SentinelImpl::WaitForCommandProducers() const noexcept {
+    UASSERT(ev_thread_.IsInEvThread());
+    command_admission_.WaitForNoActivePermits();
+}
+
+bool SentinelImpl::EnqueueCommand(SentinelCommand command) {
+    auto admission_permit = command_admission_.TryAcquire();
+    if (!admission_permit) {
+        return false;
+    }
+    return commands_producer_.PushNoblock(std::move(command));
 }
 
 size_t SentinelImpl::ShardsCount() const {
@@ -556,10 +615,12 @@ size_t SentinelImpl::ShardsCount() const {
 size_t SentinelImpl::GetClusterSlotsCalledCounter() { return ClusterTopologyHolder::GetClusterSlotsCalledCounter(); }
 
 void SentinelImpl::SetConnectionInfo(const std::vector<ConnectionInfoInt>& info_array) {
-    topology_holder_->SetConnectionInfo(info_array);
+    ev_thread_.RunInEvLoopAsync([this, info_array] { topology_holder_->SetConnectionInfo(info_array); });
 }
 
-void SentinelImpl::UpdatePassword(const Password& password) { topology_holder_->UpdatePassword(password); }
+void SentinelImpl::UpdateCredentials(const Credentials& credentials) {
+    ev_thread_.RunInEvLoopAsync([this, credentials] { topology_holder_->UpdateCredentials(credentials); });
+}
 
 PublishSettings SentinelImpl::GetPublishSettings() {
     if (key_shard_factory_.IsClusterStrategy()) {

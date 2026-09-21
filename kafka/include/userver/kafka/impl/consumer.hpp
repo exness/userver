@@ -129,6 +129,9 @@ private:
     /// @brief Subscribes for configured topics and starts polling loop.
     void RunConsuming(ConsumerScope::Callback callback);
 
+    /// @brief Leaves the consumer group before recreating the librdkafka handle.
+    void CloseConsumingAfterFatalError() noexcept;
+
     std::atomic<bool> processing_{false};
     Stats stats_;
     std::optional<ConsumerRebalanceCallback> rebalance_callback_;

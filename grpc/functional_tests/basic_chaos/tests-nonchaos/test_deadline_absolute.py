@@ -4,6 +4,7 @@ import grpc
 import pytest
 
 import samples.greeter_pb2 as greeter_pb2
+import samples.greeter_pb2_grpc as greeter_pb2_grpc
 
 DP_ABSOLUTE_DEADLINE = 'x-request-deadline'
 
@@ -84,3 +85,48 @@ async def test_absolute_deadline_invalid_format(grpc_client):
         timeout=5.0,
     )
     assert response.greeting == 'Hello, Python!'
+
+
+async def test_absolute_deadline_propagated_as_is(grpc_client, grpc_mockserver):
+    epoch_us_deadline = _make_deadline_epoch_us(120.0)
+    captured_metadata = None
+
+    @grpc_mockserver(greeter_pb2_grpc.GreeterServiceServicer.SayHello)
+    async def mock_say_hello(request, context: grpc.aio.ServicerContext):
+        nonlocal captured_metadata
+        captured_metadata = dict(context.invocation_metadata())
+        return greeter_pb2.GreetingResponse(
+            greeting='Hello, Python!',
+        )
+
+    response = await grpc_client.SayHello(
+        greeter_pb2.GreetingRequest(name='test_deadline_propagation'),
+        metadata=[(DP_ABSOLUTE_DEADLINE, epoch_us_deadline)],
+        timeout=5.0,
+    )
+    assert response.greeting == 'Hello, Python!'
+    assert captured_metadata is not None
+    assert captured_metadata.get(DP_ABSOLUTE_DEADLINE) == epoch_us_deadline
+
+
+async def test_absolute_deadline_synthesized_when_only_duration_propagated(
+    grpc_client,
+    grpc_mockserver,
+):
+    captured_metadata = None
+
+    @grpc_mockserver(greeter_pb2_grpc.GreeterServiceServicer.SayHello)
+    async def mock_say_hello(request, context: grpc.aio.ServicerContext):
+        nonlocal captured_metadata
+        captured_metadata = dict(context.invocation_metadata())
+        return greeter_pb2.GreetingResponse(
+            greeting='Hello, Python!',
+        )
+
+    response = await grpc_client.SayHello(
+        greeter_pb2.GreetingRequest(name='test_deadline_propagation'),
+        timeout=5.0,
+    )
+    assert response.greeting == 'Hello, Python!'
+    assert captured_metadata is not None
+    assert DP_ABSOLUTE_DEADLINE in captured_metadata

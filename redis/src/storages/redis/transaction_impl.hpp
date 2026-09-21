@@ -145,6 +145,8 @@ public:
 
     RequestGet Get(std::string key) override;
 
+    RequestGetdel Getdel(std::string key) override;
+
     RequestGetset Getset(std::string key, std::string value) override;
 
     RequestHdel Hdel(std::string key, std::string field) override;
@@ -201,6 +203,10 @@ public:
 
     RequestMset Mset(std::vector<std::pair<std::string, std::string>> key_values) override;
 
+    RequestMsetex Msetex(std::vector<std::pair<std::string, std::string>> key_values) override;
+
+    RequestMsetex Msetex(std::vector<std::pair<std::string, std::string>> key_values, MsetexOptions options) override;
+
     RequestPersist Persist(std::string key) override;
 
     RequestPexpire Pexpire(std::string key, std::chrono::milliseconds ttl) override;
@@ -243,6 +249,9 @@ public:
         override;
 
     RequestSetex Setex(std::string key, std::chrono::seconds seconds, std::string value) override;
+
+    RequestSetAndGetPrevious SetAndGetPrevious(std::string key, std::string value, std::chrono::milliseconds ttl)
+        override;
 
     RequestSismember Sismember(std::string key, std::string member) override;
 
@@ -331,6 +340,88 @@ public:
     RequestZremrangebyscore Zremrangebyscore(std::string key, std::string min, std::string max) override;
 
     RequestZscore Zscore(std::string key, std::string member) override;
+
+    // Hash field expiration commands:
+
+    RequestHexpire Hexpire(std::string key, std::chrono::seconds ttl, std::vector<std::string> fields) override;
+
+    RequestHexpire Hexpire(
+        std::string key,
+        std::chrono::seconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) override;
+
+    RequestHexpire Hpexpire(std::string key, std::chrono::milliseconds ttl, std::vector<std::string> fields) override;
+
+    RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) override;
+
+    RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields
+    ) override;
+
+    RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) override;
+
+    RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields
+    ) override;
+
+    RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) override;
+
+    RequestHexpiretime Hexpiretime(std::string key, std::vector<std::string> fields) override;
+
+    RequestHpexpiretime Hpexpiretime(std::string key, std::vector<std::string> fields) override;
+
+    RequestHttl Httl(std::string key, std::vector<std::string> fields) override;
+
+    RequestHpttl Hpttl(std::string key, std::vector<std::string> fields) override;
+
+    RequestHpersist Hpersist(std::string key, std::vector<std::string> fields) override;
+
+    RequestHgetex Hgetex(std::string key, std::vector<std::string> fields) override;
+
+    RequestHgetex Hgetex(std::string key, HgetexOptions options, std::vector<std::string> fields) override;
+
+    RequestHsetex Hsetex(std::string key, std::vector<HsetexFieldValue> field_values) override;
+
+    RequestHsetex Hsetex(std::string key, HsetexOptions options, std::vector<HsetexFieldValue> field_values) override;
+
+    // JSON module commands:
+
+    RequestJsonSet JsonSet(std::string key, std::string path, formats::json::Value value) override;
+
+    RequestJsonSetIfNotExist JsonSetIfNotExist(std::string key, std::string path, formats::json::Value value) override;
+
+    RequestJsonSetIfExist JsonSetIfExist(std::string key, std::string path, formats::json::Value value) override;
+
+    RequestJsonGet JsonGet(std::string key) override;
+
+    RequestJsonGet JsonGet(std::string key, std::string path) override;
+
+    RequestJsonGet JsonGet(std::string key, std::vector<std::string> paths) override;
+
+    RequestJsonMget JsonMget(std::vector<std::string> keys, std::string path) override;
+
+    RequestJsonMset JsonMset(std::vector<JsonKeyPathValue> key_path_values) override;
 
     // end of redis commands
 

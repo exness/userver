@@ -2,9 +2,11 @@
 
 #include <chrono>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 #include <userver/logging/log_extra.hpp>
+#include <userver/utils/impl/transparent_hash.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -25,15 +27,15 @@ public:
     TimeStorage(const TimeStorage&) = delete;
     TimeStorage(TimeStorage&&) noexcept = default;
 
-    void PushLap(const std::string& key, Duration value);
+    void PushLap(std::string_view key, Duration value);
 
     /// Accumulated time for a certain key. If the key is not there, returns 0
-    Duration DurationTotal(const std::string& key) const;
+    Duration DurationTotal(std::string_view key) const;
 
     void MergeInto(logging::impl::TagWriter writer);
 
 private:
-    std::unordered_map<std::string, Duration> data_;
+    utils::impl::TransparentMap<std::string, Duration> data_;
 };
 
 }  // namespace tracing::impl

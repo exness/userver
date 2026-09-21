@@ -4,6 +4,8 @@
 
 #include <fmt/format.h>
 
+#include <dynamic_config/variables/USERVER_CACHES.hpp>
+
 #include <userver/dump/config.hpp>
 #include <userver/dynamic_config/value.hpp>
 #include <userver/logging/log.hpp>
@@ -107,7 +109,7 @@ ConfigPatch Parse(const formats::json::Value& value, formats::parse::To<ConfigPa
         ParseMs(value[kFullUpdateJitterMs]),
         std::nullopt,
         value[kUpdatesEnabled].As<bool>(true),
-        value[kAlertOnFailingToUpdateTimes].As<size_t>(0)
+        value[kAlertOnFailingToUpdateTimes].As<std::optional<std::uint64_t>>(std::nullopt)
     };
 
     if (!config.update_interval.count() && !config.full_update_interval.count()) {
@@ -250,15 +252,19 @@ Config Config::MergeWith(const ConfigPatch& patch) const {
     copy.full_update_interval = patch.full_update_interval;
     copy.full_update_jitter = patch.full_update_jitter;
     copy.updates_enabled = patch.updates_enabled;
-    copy.alert_on_failing_to_update_times = patch.alert_on_failing_to_update_times;
+    copy.alert_on_failing_to_update_times =
+        patch.alert_on_failing_to_update_times.value_or(copy.alert_on_failing_to_update_times);
     if (patch.exception_interval) {
         copy.exception_interval = patch.exception_interval;
     }
     return copy;
 }
 
-const dynamic_config::Key<std::unordered_map<std::string, ConfigPatch>>
-    kCacheConfigSet{"USERVER_CACHES", dynamic_config::DefaultAsJsonString{"{}"}};
+const dynamic_config::Key<std::unordered_map<std::string, ConfigPatch>> kCacheConfigSet{
+    "USERVER_CACHES",
+    dynamic_config::DefaultAsJsonString{"{}"},
+    ::dynamic_config::userver_caches::GetSchemaHash(),
+};
 
 }  // namespace cache
 

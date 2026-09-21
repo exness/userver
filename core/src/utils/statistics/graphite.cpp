@@ -1,6 +1,8 @@
 #include <userver/utils/statistics/graphite.hpp>
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
 #include <iterator>
 
 #include <fmt/compile.h>
@@ -19,13 +21,7 @@ namespace {
 bool IsGraphitePrintable(char c) noexcept { return std::isalnum(c) || std::strchr(".-_", c); }
 
 void AppendGraphiteSafe(fmt::memory_buffer& out, std::string_view value) {
-    std::replace_copy_if(
-        value.cbegin(),
-        value.cend(),
-        std::back_inserter(out),
-        [](char c) { return !IsGraphitePrintable(c); },
-        '_'
-    );
+    std::ranges::replace_copy_if(value, std::back_inserter(out), [](char c) { return !IsGraphitePrintable(c); }, '_');
 }
 
 class FormatBuilder final : public utils::statistics::BaseFormatBuilder {

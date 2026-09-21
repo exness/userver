@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 
 #include <stdexcept>
-#include <string_view>
+#include <string>
 #include <vector>
 
 #include <engine/io/tests/net_listener.hpp>
@@ -96,7 +96,7 @@ constexpr auto kDeadlineMaxTime = std::chrono::seconds{60};
             crypto::LoadCertificatesChainFromString(cert),
             crypto::PrivateKey::LoadFromString(key)
         );
-        auto server_task = engine::AsyncNoSpan(
+        auto server_task = engine::AsyncNoTracing(
             [deadline, &ssl_ctx](auto&& server) {
                 auto tls_server =
                     io::TlsWrapper::StartTlsServer(std::forward<decltype(server)>(server), ssl_ctx, deadline);
@@ -142,7 +142,7 @@ constexpr auto kDeadlineMaxTime = std::chrono::seconds{60};
             crypto::LoadCertificatesChainFromString(cert),
             crypto::PrivateKey::LoadFromString(key)
         );
-        auto server_task = engine::AsyncNoSpan(
+        auto server_task = engine::AsyncNoTracing(
             [deadline, &ssl_ctx](auto&& server) {
                 auto tls_server =
                     io::TlsWrapper::StartTlsServer(std::forward<decltype(server)>(server), ssl_ctx, deadline);

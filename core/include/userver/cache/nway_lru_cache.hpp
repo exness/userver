@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/cache/nway_lru_cache.hpp
+/// @brief @copybrief cache::NWayLRU
+
 #include <functional>
 #include <optional>
 #include <vector>
@@ -128,7 +131,7 @@ private:
     void NotifyDumper();
 
     std::vector<Way> caches_;
-    Hash hash_fn_;
+    [[no_unique_address]] Hash hash_fn_;
     std::shared_ptr<dump::Dumper> dumper_{nullptr};
 };
 

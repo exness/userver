@@ -4,7 +4,8 @@
 /// @brief functions for synchronous (blocking) file read operations
 /// @ingroup userver_universal
 
-#include <string>
+#include <cstddef>
+#include <limits>
 
 #include <userver/fs/file_info_with_data.hpp>
 #include <userver/fs/settings_read_file.hpp>
@@ -33,20 +34,26 @@ std::string ReadFileContents(utils::zstring_view path);
 /// @returns true if file exists, false if file doesn't exist
 /// @throws std::runtime_error if something goes wrong (e.g. out of file
 /// descriptors)
-bool FileExists(const std::string& path);
+bool FileExists(utils::zstring_view path);
 
 /// @brief Get file type returned by stat(2) synchronously.
 /// @param path file path
 /// @throws std::runtime_error if something goes wrong
-boost::filesystem::file_type GetFileType(const std::string& path);
+boost::filesystem::file_type GetFileType(utils::zstring_view path);
 
 /// @brief Returns files from recursively traversed directory
 /// @param path to directory to traverse recursively
 /// @param flags settings read files
+/// @param max_size_to_cache files larger than this store a full path in
+/// `FileInfoWithData::data_or_path` instead of contents
 /// @returns map with relative to `path` filepaths and file info
 /// @throws std::runtime_error if read fails for any reason (e.g. no such file,
 /// read error, etc.),
-FileInfoWithDataMap ReadRecursiveFilesInfoWithData(const std::string& path, SettingReadFileFlags flags);
+FileInfoWithDataMap ReadRecursiveFilesInfoWithData(
+    utils::zstring_view path,
+    SettingReadFileFlags flags,
+    std::size_t max_size_to_cache = std::numeric_limits<std::size_t>::max()
+);
 
 }  // namespace fs::blocking
 

@@ -2,6 +2,12 @@ import pytest
 import pytest_userver.client
 import pytest_userver.dynconf
 
+# A second logical database 'sampledb2' was added for the YDB_DATABASE_ROUTING
+# tests, so ydb.retry_budget.* now exists per database. These tests target the
+# default 'sampledb', so qualify every metric lookup by its 'ydb_database' label
+# (otherwise value_at fails with "Multiple metrics found").
+_SAMPLEDB = {'ydb_database': 'sampledb'}
+
 
 async def _make_success_request(service_client: pytest_userver.client.Client) -> None:
     response = await service_client.post(
@@ -40,12 +46,12 @@ async def test_retry_budget(
         for _ in range(requests_count):
             await _make_success_request(service_client)
 
-    assert differ.value_at('account_ok') == requests_count
-    assert differ.value_at('account_fail') == 0
-    assert differ.current.value_at('ydb.retry_budget.approx_token_count') == (
-        differ.baseline.value_at('ydb.retry_budget.approx_token_count') + requests_count
+    assert differ.value_at('account_ok', add_labels=_SAMPLEDB) == requests_count
+    assert differ.value_at('account_fail', add_labels=_SAMPLEDB) == 0
+    assert differ.current.value_at('approx_token_count', _SAMPLEDB) == (
+        differ.baseline.value_at('approx_token_count', _SAMPLEDB) + requests_count
     )
-    assert differ.current.value_at('ydb.retry_budget.max_token_count') == max_token_count
+    assert differ.current.value_at('max_token_count', _SAMPLEDB) == max_token_count
 
 
 async def test_retry_budget_success_limit(
@@ -54,7 +60,10 @@ async def test_retry_budget_success_limit(
     monitor_client: pytest_userver.client.ClientMonitor,
 ) -> None:
     async with monitor_client.metrics_diff(prefix='ydb.retry_budget') as differ:
-        current_approx_token_count = differ.baseline.value_at('ydb.retry_budget.approx_token_count')
+        current_approx_token_count = differ.baseline.value_at(
+            'approx_token_count',
+            _SAMPLEDB,
+        )
 
         dynamic_config.set(
             YDB_RETRY_BUDGET={
@@ -72,7 +81,7 @@ async def test_retry_budget_success_limit(
         for _ in range(requests_count):
             await _make_success_request(service_client)
 
-    assert differ.value_at('account_ok') == requests_count
-    assert differ.value_at('account_fail') == 0
-    assert differ.current.value_at('ydb.retry_budget.approx_token_count') == current_approx_token_count
-    assert differ.current.value_at('ydb.retry_budget.max_token_count') == current_approx_token_count
+    assert differ.value_at('account_ok', add_labels=_SAMPLEDB) == requests_count
+    assert differ.value_at('account_fail', add_labels=_SAMPLEDB) == 0
+    assert differ.current.value_at('approx_token_count', _SAMPLEDB) == current_approx_token_count
+    assert differ.current.value_at('max_token_count', _SAMPLEDB) == current_approx_token_count

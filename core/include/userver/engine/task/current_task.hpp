@@ -16,6 +16,8 @@ class ThreadControl;
 
 namespace engine {
 
+class Deadline;
+
 /// @brief Namespace with functions to work with current task from within it
 namespace current_task {
 
@@ -25,6 +27,14 @@ bool IsTaskProcessorThread() noexcept;
 
 /// Returns reference to the task processor executing the caller
 TaskProcessor& GetTaskProcessor();
+
+/// @brief Get the number of worker threads in the current task processor.
+///
+/// The value is configured with the `task_processors.*NAME*.worker_threads`
+/// static option of @ref components::ManagerControllerComponent.
+///
+/// @see @ref engine::GetWorkerCount
+std::size_t GetWorkerCount();
 
 /// Returns reference to the blocking task processor
 TaskProcessor& GetBlockingTaskProcessor();
@@ -44,6 +54,10 @@ void* GetRawCurrentTaskContext() noexcept;
 
 // For internal use only.
 bool IsCritical();
+
+// Note: an actually useful deadline should be acquired from server::request::GetTaskInheritedDeadline.
+// For internal use only.
+Deadline GetDeadline() noexcept;
 
 }  // namespace impl
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/engine/task/cancel.hpp>
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/utils/async.hpp>
@@ -62,8 +63,8 @@ public:
 
     void Cancel() override { cancellation_token_.RequestCancel(); }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
-        return perform_task_.TryGetContextAccessor();
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
+        return perform_task_.GetAwaitableToken();
     }
 
 private:

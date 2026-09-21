@@ -3,6 +3,7 @@
 #include <server/http/http2_session.hpp>
 #include <server/http/http2_writer.hpp>
 #include <server/http/http_request_parser.hpp>
+#include <server/http/http_response_impl.hpp>
 #include <server/http/request_handler_base.hpp>
 
 #include <userver/engine/async.hpp>
@@ -25,6 +26,17 @@ constexpr std::size_t kMinLenPrefaceToDetect = 3;
 
 constexpr std::string_view kHttp2Preface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 constexpr std::string_view kPrefaceBegin = kHttp2Preface.substr(0, kMinLenPrefaceToDetect);
+
+constexpr std::uint64_t kSocketId = std::numeric_limits<std::uint64_t>::max();
+
+enum class WakeupKind { kSocketReadable, kTaskComputedResponse };
+
+WakeupKind GetWakeupKind(std::uint64_t id) {
+    if (id == kSocketId) {
+        return WakeupKind::kSocketReadable;
+    }
+    return WakeupKind::kTaskComputedResponse;
+}
 
 }  // namespace
 
@@ -77,57 +89,104 @@ void Http2Connection::ListenForRequests() {
     EnsureHttp2();
     UASSERT(!parser_);
     parser_ = MakeParser();
-    while (TryParseRequests(*parser_)) {
-        for (auto&& request : pending_requests_) {
-            ProcessRequest(std::move(request));
+    handler_tasks_.reserve(config_.http2_session_config.max_concurrent_streams + 1);
+
+    engine::WaitAnyContext wait_any{};
+    wait_any.Append(kSocketId, GetSocket().GetReadableBase());
+
+    while (!engine::current_task::ShouldCancel()) {
+        StartAllRequestTasks(wait_any);
+
+        if (ShouldCloseConnection()) {
+            return;
         }
-        pending_requests_.clear();
+
+        const auto ready_id = wait_any.WaitUntil(engine::Deadline::FromDuration(config_.keepalive_timeout));
+        if (!ready_id) {
+            if (ready_id == utils::unexpected(engine::WaitAnyError::kTimeout) && !IsIdle()) {
+                continue;
+            }
+            return;
+        }
+
+        switch (GetWakeupKind(*ready_id)) {
+            case WakeupKind::kSocketReadable:
+                // `WaitReadable` in `TryParseRequests` doesn't block and just resets the "ready" flag
+                // in the `Socket` read side so that the next `wait_any` usage doesn't return immediately.
+                if (!TryParseRequests(*parser_)) {
+                    return;
+                }
+                wait_any.Append(kSocketId, GetSocket().GetReadableBase());
+                break;
+            case WakeupKind::kTaskComputedResponse:
+                OnRequestTaskFinished(*ready_id);
+                break;
+        }
+
+        UASSERT(wait_any.GetSize() <= config_.http2_session_config.max_concurrent_streams + 1);
     }
 }
 
-void Http2Connection::ProcessRequest(std::shared_ptr<http::HttpRequest>&& request_ptr) noexcept {
+void Http2Connection::StartAllRequestTasks(engine::WaitAnyContext& wait_any) {
+    for (auto& request : pending_requests_) {
+        const auto& [handler, slot_id] = handler_tasks_.emplace(StartRequestTask(std::move(request)));
+        wait_any.Append(slot_id, handler.task);
+    }
+    pending_requests_.clear();
+}
+
+Http2Connection::RequestTaskContext Http2Connection::StartRequestTask(std::shared_ptr<http::HttpRequest>&& request_ptr
+) noexcept {
     if (request_ptr->IsFinal()) {
         StopAcceptingRequests();
     }
 
     stats_.active_request_count.Add(1);
 
-    auto task = HandleQueueItem(request_ptr);
-    SendResponse(*request_ptr);
+    return {.task = ConnectionBase::StartRequestTask(request_ptr), .request = std::move(request_ptr)};
+}
+
+void Http2Connection::OnRequestTaskFinished(std::uint64_t event_id) noexcept {
+    SendResponse(*handler_tasks_[event_id].request);
+    handler_tasks_.erase(event_id);
 }
 
 void Http2Connection::SendResponse(http::HttpRequest& request) noexcept {
-    auto& response = request.GetHttpResponse();
+    auto& response = http::GetHttpResponseImpl(request);
     UASSERT(!response.IsSent());
-    request.SetStartSendResponseTime();
     if (IsResponseChainValid()) {
         try {
             // Might be a stream reading or a fully constructed response
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
-            auto& http_response = static_cast<http::HttpResponse&>(response);
             if (const auto& h = request.GetHeader(USERVER_NAMESPACE::http::headers::k2::kHttp2SettingsHeader);
                 !h.empty())
             {
                 parser_->UpgradeToHttp2(h);
-                http_response.SetStreamId(static_cast<std::int32_t>(http::kStreamIdAfterUpgradeResponse));
+                response.SetStreamId(static_cast<std::int32_t>(http::kStreamIdAfterUpgradeResponse));
             }
-            http::WriteHttp2ResponseToSocket(http_response, *parser_);
+            http::WriteHttp2ResponseToSocket(response, *parser_);
         } catch (const engine::io::IoSystemError& ex) {
             auto log_level = ex.Code().value() == EPIPE ? logging::Level::kWarning : logging::Level::kError;
             LOG(log_level) << "I/O error while sending data: " << ex;
-            response.SetSendFailed(std::chrono::steady_clock::now());
+            response.SetSendFailed();
         } catch (const std::exception& ex) {
             LOG_ERROR() << "Error while sending data: " << ex;
-            response.SetSendFailed(std::chrono::steady_clock::now());
+            response.SetSendFailed();
         }
     } else {
-        response.SetSendFailed(std::chrono::steady_clock::now());
+        response.SetSendFailed();
     }
-    request.SetFinishSendResponseTime();
     stats_.active_request_count.Subtract(1);
     ++stats_.requests_processed_count;
 
     request.WriteAccessLogs(request_handler_.LoggerAccess(), request_handler_.LoggerAccessTskv(), GetPeerName());
+}
+
+bool Http2Connection::IsIdle() const noexcept { return handler_tasks_.empty(); }
+
+bool Http2Connection::ShouldCloseConnection() const noexcept {
+    UASSERT(parser_);
+    // Check handler_tasks_ to do graceful shutdown.
+    return !parser_->ConnectionIsOk() && handler_tasks_.empty();
 }
 
 std::unique_ptr<http::Http2Session> Http2Connection::MakeParser() {

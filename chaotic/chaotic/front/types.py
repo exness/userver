@@ -102,6 +102,12 @@ class Schema(base_model.BaseModel):
 _NOT_IMPL = Schema()
 
 
+class AnyValue(Schema):
+    """Represents a JSON schema with no type constraint — any JSON value."""
+
+    __hash__ = Schema.__hash__
+
+
 class Ref(Schema):
     ref: str  # type: ignore
     indirect: bool
@@ -247,6 +253,7 @@ class Array(Schema):
     nullable: bool = False
     minItems: int | None = None
     maxItems: int | None = None
+    uniqueItems: bool = False
     deprecated: bool = False
 
     @classmethod
@@ -265,18 +272,24 @@ class Array(Schema):
 
 class SchemaObject(Schema):
     type_: str = pydantic.Field(alias='type', default='object')
-    additionalProperties: Schema | bool
+    # None means "additionalProperties" key was absent in the schema, which is
+    # distinct from explicit ``additionalProperties: true``.
+    additionalProperties: Schema | bool | None = None
     properties: dict[str, Schema]
     required: list[str] | None = None
     nullable: bool = False
     deprecated: bool = False
 
+    model_config = pydantic.ConfigDict(
+        extra='allow',
+        strict=True,
+    )
+
     @classmethod
     def model_userver_tags(cls) -> list[str]:
         return Schema.model_userver_tags() + [
             'x-taxi-extra-member',
-            'x-taxi-cpp-extra-member',
-            'x-usrv-cpp-extra-member',
+            'x-usrv-extra-member',
             'x-taxi-strict-parsing',
             'x-usrv-strict-parsing',
             'x-taxi-cpp-extra-type',
@@ -398,6 +411,53 @@ class OneOfWithDiscriminator(Schema):
         for variant in self.oneOf:
             cb(variant, self)
             variant.visit_children(cb)
+
+    __hash__ = Schema.__hash__
+
+
+class ConstType(enum.Enum):
+    STRING = 'string'
+    INTEGER = 'integer'
+    INTEGER32 = 'int32'
+    INTEGER64 = 'int64'
+    BOOLEAN = 'boolean'
+
+
+ConstValue = str | int | bool
+
+
+CONST_TYPE_TO_CPP = {
+    ConstType.STRING: 'std::string',
+    ConstType.INTEGER: 'int',
+    ConstType.INTEGER32: 'std::int32_t',
+    ConstType.INTEGER64: 'std::int64_t',
+    ConstType.BOOLEAN: 'bool',
+}
+
+
+CONST_TYPE_ADAPTER: pydantic.TypeAdapter[ConstValue] = pydantic.TypeAdapter(
+    pydantic.StrictBool | pydantic.StrictInt | pydantic.StrictStr,
+)
+
+
+CONST_PYTHON_TYPE_TO_TYPE = {
+    str: ConstType.STRING,
+    int: ConstType.INTEGER,
+    bool: ConstType.BOOLEAN,
+}
+
+
+class ConstSchema(Schema):
+    const: ConstValue
+    const_type: ConstType
+
+    @classmethod
+    def allowed_input_fields(cls) -> set[str]:
+        fields = set(cls.model_fields)
+        fields.discard('const_type')
+        fields.discard('source_location_')
+        fields.update({'type', 'format'})
+        return fields
 
     __hash__ = Schema.__hash__
 

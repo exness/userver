@@ -447,8 +447,8 @@ void ExpirableLruCache<Key, Value, Hash, Equal>::UpdateInBackground(const Key& k
     impl::CacheBackgroundUpdate(stats_);
 
     // cache will wait for all detached tasks in ~ExpirableLruCache()
-    engine::DetachUnscopedUnsafe(
-        engine::AsyncNoSpan([token = wait_token_storage_.GetToken(), this, key, update_func = std::move(update_func)] {
+    engine::DetachUnscopedUnsafe(engine::AsyncNoTracing(
+        [token = wait_token_storage_.GetToken(), this, key, update_func = std::move(update_func)] {
             auto mutex = mutex_set_.GetMutexForKey(key);
             const std::unique_lock lock(mutex, std::try_to_lock);
             if (!lock) {
@@ -459,8 +459,8 @@ void ExpirableLruCache<Key, Value, Hash, Equal>::UpdateInBackground(const Key& k
             auto now = utils::datetime::SteadyNow();
             auto value = update_func(key);
             lru_.Put(key, {.value = value, .update_time = now});
-        })
-    );
+        }
+    ));
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal>

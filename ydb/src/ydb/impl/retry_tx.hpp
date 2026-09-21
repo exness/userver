@@ -80,6 +80,9 @@ public:
     void Execute() {
         std::exception_ptr exception;
         for (std::uint32_t i = 0; i <= retry_settings_.retries && !deadline_.IsReached(); ++i) {
+            if (i != 0 && !table_client_.GetRetryBudget().CanRetry()) {
+                break;
+            }
             engine::Deadline backoff_until;
             std::tie(backoff_until, exception) = TryExecute(i);
 
@@ -110,6 +113,9 @@ public:
             return {engine::Deadline::Passed(), std::exception_ptr{}};
         } catch (const YdbResponseError& e) {
             table_client_.GetRetryBudget().AccountFail();
+            if (!table_client_.GetRetryBudget().CanRetry()) {
+                throw;
+            }
 
             auto
                 [backoff, reset_session] = RetryStep::GetNext(retry_settings_, e.GetStatus().GetStatus(), retry_number);
@@ -125,14 +131,13 @@ public:
     }
 
     void UpdateSession(std::uint32_t retry_number) {
-        RequestContext get_session_context{
-            table_client_,
+        auto get_session_context = table_client_.MakeRequestContext(
             Query{"", Query::Name{"GetSession"}},
             GetSessionSettings{settings_.get_session_settings},
             IsStreaming{false},
             nullptr,
             deadline_
-        };
+        );
 
         get_session_context.span.AddTag("attempt", retry_number + 1);
 

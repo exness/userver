@@ -3,14 +3,18 @@
 /// @file userver/utils/statistics/system_statistics_collector.hpp
 /// @brief @copybrief components::SystemStatisticsCollector
 
+#include <memory>
+
 #include <userver/components/component_base.hpp>
 #include <userver/components/component_fwd.hpp>
-#include <userver/concurrent/variable.hpp>
-#include <userver/engine/task/task_processor_fwd.hpp>
-#include <userver/utils/periodic_task.hpp>
-#include <utils/statistics/system_statistics.hpp>
 
 USERVER_NAMESPACE_BEGIN
+
+namespace utils::statistics {
+
+class Writer;
+
+}  // namespace utils::statistics
 
 namespace components {
 
@@ -28,7 +32,7 @@ namespace components {
 ///
 /// ## Static configuration example:
 ///
-/// @snippet components/common_component_list_test.cpp  Sample system statistics component config
+/// @snippet core/src/components/common_component_list_test.cpp  Sample system statistics component config
 class SystemStatisticsCollector final : public ComponentBase {
 public:
     /// @ingroup userver_component_names
@@ -36,23 +40,15 @@ public:
     static constexpr std::string_view kName = "system-statistics-collector";
 
     SystemStatisticsCollector(const ComponentConfig&, const ComponentContext&);
+    ~SystemStatisticsCollector() override;
 
     static yaml_config::Schema GetStaticConfigSchema();
 
 private:
     void ExtendStatistics(utils::statistics::Writer& writer);
 
-    void ProcessTimer();
-
-    struct Data {
-        utils::statistics::impl::SystemStats last_stats{};
-        utils::statistics::impl::SystemStats last_nginx_stats{};
-    };
-
-    const bool with_nginx_;
-    engine::TaskProcessor& fs_task_processor_;
-    concurrent::Variable<Data> data_;
-    utils::PeriodicTask periodic_;
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 template <>

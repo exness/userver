@@ -1,5 +1,9 @@
 #pragma once
 
+/// @file userver/http/predefined_header.hpp
+/// @brief Predefined HTTP header names and related helpers.
+/// @ingroup userver_universal
+
 #include <string>
 #include <string_view>
 
@@ -161,14 +165,14 @@ class Map;
 /// @brief A struct to represent compile-time known header name.
 ///
 /// Calculates the hash value at compile time with the same hasher
-/// HeaderMap uses, which allows to speed things up greatly.
+/// HeaderMap uses, which speeds things up greatly.
 ///
 /// Although it's possible to construct PredefinedHeader at runtime
 /// it makes little sense and is error-prone, since it
 /// doesn't own its data, so don't do that until really needed.
 class PredefinedHeader final {
 public:
-    explicit constexpr PredefinedHeader(utils::StringLiteral name)
+    constexpr explicit PredefinedHeader(utils::StringLiteral name)
         : name_{name},
           hash_{impl::UnsafeConstexprHasher{}(name)},
           header_index_{impl::GetHeaderIndexForLookup(name)}

@@ -1,6 +1,6 @@
 #include <userver/clients/http/response.hpp>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 #include <userver/clients/http/response_future.hpp>
 #include <userver/utils/assert.hpp>
@@ -33,7 +33,7 @@ void Response::raise_for_status(RaiseIncludeBody include_body) const {
             RaiseForStatus(status_code(), GetStats());
             return;
         case RaiseIncludeBody::kYes:
-            RaiseForStatus(status_code(), GetStats(), body());
+            RaiseForStatus(status_code(), GetStats(), body_view());
             return;
     }
     UINVARIANT(false, fmt::format("Unhandled 'include_body' value: {}", static_cast<int>(include_body)));

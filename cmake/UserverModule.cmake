@@ -31,7 +31,8 @@ include_guard(GLOBAL)
 # @multiparam UBENCH_LINK_LIBRARIES ???
 # @multiparam UBENCH_DATABASES Databases to start for benchmarks
 # @multiparam UBENCH_ENV Environment variables to set for benchmarks
-# @multiparam DEPENDS Userver module name(s) that the current module depends on
+# @multiparam COMPONENT_DEPENDS userver component name(s) that the current component depends on.
+#   Only valid for the main module of a component (i.e. when INSTALL_COMPONENT is not set).
 # @multiparam EMBED_FILES Files to embed
 function(userver_module MODULE)
     unset(ARG_UNPARSED_ARGUMENTS)
@@ -56,13 +57,25 @@ function(userver_module MODULE)
         UBENCH_LINK_LIBRARIES
         UBENCH_DATABASES
         UBENCH_ENV
-        DEPENDS
+        COMPONENT_DEPENDS
         EMBED_FILES
     )
     cmake_parse_arguments(ARG "${OPTIONS}" "${ONE_VALUE_ARGS}" "${MULTI_VALUE_ARGS}" ${ARGN})
     if(ARG_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "Invalid arguments: ${ARG_UNPARSED_ARGUMENTS}")
     endif()
+
+    # Auto-include this module's testsuite DB fragment, if one exists, so its DB
+    # is registered (names / pip module / FEATURE_VAR / TARGET) before the dbtest
+    # and functional-test consumers run. Keyed on module name (1:1 with the
+    # fragment filename); guarded by EXISTS because non-DB modules and downstream
+    # userver_module() users have no fragment. The fragment's include_guard(GLOBAL)
+    # makes repeat inclusion a no-op.
+    set(_userver_ts_db_fragment "${USERVER_ROOT_DIR}/cmake/testsuite/UserverTestsuiteDb-${MODULE}.cmake")
+    if(EXISTS "${_userver_ts_db_fragment}")
+        include("${_userver_ts_db_fragment}")
+    endif()
+    unset(_userver_ts_db_fragment)
 
     # 1. userver-${MODULE}
     file(GLOB_RECURSE SOURCES "${ARG_SOURCE_DIR}/src/*.cpp" "${ARG_SOURCE_DIR}/src/*.hpp"
@@ -102,6 +115,13 @@ function(userver_module MODULE)
 
     if(NOT ARG_NO_INSTALL)
         if(ARG_INSTALL_COMPONENT)
+            if(ARG_COMPONENT_DEPENDS)
+                message(
+                    FATAL_ERROR
+                        "userver_module(${MODULE}): COMPONENT_DEPENDS is meaningless together with INSTALL_COMPONENT. "
+                        "Specify the dependencies on the main module of the '${ARG_INSTALL_COMPONENT}' component instead."
+                )
+            endif()
             set(INSTALL_COMPONENT ${ARG_INSTALL_COMPONENT})
         else()
             set(INSTALL_COMPONENT ${MODULE})
@@ -113,19 +133,14 @@ function(userver_module MODULE)
         )
         _userver_install_targets(COMPONENT ${INSTALL_COMPONENT} TARGETS userver-${MODULE})
         if(NOT ARG_INSTALL_COMPONENT)
-            set(install_config_file "${USERVER_ROOT_DIR}/cmake/install/userver-${MODULE}-config.cmake")
-            if(NOT EXISTS ${install_config_file})
-                message(FATAL_ERROR "Can not install ${MODULE}, no installation config in ${install_config_file}")
-            endif()
+            # Main module of the component: register the config template for
+            # generation.  The actual configure_file() + install(FILES) happen
+            # later in _userver_generate_and_install_configs(), called once at
+            # the top level after the full link-graph is available.
+            _userver_install_component_config(${INSTALL_COMPONENT})
 
-            _userver_directory_install(
-                COMPONENT ${MODULE}
-                FILES "${install_config_file}"
-                DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver"
-            )
+            _userver_install_component(COMPONENT ${INSTALL_COMPONENT} DEPENDS ${ARG_COMPONENT_DEPENDS})
         endif()
-
-        _userver_install_component(MODULE ${MODULE} DEPENDS ${ARG_DEPENDS})
     endif()
 
     # 1. userver-${MODULE}-unittest
@@ -179,17 +194,24 @@ function(userver_module MODULE)
     if(ARG_GENERATE_DYNAMIC_CONFIGS)
         userver_target_generate_chaotic_dynamic_configs(userver-${MODULE}-dynamic-configs dynamic_configs/*.yaml)
         target_link_libraries(userver-${MODULE} PUBLIC userver-${MODULE}-dynamic-configs)
-        _userver_install_targets(COMPONENT ${MODULE} TARGETS userver-${MODULE}-dynamic-configs)
-        _userver_directory_install(
-            COMPONENT ${MODULE}
-            DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dynamic_configs/include
-            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/.."
-        )
+
+        if(NOT ARG_NO_INSTALL)
+            _userver_install_targets(COMPONENT ${INSTALL_COMPONENT} TARGETS userver-${MODULE}-dynamic-configs)
+            _userver_directory_install(
+                COMPONENT ${INSTALL_COMPONENT}
+                DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dynamic_configs/include
+                DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/.."
+            )
+        endif()
     endif()
 
     foreach(FILE ${ARG_EMBED_FILES})
         string(MAKE_C_IDENTIFIER "userver-${MODULE}-embed_${FILE}" EMBED_TARGET_NAME)
-        userver_embed_file(${EMBED_TARGET_NAME} FILEPATH "${FILE}" HPP_FILENAME "${FILE}")
+        userver_embed_file(
+            ${EMBED_TARGET_NAME}
+            FILEPATH "${FILE}"
+            HPP_FILENAME "${FILE}"
+        )
         target_link_libraries(userver-${MODULE} PRIVATE "$<BUILD_INTERFACE:${EMBED_TARGET_NAME}>")
     endforeach()
 endfunction()

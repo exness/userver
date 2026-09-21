@@ -59,11 +59,21 @@ DefaultTracingManagerLocator::DefaultTracingManagerLocator(
     const components::ComponentContext& context
 )
     : components::ComponentBase(config, context),
-      default_manager_(config["incoming-format"].As<FlagsFormat>(), config["new-requests-format"].As<FlagsFormat>()),
+      otel_sampling_(static_cast<
+                     GenericTracingManager::SamplingEnabled>(config["otel-trace-sampling-enabled"].As<bool>(false))),
+      default_manager_(
+          config["incoming-format"].As<FlagsFormat>(),
+          config["new-requests-format"].As<FlagsFormat>(),
+          otel_sampling_
+      ),
       tracing_manager_(GetTracingManagerFromConfig(default_manager_, config, context))
 {}
 
 const TracingManagerBase& DefaultTracingManagerLocator::GetTracingManager() const { return tracing_manager_; }
+
+bool DefaultTracingManagerLocator::IsOtelTraceSamplingEnabled() const noexcept {
+    return static_cast<bool>(otel_sampling_);
+}
 
 yaml_config::Schema DefaultTracingManagerLocator::GetStaticConfigSchema() {
     return yaml_config::MergeSchemasFromResource<components::ComponentBase>("src/tracing/manager_component.yaml");

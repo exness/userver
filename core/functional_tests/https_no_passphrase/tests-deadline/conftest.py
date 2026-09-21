@@ -1,3 +1,5 @@
+import ssl
+
 import aiohttp
 import pytest
 
@@ -24,7 +26,9 @@ def service_baseurl(service_port) -> str:
 @pytest.fixture(scope='session')
 def service_client_session_factory(service_source_dir):
     def make_session(**kwargs):
-        kwargs['connector'] = aiohttp.TCPConnector(verify_ssl=False)
+        ssl_context = ssl.create_default_context()
+        ssl_context.load_verify_locations(str(service_source_dir / 'cert.crt'))
+        kwargs['connector'] = aiohttp.TCPConnector(ssl=ssl_context)
         return aiohttp.ClientSession(**kwargs)
 
     return make_session

@@ -143,22 +143,30 @@ INSTANTIATE_TEST_SUITE_P(
         ValueToJsonFailureTestParam{
             ValueMessageData{ProtoValue{std::numeric_limits<double>::quiet_NaN()}},
             PrintErrorCode::kInvalidValue,
-            "field1.number_value"
+            "field1.number_value",
+            {},
+            !kIsModernProtoJson
         },
         ValueToJsonFailureTestParam{
             ValueMessageData{ProtoValue{std::numeric_limits<double>::signaling_NaN()}},
             PrintErrorCode::kInvalidValue,
-            "field1.number_value"
+            "field1.number_value",
+            {},
+            !kIsModernProtoJson
         },
         ValueToJsonFailureTestParam{
             ValueMessageData{ProtoValue{std::numeric_limits<double>::infinity()}},
             PrintErrorCode::kInvalidValue,
-            "field1.number_value"
+            "field1.number_value",
+            {},
+            !kIsModernProtoJson,
         },
         ValueToJsonFailureTestParam{
             ValueMessageData{ProtoValue{-std::numeric_limits<double>::infinity()}},
             PrintErrorCode::kInvalidValue,
-            "field1.number_value"
+            "field1.number_value",
+            {},
+            !kIsModernProtoJson
         },
         ValueToJsonFailureTestParam{
             ValueMessageData{std::vector<ProtoValue>{
@@ -167,7 +175,9 @@ INSTANTIATE_TEST_SUITE_P(
                 ProtoValue{true}
             }},
             PrintErrorCode::kInvalidValue,
-            "field1.list_value.values[1].list_value.values[1].number_value"
+            "field1.list_value.values[1].list_value.values[1].number_value",
+            {},
+            !kIsModernProtoJson
         }
     )
 );

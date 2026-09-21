@@ -1,9 +1,13 @@
 #include <userver/server/server.hpp>
 
+#include <fmt/ranges.h>
+
 #include <atomic>
 #include <shared_mutex>
 #include <stdexcept>
 
+#include <userver/alerts/source.hpp>
+#include <userver/components/statistics_storage.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
 
@@ -14,18 +18,27 @@
 #include <server/net/endpoint_info.hpp>
 #include <server/net/listener.hpp>
 #include <server/net/stats.hpp>
+#include <server/request/response_data_accounter.hpp>
 #include <server/requests_view.hpp>
 #include <server/server_config.hpp>
+#include <userver/dynamic_config/storage/component.hpp>
+#include <userver/engine/deadline.hpp>
+#include <userver/engine/sleep.hpp>
 #include <userver/fs/blocking/read.hpp>
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/middlewares/configuration.hpp>
+#include <userver/utils/resource_scopes.hpp>
 #include <userver/utils/statistics/storage.hpp>
+
+#include <dynamic_config/variables/USERVER_HTTP_SERVER_LOGS.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace server {
 
 namespace {
+
+const alerts::Source kInvalidRequestPath{"invalid_request_path"};
 
 struct PortInfo final {
     void Init(
@@ -36,6 +49,10 @@ struct PortInfo final {
     );
 
     void Start();
+
+    void StopListening();
+
+    void StopServing(engine::Deadline serving_shutdown_deadline);
 
     void Stop();
 
@@ -81,10 +98,30 @@ void PortInfo::Start() {
     }
 }
 
-void PortInfo::Stop() {
-    LOG_TRACE() << "Stopping listeners";
+void PortInfo::StopListening() {
+    LOG_TRACE() << "Stopping listening for new connections";
+    for (auto& listener : listeners) {
+        listener.StopListening();
+    }
+    LOG_TRACE() << "Stopped listening for new connections";
+}
+
+void PortInfo::StopServing(engine::Deadline serving_shutdown_deadline) {
+    LOG_TRACE() << "Stopping listeners and active connections processing in " << serving_shutdown_deadline.TimeLeft();
+    for (const auto& listener : listeners) {
+        if (serving_shutdown_deadline.IsReached()) {
+            break;
+        }
+        listener.WaitForNoConnections(serving_shutdown_deadline);
+    }
     listeners.clear();
-    LOG_TRACE() << "Stopped listeners";
+    LOG_TRACE() << "Stopped listeners and active connections processing";
+}
+
+void PortInfo::Stop() {
+    if (!listeners.empty()) {
+        StopServing(engine::Deadline::Passed());
+    }
 
     if (endpoint_info) {
         UASSERT_MSG(endpoint_info->connection_count == 0, "Not all the connections were closed");
@@ -102,6 +139,20 @@ void WriteRateAndLegacyMetrics(utils::statistics::Writer&& writer, utils::statis
     writer["v2"] = metric;
 }
 
+void CollectRequestPaths(const PortInfo& info, std::unordered_set<std::string>& paths) {
+    if (!info.request_handler) {
+        return;
+    }
+    const auto locker = info.request_handler->GetHandlerInfoIndex().GetHandlers().Lock();
+    const auto& handlers = *locker;
+    paths.reserve(paths.size() + handlers.size());
+    for (const auto& handler : handlers) {
+        if (auto* path = std::get_if<std::string>(&handler->GetConfig().path); path) {
+            paths.insert(*path);
+        }
+    }
+}
+
 }  // namespace
 
 class ServerImpl final {
@@ -115,6 +166,7 @@ public:
 
     void StartPortInfo();
     void StartMonitorPortInfo();
+    void StopServing(engine::Deadline serving_shutdown_deadline);
     void Stop();
 
     void AddHandler(const handlers::HttpHandlerBase& handler, engine::TaskProcessor& task_processor);
@@ -134,19 +186,28 @@ public:
     std::uint64_t GetTotalRequests() const;
 
 private:
+    void OnConfigUpdate(const dynamic_config::Snapshot& snapshot);
+
+    enum State : std::uint8_t { kRunning, kStoppingServing, kStoppedServing, kStopping };
+
     PortInfo main_port_info_;
     PortInfo monitor_port_info_;
 
     std::atomic<size_t> throttlable_handlers_count_{0};
 
-    mutable std::shared_mutex on_stop_mutex_{};
-    bool is_stopping_{false};
+    mutable std::shared_mutex state_mutex_;
+    std::atomic<State> state_{State::kRunning};
 
     std::atomic<bool> has_requests_view_watchers_{false};
     RequestsView requests_view_{};
 
     ServerConfig config_;
     std::vector<std::string> middlewares_;
+
+    std::unordered_set<std::string> available_paths_{};
+    dynamic_config::Source dynamic_config_;
+    utils::statistics::MetricsStoragePtr metrics_storage_;
+    utils::ResourceScopeStorage& scopes_;
 };
 
 ServerImpl::ServerImpl(
@@ -154,15 +215,21 @@ ServerImpl::ServerImpl(
     const storages::secdist::SecdistConfig& secdist,
     const components::ComponentContext& component_context
 )
-    : config_(std::move(config))
+    : config_(std::move(config)),
+      dynamic_config_(component_context.FindComponent<components::DynamicConfig>().GetSource()),
+      metrics_storage_(component_context.FindComponent<components::StatisticsStorage>().GetMetricsStorage()),
+      scopes_(component_context.Scopes())
 {
     LOG_DEBUG() << "Creating server";
 
     for (auto& port : config_.listener.ports) {
         port.ReadTlsSettings(secdist);
         port.InitSslCtx();
-    }
 
+        if (port.ssl_ctx) {
+            port.ssl_ctx->SetHttpVersion(config_.listener.connection_config.http_version);
+        }
+    }
     main_port_info_.Init(config_, config_.listener, component_context, false);
     if (config_.max_response_size_in_flight) {
         main_port_info_.data_accounter.SetMaxPendingResponsesSizeInBytes(*config_.max_response_size_in_flight);
@@ -196,6 +263,17 @@ void ServerImpl::StartPortInfo() {
     if (monitor_port_info_.request_handler) {
         monitor_port_info_.request_handler->DisableAddHandler();
     }
+
+    CollectRequestPaths(main_port_info_, available_paths_);
+    CollectRequestPaths(monitor_port_info_, available_paths_);
+
+    dynamic_config_.UpdateAndListen(
+        scopes_,
+        this,
+        "Validate USERVER_HTTP_SERVER_LOGS",
+        &ServerImpl::OnConfigUpdate,
+        ::dynamic_config::USERVER_HTTP_SERVER_LOGS
+    );
 }
 
 void ServerImpl::StartMonitorPortInfo() {
@@ -206,13 +284,41 @@ void ServerImpl::StartMonitorPortInfo() {
     }
 }
 
+void ServerImpl::StopServing(engine::Deadline serving_shutdown_deadline) {
+    if (state_.exchange(State::kStoppingServing) != State::kRunning) {
+        utils::AbortWithStacktrace("StopServing() should be called at most once and only in the Running state");
+    }
+
+    LOG_INFO() << "Stopping listening";
+    main_port_info_.StopListening();
+    monitor_port_info_.StopListening();
+    LOG_INFO() << "Stopped listening";
+
+    LOG_INFO() << "Stopping servering";
+    main_port_info_.StopServing(serving_shutdown_deadline);
+    monitor_port_info_.StopServing(serving_shutdown_deadline);
+
+    if (state_.exchange(State::kStoppedServing) != State::kStoppingServing) {
+        utils::AbortWithStacktrace("No state transitions (like Stop()) should happen during StopServing() execution");
+    }
+    LOG_INFO() << "Stopped serving";
+}
+
 void ServerImpl::Stop() {
-    {
-        const std::lock_guard lock{on_stop_mutex_};
-        if (is_stopping_) {
+    const auto previous_state = state_.exchange(State::kStopping);
+    switch (previous_state) {
+        case State::kStopping:
             return;
-        }
-        is_stopping_ = true;
+        case State::kRunning:
+        case State::kStoppedServing:
+            break;
+        case State::kStoppingServing:
+            utils::AbortWithStacktrace("Stop() should not be called during StopServing() execution");
+    }
+
+    {
+        // This lock ensures that all other protected code blocks will correctly see the kStopping state.
+        std::unique_lock lock(state_mutex_);
     }
 
     LOG_INFO() << "Stopping server";
@@ -272,8 +378,8 @@ const http::HttpRequestHandler& ServerImpl::GetHttpRequestHandler(bool is_monito
 net::StatsAggregation ServerImpl::GetServerStats() const {
     net::StatsAggregation summary;
 
-    const std::shared_lock lock{on_stop_mutex_};
-    if (is_stopping_) {
+    const std::shared_lock lock{state_mutex_};
+    if (state_ == State::kStopping) {
         return summary;
     }
     for (const auto& listener : main_port_info_.listeners) {
@@ -297,8 +403,8 @@ void ServerImpl::WriteTotalHandlerStatistics(utils::statistics::Writer& writer) 
 
     {
         // Protect against main_port_info_.request_handler_.reset() in Stop()
-        const std::shared_lock lock{on_stop_mutex_};
-        if (is_stopping_) {
+        const std::shared_lock lock{state_mutex_};
+        if (state_ == State::kStopping) {
             return;
         }
 
@@ -397,6 +503,8 @@ void Server::Start() {
     LOG_INFO() << "Server port is started";
 }
 
+void Server::StopServing(engine::Deadline serving_shutdown_deadline) { pimpl_->StopServing(serving_shutdown_deadline); }
+
 void Server::Stop() { pimpl_->Stop(); }
 
 RequestsView& Server::GetRequestsView() { return pimpl_->GetRequestsView(); }
@@ -418,6 +526,25 @@ void Server::WriteMetrics(utils::statistics::Writer& writer) const {
 
     if (auto handler_total = writer["http.handler.total"]) {
         WriteTotalHandlerStatistics(handler_total);
+    }
+}
+
+void ServerImpl::OnConfigUpdate(const dynamic_config::Snapshot& snapshot) {
+    const auto& config = snapshot[::dynamic_config::USERVER_HTTP_SERVER_LOGS];
+    std::vector<std::string_view> missing_paths{};
+    for (const auto& [path, _] : config.extra) {
+        if (available_paths_.count(path) == 0) {
+            missing_paths.emplace_back(path);
+        }
+    }
+    if (missing_paths.empty()) {
+        kInvalidRequestPath.StopAlertNow(*metrics_storage_);
+    } else {
+        kInvalidRequestPath.FireAlert(*metrics_storage_, alerts::Source::kInfiniteDuration);
+        LOG_WARNING(
+            "Typo in USERVER_HTTP_SERVER_LOGS: there aren't handlers in a server: [{}].",
+            fmt::join(missing_paths, ", ")
+        );
     }
 }
 

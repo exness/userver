@@ -8,7 +8,6 @@
 /// @brief @copybrief components::HttpClientCore
 
 #include <userver/components/component_base.hpp>
-#include <userver/concurrent/async_event_source.hpp>
 #include <userver/dynamic_config/snapshot.hpp>
 #include <userver/engine/multi_consumer_event.hpp>
 #include <userver/utils/statistics/entry.hpp>
@@ -23,8 +22,6 @@ class ClientCore;
 
 namespace components {
 
-// clang-format off
-
 /// @ingroup userver_components
 ///
 /// @brief Component that manages @ref clients::http::ClientCore.
@@ -36,7 +33,7 @@ namespace components {
 /// * @ref HTTP_CLIENT_CONNECT_THROTTLE
 /// * @ref HTTP_CLIENT_CONNECTION_POOL_SIZE
 ///
-/// ## Static options @ref components::HttpClientCore :
+/// ## Static options of components::HttpClientCore :
 /// @include{doc} scripts/docs/en/components_schema/core/src/clients/http/component_core.md
 ///
 /// Options inherited from @ref components::ComponentBase :
@@ -44,9 +41,7 @@ namespace components {
 ///
 /// ## Static configuration example:
 ///
-/// @snippet components/common_component_list_test.cpp  Sample http client component config
-
-// clang-format on
+/// @snippet core/src/components/common_component_list_test.cpp  Sample http client component config
 class HttpClientCore final : public ComponentBase {
 public:
     /// @ingroup userver_component_names
@@ -54,8 +49,6 @@ public:
     static constexpr std::string_view kName = "http-client-core";
 
     HttpClientCore(const ComponentConfig&, const ComponentContext&);
-
-    ~HttpClientCore() override;
 
     /// @cond
     // For internal use only.
@@ -79,9 +72,6 @@ private:
 
     std::atomic<bool> is_loading_cancelled_{false};
     mutable engine::MultiConsumerEvent config_updated_event_;
-
-    // subscriber_scope_ must be the last field.
-    concurrent::AsyncEventSubscriberScope subscriber_scope_;
 };
 
 template <>

@@ -45,7 +45,7 @@ void JsonParseArrayDom(benchmark::State& state) {
     const auto input = BuildArray(state.range(0));
     for ([[maybe_unused]] auto _ : state) {
         auto json = formats::json::FromString(input);
-        const auto res = ParseDom(json);
+        auto res = ParseDom(json);
         benchmark::DoNotOptimize(res);
     }
 }
@@ -83,7 +83,7 @@ std::string BuildObject(size_t level) {
 void JsonParseValueDom(benchmark::State& state) {
     const auto input = BuildObject(state.range(0));
     for ([[maybe_unused]] auto _ : state) {
-        const auto res = formats::json::FromString(input);
+        auto res = formats::json::FromString(input);
         benchmark::DoNotOptimize(res);
     }
 }
@@ -92,7 +92,7 @@ BENCHMARK(JsonParseValueDom)->RangeMultiplier(2)->Range(1, 16);
 void JsonParseValueSax(benchmark::State& state) {
     const auto input = BuildObject(state.range(0));
     for ([[maybe_unused]] auto _ : state) {
-        const auto res =
+        auto res =
             formats::json::parser::ParseToType<formats::json::Value, formats::json::parser::JsonValueParser>(input);
         benchmark::DoNotOptimize(res);
     }
@@ -224,7 +224,7 @@ std::string BuildArrayOfNumbers(std::size_t size) {
 void JsonParseNumbersDom(benchmark::State& state) {
     const auto input = BuildArrayOfNumbers(state.range(0));
     for ([[maybe_unused]] auto _ : state) {
-        const auto res = formats::json::FromString(input).As<std::vector<double>>();
+        auto res = formats::json::FromString(input).As<std::vector<double>>();
         benchmark::DoNotOptimize(res);
     }
 }
@@ -236,7 +236,7 @@ void JsonParseNumbersSax(benchmark::State& state) {
     formats::json::parser::ArrayParser<double, formats::json::parser::DoubleParser> parser{item_parser};
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto res = formats::json::parser::impl::ParseSingle(parser, input);
+        auto res = formats::json::parser::impl::ParseSingle(parser, input);
         benchmark::DoNotOptimize(res);
     }
 }

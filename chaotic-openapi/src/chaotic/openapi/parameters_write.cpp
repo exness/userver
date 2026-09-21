@@ -1,6 +1,6 @@
 #include <userver/chaotic/openapi/parameters_write.hpp>
 
-#include <boost/range/adaptor/transformed.hpp>
+#include <ranges>
 
 #include <fmt/format.h>
 
@@ -18,7 +18,7 @@ auto MaskQueryMultiArgs(const http::MultiArgs& args, ParameterSinkHttpClient::Hi
     using Pair = std::pair<std::string_view, std::string_view>;
 
     auto masked =
-        args | boost::adaptors::transformed([&func](const auto& pair) {
+        args | std::views::transform([&func](const auto& pair) {
             const auto& [name, value] = pair;
             if (func(name)) {
                 return Pair(name, kMask);
@@ -65,7 +65,7 @@ void ParameterSinkHttpClient::Flush() {
     if (hidden_query_arg_names_func_) {
         auto logged_query_args = MaskQueryMultiArgs(query_args_, hidden_query_arg_names_func_);
         auto url = http::MakeUrl(fmt::vformat(url_pattern_, path_vars_), logged_query_args);
-        request_.SetLoggedUrl(url);
+        request_.SetLoggedUrl(std::move(url));
     }
     request_.headers(std::move(headers_));
     request_.cookies(std::move(cookies_));

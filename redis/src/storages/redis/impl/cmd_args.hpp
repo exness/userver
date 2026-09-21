@@ -140,6 +140,7 @@ private:
     void PutArg(const GeoradiusOptions& arg);
     void PutArg(const GeosearchOptions& arg);
     void PutArg(const SetOptions& arg);
+    void PutArg(const MsetexOptions& arg);
     void PutArg(const ZaddOptions& arg);
     void PutArg(const ScanOptions& arg);
 
@@ -149,7 +150,8 @@ private:
     void PutArg(const ExpireOptions& arg);
 
     template <typename Arg>
-    typename std::enable_if<std::is_arithmetic<Arg>::value, void>::type PutArg(const Arg& arg) {
+    requires std::is_arithmetic_v<Arg>
+    void PutArg(const Arg& arg) {
         args_.emplace_back(std::to_string(arg));
     }
 

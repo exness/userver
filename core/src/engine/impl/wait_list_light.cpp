@@ -32,9 +32,7 @@ namespace {
 
 Awaiter* const kSignaled = reinterpret_cast<Awaiter*>(1);
 
-void DoNotify(AwaiterWithContext awaiter) {
-    impl::Notify(boost::intrusive_ptr<Awaiter>{awaiter.awaiter, /*add_ref=*/false}, awaiter.context);
-}
+void DoNotify(AwaiterWithContext awaiter) { impl::NotifyAndDispose(AwaiterPtr{awaiter.awaiter}, awaiter.context); }
 
 }  // namespace
 
@@ -44,12 +42,12 @@ WaitListLight::~WaitListLight() {
     UASSERT_MSG(IsEmptyRelaxed(), "Someone is awaiting on WaitListLight while it's being destroyed");
 }
 
-void WaitListLight::Append(boost::intrusive_ptr<impl::Awaiter>&& awaiter, std::uintptr_t context) noexcept {
+void WaitListLight::Append(AwaiterPtr&& awaiter, std::uintptr_t context) noexcept {
     GetSignalOrAppend(awaiter, context);
     UASSERT_MSG(!awaiter, "Signals cannot be used with plain Append");
 }
 
-void WaitListLight::GetSignalOrAppend(boost::intrusive_ptr<Awaiter>& awaiter, std::uintptr_t context) noexcept {
+void WaitListLight::GetSignalOrAppend(AwaiterPtr& awaiter, std::uintptr_t context) noexcept {
     UASSERT(awaiter);
 
     const AwaiterWithContext new_awaiter{awaiter.get(), context};
@@ -74,7 +72,7 @@ void WaitListLight::GetSignalOrAppend(boost::intrusive_ptr<Awaiter>& awaiter, st
     // Keep a reference logically stored in the WaitListLight to ensure that
     // WakeupOne can complete safely in parallel with the awaiting task being
     // cancelled, Remove-d and stopped.
-    awaiter.detach();
+    [[maybe_unused]] auto* _ = awaiter.release();
 }
 
 void WaitListLight::NotifyOne() {
@@ -99,8 +97,21 @@ void WaitListLight::SetSignalAndNotifyOne() {
     DoNotify(old_awaiter);
 }
 
-void WaitListLight::Remove(Awaiter& awaiter, std::uintptr_t context) noexcept {
+AwaiterPtr WaitListLight::Remove(Awaiter& awaiter, std::uintptr_t context) noexcept {
     const AwaiterWithContext expected{&awaiter, context};
+
+    // Non-locked fast path if the awaiting side is calling Remove after it has been notified by this WaitListLight.
+    if (const auto torn_awaiter = state_.LoadWithTearing(); torn_awaiter.awaiter != &awaiter) {
+        UASSERT_MSG(
+            torn_awaiter.awaiter == nullptr || torn_awaiter.awaiter == kSignaled,
+            fmt::format(
+                "An unexpected awaiter is occupying the WaitListLight: expected={} actual={}",
+                expected,
+                torn_awaiter
+            )
+        );
+        return {};
+    }
 
     auto old_awaiter = expected;
     const bool success = state_.compare_exchange_strong<
@@ -111,22 +122,21 @@ void WaitListLight::Remove(Awaiter& awaiter, std::uintptr_t context) noexcept {
         UASSERT_MSG(
             old_awaiter.awaiter == nullptr || old_awaiter.awaiter == kSignaled,
             fmt::format(
-                "An unexpected awaiter is occupying the "
-                "WaitListLight: expected={} actual={}",
+                "An unexpected awaiter is occupying the WaitListLight: expected={} actual={}",
                 expected,
                 old_awaiter
             )
         );
-        return;
+        return {};
     }
 
-    intrusive_ptr_release(&awaiter);
+    return AwaiterPtr{&awaiter};
 }
 
 bool WaitListLight::GetAndResetSignal() noexcept {
     AwaiterWithContext expected{kSignaled, {}};
     const bool success = state_.compare_exchange_strong<
-        std::memory_order_relaxed,
+        std::memory_order_acq_rel,
         std::memory_order_relaxed>(expected, AwaiterWithContext{});
 
     if (!success && expected.awaiter != nullptr) {

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -11,6 +12,8 @@
 #include <fmt/format.h>
 
 #include <storages/postgres/detail/connection.hpp>
+#include <storages/postgres/detail/host_selection.hpp>
+#include <storages/postgres/detail/rtt.hpp>
 #include <storages/postgres/internal_pg_types.hpp>
 #include <storages/postgres/io/pg_type_parsers.hpp>
 #include <userver/engine/deadline.hpp>
@@ -31,14 +34,29 @@ namespace {
 constexpr auto kCheckTimeout = std::chrono::seconds{1};
 constexpr auto kDiscoveryInterval = std::chrono::seconds{1};
 
-using Rtt = std::chrono::microseconds;
-constexpr Rtt kUnknownRtt{-1};
-
 using ReplicationLag = std::chrono::milliseconds;
 
 constexpr const char* kDiscoveryTaskName = "pg_topology";
 
 const std::string kShowSyncStandbyNames = "SHOW synchronous_standby_names";
+
+Rtt CalculateMinRtt(std::span<const TopologyBase::DsnIndex> dsn_indices, std::span<const Rtt> roundtrip_times)
+    noexcept {
+    Rtt min_rtt = Rtt::max();
+    for (const auto idx : dsn_indices) {
+        UASSERT(idx < roundtrip_times.size());
+        min_rtt = std::min(min_rtt, roundtrip_times[idx]);
+    }
+    return min_rtt;
+}
+
+std::optional<Rtt> CalculateMaxEligibleRtt(Rtt min_rtt, const std::optional<std::chrono::milliseconds>& rtt_threshold)
+    noexcept {
+    if (!rtt_threshold) {
+        return std::nullopt;
+    }
+    return (min_rtt == Rtt::max()) ? min_rtt : min_rtt + *rtt_threshold;
+}
 
 struct WalInfoStatements {
     int min_version;
@@ -115,7 +133,12 @@ struct HotStandby::HostState {
     ~HostState() {
         // close connections synchronously
         if (connection) {
-            connection->Close();
+            try {
+                connection->Close();
+            } catch (const std::exception& e) {
+                // `PGConnectionWrapper::Close()` task can be cancelled by user request
+                LOG_ERROR() << "In ~HostState(): " << e;
+            }
         }
     }
 
@@ -191,10 +214,13 @@ rcu::ReadablePtr<TopologyBase::DsnIndices> HotStandby::GetAliveDsnIndices() cons
 const std::vector<decltype(InstanceStatistics::topology)>& HotStandby::GetDsnStatistics() const { return dsn_stats_; }
 
 void HotStandby::RunDiscovery() {
+    const auto& topology_settings = GetTopologySettings();
+    const auto rtt_threshold = topology_settings.GetEffectiveRttThreshold();
+
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(GetDsnList().size());
     for (DsnIndex i = 0; i < GetDsnList().size(); ++i) {
-        tasks.emplace_back(engine::AsyncNoSpan([this, i] { RunCheck(i); }));
+        tasks.emplace_back(engine::AsyncNoTracing([this, i] { RunCheck(i); }));
     }
     for (auto& task : tasks) {
         task.Get();
@@ -249,7 +275,6 @@ void HotStandby::RunDiscovery() {
             .replication_lag.GetCurrentCounter()
             .Account(std::chrono::duration_cast<std::chrono::milliseconds>(slave_lag).count());
 
-        const auto& topology_settings = GetTopologySettings();
         if (topology_settings.max_replication_lag > std::chrono::milliseconds{0} &&
             slave_lag > topology_settings.max_replication_lag)
         {
@@ -296,26 +321,39 @@ void HotStandby::RunDiscovery() {
 
     // sort indices by hostname to keep round robbin policy consistent
     UASSERT(alive_dsn_indices.indices.size() <= host_states_.size());
-    std::sort(alive_dsn_indices.indices.begin(), alive_dsn_indices.indices.end(), [this](DsnIndex lhs, DsnIndex rhs) {
+    std::ranges::sort(alive_dsn_indices.indices, [this](DsnIndex lhs, DsnIndex rhs) {
         return host_states_[lhs].host_name < host_states_[rhs].host_name;
     });
 
-    FillNearestDsnIndex(alive_dsn_indices);
+    std::vector<Rtt> roundtrip_times;
+    roundtrip_times.reserve(host_states_.size());
+    for (const auto& state : host_states_) {
+        roundtrip_times.push_back(state.roundtrip_time);
+    }
+
+    const auto min_alive_rtt = CalculateMinRtt(alive_dsn_indices.indices, roundtrip_times);
+    const auto max_alive_rtt = CalculateMaxEligibleRtt(min_alive_rtt, rtt_threshold);
+    FillDsnIndices(alive_dsn_indices, roundtrip_times, max_alive_rtt);
 
     DsnIndicesByType dsn_indices_by_type{};
     for (const DsnIndex idx : alive_dsn_indices.indices) {
         const auto& state = host_states_[idx];
+        const auto add_host = [&dsn_indices_by_type, idx](ClusterHostType host_type) {
+            dsn_indices_by_type[host_type].indices.push_back(idx);
+        };
 
-        dsn_indices_by_type[state.role].indices.push_back(idx);
+        add_host(state.role);
         // Always allow using sync slaves for slave requests, mainly for
         // transition purposes -- TAXICOMMON-2006
         if (state.role == ClusterHostType::kSyncSlave) {
-            dsn_indices_by_type[ClusterHostType::kSlave].indices.push_back(idx);
+            add_host(ClusterHostType::kSlave);
         }
     }
 
-    for (auto& [_, indices] : dsn_indices_by_type) {
-        FillNearestDsnIndex(indices);
+    for (auto& [_, dsn_indices] : dsn_indices_by_type) {
+        const auto min_rtt = CalculateMinRtt(dsn_indices.indices, roundtrip_times);
+        const auto max_rtt = CalculateMaxEligibleRtt(min_rtt, rtt_threshold);
+        FillDsnIndices(dsn_indices, roundtrip_times, max_rtt);
     }
 
     dsn_indices_by_type_.Assign(std::move(dsn_indices_by_type));
@@ -348,7 +386,10 @@ void HotStandby::RunCheck(DsnIndex idx) {
         auto start = std::chrono::steady_clock::now();
         const auto wal_info =
             state.connection->Execute(state.connection->IsInRecovery() ? wal_info_stmts.slave : wal_info_stmts.master);
-        state.roundtrip_time = std::chrono::duration_cast<Rtt>(std::chrono::steady_clock::now() - start);
+        UpdateAverageRtt(
+            state.roundtrip_time,
+            std::chrono::duration_cast<Rtt>(std::chrono::steady_clock::now() - start)
+        );
         wal_info.Front().To(state.wal_lsn, current_xact_timestamp);
         if (current_xact_timestamp) {
             state.current_xact_timestamp = *current_xact_timestamp;
@@ -398,16 +439,6 @@ std::vector<std::string> ParseSyncStandbyNames(std::string_view value) {
         token = ConsumeToken(value);
     }
     return sync_slave_names;
-}
-
-void HotStandby::FillNearestDsnIndex(DsnIndices& dsn_indices) {
-    const auto& indices = dsn_indices.indices;
-    auto it = std::min_element(indices.begin(), indices.end(), [this](DsnIndex lhs, DsnIndex rhs) {
-        return host_states_[lhs].roundtrip_time < host_states_[rhs].roundtrip_time;
-    });
-    if (it != indices.end()) {
-        dsn_indices.nearest = *it;
-    }
 }
 
 }  // namespace storages::postgres::detail::topology

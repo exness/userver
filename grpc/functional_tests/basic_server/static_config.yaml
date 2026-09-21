@@ -59,6 +59,11 @@ components_manager:
 
         http-client-headers-propagator: {}
 
+        tracing-manager-locator:
+            incoming-format: ['opentelemetry', 'taxi']
+            new-requests-format: ['opentelemetry', 'taxi']
+            otel-trace-sampling-enabled: true
+
         congestion-control:
 
         server:
@@ -67,6 +72,11 @@ components_manager:
                 task_processor: main-task-processor
 
         testsuite-support:
+
+        tests-control:
+            path: /tests/{action}
+            method: POST
+            task_processor: main-task-processor
 
     default_task_processor: main-task-processor  # Task processor in which components start.
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import pathlib
@@ -76,15 +77,23 @@ def enrich_jinja_env(env: jinja2.Environment) -> None:
     env.globals['taxi_alias'] = taxi_alias
 
 
+def hash_schema(schema: Any) -> str:
+    """SHA-256 of the canonical JSON of the given schema dict."""
+    canonical = json.dumps(schema, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
 class CompilerBase:
-    def __init__(self) -> None:
+    def __init__(self, *, strict_parsing_default: bool) -> None:
         self._variables_types: dict[str, dict[str, cpp_types.CppType]] = {}
         self._definitions: dict[
             str,
             tuple[front_types.ResolvedSchemas, dict[str, cpp_types.CppType]],
         ] = {}
         self._defaults: dict[str, Any] = {}
+        self._schema_hashes: dict[str, str] = {}
         self.seen_includes: dict[str, set[str]] = {}
+        self._strict_parsing_default = strict_parsing_default
 
     def extract_definition_names(self, filepath: str) -> list[str]:
         with open(filepath, 'r') as ifile:
@@ -128,7 +137,7 @@ class CompilerBase:
         self,
         filepath: str,
         name: str,
-        include_dirs: list[str] = [],
+        include_dirs: list[str] | None = [],
     ) -> None:
         name_lower = self.format_ns_name(name)
         name_map = [main.NameMapItem('/([^/]+)/={0}')]
@@ -165,7 +174,7 @@ class CompilerBase:
         filepath: str,
         name: str,
         namespace: str,
-        include_dirs: list[str] = [],
+        include_dirs: list[str] | None = [],
     ) -> None:
         name_lower = self.format_ns_name(name)
         name_map = [
@@ -188,7 +197,7 @@ class CompilerBase:
         )
 
         self._variables_types[name] = types
-        self._defaults[name] = self._read_default(filepath)
+        self._parse_variable_file(filepath, name)
         self.seen_includes[filepath] = seen_includes
 
     def _collect_schemas(self) -> list[front_types.ResolvedSchemas]:
@@ -210,7 +219,7 @@ class CompilerBase:
         erase_prefix: str,
         name_map,
         fname: str,
-        include_dirs: list[str],
+        include_dirs: list[str] | None,
     ) -> tuple[front_types.ResolvedSchemas, dict[str, cpp_types.CppType], set[str]]:
         schemas = main.read_schemas(
             erase_path_prefix=erase_prefix,
@@ -223,13 +232,18 @@ class CompilerBase:
             name_map=name_map,
             erase_prefix=erase_prefix,
         )
+        # `include_dirs=None` disables the "does x-usrv-cpp-type header exist"
+        # check altogether (see GeneratorConfig.include_dirs), which is useful
+        # for build systems (e.g. ya.make) that cannot cheaply
+        # provide the real include search path at codegen time.
+        merged_include_dirs = None if include_dirs is None else include_dirs + INCLUDE_DIRS
         gen = translator.Generator(
             config=translator.GeneratorConfig(
-                include_dirs=include_dirs + INCLUDE_DIRS,
+                include_dirs=merged_include_dirs,
                 namespaces={fname: namespace},
                 infile_to_name_func=cpp_name_func,
                 autodiscover_default_dict=True,
-                strict_parsing_default=False,
+                strict_parsing_default=self._strict_parsing_default,
             ),
         )
         types = gen.generate_types(
@@ -258,13 +272,28 @@ class CompilerBase:
         return self.renderer_for_variable(
             name,
             False,
+            False,
             namespace='taxi_config',
         ).extract_external_includes(types, '')
 
-    def _read_default(self, filepath: str) -> Any:
-        with open(filepath, 'r') as ifile:
-            content = yaml.load(ifile, Loader=yaml.CLoader)
-        return content['default']
+    def compute_schema_hash(self, filepath: str, schema: Any) -> str:
+        """Compute the schema hash for a config variable.
+
+        Overridable hook: subclasses may need extra processing before
+        hashing (e.g. inlining external $ref values), see
+        util/dynamic_configs/dynamic_configs.py.
+        """
+        return hash_schema(schema)
+
+    def _parse_variable_file(self, filepath: str, name: str) -> None:
+        """Read the config file once, extracting default value and schema hash."""
+        with open(filepath, 'r') as fh:
+            content = yaml.load(fh, Loader=yaml.CLoader)
+        self._defaults[name] = content['default']
+        schema = content.get('schema')
+        if not schema:
+            raise ValueError(f"Config '{name}' has no 'schema' field. A schema is required for chaotic codegen.")
+        self._schema_hashes[name] = self.compute_schema_hash(filepath, schema)
 
     def _jinja(self) -> jinja2.Environment:
         raise NotImplementedError()
@@ -279,6 +308,7 @@ class CompilerBase:
         self,
         name: str,
         parse_extra_formats: bool,
+        generate_stream_writer: bool,
         namespace: str,
     ) -> renderer.OneToOneFileRenderer:
         return renderer.OneToOneFileRenderer(
@@ -294,6 +324,7 @@ class CompilerBase:
             parse_extra_formats=parse_extra_formats,
             generate_serializer=parse_extra_formats,
             generate_sax_parser=False,
+            generate_stream_writer=False,
         )
 
     def variable_type(self, name: str) -> str:
@@ -308,11 +339,12 @@ class CompilerBase:
         name: str,
         output_dir: str,
         parse_extra_formats: bool,
+        generate_stream_writer: bool = False,
         namespace: str = 'taxi_config',
         generate_taxi_aliases: bool = True,
     ) -> None:
         types = self._variables_types[name]
-        outputs = self.renderer_for_variable(name, parse_extra_formats, namespace).render(
+        outputs = self.renderer_for_variable(name, parse_extra_formats, generate_stream_writer, namespace).render(
             types,
             local_pair_header=False,
             # pair_header=f'taxi_config/variables/{name}.types.hpp',
@@ -333,6 +365,8 @@ class CompilerBase:
             )
 
         # variable.{hpp,cpp}
+        schema_hash = self._schema_hashes[name]
+
         env = {
             'types_hpp': f'{namespace}/variables/{name}.types.hpp',
             'variable_hpp': f'{namespace}/variables/{name}.hpp',
@@ -344,6 +378,7 @@ class CompilerBase:
             'cpp_type': var_type,
             'cpp_user_type': var_type.cpp_user_name(),
             'default_value': json.dumps(self._defaults[name]),
+            'schema_hash': schema_hash,
             'namespace': namespace,
             'generate_taxi_aliases': generate_taxi_aliases,
         }

@@ -40,6 +40,7 @@ struct CallParams {
     const Middlewares& middlewares;
     const dynamic_config::Source& config_source;
     const boost::container::flat_map<grpc::StatusCode, logging::Level>& status_codes_log_level;
+    const bool otel_trace_sampling_enabled;
 };
 
 // Non-templated state of CallProcessor. Can be non-movable.

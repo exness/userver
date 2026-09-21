@@ -1,7 +1,8 @@
 #include <userver/yaml_config/iterator.hpp>
 
+#include <iterator>
+
 #include <userver/utils/assert.hpp>
-#include <userver/utils/text_light.hpp>
 #include <userver/yaml_config/yaml_config.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -18,7 +19,7 @@ std::string_view RemoveInternalSuffix(std::string_view key) noexcept {
     };
 
     for (const auto suffix : kInternalSuffixes) {
-        if (utils::text::EndsWith(key, suffix)) {
+        if (key.ends_with(suffix)) {
             return key.substr(0, key.size() - suffix.size());
         }
     }
@@ -26,6 +27,9 @@ std::string_view RemoveInternalSuffix(std::string_view key) noexcept {
 }
 
 }  // namespace
+
+template <typename IterTraits>
+Iterator<IterTraits>::Iterator() = default;
 
 template <typename IterTraits>
 Iterator<IterTraits>::Iterator(const Iterator<IterTraits>& other)
@@ -65,6 +69,8 @@ Iterator<IterTraits>& Iterator<IterTraits>::operator=(Iterator<IterTraits>&& oth
 
 template <typename IterTraits>
 Iterator<IterTraits> Iterator<IterTraits>::operator++(int) {
+    UASSERT(container_ != nullptr);
+
     auto it_copy = it_;
     IncrementInternalIterator();
     return Iterator{*container_, std::move(it_copy)};
@@ -72,18 +78,22 @@ Iterator<IterTraits> Iterator<IterTraits>::operator++(int) {
 
 template <typename IterTraits>
 Iterator<IterTraits>& Iterator<IterTraits>::operator++() {
+    UASSERT(container_ != nullptr);
+
     IncrementInternalIterator();
     return *this;
 }
 
 template <typename IterTraits>
 std::string Iterator<IterTraits>::GetName() const {
+    UASSERT(container_ != nullptr);
     return std::string{yaml_config::RemoveInternalSuffix(it_.GetName())};
 }
 
 template <typename IterTraits>
 void Iterator<IterTraits>::UpdateValue() const {
     UASSERT(container_ != nullptr);
+
     if (current_) {
         return;
     }
@@ -98,6 +108,8 @@ void Iterator<IterTraits>::UpdateValue() const {
 
 template <typename IterTraits>
 void Iterator<IterTraits>::IncrementInternalIterator() {
+    UASSERT(container_ != nullptr);
+
     current_.reset();
 
     if (it_.GetIteratorType() != formats::common::Type::kObject) {
@@ -125,6 +137,8 @@ void Iterator<IterTraits>::IncrementInternalIterator() {
 
 // Explicit instantiation
 template class Iterator<YamlConfig::IterTraits>;
+
+static_assert(std::forward_iterator<Iterator<YamlConfig::IterTraits>>);
 
 }  // namespace yaml_config
 

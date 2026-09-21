@@ -1,8 +1,9 @@
 #pragma once
 
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/future_status.hpp>
-#include <userver/engine/impl/context_accessor.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -28,7 +29,7 @@ public:
     virtual CallContext& GetContext() noexcept = 0;
     virtual const CallContext& GetContext() const noexcept = 0;
 
-    virtual engine::impl::ContextAccessor* TryGetContextAccessor() noexcept = 0;
+    virtual engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND = 0;
 };
 
 }  // namespace ugrpc::client::impl

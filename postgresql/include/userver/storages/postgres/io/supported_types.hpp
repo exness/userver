@@ -36,6 +36,7 @@
 #include <userver/storages/postgres/io/composite_types.hpp>
 #include <userver/storages/postgres/io/optional.hpp>
 #include <userver/storages/postgres/io/range_types.hpp>
+#include <userver/storages/postgres/io/span.hpp>
 #include <userver/storages/postgres/io/strong_typedef.hpp>
 //@}
 

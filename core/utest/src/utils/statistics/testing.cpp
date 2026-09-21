@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <ostream>
+#include <ranges>
 #include <sstream>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -10,7 +12,6 @@
 #include <fmt/ranges.h>
 #include <boost/algorithm/cxx11/all_of.hpp>
 #include <boost/container/flat_set.hpp>
-#include <boost/range/iterator_range.hpp>
 
 #include <userver/utils/assert.hpp>
 #include <userver/utils/statistics/fmt.hpp>
@@ -35,6 +36,15 @@ struct SnapshotDataEntry final {
     boost::container::flat_set<Label> labels;
     MetricValue value;
 };
+
+constexpr std::string_view kTestPrefix = "test";
+
+std::string MakeRequestPrefix(std::string prefix) {
+    if (prefix.empty()) {
+        return std::string{kTestPrefix};
+    }
+    return fmt::format("{}.{}", kTestPrefix, prefix);
+}
 
 }  // namespace
 namespace impl {
@@ -78,6 +88,20 @@ utils::SharedRef<const impl::SnapshotData> BuildSnapshotData(const Storage& stor
     return data;
 }
 
+utils::SharedRef<const impl::SnapshotData> BuildSnapshotData(WriterFuncRef writer_func, const Request& request) {
+    auto data = utils::MakeSharedRef<impl::SnapshotData>();
+    SnapshotVisitor visitor{*data};
+    utils::statistics::VisitMetrics(
+        [&writer_func](Writer& writer) {
+            auto prefixed = writer[kTestPrefix];
+            writer_func(prefixed);
+        },
+        visitor,
+        request
+    );
+    return data;
+}
+
 void PrependPrefix(std::string& path, const Request& request) {
     const std::string_view separator = (path.empty() || request.prefix.empty()) ? "" : ".";
     path = fmt::format("{}{}{}", request.prefix, separator, path);
@@ -91,7 +115,7 @@ std::optional<Metric> GetSingleOptional(
     std::optional<Metric> found_metric;
     const auto iterator_pair = data.metrics.equal_range(path);
 
-    for (const auto& [_, entry] : boost::make_iterator_range(iterator_pair)) {
+    for (const auto& [_, entry] : std::ranges::subrange(iterator_pair.first, iterator_pair.second)) {
         const bool matches = boost::algorithm::all_of(required_labels, [&entry = entry](const auto& needle) {
             return entry.labels.count(needle) != 0;
         });
@@ -119,6 +143,11 @@ std::optional<Metric> GetSingleOptional(
 Snapshot::Snapshot(const Storage& storage, std::string prefix, std::vector<Label> require_labels)
     : request_(Request::MakeWithPrefix(std::move(prefix), {}, std::move(require_labels))),
       data_(BuildSnapshotData(storage, request_))
+{}
+
+Snapshot::Snapshot(WriterFuncRef writer, std::string prefix, std::vector<Label> require_labels)
+    : request_(Request::MakeWithPrefix(MakeRequestPrefix(std::move(prefix)), {}, std::move(require_labels))),
+      data_(BuildSnapshotData(writer, request_))
 {}
 
 MetricValue Snapshot::SingleMetric(std::string path, std::vector<Label> require_labels) const {
@@ -149,6 +178,11 @@ void PrintTo(const Snapshot& data, std::ostream* out) {
 void PrintTo(MetricValue value, std::ostream* out) {
     UASSERT(out);
     *out << fmt::to_string(value);
+}
+
+void PrintTo(Rate value, std::ostream* out) {
+    UASSERT(out);
+    *out << fmt::to_string(value.value);
 }
 
 }  // namespace utils::statistics

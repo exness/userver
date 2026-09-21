@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/concurrent/variable.hpp
+/// @brief @copybrief concurrent::Variable
+
 #include <cstdlib>
 #include <mutex>
 #include <optional>
@@ -66,7 +69,7 @@ private:
 /// (mutex, shared mutex, etc.).
 /// ## Example usage:
 ///
-/// @snippet concurrent/variable_test.cpp  Sample concurrent::Variable usage
+/// @snippet core/src/concurrent/variable_test.cpp  Sample concurrent::Variable usage
 ///
 /// @see @ref scripts/docs/en/userver/synchronization.md
 template <typename Data, typename Mutex = engine::Mutex>
