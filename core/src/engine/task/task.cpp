@@ -36,7 +36,13 @@ Task& Task::operator=(Task&& other) noexcept {
 
 Task::~Task() { Terminate(TaskCancellationReason::kAbandoned); }
 
-impl::ContextAccessor* Task::TryGetContextAccessor() noexcept { return IsValid() ? &GetContext() : nullptr; }
+AwaitableToken Task::GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+    if (!IsValid()) {
+        return {};
+    }
+
+    return AwaitableToken{utils::impl::InternalTag{}, &GetContext()};
+}
 
 void DetachUnscopedUnsafe(Task&& task) {
     if (task.IsValid()) {

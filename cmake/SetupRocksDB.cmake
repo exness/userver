@@ -5,6 +5,12 @@ option(USERVER_DOWNLOAD_PACKAGE_ROCKS "Download and setup RocksDB if no RocksDB 
        ${USERVER_DOWNLOAD_PACKAGES}
 )
 
+# Distro RocksDB packages are often built with liburing and export a dependency on
+# uring::uring; find it first so RocksDBTargets.cmake can resolve the link interface.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(liburing REQUIRED)
+endif()
+
 if(NOT USERVER_FORCE_DOWNLOAD_PACKAGES)
     if(USERVER_DOWNLOAD_PACKAGE_ROCKS)
         find_package(RocksDB QUIET CONFIG)
@@ -27,10 +33,11 @@ include(DownloadUsingCPM)
 
 cpmaddpackage(
     NAME RocksDB
-    GITHUB_REPOSITORY facebook/rocksdb
-    GIT_TAG v10.4.2
-    GIT_SHALLOW TRUE
+    VERSION 10.4.2
+    URL https://github.com/facebook/rocksdb/archive/v10.4.2.tar.gz
+    URL_HASH SHA256=afccfab496556904900afacf7d99887f1d50cb893e5d2288bd502db233adacac
     OPTIONS "ROCKSDB_BUILD_SHARED OFF"
+            "PORTABLE ON"
             "WITH_SNAPPY ON"
             "WITH_BZ2 ON"
             "WITH_ZSTD ON"

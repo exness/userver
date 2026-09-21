@@ -2,6 +2,7 @@
 
 #include <sstream>
 
+#include <userver/formats/json/serialize.hpp>
 #include <userver/storages/redis/impl/transaction_subrequest_data.hpp>
 
 #include "client_impl.hpp"
@@ -235,6 +236,11 @@ RequestGet TransactionImpl::Get(std::string key) {
     return AddCmd<RequestGet>("get", false, std::move(key));
 }
 
+RequestGetdel TransactionImpl::Getdel(std::string key) {
+    UpdateShard(key);
+    return AddCmd<RequestGetdel>("getdel", true, std::move(key));
+}
+
 RequestGetset TransactionImpl::Getset(std::string key, std::string value) {
     UpdateShard(key);
     return AddCmd<RequestGetset>("getset", true, std::move(key), std::move(value));
@@ -375,6 +381,20 @@ RequestMset TransactionImpl::Mset(std::vector<std::pair<std::string, std::string
     return AddCmd<RequestMset>("mset", true, std::move(key_values));
 }
 
+RequestMsetex TransactionImpl::Msetex(std::vector<std::pair<std::string, std::string>> key_values) {
+    return Msetex(std::move(key_values), MsetexOptions::NoTtl());
+}
+
+RequestMsetex TransactionImpl::Msetex(
+    std::vector<std::pair<std::string, std::string>> key_values,
+    MsetexOptions options
+) {
+    UpdateShard(key_values);
+    client_->CheckMsetexKeysInSameSlot(key_values);
+    const auto key_count = key_values.size();
+    return AddCmd<RequestMsetex>("msetex", true, key_count, std::move(key_values), options);
+}
+
 RequestPersist TransactionImpl::Persist(std::string key) {
     UpdateShard(key);
     return AddCmd<RequestPersist>("persist", true, std::move(key));
@@ -484,6 +504,15 @@ RequestSetIfNotExistOrGet TransactionImpl::SetIfNotExistOrGet(
 RequestSetex TransactionImpl::Setex(std::string key, std::chrono::seconds seconds, std::string value) {
     UpdateShard(key);
     return AddCmd<RequestSetex>("setex", true, std::move(key), seconds.count(), std::move(value));
+}
+
+RequestSetAndGetPrevious TransactionImpl::SetAndGetPrevious(
+    std::string key,
+    std::string value,
+    std::chrono::milliseconds ttl
+) {
+    UpdateShard(key);
+    return AddCmd<RequestSetAndGetPrevious>("set", true, std::move(key), std::move(value), "PX", ttl.count(), "GET");
 }
 
 RequestSismember TransactionImpl::Sismember(std::string key, std::string member) {
@@ -704,6 +733,331 @@ RequestZremrangebyscore TransactionImpl::Zremrangebyscore(std::string key, std::
 RequestZscore TransactionImpl::Zscore(std::string key, std::string member) {
     UpdateShard(key);
     return AddCmd<RequestZscore>("zscore", false, std::move(key), std::move(member));
+}
+
+// Hash field expiration commands:
+
+namespace {
+
+void AppendHgetexModifier(std::vector<std::string>& args, const HgetexOptions& options) {
+    switch (options.ttl_action) {
+        case HgetexOptions::TtlAction::kKeep:
+            break;
+        case HgetexOptions::TtlAction::kSetSeconds:
+            args.emplace_back("EX");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HgetexOptions::TtlAction::kSetMilliseconds:
+            args.emplace_back("PX");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HgetexOptions::TtlAction::kSetAtSeconds:
+            args.emplace_back("EXAT");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HgetexOptions::TtlAction::kSetAtMilliseconds:
+            args.emplace_back("PXAT");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HgetexOptions::TtlAction::kPersist:
+            args.emplace_back("PERSIST");
+            break;
+    }
+}
+
+void AppendHsetexModifiers(std::vector<std::string>& args, const HsetexOptions& options) {
+    switch (options.exist) {
+        case HsetexOptions::Exist::kSetAlways:
+            break;
+        case HsetexOptions::Exist::kSetIfNoneExist:
+            args.emplace_back("FNX");
+            break;
+        case HsetexOptions::Exist::kSetIfAllExist:
+            args.emplace_back("FXX");
+            break;
+    }
+    switch (options.ttl_action) {
+        case HsetexOptions::TtlAction::kNone:
+            break;
+        case HsetexOptions::TtlAction::kSetSeconds:
+            args.emplace_back("EX");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HsetexOptions::TtlAction::kSetMilliseconds:
+            args.emplace_back("PX");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HsetexOptions::TtlAction::kSetAtSeconds:
+            args.emplace_back("EXAT");
+            args.emplace_back(std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options.ttl).count()));
+            break;
+        case HsetexOptions::TtlAction::kSetAtMilliseconds:
+            args.emplace_back("PXAT");
+            args.emplace_back(std::to_string(options.ttl.count()));
+            break;
+        case HsetexOptions::TtlAction::kKeepTtl:
+            args.emplace_back("KEEPTTL");
+            break;
+    }
+}
+
+}  // namespace
+
+RequestHexpire TransactionImpl::Hexpire(std::string key, std::chrono::seconds ttl, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<
+        RequestHexpire>("hexpire", true, std::move(key), ttl.count(), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHexpire TransactionImpl::Hexpire(
+    std::string key,
+    std::chrono::seconds ttl,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHexpire>(
+        "hexpire",
+        true,
+        std::move(key),
+        ttl.count(),
+        options,
+        "FIELDS",
+        field_count,
+        std::move(fields)
+    );
+}
+
+RequestHexpire TransactionImpl::Hpexpire(
+    std::string key,
+    std::chrono::milliseconds ttl,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<
+        RequestHexpire>("hpexpire", true, std::move(key), ttl.count(), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHexpire TransactionImpl::Hpexpire(
+    std::string key,
+    std::chrono::milliseconds ttl,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHexpire>(
+        "hpexpire",
+        true,
+        std::move(key),
+        ttl.count(),
+        options,
+        "FIELDS",
+        field_count,
+        std::move(fields)
+    );
+}
+
+RequestHexpire TransactionImpl::Hexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    const auto deadline_sec = std::chrono::duration_cast<std::chrono::seconds>(deadline.time_since_epoch()).count();
+    return AddCmd<
+        RequestHexpire>("hexpireat", true, std::move(key), deadline_sec, "FIELDS", field_count, std::move(fields));
+}
+
+RequestHexpire TransactionImpl::Hexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    const auto deadline_sec = std::chrono::duration_cast<std::chrono::seconds>(deadline.time_since_epoch()).count();
+    return AddCmd<RequestHexpire>(
+        "hexpireat",
+        true,
+        std::move(key),
+        deadline_sec,
+        options,
+        "FIELDS",
+        field_count,
+        std::move(fields)
+    );
+}
+
+RequestHexpire TransactionImpl::Hpexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    const auto deadline_ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.time_since_epoch()).count();
+    return AddCmd<
+        RequestHexpire>("hpexpireat", true, std::move(key), deadline_ms, "FIELDS", field_count, std::move(fields));
+}
+
+RequestHexpire TransactionImpl::Hpexpireat(
+    std::string key,
+    std::chrono::system_clock::time_point deadline,
+    ExpireOptions options,
+    std::vector<std::string> fields
+) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    const auto deadline_ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.time_since_epoch()).count();
+    return AddCmd<RequestHexpire>(
+        "hpexpireat",
+        true,
+        std::move(key),
+        deadline_ms,
+        options,
+        "FIELDS",
+        field_count,
+        std::move(fields)
+    );
+}
+
+RequestHexpiretime TransactionImpl::Hexpiretime(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHexpiretime>("hexpiretime", false, std::move(key), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHpexpiretime TransactionImpl::Hpexpiretime(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHpexpiretime>("hpexpiretime", false, std::move(key), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHttl TransactionImpl::Httl(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHttl>("httl", false, std::move(key), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHpttl TransactionImpl::Hpttl(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHpttl>("hpttl", false, std::move(key), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHpersist TransactionImpl::Hpersist(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHpersist>("hpersist", true, std::move(key), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHgetex TransactionImpl::Hgetex(std::string key, std::vector<std::string> fields) {
+    UpdateShard(key);
+    const auto field_count = static_cast<int64_t>(fields.size());
+    return AddCmd<RequestHgetex>("hgetex", true, std::move(key), "FIELDS", field_count, std::move(fields));
+}
+
+RequestHgetex TransactionImpl::Hgetex(std::string key, HgetexOptions options, std::vector<std::string> fields) {
+    UpdateShard(key);
+    std::vector<std::string> tail;
+    AppendHgetexModifier(tail, options);
+    tail.emplace_back("FIELDS");
+    tail.emplace_back(std::to_string(fields.size()));
+    tail.insert(tail.end(), std::make_move_iterator(fields.begin()), std::make_move_iterator(fields.end()));
+    return AddCmd<RequestHgetex>("hgetex", true, std::move(key), std::move(tail));
+}
+
+RequestHsetex TransactionImpl::Hsetex(std::string key, std::vector<HsetexFieldValue> field_values) {
+    UpdateShard(key);
+    std::vector<std::string> tail;
+    tail.reserve(2 + field_values.size() * 2);
+    tail.emplace_back("FIELDS");
+    tail.emplace_back(std::to_string(field_values.size()));
+    for (auto&& fv : field_values) {
+        tail.push_back(std::move(fv.field));
+        tail.push_back(std::move(fv.value));
+    }
+    return AddCmd<RequestHsetex>("hsetex", true, std::move(key), std::move(tail));
+}
+
+RequestHsetex TransactionImpl::Hsetex(
+    std::string key,
+    HsetexOptions options,
+    std::vector<HsetexFieldValue> field_values
+) {
+    UpdateShard(key);
+    std::vector<std::string> tail;
+    tail.reserve(5 + field_values.size() * 2);
+    AppendHsetexModifiers(tail, options);
+    tail.emplace_back("FIELDS");
+    tail.emplace_back(std::to_string(field_values.size()));
+    for (auto&& fv : field_values) {
+        tail.push_back(std::move(fv.field));
+        tail.push_back(std::move(fv.value));
+    }
+    return AddCmd<RequestHsetex>("hsetex", true, std::move(key), std::move(tail));
+}
+
+RequestJsonSet TransactionImpl::JsonSet(std::string key, std::string path, formats::json::Value value) {
+    UpdateShard(key);
+    auto json_string = formats::json::ToString(value);
+    return AddCmd<RequestJsonSet>("json.set", true, std::move(key), std::move(path), std::move(json_string));
+}
+
+RequestJsonSetIfNotExist TransactionImpl::JsonSetIfNotExist(
+    std::string key,
+    std::string path,
+    formats::json::Value value
+) {
+    UpdateShard(key);
+    auto json_string = formats::json::ToString(value);
+    return AddCmd<
+        RequestJsonSetIfNotExist>("json.set", true, std::move(key), std::move(path), std::move(json_string), "NX");
+}
+
+RequestJsonSetIfExist TransactionImpl::JsonSetIfExist(std::string key, std::string path, formats::json::Value value) {
+    UpdateShard(key);
+    auto json_string = formats::json::ToString(value);
+    return AddCmd<
+        RequestJsonSetIfExist>("json.set", true, std::move(key), std::move(path), std::move(json_string), "XX");
+}
+
+RequestJsonGet TransactionImpl::JsonGet(std::string key) {
+    UpdateShard(key);
+    return AddCmd<RequestJsonGet>("json.get", false, std::move(key));
+}
+
+RequestJsonGet TransactionImpl::JsonGet(std::string key, std::string path) {
+    UpdateShard(key);
+    return AddCmd<RequestJsonGet>("json.get", false, std::move(key), std::move(path));
+}
+
+RequestJsonGet TransactionImpl::JsonGet(std::string key, std::vector<std::string> paths) {
+    UpdateShard(key);
+    return AddCmd<RequestJsonGet>("json.get", false, std::move(key), std::move(paths));
+}
+
+RequestJsonMget TransactionImpl::JsonMget(std::vector<std::string> keys, std::string path) {
+    UpdateShard(keys);
+    return AddCmd<RequestJsonMget>("json.mget", false, std::move(keys), std::move(path));
+}
+
+RequestJsonMset TransactionImpl::JsonMset(std::vector<JsonKeyPathValue> key_path_values) {
+    // Flatten key-path-value triplets into a single args list
+    std::vector<std::string> args;
+    args.reserve(key_path_values.size() * 3);
+    for (auto&& [key, path, value] : key_path_values) {
+        args.push_back(std::move(key));
+        args.push_back(std::move(path));
+        args.push_back(formats::json::ToString(std::move(value)));
+    }
+    return AddCmd<RequestJsonMset>("json.mset", true, std::move(args));
 }
 
 // end of redis commands

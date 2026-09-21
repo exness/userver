@@ -4,6 +4,8 @@ cmake
 gdb
 git
 libbenchmark-dev
+libboost-context1.81-dev
+libboost-coroutine1.81-dev
 libboost1.81-dev
 libboost-filesystem1.81-dev
 libboost-iostreams1.81-dev
@@ -16,8 +18,8 @@ libcctz-dev
 libcrypto++-dev
 libcurl4-openssl-dev
 libev-dev
+liburing-dev
 libfmt-dev
-libgmock-dev
 libgmock-dev
 libgrpc++1
 libgrpc++-dev

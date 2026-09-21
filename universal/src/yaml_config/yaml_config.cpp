@@ -4,13 +4,13 @@
 #include <boost/filesystem/operations.hpp>
 
 #include <userver/formats/common/conversion_stack.hpp>
+#include <userver/formats/json/raw_string.hpp>
 #include <userver/formats/json/value.hpp>
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/formats/yaml/serialize.hpp>
 #include <userver/formats/yaml/value_builder.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/string_to_duration.hpp>
-#include <userver/utils/text_light.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -181,9 +181,7 @@ YamlConfig::YamlConfig(formats::yaml::Value yaml, formats::yaml::Value config_va
 {}
 
 YamlConfig YamlConfig::operator[](std::string_view key) const {
-    if (utils::text::EndsWith(key, "#env") || utils::text::EndsWith(key, "#file") ||
-        utils::text::EndsWith(key, "#fallback"))
-    {
+    if (key.ends_with("#env") || key.ends_with("#file") || key.ends_with("#fallback")) {
         UASSERT_MSG(false, "Do not use names ending on #env, #file and #fallback");
         return MakeMissingConfig(*this, key);
     }
@@ -315,6 +313,10 @@ std::chrono::milliseconds Parse(const YamlConfig& value, formats::parse::To<std:
 
 formats::json::Value Parse(const YamlConfig& value, formats::parse::To<formats::json::Value>) {
     return formats::common::PerformMinimalFormatConversion<formats::json::Value>(value);
+}
+
+formats::json::RawString Parse(const YamlConfig& value, formats::parse::To<formats::json::RawString>) {
+    return formats::json::RawString(value.As<formats::json::Value>());
 }
 
 formats::yaml::Value Parse(const YamlConfig& value, formats::parse::To<formats::yaml::Value>) {

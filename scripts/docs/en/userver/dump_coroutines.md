@@ -1,8 +1,8 @@
 # Dump coroutines in runtime
 
 Sometimes your service may experience some bugs (wow!).
-It may result in subtle behaviour including deadlocks and coroutines freeze.
-If you faced similar issue in production, you might want to carefully study some/all running coroutines properties to locate and fix the bug.
+It may result in subtle behaviour including deadlocks and frozen coroutines.
+If you face a similar issue in production, you might want to carefully study some/all running coroutines properties to locate and fix the bug.
 
 ## Setup
 
@@ -54,7 +54,7 @@ components_manager:
 The service with coroutine tracer is VERY slow, benchmarks show up to 0.5ms slowdown on context switch.
 Too high load might overload the process.
 
-5) Make a HTTP request to `service/dump-coroutines` handler:
+5) Make an HTTP request to `service/dump-coroutines` handler:
 
 ```
 bash
@@ -77,7 +77,7 @@ json
       "stacktrace" : " 0# engine::TracePlugin::HookBeforeSleep(engine::impl::TaskContext const&) at /home/segoon/arcadia3/taxi/uservices/userver/core/src/engine/tracer_plugin.cpp:33
 	 1# engine::PluginManager::HookBeforeSleep(engine::impl::TaskContext const&) at /home/segoon/arcadia3/taxi/uservices/userver/core/src/engine/plugin_manager.hpp:74
 	 2# engine::TaskProcessor::HookBeforeSleep(engine::impl::TaskContext const&) at /home/segoon/arcadia3/taxi/uservices/userver/core/src/engine/task/task_processor.cpp:327
-	 3# engine::impl::TaskContext::Sleep(engine::impl::WaitStrategy&, engine::Deadline) at /home/segoon/arcadia3/taxi/uservices/userver/core/src/engine/task/task_context.cpp:333
+	 3# engine::impl::TaskContext::Sleep(engine::impl::WeakAwaitable&, engine::Deadline) at /home/segoon/arcadia3/taxi/uservices/userver/core/src/engine/task/task_context.cpp:333
 	 4# engine::SingleConsumerEvent::WaitForEventUntil(engine::Deadline) at /home/segoon/arcadia3/taxi/uservices/userver/core/src/engine/single_consumer_event.cpp:54
 	 5# bool engine::SingleConsumerEvent::WaitForEventUntil<std::__y1::chrono::steady_clock, std::__y1::chrono::duration<long long, std::__y1::ratio<1l, 1000000000l>>>(std::__y1::chrono::time_point<std::__y1::chrono::steady_clock, std::__y1::chrono::duration<long long, std::__y1::ratio<1l, 1000000000l>>>) at /-S/taxi/uservices/userver/core/include/userver/engine/single_consumer_event.hpp:119
 	 6# utils::PeriodicTask::Impl::Run() at /-S/taxi/uservices/userver/core/src/utils/periodic_task.cpp:202

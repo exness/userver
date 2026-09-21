@@ -1,5 +1,7 @@
 #include <storages/postgres/detail/pool.hpp>
 
+#include <chrono>
+
 #include <storages/postgres/deadline.hpp>
 #include <storages/postgres/detail/statement_stats_storage.hpp>
 
@@ -11,6 +13,7 @@
 #include <userver/storages/postgres/detail/time_types.hpp>
 #include <userver/storages/postgres/exceptions.hpp>
 #include <userver/testsuite/testpoint.hpp>
+#include <userver/utils/algo.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/async.hpp>
 #include <userver/utils/impl/userver_experiments.hpp>
@@ -65,8 +68,19 @@ private:
 auto MakeLogExtraFromConnectionStats(const InstanceStatistics& stats) {
     return logging::LogExtra{
         {{"pg_conn_active", stats.connection.active},
-         {"pg_conn_open", stats.connection.open_total},
+         {"pg_conn_open", stats.connection.open_total.Load().value},
          {"pg_conn_max", stats.connection.maximum}}
+    };
+}
+
+USERVER_NAMESPACE::utils::TokenBucket::RefillPolicy MakeConnectingRateLimiterRefillPolicy(
+    const std::size_t connecting_interval_ms
+) {
+    return USERVER_NAMESPACE::utils::TokenBucket::RefillPolicy{
+        1,
+        connecting_interval_ms > 0
+            ? std::chrono::milliseconds{connecting_interval_ms}
+            : USERVER_NAMESPACE::utils::TokenBucket::Duration::zero()
     };
 }
 
@@ -79,7 +93,7 @@ ConnectionPool::ConnectionPool(
     Dsn dsn,
     clients::dns::Resolver* resolver,
     engine::TaskProcessor& bg_task_processor,
-    const std::string& db_name,
+    std::string_view db_name,
     const PoolSettings& settings,
     const ConnectionSettings& conn_settings,
     const StatementMetricsSettings& statement_metrics_settings,
@@ -106,13 +120,14 @@ ConnectionPool::ConnectionPool(
       testsuite_pg_ctl_{testsuite_pg_ctl},
       ei_settings_(std::move(ei_settings)),
       cancel_limit_{std::max(std::size_t{1}, settings.max_size / kCancelRatio), {1, kCancelPeriod}},
+      connecting_rate_limiter_{1, MakeConnectingRateLimiterRefillPolicy(settings.connecting_interval_ms)},
       sts_{statement_metrics_settings},
       config_source_(config_source),
       metrics_(std::move(metrics)),
       cc_sensor_(*this),
       cc_limiter_(*this),
       cc_controller_(
-          "postgres" + db_name,
+          USERVER_NAMESPACE::utils::StrCat("postgres", db_name),
           cc_sensor_,
           cc_limiter_,
           stats_.congestion_control,
@@ -139,7 +154,7 @@ std::shared_ptr<ConnectionPool> ConnectionPool::Create(
     Dsn dsn,
     clients::dns::Resolver* resolver,
     engine::TaskProcessor& bg_task_processor,
-    const std::string& db_name,
+    std::string_view db_name,
     const InitMode& init_mode,
     const PoolSettings& pool_settings,
     const ConnectionSettings& conn_settings,
@@ -186,30 +201,42 @@ void ConnectionPool::Init(InitMode mode) {
         throw InvalidConfig("PostgreSQL pool max size is less than requested initial size");
     }
 
+    WarmUp(mode);
+
+    if (conn_settings_.ReadCopy().user_types == ConnectionSettings::kUserTypesEnforced) {
+        CheckUserTypes();
+    }
+
+    StartMaintainTask();
+}
+
+void ConnectionPool::WarmUp(InitMode mode) {
+    const auto settings = settings_.Read();
+    const auto current_size = size_semaphore_.UsedApprox();
+    if (current_size >= settings->min_size) {
+        return;
+    }
+
+    const auto connections_to_create = settings->min_size - current_size;
     LOG_INFO()
         << (mode == InitMode::kAsync ? "Asynchronously" : "Synchronously")
-        << " initializing PostgreSQL connection pool, creating up to " << settings->min_size << " connections to "
-        << DsnCutPassword(dsn_);
+        << " warming up PostgreSQL connection pool, creating up to " << connections_to_create << " connections to "
+        << DsnCutPassword(dsn_) << " to reach min_size " << settings->min_size;
 
     std::vector<engine::TaskWithResult<bool>> tasks;
-    tasks.reserve(settings->min_size);
+    tasks.reserve(connections_to_create);
     const auto conn_settings = conn_settings_.ReadCopy();
-    for (std::size_t i = 0; i < settings->min_size; ++i) {
+    for (std::size_t i = 0; i < connections_to_create; ++i) {
         tasks.push_back(
             Connect(engine::SemaphoreLock{size_semaphore_, std::try_to_lock}, ConnectionSettings{conn_settings})
         );
-    }
-
-    if (conn_settings.user_types == ConnectionSettings::kUserTypesEnforced) {
-        CheckUserTypes();
     }
 
     if (mode == InitMode::kAsync) {
         for (auto& task : tasks) {
             connect_task_storage_.Detach(std::move(task));
         }
-        LOG_INFO() << "Pool initialization is ongoing";
-        StartMaintainTask();
+        LOG_INFO() << "Pool warm-up is ongoing";
         return;
     }
 
@@ -228,24 +255,21 @@ void ConnectionPool::Init(InitMode mode) {
     const auto connections_count = size_semaphore_.UsedApprox();
     if (connections_count < settings->min_size) {
         LOG_WARNING()
-            << "Pool is poorly initialized, " << settings->min_size - connections_count
+            << "Pool warm-up is incomplete, " << settings->min_size - connections_count
             << " connections have not been opened, " << connections_count << " connections are ready to use";
     } else {
-        LOG_INFO() << "Pool initialized, " << connections_count << " connections are ready to use";
+        LOG_INFO() << "Pool warm-up completed, " << connections_count << " connections are ready to use";
     }
-
-    StartMaintainTask();
 }
 
 ConnectionPtr ConnectionPool::Acquire(engine::Deadline deadline) {
     // Obtain smart pointer first to prolong lifetime of this object
     auto shared_this = shared_from_this();
 
-    auto config = GetConfigSource().GetSnapshot();
-    CheckDeadlineIsExpired(config);
+    CheckDeadlineIsExpired();
     ConnectionPtr connection{Pop(deadline), std::move(shared_this)};
     ++stats_.connection.used;
-    CheckDeadlineIsExpired(config);
+    CheckDeadlineIsExpired();
 
     return connection;
 }
@@ -255,17 +279,17 @@ void ConnectionPool::AccountConnectionStats(Connection::Statistics conn_stats) {
 
     stats_.connection.prepared_statements.GetCurrentCounter().Account(conn_stats.prepared_statements_current);
 
-    stats_.transaction.total += conn_stats.trx_total;
-    stats_.transaction.commit_total += conn_stats.commit_total;
-    stats_.transaction.rollback_total += conn_stats.rollback_total;
-    stats_.transaction.out_of_trx_total += conn_stats.out_of_trx;
-    stats_.transaction.parse_total += conn_stats.parse_total;
-    stats_.transaction.execute_total += conn_stats.execute_total;
-    stats_.transaction.reply_total += conn_stats.reply_total;
-    stats_.transaction.portal_bind_total += conn_stats.portal_bind_total;
-    stats_.transaction.error_execute_total += conn_stats.error_execute_total;
-    stats_.transaction.execute_timeout += conn_stats.execute_timeout;
-    stats_.transaction.duplicate_prepared_statements += conn_stats.duplicate_prepared_statements;
+    stats_.transaction.total += Rate{conn_stats.trx_total};
+    stats_.transaction.commit_total += Rate{conn_stats.commit_total};
+    stats_.transaction.rollback_total += Rate{conn_stats.rollback_total};
+    stats_.transaction.out_of_trx_total += Rate{conn_stats.out_of_trx};
+    stats_.transaction.parse_total += Rate{conn_stats.parse_total};
+    stats_.transaction.execute_total += Rate{conn_stats.execute_total};
+    stats_.transaction.reply_total += Rate{conn_stats.reply_total};
+    stats_.transaction.portal_bind_total += Rate{conn_stats.portal_bind_total};
+    stats_.transaction.error_execute_total += Rate{conn_stats.error_execute_total};
+    stats_.transaction.execute_timeout += Rate{conn_stats.execute_timeout};
+    stats_.transaction.duplicate_prepared_statements += Rate{conn_stats.duplicate_prepared_statements};
 
     stats_.transaction.total_percentile.GetCurrentCounter()
         .Account(std::chrono::duration_cast<
@@ -304,7 +328,7 @@ void ConnectionPool::Release(Connection* connection) {
         // Connection cleanup is done asynchronously while returning control to
         // the user
         cleanup_task_storage_.Detach(USERVER_NAMESPACE::utils::CriticalAsyncBackground(
-            "clear_conn_after_cancel",
+            "cancel_and_clear_conn",
             bg_task_processor_,
             [this, connection, dec_cnt = std::move(dg)] {
                 LOG_LIMITED_WARNING() << "Released connection in busy state. Trying to clean up...";
@@ -371,21 +395,30 @@ void ConnectionPool::SetSettings(const PoolSettings& settings) {
         max_connections = cc_max_connections;
     }
 
-    auto reader = settings_.Read();
-    if (*reader == settings) {
+    const auto old_settings = settings_.ReadCopy();
+    if (old_settings == settings) {
         return;
     }
-    if (reader->max_size != max_connections) {
+    if (old_settings.max_size != max_connections) {
         size_semaphore_.SetCapacity(max_connections);
+        cancel_limit_.SetMaxSize(std::max(std::size_t{1}, max_connections / kCancelRatio));
     }
-    if (reader->connecting_limit != settings.connecting_limit) {
+    if (old_settings.connecting_limit != settings.connecting_limit) {
         connecting_semaphore_.SetCapacity(settings.connecting_limit ? settings.connecting_limit : kUnlimitedConnecting);
+    }
+    if (old_settings.connecting_interval_ms != settings.connecting_interval_ms) {
+        connecting_rate_limiter_.SetRefillPolicy(MakeConnectingRateLimiterRefillPolicy(settings.connecting_interval_ms)
+        );
     }
 
     auto writer = settings_.StartWrite();
     *writer = settings;
     writer->max_size = max_connections;
     writer.Commit();
+
+    if (old_settings.min_size < settings.min_size) {
+        WarmUp(InitMode::kAsync);
+    }
 }
 
 void ConnectionPool::SetConnectionSettings(const ConnectionSettings& settings) {
@@ -413,12 +446,14 @@ dynamic_config::Source ConnectionPool::GetConfigSource() const { return config_s
 const Dsn& ConnectionPool::GetDsn() const { return dsn_; }
 
 engine::TaskWithResult<bool> ConnectionPool::Connect(engine::SemaphoreLock lock, ConnectionSettings&& conn_settings) {
-    return engine::AsyncNoSpan([this, size_lock = std::move(lock), conn_settings = std::move(conn_settings)]() mutable {
-        if (!size_lock) {
-            size_lock = engine::SemaphoreLock{size_semaphore_, kConnectingTimeout};
+    return engine::AsyncNoTracing(
+        [this, size_lock = std::move(lock), conn_settings = std::move(conn_settings)]() mutable {
+            if (!size_lock) {
+                size_lock = engine::SemaphoreLock{size_semaphore_, kConnectingTimeout};
+            }
+            return DoConnect(std::move(size_lock), std::move(conn_settings));
         }
-        return DoConnect(std::move(size_lock), std::move(conn_settings));
-    });
+    );
 }
 
 bool ConnectionPool::DoConnect(engine::SemaphoreLock size_lock, ConnectionSettings&& conn_settings) {
@@ -431,7 +466,7 @@ bool ConnectionPool::DoConnect(engine::SemaphoreLock size_lock, ConnectionSettin
         LOG_WARNING() << "Pool has too many establishing connections";
         return false;
     }
-    const uint32_t conn_id = ++stats_.connection.open_total;
+    const uint32_t conn_id = static_cast<uint32_t>((++stats_.connection.open_total).value);
     std::unique_ptr<Connection> connection;
     const Stopwatch st{stats_.connection_percentile};
     try {
@@ -482,6 +517,13 @@ void ConnectionPool::TryCreateConnectionAsync() {
     // check it only if we can start a new connection.
     const auto recent_errors = recent_conn_errors_.GetStatsForPeriod(kRecentErrorPeriod, true);
     if (recent_errors < conn_settings.recent_errors_threshold) {
+        if (recent_errors > 0 && !connecting_rate_limiter_.Obtain()) {
+            ++stats_.connection.rate_limit_throttled;
+            LOG_LIMITED_WARNING()
+                << "Connection rate limit exceeded, skipping new connection attempt"
+                << " (recent_errors = " << recent_errors << ")";
+            return;
+        }
         engine::SemaphoreLock size_lock{size_semaphore_, std::try_to_lock};
         if (size_lock || connect_task_storage_.ActiveTasksApprox() <= kPendingConnectsMax) {
             connect_task_storage_.Detach(Connect(std::move(size_lock), std::move(conn_settings)));
@@ -640,6 +682,7 @@ void ConnectionPool::CleanupConnection(Connection* connection) {
     }
     LOG_WARNING() << "Failed to cleanup a dirty connection, deleting..." << MakeLogExtraFromConnectionStats(stats_);
     ++stats_.connection.error_total;
+    ++recent_conn_errors_.GetCurrentCounter();
     DeleteConnection(connection);
 }
 
@@ -650,6 +693,8 @@ void ConnectionPool::DeleteConnection(Connection* connection) {
 
 void ConnectionPool::DeleteBrokenConnection(Connection* connection) {
     ++stats_.connection.error_total;
+    ++recent_conn_errors_.GetCurrentCounter();
+    TESTPOINT("pg_recent_conn_error", formats::json::Value{});
     LOG_WARNING() << "Released connection in closed state. Deleting..." << MakeLogExtraFromConnectionStats(stats_);
     DeleteConnection(connection);
 }

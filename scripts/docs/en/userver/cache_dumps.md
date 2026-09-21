@@ -227,6 +227,6 @@ Example:
 ----------
 
 @htmlonly <div class="bottom-nav"> @endhtmlonly
-⇦ @ref scripts/docs/en/userver/caches.md | @ref pg_cache ⇨
+⇦ @ref scripts/docs/en/userver/caches.md | @ref scripts/docs/en/userver/pg/cache.md ⇨
 @htmlonly </div> @endhtmlonly
 

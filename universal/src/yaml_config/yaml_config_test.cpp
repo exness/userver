@@ -1,5 +1,6 @@
 #include <userver/yaml_config/yaml_config.hpp>
 
+#include <ranges>
 #include <utility>
 
 #include <gmock/gmock.h>
@@ -7,6 +8,7 @@
 
 #include <formats/common/value_test.hpp>
 #include <userver/formats/common/utils.hpp>
+#include <userver/formats/json/raw_string.hpp>
 #include <userver/formats/json/serialize.hpp>
 #include <userver/formats/json/value.hpp>
 #include <userver/formats/json/value_builder.hpp>
@@ -712,6 +714,11 @@ TEST(YamlConfig, SubconfigNotObject) {
     auto subconf = conf["member"];
     // It must throw an exception
     UEXPECT_THROW(subconf["another"], yaml_config::Exception);
+}
+
+TEST(YamlConfig, ValueIsForwardRange) {
+    static_assert(std::ranges::forward_range<yaml_config::YamlConfig>);
+    static_assert(std::ranges::forward_range<const yaml_config::YamlConfig>);
 }
 
 TEST(YamlConfig, IteratorArray) {

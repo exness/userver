@@ -28,8 +28,6 @@ async def test_query_span(service_client):
     YDB_QUERIES_COMMAND_CONTROL={
         'select': {
             'attempts': 11,
-            'operation-timeout-ms': 5001,
-            'cancel-after-ms': 5002,
             'client-timeout-ms': 5003,
             'get-session-timeout-ms': 5004,
         },

@@ -29,8 +29,6 @@ bool operator==(const LabelView& x, const LabelView& y) noexcept {
     return x.Name() == y.Name() && x.Value() == y.Value();
 }
 
-bool operator!=(const LabelView& x, const LabelView& y) noexcept { return !(x == y); }
-
 Label::Label(LabelView view)
     : name_{view.Name()},
       value_{view.Value()}
@@ -41,8 +39,6 @@ bool operator<(const Label& x, const Label& y) noexcept {
 }
 
 bool operator==(const Label& x, const Label& y) noexcept { return x.Name() == y.Name() && x.Value() == y.Value(); }
-
-bool operator!=(const Label& x, const Label& y) noexcept { return !(x == y); }
 
 }  // namespace utils::statistics
 

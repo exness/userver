@@ -25,17 +25,11 @@ constexpr bool operator==(const CachedHash<T>& x, const CachedHash<T>& y) {
     return x.hash == y.hash && x.key == y.key;
 }
 
-/// @brief Compares utils::CachedHash by hash first and then by keys
-template <class T>
-constexpr bool operator!=(const CachedHash<T>& x, const CachedHash<T>& y) {
-    return !(x.key == y.key);
-}
-
 /// @brief Compares utils::CachedHash only by keys
 template <class Equal>
 class CachedHashKeyEqual {
 public:
-    explicit constexpr CachedHashKeyEqual(const Equal& eq)
+    constexpr explicit CachedHashKeyEqual(const Equal& eq)
         : equality_(eq)
     {}
 
@@ -45,7 +39,7 @@ public:
     }
 
 private:
-    Equal equality_;
+    [[no_unique_address]] Equal equality_;
 };
 
 /// @brief Compares utils::CachedHash only by keys (EBO-optimized for non-final Equal)
@@ -53,7 +47,7 @@ template <class Equal>
 requires(!std::is_final_v<Equal>)
 class CachedHashKeyEqual<Equal> : private Equal {
 public:
-    explicit constexpr CachedHashKeyEqual(const Equal& eq)
+    constexpr explicit CachedHashKeyEqual(const Equal& eq)
         : Equal(eq)
     {}
 

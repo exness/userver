@@ -36,7 +36,7 @@ void AtomicSharedPtrRead(benchmark::State& state) {
 
         for ([[maybe_unused]] auto _ : state) {
             auto snapshot_ptr = ptr.Load();
-            benchmark::DoNotOptimize(*snapshot_ptr);
+            benchmark::DoNotOptimize(snapshot_ptr);
         }
     });
 }
@@ -50,16 +50,16 @@ void AtomicSharedPtrContention(benchmark::State& state) {
         std::vector<engine::TaskWithResult<void>> tasks;
         tasks.reserve(state.range(0) - 2);
         for (int i = 0; i < state.range(0) - 2; i++) {
-            tasks.push_back(engine::AsyncNoSpan([&]() {
+            tasks.push_back(engine::AsyncNoTracing([&]() {
                 while (run) {
                     auto snapshot_ptr = ptr.Load();
-                    benchmark::DoNotOptimize(*snapshot_ptr);
+                    benchmark::DoNotOptimize(snapshot_ptr);
                 }
             }));
         }
 
         if (state.range(1)) {
-            tasks.push_back(engine::AsyncNoSpan([&]() {
+            tasks.push_back(engine::AsyncNoTracing([&]() {
                 size_t i = 0;
                 while (run) {
                     std::unordered_map<int, int> writer = *ptr.Load();
@@ -72,7 +72,7 @@ void AtomicSharedPtrContention(benchmark::State& state) {
 
         for ([[maybe_unused]] auto _ : state) {
             auto snapshot_ptr = ptr.Load();
-            benchmark::DoNotOptimize(*snapshot_ptr);
+            benchmark::DoNotOptimize(snapshot_ptr);
         }
 
         run = false;

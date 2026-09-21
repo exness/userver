@@ -6,6 +6,7 @@
 #include <array>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <userver/compiler/impl/lifetime.hpp>
@@ -36,8 +37,6 @@ public:
         return a.GetOctets() == b.GetOctets();
     }
 
-    friend bool operator!=(const MacaddrBase<N>& a, const MacaddrBase<N>& b) noexcept { return !(a == b); }
-
 private:
     OctetsType macaddr_ = {0};
 };
@@ -59,10 +58,10 @@ std::string MacaddrToString(Macaddr macaddr);
 std::string Macaddr8ToString(Macaddr8 macaddr);
 
 /// @brief Get 48-bit MAC address from std::string.
-Macaddr MacaddrFromString(const std::string& str);
+Macaddr MacaddrFromString(std::string_view str);
 
 /// @brief Get 64-bit MAC address from std::string.
-Macaddr8 Macaddr8FromString(const std::string& str);
+Macaddr8 Macaddr8FromString(std::string_view str);
 
 }  // namespace utils
 

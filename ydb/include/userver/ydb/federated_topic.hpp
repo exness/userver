@@ -11,8 +11,12 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 
 #include <ydb-cpp-sdk/client/federated_topic/federated_topic.h>
+#include <ydb-cpp-sdk/client/types/executor/executor.h>
+
+#include <userver/compiler/impl/lifetime.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -33,7 +37,6 @@ struct TopicSettings;
 /// @ref samples/ydb_service/components/federated_topic_reader.cpp
 ///
 /// @example samples/ydb_service/components/federated_topic_reader.hpp
-/// @example samples/ydb_service/components/federated_topic_reader.cpp
 class FederatedTopicReadSession final {
 public:
     /// @cond
@@ -58,11 +61,11 @@ public:
     /// Force close after timeout
     bool Close(std::chrono::milliseconds timeout);
 
-    /// Get native read session
-    /// @warning Use with care! Facilities from
-    /// `<core/include/userver/drivers/subscribable_futures.hpp>` can help with
-    /// non-blocking wait operations.
-    std::shared_ptr<NYdb::NFederatedTopic::IFederatedReadSession> GetNativeTopicReadSession();
+    /// @brief Get native read session
+    ///
+    /// @warning Use with care! Facilities from @ref userver/drivers/subscribable_futures.hpp can help
+    /// with non-blocking wait operations.
+    NYdb::NFederatedTopic::IFederatedReadSession& GetNativeTopicReadSession() USERVER_IMPL_LIFETIME_BOUND;
 
 private:
     std::shared_ptr<NYdb::NFederatedTopic::IFederatedReadSession> read_session_;
@@ -89,11 +92,20 @@ public:
     /// @warning Use with care! Facilities from
     /// `<core/include/userver/drivers/subscribable_futures.hpp>` can help with
     /// non-blocking wait operations.
-    NYdb::NFederatedTopic::TFederatedTopicClient& GetNativeTopicClient();
+    NYdb::NFederatedTopic::TFederatedTopicClient& GetNativeTopicClient() USERVER_IMPL_LIFETIME_BOUND;
 
 private:
     std::shared_ptr<impl::Driver> driver_;
-    NYdb::NFederatedTopic::TFederatedTopicClient topic_client_;
+    // Owned executors: Stop() only after `topic_client_` is destroyed (see
+    // ~FederatedTopicClient). Joining these threads after the native client is
+    // gone avoids atexit use-after-destroy (e.g. SEGV in TCodecMap). Stopping
+    // them while TFederatedTopicClient is still alive would deadlock or stall
+    // writes.
+    NYdb::IExecutor::TPtr compression_executor_;
+    NYdb::IExecutor::TPtr handlers_executor_;
+    // `reset()` in ~FederatedTopicClient runs before Stop() on the executors
+    // above.
+    std::optional<NYdb::NFederatedTopic::TFederatedTopicClient> topic_client_;
 };
 
 }  // namespace ydb

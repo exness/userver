@@ -107,7 +107,7 @@ ConfigPatch Parse(const formats::json::Value& value, formats::parse::To<ConfigPa
         ParseMs(value[kFullUpdateJitterMs]),
         std::nullopt,
         value[kUpdatesEnabled].As<bool>(true),
-        value[kAlertOnFailingToUpdateTimes].As<size_t>(0)
+        value[kAlertOnFailingToUpdateTimes].As<std::optional<std::uint64_t>>(std::nullopt)
     };
 
     if (!config.update_interval.count() && !config.full_update_interval.count()) {
@@ -250,7 +250,8 @@ Config Config::MergeWith(const ConfigPatch& patch) const {
     copy.full_update_interval = patch.full_update_interval;
     copy.full_update_jitter = patch.full_update_jitter;
     copy.updates_enabled = patch.updates_enabled;
-    copy.alert_on_failing_to_update_times = patch.alert_on_failing_to_update_times;
+    copy.alert_on_failing_to_update_times =
+        patch.alert_on_failing_to_update_times.value_or(copy.alert_on_failing_to_update_times);
     if (patch.exception_interval) {
         copy.exception_interval = patch.exception_interval;
     }

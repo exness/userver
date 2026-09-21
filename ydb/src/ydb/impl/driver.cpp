@@ -1,13 +1,15 @@
 #include "driver.hpp"
 
+#include <utility>
+
 #include <ydb-cpp-sdk/client/driver/driver.h>
 #include <ydb-cpp-sdk/client/extensions/solomon_stats/pull_connector.h>
 #include <ydb-cpp-sdk/client/iam/iam.h>
 #include <ydb-cpp-sdk/client/types/credentials/credentials.h>
 
 #include <userver/utils/algo.hpp>
-#include <userver/utils/text_light.hpp>
 
+#include <ydb/impl/build_info.hpp>
 #include <ydb/impl/config.hpp>
 #include <ydb/impl/native_metrics.hpp>
 
@@ -24,6 +26,7 @@ Driver::Driver(std::string dbname, impl::DriverSettings settings)
     NYdb::TDriverConfig driver_config;
     driver_config.SetEndpoint(settings.endpoint)
         .SetDatabase(settings.database)
+        .SetDiscoveryMode(NYdb::EDiscoveryMode::Async)
         .SetBalancingPolicy(
             settings.prefer_local_dc
                 ? NYdb::EBalancingPolicy::UsePreferableLocation
@@ -70,6 +73,8 @@ Driver::Driver(std::string dbname, impl::DriverSettings settings)
         driver_config.SetGRpcKeepAlivePermitWithoutCalls(*settings.grpc_keepalive_permit_without_calls);
     }
 
+    AppendUserverYdbBuildInfo(driver_config);
+
     driver_ = std::make_unique<NYdb::TDriver>(driver_config);
     NSolomonStatExtension::AddMetricRegistry(*driver_, native_metrics_.get());
 }
@@ -84,14 +89,11 @@ const std::string& Driver::GetDbPath() const { return dbpath_; }
 
 utils::RetryBudget& Driver::GetRetryBudget() { return retry_budget_; }
 
-void DumpMetric(utils::statistics::Writer& writer, const Driver& driver) {
-    writer["native"] = *driver.native_metrics_;
-    writer["retry_budget"] = driver.retry_budget_;
-}
+void DumpMetric(utils::statistics::Writer& writer, const Driver& driver) { writer["native"] = *driver.native_metrics_; }
 
 std::string JoinPath(std::string_view database_path, std::string_view path) {
-    UASSERT(!utils::text::EndsWith(database_path, "/"));
-    return utils::StrCat(database_path, (utils::text::StartsWith(path, "/") ? "" : "/"), path);
+    UASSERT(!database_path.ends_with("/"));
+    return utils::StrCat(database_path, (path.starts_with("/") ? "" : "/"), path);
 }
 
 }  // namespace ydb::impl

@@ -5,10 +5,9 @@
 #include <fmt/format.h>
 
 #include <userver/logging/impl/logger_base.hpp>
-#include <userver/logging/impl/timestamp.hpp>
+#include <userver/logging/timestamp.hpp>
 #include <userver/utils/datetime.hpp>
 #include <userver/utils/encoding/tskv.hpp>
-#include <userver/utils/text_light.hpp>
 
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/status_codes.hpp>
@@ -32,10 +31,10 @@ std::string EscapeForAccessTskvLog(std::string_view str) {
 std::string ParseIp(std::string_view sv) {
     static constexpr std::string_view kIpv6 = "ipv6:";
     static constexpr std::string_view kIpv4 = "ipv4:";
-    if (utils::text::StartsWith(sv, kIpv6)) {
+    if (sv.starts_with(kIpv6)) {
         sv = sv.substr(kIpv6.size());
     }
-    if (utils::text::StartsWith(sv, kIpv4)) {
+    if (sv.starts_with(kIpv4)) {
         sv = sv.substr(kIpv4.size());
     }
 
@@ -85,7 +84,7 @@ logging::impl::LogExtraTskvFormatter FormatLogMessage(
         "\tupstream_response_time={}.{:0>3}"
         "\tgrpc_status={}"
         "\tgrpc_status_code={}",
-        logging::impl::GetCurrentGMTimeString(start_time).ToStringView(),
+        logging::GetCurrentGMTimeString(start_time).ToStringView(),
         EscapeForAccessTskvLog(user_agent),
         ip,
         ip,

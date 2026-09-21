@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/ydb/io/structs.hpp
+/// @brief YDB struct serialization traits and customization
+
 #include <ydb-cpp-sdk/client/result/result.h>
 #include <ydb-cpp-sdk/client/value/value.h>
 
@@ -86,7 +89,7 @@ StructMemberNames(CustomMemberName (&&)[N]) -> StructMemberNames<N>;
 /// In order to get serialization for a struct, you need to define
 /// `kYdbMemberNames` inside it:
 ///
-/// @snippet ydb/small_table.hpp  struct sample
+/// @snippet ydb/tests/small_table.hpp  struct sample
 ///
 /// Field names can be overridden:
 ///
@@ -139,10 +142,14 @@ constexpr auto MakeFromTupleOfOptionals(Tuple&& tuple, std::index_sequence<Indic
     return T{*utils::ForwardLike<Tuple>(std::get<Indices>(tuple))...};
 }
 
+template <typename T>
+concept IsStruct = !std::is_same_v<decltype(kStructMemberNames<T>), const impl::NotStruct>;
+
 }  // namespace impl
 
 template <typename T>
-struct ValueTraits<T, std::enable_if_t<!std::is_same_v<decltype(kStructMemberNames<T>), const impl::NotStruct>>> {
+requires impl::IsStruct<T>
+struct ValueTraits<T> {
     static_assert(std::is_aggregate_v<T>);
     static constexpr auto kFieldNames = impl::WithDeducedNames<T>(kStructMemberNames<T>);
     static constexpr auto kFieldNamesSet = utils::MakeTrivialSet<kFieldNames>();
@@ -217,10 +224,8 @@ struct ValueTraits<T, std::enable_if_t<!std::is_same_v<decltype(kStructMemberNam
 };
 
 template <typename T>
-struct ValueTraits<
-    std::optional<T>,
-    std::enable_if_t<!std::is_same_v<decltype(kStructMemberNames<T>), const impl::NotStruct>>>
-    : impl::GenericOptionalValueTraits<T> {};
+requires impl::IsStruct<T>
+struct ValueTraits<std::optional<T>> : impl::GenericOptionalValueTraits<T> {};
 
 namespace impl {
 

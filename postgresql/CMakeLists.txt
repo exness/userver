@@ -39,16 +39,18 @@ add_custom_command(
 userver_module(
     postgresql
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-    LINK_LIBRARIES_PRIVATE userver-libpq INCLUDE_DIRS_PRIVATE "${LIBPQ_VERSION_DIR}"
+    LINK_LIBRARIES_PRIVATE userver-libpq
+    INCLUDE_DIRS_PRIVATE "${LIBPQ_VERSION_DIR}"
     UTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_test.cpp"
     DBTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_pgtest.cpp"
+    DBTEST_LINK_LIBRARIES userver-postgresql-utest
     DBTEST_DATABASES postgresql
     DBTEST_ENV POSTGRES_TEST_DSN=postgresql://testsuite@localhost:15433/postgres
     UBENCH_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_benchmark.cpp"
     UBENCH_LINK_LIBRARIES userver-libpq
     UBENCH_DATABASES postgresql
     UBENCH_ENV POSTGRES_DSN_BENCH=postgresql://testsuite@localhost:15433/postgres
-    DEPENDS core
+    COMPONENT_DEPENDS core
     GENERATE_DYNAMIC_CONFIGS
     EMBED_FILES src/cache/base_postgres_cache.yaml src/storages/postgres/component.yaml
                 src/storages/postgres/dist_lock_component_base.yaml
@@ -56,21 +58,25 @@ userver_module(
 
 target_sources(${PROJECT_NAME} PRIVATE "${LIBPQ_VERSION_DIR}/userver_libpq_version.hpp")
 
-_userver_install_targets(COMPONENT postgres TARGETS userver-libpq)
+_userver_install_targets(COMPONENT postgresql TARGETS userver-libpq)
 _userver_directory_install(
-    COMPONENT postgres
+    COMPONENT postgresql
     FILES "${USERVER_ROOT_DIR}/cmake/UserverSql.cmake"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver"
 )
 _userver_directory_install(
-    COMPONENT postgres
+    COMPONENT postgresql
     DIRECTORY "${USERVER_ROOT_DIR}/scripts/sql"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver/scripts"
 )
 
+set(USERVER_DIR "${USERVER_ROOT_DIR}")
+include(UserverSql)
+
+if(USERVER_FEATURE_UTEST)
+    add_subdirectory(utest)
+endif()
+
 if(USERVER_BUILD_TESTS)
     add_subdirectory(functional_tests)
 endif()
-
-set(USERVER_DIR "${USERVER_ROOT_DIR}")
-include(UserverSql)

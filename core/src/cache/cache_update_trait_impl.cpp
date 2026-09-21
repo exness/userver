@@ -16,6 +16,7 @@
 #include <userver/utils/atomic.hpp>
 #include <userver/utils/datetime.hpp>
 #include <userver/utils/rand.hpp>
+#include <userver/utils/resource_scopes.hpp>
 
 #include <cache/cache_dependencies.hpp>
 #include <dump/dump_locator.hpp>
@@ -103,7 +104,7 @@ void CacheUpdateTrait::Impl::UpdateSyncDebug(UpdateType update_type) {
     }).Get();
 }
 
-const std::string& CacheUpdateTrait::Impl::Name() const { return name_; }
+const std::string& CacheUpdateTrait::Impl::Name() const noexcept { return name_; }
 
 CacheUpdateTrait::Impl::Impl(CacheDependencies&& dependencies, CacheUpdateTrait& self)
     : customized_trait_(self),
@@ -130,15 +131,20 @@ CacheUpdateTrait::Impl::Impl(CacheDependencies&& dependencies, CacheUpdateTrait&
         );
     }
 
-    statistics_holder_ =
-        dependencies.statistics_storage.RegisterWriter("cache", [this](utils::statistics::Writer& writer) {
+    dependencies.statistics_storage
+        .RegisterWriter(dependencies.scopes, "cache", [this](utils::statistics::Writer& writer) {
             writer.ValueWithLabels(statistics_, {"cache_name", Name()});
         });
 
     if (dependencies.config.config_updates_enabled) {
-        config_subscription_ =
-            CheckNotNull(dependencies.config_source)->UpdateAndListen(this, "cache." + Name(), &Impl::OnConfigUpdate);
+        CheckNotNull(dependencies.config_source)
+            ->UpdateAndListen(dependencies.scopes, this, "cache." + Name(), &Impl::OnConfigUpdate);
     }
+
+    // AfterConstruction follows component dependencies, so sequential testsuite
+    // reset updates this cache before caches that FindComponent it. See
+    // ComponentList.SequentialResetUpdatesDependencyBeforeDependent.
+    dependencies.scopes.Register([this] { return cache_control_.RegisterPeriodicCache(customized_trait_); });
 }
 
 CacheUpdateTrait::Impl::~Impl() {
@@ -162,18 +168,6 @@ void CacheUpdateTrait::Impl::StartPeriodicUpdates(utils::Flags<CacheUpdateTrait:
     if (is_running_.exchange(true)) {
         return;
     }
-
-    // CacheResetRegistration is created here to achieve that cache invalidators
-    // are registered in the order of cache component dependency.
-    // We exploit the fact that StartPeriodicUpdates is called at the end
-    // of all concrete cache component constructors.
-    //
-    // Registration is performed *before* the first update so that caches,
-    // which indirectly wait for the artifacts of this update, are always
-    // registered after this cache. This allows e.g. DynamicConfigClientUpdater
-    // to always be CacheControl-updated before the caches that use
-    // DynamicConfig::GetSource in their constructor.
-    cache_reset_registration_ = cache_control_.RegisterPeriodicCache(customized_trait_);
 
     try {
         const auto config = GetConfig();
@@ -245,20 +239,16 @@ void CacheUpdateTrait::Impl::StartPeriodicUpdates(utils::Flags<CacheUpdateTrait:
             });
         }
     } catch (...) {
-        is_running_ = false;  // update_task_ is not started, don't check it in dtr
+        StopPeriodicUpdates();
         throw;
     }
 }
 
 void CacheUpdateTrait::Impl::StopPeriodicUpdates() {
-    if (!is_running_.exchange(false)) {
-        return;
-    }
+    is_running_.store(false);
 
-    cache_reset_registration_.Unregister();
-    config_subscription_.Unsubscribe();
-    statistics_holder_.Unregister();
-
+    // All of the following cleanup operations are idempotent. Do not gate them on the previous is_running_ value:
+    // StartPeriodicUpdates may have partially completed, so we need to clean up even if it failed.
     try {
         update_task_.Stop();
     } catch (const std::exception& ex) {
@@ -374,17 +364,17 @@ void CacheUpdateTrait::Impl::OnUpdateSkipped() {
     }
 }
 
-void CacheUpdateTrait::Impl::OnCacheModified() { cache_modified_ = true; }
+void CacheUpdateTrait::Impl::OnCacheModified() noexcept { cache_modified_ = true; }
 
-bool CacheUpdateTrait::Impl::HasPreAssignCheck() const { return static_config_.has_pre_assign_check; }
+bool CacheUpdateTrait::Impl::HasPreAssignCheck() const noexcept { return static_config_.has_pre_assign_check; }
 
-bool CacheUpdateTrait::Impl::IsSafeDataLifetime() const { return static_config_.is_safe_data_lifetime; }
+bool CacheUpdateTrait::Impl::IsSafeDataLifetime() const noexcept { return static_config_.is_safe_data_lifetime; }
 
 void CacheUpdateTrait::Impl::SetDataSizeStatistic(std::size_t size) noexcept {
     statistics_.documents_current_count = size;
 }
 
-engine::TaskProcessor& CacheUpdateTrait::Impl::GetCacheTaskProcessor() const { return task_processor_; }
+engine::TaskProcessor& CacheUpdateTrait::Impl::GetCacheTaskProcessor() const noexcept { return task_processor_; }
 
 void CacheUpdateTrait::Impl::DoUpdate(UpdateType update_type, const Config& config) {
     const auto steady_now = utils::datetime::SteadyNow();

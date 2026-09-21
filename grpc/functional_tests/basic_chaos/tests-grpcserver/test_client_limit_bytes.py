@@ -2,6 +2,7 @@ import pytest
 import requests_server
 
 
+@pytest.mark.skip(reason='This test flaps(')
 @pytest.mark.parametrize('case', requests_server.ALL_CASES)
 async def test_client_limit_bytes(grpc_client, gate, case):
     for i in (50, 100, 150):

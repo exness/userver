@@ -90,24 +90,21 @@ HttpClientCore::HttpClientCore(const ComponentConfig& component_config, const Co
     if (testsuite_enabled) {
         const auto& timeout = component_config["testsuite-timeout"].As<std::optional<std::chrono::milliseconds>>();
         auto prefixes = component_config["testsuite-allowed-url-prefixes"].As<std::vector<std::string>>({});
-        http_client_->SetTestsuiteConfig({prefixes, timeout});
+        http_client_->SetTestsuiteConfig({std::move(prefixes), timeout});
 
         auto& testsuite = context.FindComponent<components::TestsuiteSupport>();
         testsuite.GetHttpAllowedUrlsExtra().RegisterHttpClient(*http_client_);
     }
 
     auto& config_component = context.FindComponent<components::DynamicConfig>();
-    subscriber_scope_ =
-        components::DynamicConfig::NoblockSubscriber{config_component}
-            .UpdateIfHasConfigAndListen(this, kName, &HttpClientCore::OnConfigUpdate);
+    components::DynamicConfig::NoblockSubscriber{config_component}
+        .UpdateIfHasConfigAndListen(context.Scopes(), this, kName, &HttpClientCore::OnConfigUpdate);
     const auto thread_name_prefix = component_config["thread-name-prefix"].As<std::string>("");
     auto stats_name = "httpclient" + (thread_name_prefix.empty() ? "" : ("-" + thread_name_prefix));
     utils::statistics::RegisterWriterScope(context, std::move(stats_name), [this](utils::statistics::Writer& writer) {
         WriteStatistics(writer);
     });
 }
-
-HttpClientCore::~HttpClientCore() { subscriber_scope_.Unsubscribe(); }
 
 void HttpClientCore::OnLoadingCancelled() {
     is_loading_cancelled_.store(true);
@@ -117,6 +114,8 @@ void HttpClientCore::OnLoadingCancelled() {
 void HttpClientCore::WaitUntilConfigSet() const {
     config_updated_event_.Wait();
     if (is_loading_cancelled_.load()) {
+        // The exception does not reflect the root cause of the startup failure.
+        // This is okay, because the first exception will be registered and logged before OnLoadingCancelled is called.
         throw ComponentsLoadCancelledException("http core client loading cancelled");
     }
 }

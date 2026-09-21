@@ -4,8 +4,13 @@ cmake_policy(SET CMP0054 NEW)
 
 macro(_userver_module_begin)
     set(options CPM_DOWNLOAD_ONLY)
-    set(oneValueArgs # Target name, also used for package name by default
-        NAME VERSION
+    set(oneValueArgs
+        # Package name (find_package / *_FOUND). Also the default imported target name.
+        NAME
+        VERSION
+        # Optional imported target name when it must differ from NAME (e.g. lz4::lz4
+        # so the bare name "lz4" stays free for upstream CPM CMakeLists / check_library_exists).
+        TARGET_NAME
     )
     set(multiValueArgs
         DEBIAN_NAMES
@@ -18,16 +23,20 @@ macro(_userver_module_begin)
         # For CPM options
         CPM_NAME
         CPM_VERSION
-        CPM_GITHUB_REPOSITORY
         CPM_URL
+        CPM_URL_HASH
         CPM_OPTIONS
         CPM_SOURCE_SUBDIR
-        CPM_GIT_TAG
     )
 
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" "${ARGN}")
 
     set(name "${ARG_NAME}")
+    if(ARG_TARGET_NAME)
+        set(target_name "${ARG_TARGET_NAME}")
+    else()
+        set(target_name "${name}")
+    endif()
 
     string(TOUPPER "${ARG_CPM_NAME}" ARG_CPM_NAME)
     string(REPLACE "-" "_" ARG_CPM_NAME "${ARG_CPM_NAME}")
@@ -55,7 +64,7 @@ macro(_userver_module_begin)
         unset("${name}_FIND_VERSION")
     endif()
 
-    if(TARGET "${name}")
+    if(TARGET "${target_name}")
         if(NOT ${name}_FIND_VERSION)
             set("${name}_FOUND" ON)
             set("${name}_SKIP_USERVER_FIND" ON)
@@ -339,16 +348,18 @@ macro(_userver_module_end)
     endif()
 
     if((NOT "${${libraries_variable}}" STREQUAL "") OR (NOT "${${includes_variable}}" STREQUAL ""))
-        if(NOT TARGET "${name}")
-            add_library("${name}" INTERFACE IMPORTED GLOBAL)
+        if(NOT TARGET "${target_name}")
+            add_library("${target_name}" INTERFACE IMPORTED GLOBAL)
 
             if(NOT "${${includes_variable}}" STREQUAL "")
-                set_target_properties("${name}" PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${${includes_variable}}")
+                set_target_properties(
+                    "${target_name}" PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${${includes_variable}}"
+                )
                 message(STATUS "${name} include directories: ${${includes_variable}}")
             endif()
 
             if(NOT "${${libraries_variable}}" STREQUAL "")
-                set_target_properties("${name}" PROPERTIES INTERFACE_LINK_LIBRARIES "${${libraries_variable}}")
+                set_target_properties("${target_name}" PROPERTIES INTERFACE_LINK_LIBRARIES "${${libraries_variable}}")
                 message(STATUS "${name} libraries: ${${libraries_variable}}")
             endif()
         endif()
@@ -365,22 +376,35 @@ endmacro()
 macro(_userver_cpm_addpackage name)
     include(DownloadUsingCPM)
 
-    set(EXTRA_ARGS)
-    if(ARG_CPM_DOWNLOAD_ONLY)
-        set(EXTRA_ARGS ${EXTRA_ARGS} DOWNLOAD_ONLY)
+    # Prefer release/source tarballs over git clones (faster, no submodule init).
+    if(NOT ARG_CPM_URL)
+        message(FATAL_ERROR "_userver_cpm_addpackage(${name}): CPM_URL is required (use a tarball URL)")
     endif()
-    cpmaddpackage(
-        NAME ${name}
-        VERSION ${ARG_CPM_VERSION}
-        GITHUB_REPOSITORY ${ARG_CPM_GITHUB_REPOSITORY}
-        GIT_SHALLOW TRUE
-        URL ${ARG_CPM_URL}
-        OPTIONS ${ARG_CPM_OPTIONS}
-        SOURCE_SUBDIR ${ARG_CPM_SOURCE_SUBDIR}
-        GIT_TAG ${ARG_CPM_GIT_TAG} ${EXTRA_ARGS}
-    )
+
+    set(_userver_cpm_args NAME ${name} VERSION ${ARG_CPM_VERSION} URL ${ARG_CPM_URL})
+    if(ARG_CPM_URL_HASH)
+        list(APPEND _userver_cpm_args URL_HASH ${ARG_CPM_URL_HASH})
+    endif()
+    if(ARG_CPM_OPTIONS)
+        list(APPEND _userver_cpm_args OPTIONS ${ARG_CPM_OPTIONS})
+    endif()
+    if(ARG_CPM_SOURCE_SUBDIR)
+        list(APPEND _userver_cpm_args SOURCE_SUBDIR ${ARG_CPM_SOURCE_SUBDIR})
+    endif()
+    if(ARG_CPM_DOWNLOAD_ONLY)
+        list(APPEND _userver_cpm_args DOWNLOAD_ONLY YES)
+    endif()
+    cpmaddpackage(${_userver_cpm_args})
+    unset(_userver_cpm_args)
+
     if(NOT ARG_CPM_DOWNLOAD_ONLY)
-        mark_targets_as_system("${${name}_SOURCE_DIR}")
+        # mark_targets_as_system needs the directory passed to add_subdirectory.
+        # With SOURCE_SUBDIR that is ${SOURCE_DIR}/${SOURCE_SUBDIR}, not the repo root.
+        if(ARG_CPM_SOURCE_SUBDIR)
+            mark_targets_as_system("${${name}_SOURCE_DIR}/${ARG_CPM_SOURCE_SUBDIR}")
+        else()
+            mark_targets_as_system("${${name}_SOURCE_DIR}")
+        endif()
     endif()
     set(${name}_FOUND 1)
 endmacro()

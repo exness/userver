@@ -1,12 +1,12 @@
 #include <userver/engine/impl/context_accessor.hpp>
 
-#include <engine/task/task_context.hpp>
-
 USERVER_NAMESPACE_BEGIN
 
 namespace engine::impl {
 
-ContextAccessor::ContextAccessor() = default;
+void WeakAwaitable::ImplMoveWeakAwaitableVirtualTableToCpp() {}
+
+void AwaitableBase::ImplMoveAwaitableBaseVirtualTableToCpp() {}
 
 }  // namespace engine::impl
 

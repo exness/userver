@@ -64,10 +64,10 @@ public:
 
     ReferenceType GetReferenceType() const noexcept { return reference_type_; }
 
-    void DetachFromCoroStack();
+    void DetachFromCoroStack() noexcept;
     void AttachToCoroStack();
 
-    std::optional<std::string_view> GetSpanIdForChildLogs() const;
+    std::optional<std::string_view> GetSpanIdForChildLogs() const noexcept;
 
 private:
     static std::string_view GetParentIdForLogging(const Span::Impl* parent);
@@ -77,6 +77,7 @@ private:
     const bool is_no_log_span_;
     logging::Level log_level_;
     std::optional<logging::Level> local_log_level_;
+    bool is_sampled_{true};
     const ReferenceType reference_type_;
     const utils::impl::SourceLocation source_location_;
 

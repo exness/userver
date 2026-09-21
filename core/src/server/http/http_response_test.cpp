@@ -25,7 +25,7 @@ UTEST(HttpResponse, Smoke) {
     response.SetStatus(server::http::HttpStatus::kOk);
 
     auto [server, client] = engine::io::tests::TcpListener{}.MakeSocketPair(test_deadline);
-    auto send_task = engine::AsyncNoSpan(
+    auto send_task = engine::AsyncNoTracing(
         [](auto&& response, auto&& socket) { response.SendResponse(socket); },
         std::ref(response),
         std::move(server)
@@ -38,7 +38,7 @@ UTEST(HttpResponse, Smoke) {
     constexpr std::string_view expected_header = "HTTP/1.1 200 OK\r\n";
     ASSERT_EQ(reply.substr(0, expected_header.size()), expected_header);
     const auto expected_content_length = fmt::format("\r\n{}: {}\r\n", http::headers::kContentLength, kBody.size());
-    EXPECT_TRUE(reply.find(expected_content_length) != std::string_view::npos);
+    EXPECT_THAT(reply, testing::HasSubstr(expected_content_length));
 
     EXPECT_EQ(reply.substr(reply.size() - 4 - kBody.size()), fmt::format("\r\n\r\n{}", kBody));
 }
@@ -46,7 +46,7 @@ UTEST(HttpResponse, Smoke) {
 UTEST(HttpResponse, AccounterLifetimeIfNotSent) {
     auto accounter = std::make_unique<server::request::ResponseDataAccounter>();
     const auto request = server::http::HttpRequestBuilder{*accounter}.Build();
-    request->GetHttpResponse().SetSendFailed(std::chrono::steady_clock::now());
+    request->GetHttpResponse().SetSendFailed();
     accounter.reset();
     // Now we just should not crash
 }
@@ -63,7 +63,7 @@ UTEST(HttpResponse, AccounterLifetimeIfSent) {
     response.SetStatus(server::http::HttpStatus::kOk);
 
     auto [server, client] = engine::io::tests::TcpListener{}.MakeSocketPair(test_deadline);
-    auto send_task = engine::AsyncNoSpan(
+    auto send_task = engine::AsyncNoTracing(
         [](auto&& response, auto&& socket) { response.SendResponse(socket); },
         std::ref(response),
         std::move(server)
@@ -92,7 +92,7 @@ UTEST_P(HttpResponseBody, ForbiddenBody) {
     response.SetStatus(static_cast<server::http::HttpStatus>(GetParam()));
 
     auto [server, client] = engine::io::tests::TcpListener{}.MakeSocketPair(test_deadline);
-    auto send_task = engine::AsyncNoSpan(
+    auto send_task = engine::AsyncNoTracing(
         [](auto&& response, auto&& socket) { response.SendResponse(socket); },
         std::ref(response),
         std::move(server)
@@ -104,7 +104,7 @@ UTEST_P(HttpResponseBody, ForbiddenBody) {
     const std::string_view reply{buffer.data(), reply_size};
     const std::string expected_header = "HTTP/1.1 " + std::to_string(GetParam()) + " ";
     ASSERT_EQ(reply.substr(0, expected_header.size()), expected_header);
-    EXPECT_TRUE(reply.find(http::headers::kContentLength) == std::string_view::npos);
+    EXPECT_THAT(reply, testing::Not(testing::HasSubstr(http::headers::kContentLength)));
     EXPECT_EQ(reply.substr(reply.size() - 4), "\r\n\r\n");
 }
 

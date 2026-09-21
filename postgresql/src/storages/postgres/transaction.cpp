@@ -77,10 +77,7 @@ ResultSet Transaction::DoExecute(
     if (!statement_cmd_ctl) {
         statement_cmd_ctl = conn_->GetQueryCmdCtl(query.GetOptionalNameView());
     }
-    auto source = conn_.GetConfigSource();
-    if (source) {
-        CheckDeadlineIsExpired(source->GetSnapshot());
-    }
+    CheckDeadlineIsExpired();
 
     detail::StatementStats stats{query, conn_};
     try {
@@ -117,7 +114,7 @@ Portal Transaction::MakePortal(
     return Portal{conn_.get(), portal_name, query, params, std::move(statement_cmd_ctl)};
 }
 
-void Transaction::SetParameter(const std::string& param_name, const std::string& value) {
+void Transaction::SetParameter(std::string_view param_name, std::string_view value) {
     if (!conn_) {
         LOG_LIMITED_ERROR() << "Set parameter called after transaction finished" << logging::LogExtra::Stacktrace();
         throw NotInTransaction("Transaction handle is not valid");

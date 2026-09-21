@@ -35,7 +35,7 @@ public:
 ///
 /// ## Example usage:
 ///
-/// @snippet engine/semaphore_test.cpp  Sample engine::Semaphore usage
+/// @snippet core/src/engine/semaphore_test.cpp  Sample engine::Semaphore usage
 ///
 /// @see @ref scripts/docs/en/userver/synchronization.md
 class CancellableSemaphore final {
@@ -111,7 +111,7 @@ public:
 
 private:
     enum class TryLockStatus { kSuccess, kTransientFailure, kPermanentFailure };
-    class SemaphoreWaitStrategy;
+    class SemaphoreAwaitable;
 
     TryLockStatus DoTryLock(Counter count);
     TryLockStatus LockFastPath(Counter count);
@@ -130,7 +130,7 @@ private:
 ///
 /// ## Example usage:
 ///
-/// @snippet engine/semaphore_test.cpp  Sample engine::Semaphore usage
+/// @snippet core/src/engine/semaphore_test.cpp  Sample engine::Semaphore usage
 ///
 /// @see @ref scripts/docs/en/userver/synchronization.md
 class Semaphore final {

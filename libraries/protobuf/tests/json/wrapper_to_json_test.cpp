@@ -102,7 +102,7 @@ INSTANTIATE_TEST_SUITE_P(
             })"
         },
         WrapperToJsonSuccessTestParam{
-            // using 1.5 for doubles because it is represented without precision loss in IEEE 754
+            // Using 1.5 for doubles because it is represented without precision loss in IEEE 754.
             WrapperMessageData{1.5, 1.5, -123, 123, -321, 321, true, "hello", "world"},
             R"({
               "field1":1.5,

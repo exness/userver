@@ -25,8 +25,7 @@ FutureStatus FutureStateBase::WaitUntil(Deadline deadline) {
 
     auto& context = current_task::GetCurrentTaskContext();
 
-    FutureWaitStrategy wait_strategy{*this, context};
-    const auto wakeup_source = context.Sleep(wait_strategy, deadline);
+    const auto wakeup_source = context.Sleep(*this, deadline);
     return ToFutureStatus(wakeup_source);
 }
 
@@ -53,12 +52,12 @@ void FutureStateBase::WaitForResult() {
     }
 }
 
-void FutureStateBase::TryAppendAwaiter(boost::intrusive_ptr<Awaiter>& awaiter, std::uintptr_t context) {
+void FutureStateBase::TryAppendAwaiter(AwaiterPtr& awaiter, std::uintptr_t context) {
     finish_awaiters_->GetSignalOrAppend(awaiter, context);
 }
 
-void FutureStateBase::RemoveAwaiter(Awaiter& awaiter, std::uintptr_t context) noexcept {
-    finish_awaiters_->Remove(awaiter, context);
+AwaiterPtr FutureStateBase::RemoveAwaiter(Awaiter& awaiter, std::uintptr_t context) noexcept {
+    return finish_awaiters_->Remove(awaiter, context);
 }
 
 }  // namespace engine::impl

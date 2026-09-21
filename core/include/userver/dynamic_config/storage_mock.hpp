@@ -27,14 +27,10 @@ concept IsJson = std::is_same_v<T, formats::json::Value>;
 class KeyValue final {
 public:
     /// Uses the provided value directly. It can also be constructed in-place:
-    /// @code
-    /// {kMyConfig, {"foo", 42}}
-    /// @endcode
+    /// @snippet core/src/dynamic_config/config_test.cpp  KeyValue in-place
     ///
     /// When passed a formats::json::Value, parses the value from it:
-    /// @code
-    /// {kMyConfig, formats::json::FromString(R"({"foo": "what", "bar": 42})")}
-    /// @endcode
+    /// @snippet core/src/dynamic_config/config_test.cpp  KeyValue from JSON
     template <typename VariableType, typename Value = VariableType>
     KeyValue(const Key<VariableType>& key, Value&& value)
         : id_(impl::ConfigIdGetter::Get(key)),

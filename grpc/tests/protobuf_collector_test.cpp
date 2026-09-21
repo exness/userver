@@ -1,4 +1,4 @@
-#include <userver/ugrpc/impl/protobuf_collector.hpp>
+#include <userver/protobuf/impl/descriptor_collector.hpp>
 
 #include <cstddef>
 #include <vector>
@@ -12,13 +12,13 @@
 USERVER_NAMESPACE_BEGIN
 
 TEST(GetGeneratedMessages, Ok) {
-    const ugrpc::DescriptorList generated_message = ugrpc::impl::GetGeneratedMessages();
+    const ugrpc::DescriptorList generated_message = protobuf::impl::GetGeneratedMessages();
 
     // Please adjust this number if new test proto schemas are added.
 #if GOOGLE_PROTOBUF_VERSION >= 4022000
-    constexpr std::size_t kExpectedRpcCount = 4;
+    constexpr std::size_t kExpectedRpcCount = 5;
 #else
-    constexpr std::size_t kExpectedRpcCount = 3;
+    constexpr std::size_t kExpectedRpcCount = 4;
 #endif
 
     EXPECT_EQ(generated_message.size(), kExpectedRpcCount * 2);
@@ -38,6 +38,8 @@ TEST(GetGeneratedMessages, Ok) {
         generated_message,
         testing::Contains(ugrpc::FindGeneratedMessage("sample.ugrpc.MessageWithDifferentTypes"))
     );
+    EXPECT_THAT(generated_message, testing::Contains(ugrpc::FindGeneratedMessage("sample.ugrpc.Proto2Request")));
+    EXPECT_THAT(generated_message, testing::Contains(ugrpc::FindGeneratedMessage("sample.ugrpc.Proto2Response")));
 }
 
 USERVER_NAMESPACE_END

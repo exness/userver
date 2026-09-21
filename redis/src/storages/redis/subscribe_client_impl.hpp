@@ -4,7 +4,7 @@
 #include <string>
 
 #include <userver/storages/redis/base.hpp>
-#include <userver/storages/redis/wait_connected_mode.hpp>
+#include <userver/storages/redis/health_check_param.hpp>
 
 #include <userver/storages/redis/subscribe_client.hpp>
 #include <userver/storages/redis/subscription_token.hpp>
@@ -51,8 +51,27 @@ public:
         const CommandControl& command_control
     ) override;
 
+    SubscriptionToken Subscribe(
+        std::vector<std::string> channels,
+        SubscriptionToken::OnMessageCb on_message_cb,
+        const CommandControl& command_control
+    ) override;
+
+    SubscriptionToken Psubscribe(
+        std::vector<std::string> patterns,
+        SubscriptionToken::OnPmessageCb on_pmessage_cb,
+        const CommandControl& command_control
+    ) override;
+
+    SubscriptionToken Ssubscribe(
+        std::vector<std::string> channels,
+        SubscriptionToken::OnMessageCb on_message_cb,
+        const CommandControl& command_control
+    ) override;
+
     size_t ShardsCount() const override;
     bool IsInClusterMode() const override;
+    bool IsReady(const HealthCheckParams& params) const override;
 
     void WaitConnectedOnce(RedisWaitConnected wait_connected);
 

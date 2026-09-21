@@ -137,10 +137,11 @@ definitions:
                 type: integer
                 default: 1
 
+        x-taxi-extra-member: true
     ObjectWithAdditionalPropertiesTrueExtraMemberFalse:
         type: object
         additionalProperties: true
-        x-taxi-cpp-extra-member: false
+        x-taxi-extra-member: false
         properties:
             one:
                 type: integer

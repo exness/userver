@@ -3,6 +3,7 @@
 /// @file
 /// @brief @copybrief storages::redis::RequestEval
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/storages/redis/parse_reply.hpp>
 #include <userver/storages/redis/reply.hpp>
 #include <userver/storages/redis/request.hpp>
@@ -30,10 +31,10 @@ public:
         return impl::ParseReply<ScriptResult, ReplyType>(request_.GetRaw(), request_description);
     }
 
-    /// @cond
-    /// Internal helper for WaitAny/WaitAll
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return request_.TryGetContextAccessor(); }
-    /// @endcond
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+        return request_.GetAwaitableToken();
+    }
 
 private:
     RequestEvalCommon request_;

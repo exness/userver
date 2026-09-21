@@ -12,7 +12,7 @@ ConnectTo::ConnectTo(ConnectTo&& other) noexcept : value_(other.value_) {
 
 ConnectTo::ConnectTo(const std::string& value) {
     if (!value.empty()) {
-        value_ = curl::native::curl_slist_append(nullptr, value.data());
+        value_ = curl::native::curl_slist_append(nullptr, value.c_str());
     }
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/single_use_event.hpp>
 
@@ -46,10 +48,7 @@ public:
     /// @return true if event returned from `grpc::CompletionQueue::Next`
     [[nodiscard]] bool IsReady() const noexcept;
 
-    /// @cond
-    // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
-    /// @endcond
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND;
 
 private:
     bool enqueued_{false};

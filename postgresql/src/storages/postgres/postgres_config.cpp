@@ -1,15 +1,17 @@
 #include <storages/postgres/postgres_config.hpp>
 
 #include <fmt/format.h>
+#include <optional>
 
+#include <userver/formats/parse/common_containers.hpp>
 #include <userver/logging/log.hpp>
 
-#include <storages/postgres/experiments.hpp>
 #include <userver/storages/postgres/component.hpp>
 #include <userver/storages/postgres/exceptions.hpp>
 #include <userver/utils/userver_info.hpp>
 
 #include <userver/formats/common/items.hpp>
+#include <userver/utils/trivial_map.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -51,6 +53,18 @@ CommandControl Parse(const formats::json::Value& elem, formats::parse::To<Comman
 }
 
 namespace {
+
+constexpr USERVER_NAMESPACE::utils::TrivialBiMap kPoolerModes = [](auto&& selector) {
+    return selector().Case(PoolerMode::kSession, "session").Case(PoolerMode::kTransaction, "transaction");
+};
+
+PoolerMode ParsePoolerMode(const std::string_view pooler_mode_name) {
+    const auto pooler_mode = kPoolerModes.TryFind(pooler_mode_name);
+    if (!pooler_mode) {
+        throw std::runtime_error("Unknown pooler mode: " + std::string{pooler_mode_name});
+    }
+    return *pooler_mode;
+}
 
 template <typename ConfigType>
 ConnectionSettings::StatementLogMode ParseStatementLogMode(const ConfigType& config) {
@@ -98,6 +112,7 @@ ConnectionSettings ParseConnectionSettings(const ConfigType& config) {
             ? ConnectionSettings::kDiscardAll
             : ConnectionSettings::kDiscardNone;
     settings.deadline_propagation_enabled = config["deadline-propagation-enabled"].template As<bool>(true);
+    settings.pooler_mode = config["pooler-mode"].template As<PoolerMode>(PoolerMode::kSession);
     settings.application_name =
         config["application_name"].template As<std::string>(USERVER_NAMESPACE::utils::GetUserverIdentifier());
 
@@ -105,6 +120,14 @@ ConnectionSettings ParseConnectionSettings(const ConfigType& config) {
 }
 
 }  // namespace
+
+PoolerMode Parse(const yaml_config::YamlConfig& config, formats::parse::To<PoolerMode>) {
+    return ParsePoolerMode(config.As<std::string>("session"));
+}
+
+PoolerMode Parse(const formats::json::Value& config, formats::parse::To<PoolerMode>) {
+    return ParsePoolerMode(config.As<std::string>("session"));
+}
 
 ConnectionSettings::StatementLogMode
 Parse(const yaml_config::YamlConfig& config, formats::parse::To<ConnectionSettings::StatementLogMode>) {
@@ -150,6 +173,9 @@ ConnectionSettingsDynamic Parse(const formats::json::Value& config, formats::par
     if (const auto dp_enabled = config["deadline-propagation-enabled"].As<std::optional<bool>>(); dp_enabled) {
         settings.deadline_propagation_enabled = *dp_enabled;
     }
+    if (const auto pooler_mode = config["pooler-mode"].As<std::optional<PoolerMode>>(); pooler_mode) {
+        settings.pooler_mode = *pooler_mode;
+    }
 
     return settings;
 }
@@ -160,51 +186,62 @@ ConnectionSettings Parse(const yaml_config::YamlConfig& config, formats::parse::
 
 namespace {
 
-template <typename T>
-std::string ToString(const std::optional<T>& v) {
-    if (v.has_value()) {
-        return std::to_string(*v);
-    }
-    return "std::nullopt";
-}
-
-std::string ToString(std::size_t v) { return std::to_string(v); }
-
-template <typename T, typename ConfigType>
-T GetField(const ConfigType& config, std::string_view name, T default_val) {
-    return config[name].template As<T>(default_val);
-}
-
-template <typename Settings, typename ConfigType>
-Settings ParsePoolSettings(const ConfigType& config) {
-    Settings result{};
-    result.min_size = GetField(config, "min_pool_size", result.min_size);
-    result.max_size = GetField(config, "max_pool_size", result.max_size);
-    result.max_queue_size = GetField(config, "max_queue_size", result.max_queue_size);
-    result.connecting_limit = GetField(config, "connecting_limit", result.connecting_limit);
-
-    if (result.max_size == 0) {
+void ValidatePoolSizes(const std::optional<std::size_t>& min_size, const std::optional<std::size_t>& max_size) {
+    if (max_size == 0) {
         throw InvalidConfig{"max_pool_size must be greater than 0"};
     }
-    if (result.max_size < result.min_size) {
+    if (max_size.has_value() && min_size.has_value() && *max_size < *min_size) {
         throw InvalidConfig{fmt::format(
             "max_pool_size cannot be less than min_pool_size. max_pool_size={}, min_pool_size={}",
-            ToString(result.max_size),
-            ToString(result.min_size)
+            *max_size,
+            *min_size
         )};
     }
+}
 
-    return result;
+template <typename T>
+void MergeField(T& field, const std::optional<T>& opt) {
+    if (opt) {
+        field = *opt;
+    }
 }
 
 }  // namespace
 
 PoolSettingsDynamic Parse(const formats::json::Value& config, formats::parse::To<PoolSettingsDynamic>) {
-    return ParsePoolSettings<PoolSettingsDynamic>(config);
+    PoolSettingsDynamic result{
+        .min_size = config["min_pool_size"].As<std::optional<std::size_t>>(),
+        .max_size = config["max_pool_size"].As<std::optional<std::size_t>>(),
+        .max_queue_size = config["max_queue_size"].As<std::optional<std::size_t>>(),
+        .connecting_limit = config["connecting_limit"].As<std::optional<std::size_t>>(),
+        .connecting_interval_ms = config["connecting_interval_ms"].As<std::optional<std::size_t>>(),
+    };
+    ValidatePoolSizes(result.min_size, result.max_size);
+    return result;
 }
 
 PoolSettings Parse(const yaml_config::YamlConfig& config, formats::parse::To<PoolSettings>) {
-    return ParsePoolSettings<PoolSettings>(config);
+    PoolSettings result{};
+    result.min_size = config["min_pool_size"].As<std::size_t>(result.min_size);
+    result.max_size = config["max_pool_size"].As<std::size_t>(result.max_size);
+    result.max_queue_size = config["max_queue_size"].As<std::size_t>(result.max_queue_size);
+    result.connecting_limit = config["connecting_limit"].As<std::size_t>(result.connecting_limit);
+    result.connecting_interval_ms = config["connecting_interval_ms"].As<std::size_t>(result.connecting_interval_ms);
+
+    ValidatePoolSizes(result.min_size, result.max_size);
+    return result;
+}
+
+void MergePoolSettings(const std::optional<PoolSettingsDynamic>& dynamic_settings, PoolSettings& static_settings) {
+    if (!dynamic_settings.has_value()) {
+        return;
+    }
+    const auto& dynamic = *dynamic_settings;
+    MergeField(static_settings.max_size, dynamic.max_size);
+    MergeField(static_settings.min_size, dynamic.min_size);
+    MergeField(static_settings.max_queue_size, dynamic.max_queue_size);
+    MergeField(static_settings.connecting_limit, dynamic.connecting_limit);
+    MergeField(static_settings.connecting_interval_ms, dynamic.connecting_interval_ms);
 }
 
 TopologySettings Parse(const formats::json::Value& config, formats::parse::To<TopologySettings>) {

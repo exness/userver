@@ -12,6 +12,7 @@
 #include <userver/cache/update_type.hpp>
 #include <userver/components/component_fwd.hpp>
 #include <userver/utils/assert.hpp>
+#include <userver/utils/move_only_function.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -29,6 +30,11 @@ namespace testsuite {
 
 namespace impl {
 enum class PeriodicUpdatesMode { kDefault, kEnabled, kDisabled };
+
+using CacheReverseDependencies = std::unordered_set<std::string>;
+
+CacheReverseDependencies GetDefaultCacheReverseDependencies();
+
 }  // namespace impl
 
 class CacheResetRegistration;
@@ -39,7 +45,7 @@ class CacheResetRegistration;
 /// or stores caches that may become stale, then it should register its resetter
 /// here. Example:
 ///
-/// @snippet testsuite/cache_control_test.cpp  sample
+/// @snippet core/src/testsuite/cache_control_test.cpp  sample
 ///
 /// Testsuite will then call this hook in the beginning of each test.
 /// You can also reset a specific cache in testsuite explicitly as follows:
@@ -88,7 +94,12 @@ public:
     };
 
     CacheControl(impl::PeriodicUpdatesMode, UnitTests);
-    CacheControl(impl::PeriodicUpdatesMode, ExecPolicy, components::State);
+    CacheControl(
+        impl::PeriodicUpdatesMode,
+        ExecPolicy,
+        components::State,
+        impl::CacheReverseDependencies reverse_dependencies
+    );
     ~CacheControl();
 
     // For internal use only.
@@ -97,7 +108,7 @@ public:
     // For internal use only.
     CacheResetRegistration RegisterPeriodicCache(cache::CacheUpdateTrait& cache);
 
-    // For internal use only. Use testsuite::RegisterCache instead
+    // For internal use only. Use testsuite::RegisterCacheScope instead
     template <typename Component>
     CacheResetRegistration RegisterCache(Component* self, std::string_view name, void (Component::*reset_method)());
 
@@ -143,9 +154,13 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-/// @brief RAII helper for testsuite registration. Must be kept alive to keep
-/// supporting cache resetting.
-/// @warning Make sure to always place CacheResetRegistration after the rest of
+/// @brief RAII helper for testsuite registration.
+///
+/// Removes the associated resetter automatically on destruction.
+///
+/// Prefer @ref RegisterCacheScope so that the resetter is registered after
+/// the component constructor and unregistered just before the destructor.
+/// Otherwise store the registration as a member after the rest of
 /// the component's fields.
 /// @see testsuite::CacheControl
 class [[nodiscard]] CacheResetRegistration final {
@@ -172,11 +187,46 @@ private:
 
 /// The method for acquiring testsuite::CacheControl in the component system.
 ///
-/// @see testsuite::RegisterCache
+/// @see testsuite::RegisterCacheScope
 CacheControl& FindCacheControl(const components::ComponentContext& context);
 
-/// @brief The method for registering a cache from component constructor. The
-/// returned handle must be kept alive to keep supporting cache resetting.
+namespace impl {
+
+void DoRegisterCacheScope(
+    const components::ComponentContext& context,
+    utils::move_only_function<CacheResetRegistration()> factory
+);
+
+}  // namespace impl
+
+/// @brief Registers a cache resetter bound to the component lifetime.
+///
+/// The resetter is registered after the component constructor finishes
+/// and is unregistered just before the destructor runs.
+///
+/// Typical usage:
+/// @code
+/// testsuite::RegisterCacheScope(context, this, &MyCache::ResetCache);
+/// @endcode
+///
+/// @warning The function should be called in the component's constructor
+/// *after* all FindComponent calls. This ensures that reset will first be
+/// called for dependencies, then for dependent components.
+template <typename Component>
+void RegisterCacheScope(
+    const components::ComponentContext& context,
+    Component* self,
+    void (Component::*reset_method)()
+) {
+    auto& cc = testsuite::FindCacheControl(context);
+    auto name = std::string{components::GetCurrentComponentName(context)};
+    impl::DoRegisterCacheScope(context, [&cc, self, name = std::move(name), reset_method] {
+        return cc.RegisterCache(self, name, reset_method);
+    });
+}
+
+/// @deprecated Use @ref RegisterCacheScope instead.
+/// The returned handle must be kept alive to keep supporting cache resetting.
 ///
 /// @warning The function should be called in the component's constructor
 /// *after* all FindComponent calls. This ensures that reset will first be
@@ -189,19 +239,6 @@ CacheResetRegistration RegisterCache(
 ) {
     auto& cc = testsuite::FindCacheControl(context);
     return cc.RegisterCache(self, components::GetCurrentComponentName(context), reset_method);
-}
-
-/// @overload
-///
-/// @deprecated Use the overload without the `config` parameter.
-template <typename Component>
-[[deprecated("Remove 'config' parameter from RegisterCache call")]] CacheResetRegistration RegisterCache(
-    [[maybe_unused]] const components::ComponentConfig& config,
-    const components::ComponentContext& context,
-    Component* self,
-    void (Component::*reset_method)()
-) {
-    return testsuite::RegisterCache(context, self, reset_method);
 }
 
 /// @cond

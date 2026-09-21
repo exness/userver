@@ -3,12 +3,12 @@
 #include <atomic>
 #include <optional>
 
-#include <engine/task/task_base_impl.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/impl/wait_token_storage.hpp>
 #include <userver/utils/not_null.hpp>
 
 #include <concurrent/intrusive_walkable_pool.hpp>
+#include <engine/impl/task_context_accessor.hpp>
 #include <engine/task/task_context.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -17,20 +17,15 @@ namespace engine::impl {
 
 struct DetachedTasksSyncBlock::Token final : public PolymorphicAwaiter {
     explicit Token(DetachedTasksSyncBlock& owner)
-        : PolymorphicAwaiter(Awaiter::kOne),
-          owner(owner)
+        : owner(owner)
     {}
 
-    void DoNotify(boost::intrusive_ptr<PolymorphicAwaiter> self, std::uintptr_t context) noexcept override {
+    void NotifyAndDispose(std::uintptr_t context) noexcept override {
         UASSERT(context == 0);
-
-        UASSERT(self->UseCount() == 1);
-        [[maybe_unused]] auto* detached_awaiter = self.detach();
-
         DetachedTasksSyncBlock::Dispose(*this);
     }
 
-    void Destroy() noexcept override {
+    void DisposeWithoutNotification() noexcept override {
         utils::AbortWithStacktrace("DetachedTasksSyncBlock::Token should never be removed without notification");
     }
 
@@ -91,10 +86,10 @@ void DetachedTasksSyncBlock::Add(TaskContext& context) {
         token.wait_token = impl_->wait_tokens->GetToken();
     }
 
-    boost::intrusive_ptr<Awaiter> awaiter{&token, /*add_ref=*/false};
+    AwaiterPtr awaiter{&token};
     context.TryAppendAwaiter(awaiter, 0);
     if (awaiter != nullptr) {  // task has already finished.
-        impl::Notify(std::move(awaiter), 0);
+        impl::NotifyAndDispose(std::move(awaiter), 0);
     }
 
     const auto cancel_reason = impl_->cancel_new_tasks.load();
@@ -104,7 +99,7 @@ void DetachedTasksSyncBlock::Add(TaskContext& context) {
 }
 
 void DetachedTasksSyncBlock::Add(Task&& task) {
-    const auto context = std::move(task.pimpl_->context);
+    const auto context = TaskContextAccessor::ExtractContext(std::move(task));
     Add(*context);
 }
 

@@ -28,6 +28,9 @@ definitions:
             integer:
                 type: integer
                 x-usrv-cpp-type: std::chrono::milliseconds
+            ms:
+                type: string
+                x-usrv-cpp-type: std::chrono::milliseconds
             sizet:
                 type: integer
                 minimum: 0
@@ -87,11 +90,13 @@ definitions:
             properties:
                 field2:
                     type: string
+            x-taxi-extra-member: true
           - type: object
             additionalProperties: true
             properties:
                 field1:
                     type: string
+            x-taxi-extra-member: true
         x-usrv-cpp-type: my::CustomAllOf
     CustomOneOf:
         x-usrv-cpp-type: my::CustomOneOf

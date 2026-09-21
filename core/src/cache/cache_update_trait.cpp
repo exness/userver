@@ -38,7 +38,7 @@ void CacheUpdateTrait::UpdateSyncDebug(UpdateType update_type) { impl_->UpdateSy
 
 void CacheUpdateTrait::InvalidateAsync(UpdateType update_type) { impl_->InvalidateAsync(update_type); }
 
-const std::string& CacheUpdateTrait::Name() const { return impl_->Name(); }
+const std::string& CacheUpdateTrait::Name() const noexcept { return impl_->Name(); }
 
 AllowedUpdateTypes CacheUpdateTrait::GetAllowedUpdateTypes() const { return impl_->GetAllowedUpdateTypes(); }
 
@@ -56,17 +56,19 @@ void CacheUpdateTrait::StartPeriodicUpdates() { impl_->StartPeriodicUpdates(GetS
 
 void CacheUpdateTrait::StopPeriodicUpdates() { impl_->StopPeriodicUpdates(); }
 
-void CacheUpdateTrait::OnCacheModified() { impl_->OnCacheModified(); }
+void CacheUpdateTrait::OnCacheModified() noexcept { impl_->OnCacheModified(); }
 
-bool CacheUpdateTrait::HasPreAssignCheck() const { return impl_->HasPreAssignCheck(); }
+bool CacheUpdateTrait::HasPreAssignCheck() const noexcept { return impl_->HasPreAssignCheck(); }
 
-bool CacheUpdateTrait::IsSafeDataLifetime() const { return impl_->IsSafeDataLifetime(); }
+bool CacheUpdateTrait::IsSafeDataLifetime() const noexcept { return impl_->IsSafeDataLifetime(); }
 
 void CacheUpdateTrait::SetDataSizeStatistic(std::size_t size) noexcept { impl_->SetDataSizeStatistic(size); }
 
 rcu::ReadablePtr<Config> CacheUpdateTrait::GetConfig() const { return impl_->GetConfig(); }
 
-engine::TaskProcessor& CacheUpdateTrait::GetCacheTaskProcessor() const { return impl_->GetCacheTaskProcessor(); }
+engine::TaskProcessor& CacheUpdateTrait::GetCacheTaskProcessor() const noexcept {
+    return impl_->GetCacheTaskProcessor();
+}
 
 utils::Flags<CacheUpdateTrait::Flag> CacheUpdateTrait::GetStartFlags() const { return {}; }
 

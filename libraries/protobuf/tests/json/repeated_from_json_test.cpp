@@ -56,10 +56,11 @@ INSTANTIATE_TEST_SUITE_P(
             RepeatedMessageData{}
         },
         RepeatedFromJsonSuccessTestParam{
+            // Can't use "field4:null" because native legacy parser treats this as a single item array.
             R"({
                 "field1":null,"field2":null,"field3":null,"field5":null,"field6":null,"field7":null,"field8":null,
                 "field9":null,"field10":null,"field11":null,"field12":null
-            })",  // can't use "field4:null" because native legacy parser treats this as a single item array
+            })",
             RepeatedMessageData{}
         },
         RepeatedFromJsonSuccessTestParam{
@@ -117,7 +118,8 @@ INSTANTIATE_TEST_SUITE_P(
             ParseErrorCode::kInvalidType,
             "field1",
             {},
-            true  // legacy implementation treats single value as array of one item
+            // Legacy implementation treats single value as array of one item.
+            true
         },
         RepeatedFromJsonFailureTestParam{R"({"field2":true})", ParseErrorCode::kInvalidType, "field2", {}, true},
         RepeatedFromJsonFailureTestParam{R"({"field3":"test"})", ParseErrorCode::kInvalidType, "field3", {}, true},
@@ -126,7 +128,8 @@ INSTANTIATE_TEST_SUITE_P(
             ParseErrorCode::kInvalidValue,
             "field1[1]",
             {},
-            true  // legacy implementation ignores null as items
+            // Legacy implementation ignores null as items.
+            true
         },
         RepeatedFromJsonFailureTestParam{R"({"field2":[null]})", ParseErrorCode::kInvalidValue, "field2[0]", {}, true},
         RepeatedFromJsonFailureTestParam{
@@ -134,21 +137,24 @@ INSTANTIATE_TEST_SUITE_P(
             ParseErrorCode::kInvalidValue,
             "field3[2]",
             {},
-            true  // legacy implementation ignores null as items
+            // Legacy implementation ignores null as items.
+            true
         },
         RepeatedFromJsonFailureTestParam{
             R"({"field1":[[1,2,3]]})",
             ParseErrorCode::kInvalidType,
             "field1[0]",
             {},
-            true  // legacy implementation flattens array in this case
+            // Legacy implementation flattens array in this case.
+            true
         },
         RepeatedFromJsonFailureTestParam{
             R"({"field2":[[{"field1":true}]]})",
             ParseErrorCode::kInvalidType,
             "field2[0]",
             {},
-            true  // legacy implementation flattens array in this case
+            // Legacy implementation flattens array in this case.
+            true
         },
         RepeatedFromJsonFailureTestParam{
             R"({"field2":[{"field1":true},"oops"]})",

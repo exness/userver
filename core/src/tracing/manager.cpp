@@ -1,11 +1,14 @@
 #include <userver/tracing/manager.hpp>
 
-#include <boost/range/adaptor/reversed.hpp>
+#include <charconv>
+#include <ranges>
 
 #include <userver/engine/task/inherited_variable.hpp>
 #include <userver/http/common_headers.hpp>
+#include <userver/logging/level.hpp>
 #include <userver/server/http/http_request.hpp>
 #include <userver/tracing/opentelemetry.hpp>
+#include <userver/tracing/tracer.hpp>
 #include <userver/utils/trivial_map.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -15,9 +18,6 @@ namespace tracing {
 namespace {
 
 constexpr std::string_view kSampledTag = "sampled";
-// default value for Sampled flag is '01' as we always write spans by
-// default
-constexpr std::string_view kDefaultOtelTraceFlags = "01";
 
 // The order matter for TryFillSpanBuilderFromRequest as it returns on first
 // success
@@ -31,9 +31,12 @@ constexpr Format kAllFormatsOrdered[] = {
 /// @brief Per-request data that should be available inside handlers
 /// https://opentelemetry.io
 struct OTelTracingHeadersInheritedData final {
+    /// The W3C tracestate header value propagated from the incoming request.
+    /// Empty when no tracestate was received from the upstream.
     std::string tracestate;
-    /// traceflags, 2 bytes
-    std::string traceflags;
+    /// Two-character lowercase hex representation of the W3C trace-flags byte.
+    /// Defaults to "01" (sampled) when absent or unparseable in the incoming request.
+    std::string traceflags_hex{"01"};
 };
 
 /// @see TracingHeadersInheritedData for details on the contents.
@@ -103,31 +106,22 @@ bool OpenTelemetryTryFillSpanBuilderFromRequest(
 
     span_builder.SetTraceId(std::move(data.trace_id));
     span_builder.SetParentSpanId(std::move(data.span_id));
-    if (data.trace_flags.empty()) {
-        data.trace_flags = kDefaultOtelTraceFlags;
-    }
 
-    const auto& tracestate = request.GetHeader(opentelemetry::kTraceState);
-    kOtelTracingHeadersInheritedData.Set({
-        tracestate,
-        std::string(data.trace_flags),
-    });
+    SetInheritedOtelTracingData(request.GetHeader(opentelemetry::kTraceState), data.trace_flags);
+
     return true;
 }
 
 template <class T>
 void OpenTelemetryFillWithTracingContext(const tracing::Span& span, T& target, const logging::Level log_level) {
+    static constexpr std::string_view kDefaultFlagsHex{"01"};
     const auto* data = kOtelTracingHeadersInheritedData.GetOptional();
-
-    std::string_view traceflags = kDefaultOtelTraceFlags;
-    if (data) {
-        traceflags = data->traceflags;
-    }
     const auto span_id = span.GetSpanIdForChildLogs();
     if (!span_id) {
         return;
     }
-    auto traceparent_result = opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, traceflags);
+    const auto traceflags_hex = data ? std::string_view{data->traceflags_hex} : kDefaultFlagsHex;
+    auto traceparent_result = opentelemetry::BuildTraceParentHeader(span.GetTraceId(), *span_id, traceflags_hex);
 
     if (!traceparent_result.has_value()) {
         LOG_LIMITED(log_level
@@ -188,6 +182,34 @@ void YandexFillWithTracingContext(const tracing::Span& span, T& target) {
 }
 
 }  // namespace
+
+OtelTraceFlags GetInheritedOtelTraceFlags() {
+    static constexpr OtelTraceFlags kDefault = OtelTraceFlags::kSampled;
+    const auto* data = kOtelTracingHeadersInheritedData.GetOptional();
+    if (!data) {
+        return kDefault;
+    }
+    auto result = static_cast<std::uint16_t>(kDefault);
+    std::from_chars(data->traceflags_hex.data(), data->traceflags_hex.data() + data->traceflags_hex.size(), result, 16);
+    return static_cast<OtelTraceFlags>(result);
+}
+
+std::string_view GetInheritedOtelTraceState() {
+    const auto* data = kOtelTracingHeadersInheritedData.GetOptional();
+    return data ? std::string_view{data->tracestate} : std::string_view{};
+}
+
+void SetInheritedOtelTracingData(std::string_view tracestate, std::string_view traceflags_str) {
+    std::string flags_hex{"01"};
+    if (!traceflags_str.empty()) {
+        std::uint16_t flags = 0x01;
+        std::from_chars(traceflags_str.data(), traceflags_str.data() + traceflags_str.size(), flags, 16);
+        char buf[2] = {'0', '0'};
+        std::to_chars(buf + (flags < 0x10u ? 1u : 0u), buf + 2, flags, 16);
+        flags_hex = std::string{buf, 2};
+    }
+    kOtelTracingHeadersInheritedData.Set({std::string{tracestate}, std::move(flags_hex)});
+}
 
 Format FormatFromString(std::string_view format) {
     constexpr utils::TrivialBiMap kToFormat = [](auto selector) {
@@ -270,12 +292,23 @@ bool GenericTracingManager::TryFillSpanBuilderFromRequest(
     SpanBuilder& span_builder
 ) const {
     bool success = false;
+    bool otel_succeeded = false;
 
-    for (const auto& format : boost::adaptors::reverse(kAllFormatsOrdered)) {
+    for (const auto& format : std::views::reverse(kAllFormatsOrdered)) {
         if (in_request_response_ & format) {
-            success |= tracing::TryFillSpanBuilderFromRequest(format, request, span_builder);
+            const bool ok = tracing::TryFillSpanBuilderFromRequest(format, request, span_builder);
+            if (format == Format::kOpenTelemetry) {
+                otel_succeeded = ok;
+            }
+            success |= ok;
         }
     }
+
+    if (otel_succeeded && sampling_ == SamplingEnabled::kYes) {
+        span_builder
+            .SetSampled((GetInheritedOtelTraceFlags() & OtelTraceFlags::kSampled) != OtelTraceFlags::kNoTracing);
+    }
+
     return success;
 }
 

@@ -19,7 +19,7 @@ public:
         const engine::ev::ThreadControl& sentinel_thread_control,
         const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
         const std::string& shard_group_name,
-        const Password& password,
+        const Credentials& credentials,
         std::size_t database_index,
         ConnectionInfo conn
     );
@@ -33,6 +33,7 @@ public:
     void Stop() override;
 
     bool WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) override;
+    bool IsReady(const HealthCheckParams& params) const override;
 
     rcu::ReadablePtr<ClusterTopology, rcu::BlockingRcuTraits> GetTopology() const override;
 
@@ -54,9 +55,9 @@ public:
 
     boost::signals2::signal<void(size_t)>& GetSignalTopologyChanged() override;
 
-    void UpdatePassword(const Password& password) override;
+    void UpdateCredentials(const Credentials& credentials) override;
 
-    Password GetPassword() override;
+    Credentials GetCredentials() override;
 
     std::string GetReadinessInfo() const override;
 
@@ -73,7 +74,7 @@ private:
     engine::ev::ThreadControl ev_thread_;
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
     const std::string shard_group_name_;
-    concurrent::Variable<Password, std::mutex> password_;
+    concurrent::Variable<Credentials, std::mutex> credentials_;
     const std::size_t database_index_;
 
     ///{ Wait ready

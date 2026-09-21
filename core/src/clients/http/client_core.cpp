@@ -73,7 +73,7 @@ ClientCore::ClientCore(utils::impl::InternalTag, ClientSettings settings, engine
     // libcurl synchronously reads some of /etc/* files.
     // As we want httpclient to be non-blocking, we have to shift curl's init code
     // to a fs task processor.
-    engine::AsyncNoSpan(fs_task_processor_, [this, io_threads] {
+    engine::AsyncNoTracing(fs_task_processor_, [this, io_threads] {
         for (std::size_t i = 0; i < io_threads; ++i) {
             multis_.push_back(std::make_unique<curl::multi>(thread_pool_->NextThread(), connect_rate_limiter_));
         }
@@ -128,7 +128,7 @@ Request ClientCore::CreateRequest() {
 
             try {
                 auto wrapper =
-                    engine::AsyncNoSpan(fs_task_processor_, [this, &multi] {
+                    engine::AsyncNoTracing(fs_task_processor_, [this, &multi] {
                         return impl::EasyWrapper{easy_.Get()->GetBoundBlocking(*multi), *this};
                     }).Get();
                 return Request{

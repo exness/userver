@@ -31,7 +31,7 @@ void SocketSendAll(benchmark::State& state) {
         engine::io::tests::TcpListener listener;
         auto [server, client] = listener.MakeSocketPair(test_deadline);
         std::atomic<bool> reading{true};
-        auto task_reader = engine::AsyncNoSpan(
+        auto task_reader = engine::AsyncNoTracing(
             [&reading, test_deadline](auto&& server) {
                 std::array<char, 128> buf = {};
                 while (server.RecvSome(buf.data(), buf.size(), test_deadline) > 0 && reading) {
@@ -57,7 +57,7 @@ void SocketSendAllV(benchmark::State& state) {
         engine::io::tests::TcpListener listener;
         auto [server, client] = listener.MakeSocketPair(test_deadline);
         std::atomic<bool> reading{true};
-        auto task_reader = engine::AsyncNoSpan(
+        auto task_reader = engine::AsyncNoTracing(
             [&reading, test_deadline](auto&& server) {
                 std::array<char, 128> buf = {};
                 while (server.RecvSome(buf.data(), buf.size(), test_deadline) > 0 && reading) {
@@ -66,7 +66,7 @@ void SocketSendAllV(benchmark::State& state) {
             std::move(server)
         );
         for ([[maybe_unused]] auto _ : state) {
-            const auto send_bytes = client.SendAll({{"qqq", 3}, {"aaa", 3}, {"qwerty", 6}}, test_deadline);
+            auto send_bytes = client.SendAll({{"qqq", 3}, {"aaa", 3}, {"qwerty", 6}}, test_deadline);
             benchmark::DoNotOptimize(send_bytes);
         }
         reading.store(false);
@@ -83,7 +83,7 @@ BENCHMARK(SocketSendAllV);
         const auto size_buff = fmt::format("\r\n{:x}\r\n", send_buff.size());
         auto [server, client] = listener.MakeSocketPair(test_deadline);
         std::atomic<bool> reading{true};
-        auto task_reader = engine::AsyncNoSpan(
+        auto task_reader = engine::AsyncNoTracing(
             [&reading, test_deadline](auto&& server) {
                 std::array<char, 128> buf = {};
                 while (server.RecvSome(buf.data(), buf.size(), test_deadline) > 0 && reading) {
@@ -92,7 +92,7 @@ BENCHMARK(SocketSendAllV);
             std::move(server)
         );
         for ([[maybe_unused]] auto _ : state) {
-            const auto send_bytes = client.SendAll(
+            auto send_bytes = client.SendAll(
                 {{size_buff.data(), size_buff.size()}, {send_buff.data(), send_buff.size()}},
                 test_deadline
             );
@@ -114,7 +114,7 @@ BENCHMARK(SocketSendAllV);
         const auto size_buff = fmt::format("\r\n{:x}\r\n", send_buff.size());
         auto [server, client] = listener.MakeSocketPair(test_deadline);
         std::atomic<bool> reading{true};
-        auto task_reader = engine::AsyncNoSpan(
+        auto task_reader = engine::AsyncNoTracing(
             [&reading, test_deadline](auto&& server) {
                 std::array<char, 128> buf = {};
                 while (server.RecvSome(buf.data(), buf.size(), test_deadline) > 0 && reading) {

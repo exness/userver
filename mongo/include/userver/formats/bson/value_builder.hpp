@@ -29,11 +29,11 @@ namespace formats::bson {
 ///
 /// ## Example usage:
 ///
-/// @snippet formats/bson/value_builder_test.cpp  Sample formats::bson::ValueBuilder usage
+/// @snippet mongo/src/formats/bson/value_builder_test.cpp  Sample formats::bson::ValueBuilder usage
 ///
 /// ## Customization example:
 ///
-/// @snippet formats/bson/value_builder_test.cpp  Sample Customization formats::bson::ValueBuilder usage
+/// @snippet mongo/src/formats/bson/value_builder_test.cpp  Sample Customization formats::bson::ValueBuilder usage
 ///
 /// @see @ref scripts/docs/en/userver/formats.md
 class ValueBuilder {
@@ -178,6 +178,9 @@ public:
     /// @param name field name
     /// @throws TypeMismatchExcepiton if value is not a document or `null`
     bool HasMember(const std::string& name) const;
+
+    /// @brief Returns full path to this value.
+    std::string GetPath() const;
 
     /// @brief Creates or resizes the array
     /// @param size new size

@@ -1,5 +1,8 @@
 project(userver-mongo CXX)
 
+set(USERVER_MONGO_LIBMONGOC_NAME mongo::mongoc_static)
+set(USERVER_MONGO_LIBBSON_NAME mongo::bson_static)
+
 if(USERVER_CONAN)
     find_package(mongoc-1.0 REQUIRED)
 else()
@@ -9,15 +12,15 @@ endif()
 userver_module(
     mongo
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-    LINK_LIBRARIES mongo::bson_static
-    LINK_LIBRARIES_PRIVATE mongo::mongoc_static
+    LINK_LIBRARIES "${USERVER_MONGO_LIBBSON_NAME}"
+    LINK_LIBRARIES_PRIVATE "${USERVER_MONGO_LIBMONGOC_NAME}"
     UTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_test.cpp"
     DBTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_mongotest.cpp"
     DBTEST_DATABASES mongo
     # Tests that use IsCollectionWriteConcernTimeout require multi-instance mongo
     DBTEST_ENV TESTSUITE_MONGO_RS_INSTANCE_COUNT=5
     UBENCH_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_benchmark.cpp"
-    DEPENDS core
+    COMPONENT_DEPENDS core
     GENERATE_DYNAMIC_CONFIGS
     EMBED_FILES src/cache/base_mongo_cache.yaml src/storages/mongo/component.yaml
                 src/storages/mongo/component_multi.yaml src/storages/mongo/dist_lock_component_base.yaml

@@ -71,7 +71,9 @@ Http2Session::Http2Session(
     nghttp2_session_callbacks_set_on_stream_close_callback(callbacks, OnStreamClose);
     nghttp2_session_callbacks_set_on_header_callback(callbacks, OnHeader);
     nghttp2_session_callbacks_set_on_begin_headers_callback(callbacks, OnBeginHeaders);
+    nghttp2_session_callbacks_set_on_begin_frame_callback(callbacks, OnBeginFrame);
     nghttp2_session_callbacks_set_on_data_chunk_recv_callback(callbacks, OnDataChunkRecv);
+    nghttp2_session_callbacks_set_on_invalid_frame_recv_callback(callbacks, OnInvalidFrame);
 
     nghttp2_session* session{nullptr};
     UINVARIANT(nghttp2_session_server_new(&session, callbacks, this) == 0, "Failed to init session for HTTP/2.0");
@@ -101,7 +103,7 @@ int Http2Session::OnFrameRecv(nghttp2_session* session, const nghttp2_frame* fra
             if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
                 auto& stream = parser.GetStreamChecked(Stream::Id{frame->hd.stream_id});
                 try {
-                    stream.RequestConstructor().AppendHeaderField("", 0);
+                    stream.RequestConstructor().AppendHeaderField(std::string_view{});
                 } catch (const std::exception& e) {
                     IncStat(parser.stats_.http2_stats.streams_parse_error);
                     LOG_LIMITED_WARNING() << "can't append header field: " << e;
@@ -113,11 +115,53 @@ int Http2Session::OnFrameRecv(nghttp2_session* session, const nghttp2_frame* fra
             IncStat(parser.stats_.http2_stats.reset_streams);
         } break;
         case NGHTTP2_PING: {
-            nghttp2_submit_ping(parser.session_.get(), NGHTTP2_FLAG_NONE, nullptr);
+            // nghttp2 clears want_read after peer GOAWAY when there are no streams, but a
+            // trailing PING must still be ACKed and the TCP close must stay graceful.
+            if (parser.peer_goaway_received_ && (frame->hd.flags & NGHTTP2_FLAG_ACK) == 0) {
+                const auto rv = nghttp2_submit_ping(session, NGHTTP2_FLAG_ACK, frame->ping.opaque_data);
+                if (rv != 0) {
+                    return NGHTTP2_ERR_CALLBACK_FAILURE;
+                }
+            }
         } break;
         case NGHTTP2_GOAWAY: {
+            parser.peer_goaway_received_ = true;
             IncStat(parser.stats_.http2_stats.goaway);
         } break;
+    }
+    return 0;
+}
+
+int Http2Session::OnBeginFrame(nghttp2_session* session, const nghttp2_frame_hd* hd, void* user_data) {
+    UASSERT(session);
+    UASSERT(hd);
+    auto& parser = GetParser(user_data);
+
+    if (hd->type == NGHTTP2_HEADERS && hd->stream_id <= parser.max_client_stream_id_) {
+        const auto
+            rv = nghttp2_submit_goaway(session, NGHTTP2_FLAG_NONE, hd->stream_id, NGHTTP2_PROTOCOL_ERROR, nullptr, 0);
+        if (rv != 0) {
+            return NGHTTP2_ERR_CALLBACK_FAILURE;
+        }
+    }
+    return 0;
+}
+
+int Http2Session::OnInvalidFrame(nghttp2_session*, const nghttp2_frame* frame, int lib_error_code, void* user_data) {
+    UASSERT(frame);
+    const auto stream_id = frame->hd.stream_id;
+    if (lib_error_code == NGHTTP2_ERR_FLOW_CONTROL && frame->hd.type == NGHTTP2_WINDOW_UPDATE && stream_id != 0) {
+        // A WINDOW_UPDATE overflowing the window of a stream is a stream error (RFC 9113 6.9.1),
+        // but nghttp2 answers it with a connection-wide GOAWAY. The error cannot be downgraded to
+        // a stream one from here => submits an RST_STREAM and only then aborts the parsing, and
+        // the peer must see that RST_STREAM before the connection is closed.
+        GetParser(user_data).SubmitRstStream(Stream::Id{stream_id}, NGHTTP2_FLOW_CONTROL_ERROR);
+        LOG_LIMITED_WARNING() << fmt::format(
+            "WINDOW_UPDATE overflows the window of the stream {}: the stream is reset, "
+            "the connection will be closed",
+            stream_id
+        );
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
     return 0;
 }
@@ -148,9 +192,10 @@ int Http2Session::OnHeader(
     auto& ctor = stream.RequestConstructor();
     if (hname == USERVER_NAMESPACE::http::headers::k2::kMethod) {
         ctor.SetMethod(HttpMethodFromString(hvalue));
+        stream.CheckUrlComplete();
     } else if (hname == USERVER_NAMESPACE::http::headers::k2::kPath) {
         try {
-            ctor.AppendUrl(hvalue.data(), hvalue.size());
+            ctor.AppendUrl(hvalue);
             stream.CheckUrlComplete();
         } catch (const std::exception& e) {
             LOG_LIMITED_WARNING() << "can't append url: " << e;
@@ -158,8 +203,8 @@ int Http2Session::OnHeader(
         }
     } else {
         try {
-            ctor.AppendHeaderField(hname.data(), hname.size());
-            ctor.AppendHeaderValue(hvalue.data(), hvalue.size());
+            ctor.AppendHeaderField(hname);
+            ctor.AppendHeaderValue(hvalue);
         } catch (const std::exception& e) {
             LOG_LIMITED_WARNING() << "can't append header field: " << e;
             IncStat(parser.stats_.http2_stats.streams_parse_error);
@@ -173,7 +218,7 @@ int Http2Session::OnStreamClose(nghttp2_session*, int32_t id, uint32_t error_cod
     parser.RemoveStream(parser.GetStreamChecked(Stream::Id{id}));
 
     IncStat(parser.stats_.http2_stats.streams_close);
-    LOG_LIMITED_TRACE() << fmt::format("The stream {} was closed with code {}", id, error_code);
+    LOG_LIMITED_TRACE("The stream {} was closed with code {}", id, error_code);
 
     return 0;
 }
@@ -185,6 +230,7 @@ int Http2Session::OnBeginHeaders(nghttp2_session*, const nghttp2_frame* frame, v
     }
 
     auto& parser = GetParser(user_data);
+    parser.max_client_stream_id_ = std::max(parser.max_client_stream_id_, frame->hd.stream_id);
     parser.RegisterStream(Stream::Id{frame->hd.stream_id});
 
     return 0;
@@ -201,7 +247,7 @@ int Http2Session::OnDataChunkRecv(
     auto& parser = GetParser(user_data);
     auto& stream = parser.GetStreamChecked(Stream::Id{id});
     try {
-        stream.RequestConstructor().AppendBody(reinterpret_cast<const char*>(data), len);
+        stream.RequestConstructor().AppendBody(std::string_view{reinterpret_cast<const char*>(data), len});
     } catch (const std::exception& e) {
         LOG_LIMITED_WARNING() << "can't append body: " << e;
     }
@@ -214,7 +260,7 @@ long Http2Session::OnSend(nghttp2_session* session, const uint8_t* data, size_t 
     auto& parser = GetParser(user_data);
     if (parser.socket_ != nullptr) {
         const auto send = parser.socket_->WriteAll(data, len, {});
-        LOG_TRACE() << fmt::format("Written {} bytes, expected to write {}.", send, len);
+        LOG_TRACE("Written {} bytes, expected to write {}.", send, len);
         return send;
     }
     return NGHTTP2_ERR_WOULDBLOCK;
@@ -239,10 +285,7 @@ int Http2Session::OnDataFrameSend(
     auto& stream = *static_cast<Stream*>(source->ptr);
 
     const auto frame_header{ToStringView(framehd, kFrameHeaderSize)};
-    // TODO: doesn't work with TLS?!
-    UASSERT(dynamic_cast<engine::io::Socket*>(parser.socket_));
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
-    stream.Send(*static_cast<engine::io::Socket*>(parser.socket_), frame_header, max_len);
+    stream.Send(*parser.socket_, frame_header, max_len);
     return 0;
 }
 
@@ -254,7 +297,14 @@ void Http2Session::RegisterStream(Stream::Id id) {
     }
     utils::FastScopeGuard guard_free{[this, stream_ptr]() noexcept { streams_pool_.free(stream_ptr); }};
 
-    new (stream_ptr) Stream(request_constructor_config_, handler_info_index_, data_accounter_, remote_address_, id);
+    stream_ptr = std::construct_at(
+        stream_ptr,
+        request_constructor_config_,
+        handler_info_index_,
+        data_accounter_,
+        remote_address_,
+        id
+    );
     guard_free.Release();
 
     utils::FastScopeGuard guard_destroy{[this, stream_ptr]() noexcept { streams_pool_.destroy(stream_ptr); }};
@@ -290,33 +340,36 @@ Stream& Http2Session::GetStreamChecked(Stream::Id id) {
     return *stream;
 }
 
-void Http2Session::SubmitRstStream(Stream::Id id) {
+void Http2Session::SubmitRstStream(Stream::Id id, std::uint32_t error_code) {
     IncStat(stats_.http2_stats.reset_streams);
     UASSERT(id != Stream::Id{0});
-    const auto res = nghttp2_submit_rst_stream(
-        session_.get(),
-        NGHTTP2_FLAG_NONE,
-        static_cast<std::int32_t>(id),
-        NGHTTP2_INTERNAL_ERROR
-    );
+    const auto
+        res = nghttp2_submit_rst_stream(session_.get(), NGHTTP2_FLAG_NONE, static_cast<std::int32_t>(id), error_code);
     UASSERT(res == 0);
 }
 
-bool Http2Session::Parse(std::string_view req) {
+bool Http2Session::MemRecv(std::string_view data) {
     const int
-        readlen = nghttp2_session_mem_recv(session_.get(), reinterpret_cast<const uint8_t*>(req.data()), req.size());
+        readlen = nghttp2_session_mem_recv(session_.get(), reinterpret_cast<const uint8_t*>(data.data()), data.size());
     if (readlen < 0) {
-        LOG_LIMITED_ERROR() << fmt::format("Error in Parse: {}", nghttp2_strerror(readlen));
+        LOG_LIMITED_ERROR("Error in nghttp2_session_mem_recv: {}", nghttp2_strerror(readlen));
+        session_is_broken_ = true;
         return false;
     }
-    if (static_cast<std::size_t>(readlen) != req.size()) {
-        LOG_LIMITED_ERROR() << fmt::format("Parsed = {} but expected {}", readlen, req.size());
+    if (static_cast<std::size_t>(readlen) != data.size()) {
+        LOG_LIMITED_ERROR() << fmt::format("Parsed = {} but expected {}", readlen, data.size());
+        session_is_broken_ = true;
         return false;
     }
+    return true;
+}
+
+bool Http2Session::Parse(std::string_view req) {
+    const bool parsed = MemRecv(req);
     if (socket_ != nullptr) {
         WriteWhileWant();
     }
-    return ConnectionIsOk();
+    return parsed && ConnectionIsOk();
 }
 
 void Http2Session::UpgradeToHttp2(std::string_view client_magic) {
@@ -350,7 +403,10 @@ void Http2Session::FinalizeRequest(Stream& stream) {
     }
 }
 
-bool Http2Session::ConnectionIsOk() {
+bool Http2Session::ConnectionIsOk() const {
+    if (session_is_broken_) {
+        return false;
+    }
     return nghttp2_session_want_read(session_.get()) != 0 || nghttp2_session_want_write(session_.get()) != 0;
 }
 

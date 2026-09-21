@@ -27,7 +27,11 @@ State::State(const ComponentContext& cc) noexcept : impl_{cc.GetImpl(utils::impl
 
 bool State::IsAnyComponentInFatalState() const { return impl_.IsAnyComponentInFatalState(); }
 
+std::vector<State::ComponentWithHealth> State::GetUnhealthyComponents() const { return impl_.GetUnhealthyComponents(); }
+
 ServiceLifetimeStage State::GetServiceLifetimeStage() const { return impl_.GetServiceLifetimeStage(); }
+
+bool State::IsInGracefulShutdown() const { return impl_.IsInGracefulShutdown(); }
 
 bool State::HasDependencyOn(std::string_view component_name, std::string_view dependency) const {
     return impl_.HasDependencyOn(component_name, dependency);

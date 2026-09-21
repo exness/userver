@@ -33,6 +33,9 @@ struct Int64FromJsonFailureTestParam {
     ParseErrorCode expected_errc = {};
     std::string expected_path = {};
     ParseOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 void PrintTo(const Int64FromJsonSuccessTestParam& param, std::ostream* os) {
@@ -99,12 +102,18 @@ INSTANTIATE_TEST_SUITE_P(
         Int64FromJsonFailureTestParam{
             R"({"field1":9223372036854775808,"field2":1,"field3":1})",
             ParseErrorCode::kInvalidValue,
-            "field1"
+            "field1",
+            {},
+            // Old protobuf versions do not fail on out-of-range non-string int64.
+            !kIsModernProtoJson
         },
         Int64FromJsonFailureTestParam{
             R"({"field1":1,"field2":-9223372036854775809,"field3":1})",
             ParseErrorCode::kInvalidValue,
-            "field2"
+            "field2",
+            {},
+            // Old protobuf versions do not fail on out-of-range non-string int64.
+            !kIsModernProtoJson
         },
         Int64FromJsonFailureTestParam{
             R"({"field1":1,"field2":1,"field3":"9223372036854775808"})",
@@ -198,7 +207,10 @@ TEST_P(Int64FromJsonFailureTest, Test) {
         param.expected_errc,
         param.expected_path
     );
-    UEXPECT_THROW(InitSampleMessage(param.input, sample_message, param.options), SampleError);
+
+    if (!param.skip_native_check) {
+        UEXPECT_THROW(InitSampleMessage(param.input, sample_message, param.options), SampleError);
+    }
 }
 
 }  // namespace protobuf::json::tests

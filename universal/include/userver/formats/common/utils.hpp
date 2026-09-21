@@ -1,8 +1,7 @@
 #pragma once
 
 /// @file userver/formats/common/utils.hpp
-/// @brief formats::common::GetAtPath and formats::common::RemoveAtPath utils
-/// for `Value` and `ValueBuilder`
+/// @brief formats::common::GetAtPath and formats::common::RemoveAtPath utils for `Value` and `ValueBuilder`
 /// @ingroup userver_universal
 
 #include <cstddef>
@@ -42,9 +41,8 @@ ValueBuilder GetAtPath(ValueBuilder& parent, std::vector<std::string>&& path, st
 
 /// @brief Get the `Value` at `path` in `parent`.
 /// @note For empty `path` this function returns `parent`.
-/// @throws TypeMismatchException if there is a non-object node in the middle of
-/// `path`
-template <common::kIsFormatValue Value>
+/// @throws TypeMismatchException if there is a non-object node in the middle of `path`
+template <common::IsFormatValue Value>
 Value GetAtPath(Value parent, const std::vector<std::string>& path) {
     auto current_value = std::move(parent);
     for (const auto& current_key : path) {
@@ -55,32 +53,29 @@ Value GetAtPath(Value parent, const std::vector<std::string>& path) {
 
 /// @brief Get the `ValueBuilder` at `path` in `parent`.
 /// @note `path` must not be empty.
-/// @throws TypeMismatchException if there is a non-object node in the middle of
-/// `path`
+/// @throws TypeMismatchException if there is a non-object node in the middle of `path`
 template <typename ValueBuilder>
-requires(!common::kIsFormatValue<ValueBuilder>)
+requires(!common::IsFormatValue<ValueBuilder>)
 ValueBuilder GetAtPath(ValueBuilder& parent, std::vector<std::string>&& path) {
     return impl::GetAtPath(parent, std::move(path), path.size());
 }
 
 /// @brief Set the `new_value` along the `path` in the `parent`.
 /// @note If `path` is empty it sets `new_value` to `parent`.
-/// @throws TypeMismatchException if there is a non-object node in the middle of
-/// `path`
+/// @throws TypeMismatchException if there is a non-object node in the middle of `path`
 template <typename Value>
 void SetAtPath(typename Value::Builder& parent, std::vector<std::string>&& path, Value new_value) {
     if (path.empty()) {
         parent = std::move(new_value);
     } else {
-        GetAtPath(parent, std::move(path)) = std::move(new_value);
+        common::GetAtPath(parent, std::move(path)) = std::move(new_value);
     }
 }
 
 /// @brief Remove the element along the `path` in the `parent`.
 /// @note If `path` is empty or there is no node at `path`, this function does
 /// nothing.
-/// @throws TypeMismatchException if there is a non-object node in the middle of
-/// `path`
+/// @throws TypeMismatchException if there is a non-object node in the middle of `path`
 template <typename ValueBuilder>
 void RemoveAtPath(ValueBuilder& parent, std::vector<std::string>&& path) {
     if (path.empty()) {
@@ -94,8 +89,7 @@ void RemoveAtPath(ValueBuilder& parent, std::vector<std::string>&& path) {
 }
 
 /// @brief Split `path` to `vector<std::string>` by dots.
-/// @note If `path` has a double dot or a dot at the beginning or end, the
-/// result will contain an empty string.
+/// @note If `path` has a double dot or a dot at the beginning or end, the result will contain an empty string.
 /// @note Returns an empty `vector` if `path` is empty
 std::vector<std::string> SplitPathString(std::string_view path);
 

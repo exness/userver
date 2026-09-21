@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include <userver/clients/dns/resolver_fwd.hpp>
@@ -47,7 +48,7 @@ public:
         Dsn dsn,
         clients::dns::Resolver* resolver,
         engine::TaskProcessor& bg_task_processor,
-        const std::string& db_name,
+        std::string_view db_name,
         const PoolSettings& settings,
         const ConnectionSettings& conn_settings,
         const StatementMetricsSettings& statement_metrics_settings,
@@ -65,7 +66,7 @@ public:
         Dsn dsn,
         clients::dns::Resolver* resolver,
         engine::TaskProcessor& bg_task_processor,
-        const std::string& db_name,
+        std::string_view db_name,
         const InitMode& init_mode,
         const PoolSettings& pool_settings,
         const ConnectionSettings& conn_settings,
@@ -89,6 +90,8 @@ public:
     NotifyScope Listen(std::string_view channel, OptionalCommandControl cmd_ctl = {});
 
     CommandControl GetDefaultCommandControl() const;
+
+    void WarmUp(InitMode mode);
 
     void SetSettings(const PoolSettings& settings);
 
@@ -163,6 +166,7 @@ private:
     const error_injection::Settings ei_settings_;
     RecentCounter recent_conn_errors_;
     USERVER_NAMESPACE::utils::TokenBucket cancel_limit_;
+    USERVER_NAMESPACE::utils::TokenBucket connecting_rate_limiter_;
     detail::StatementStatsStorage sts_;
     dynamic_config::Source config_source_;
     USERVER_NAMESPACE::utils::statistics::MetricsStoragePtr metrics_;

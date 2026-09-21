@@ -334,7 +334,7 @@ UTEST_MT(Rcu, CopyReadablePtr, 4) {
     tasks.reserve(kThreads - 1);
 
     for (int i = 0; i < kThreads - 1; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
+        tasks.push_back(engine::AsyncNoTracing([&] {
             auto reader = ptr.Read();
 
             while (keep_running) {
@@ -418,17 +418,19 @@ constexpr std::size_t kTotalTasks = kReadablePtrPingPongTasks + kReadingTasks + 
 
 UTEST_MT(Rcu, TortureTest, kTotalTasks) {
     rcu::Variable<CleaningUpInt> data{1};
-    std::atomic<bool> keep_running{true};
 
     engine::Mutex ping_pong_mutex;
     rcu::ReadablePtr<CleaningUpInt> ptr = data.Read();
 
+    // Pinning queues may delay the main test task while worker-local queues are
+    // busy, so the stress tasks must be able to finish without an external flag.
+    const auto test_deadline = engine::Deadline::FromDuration(std::chrono::milliseconds{100});
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(kTotalTasks - 1);
 
     for (std::size_t i = 0; i < kReadablePtrPingPongTasks; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
-            while (keep_running) {
+        tasks.push_back(engine::AsyncNoTracing([&] {
+            while (!test_deadline.IsReached()) {
                 {
                     const std::lock_guard lock(ping_pong_mutex);
                     // copy a ptr created by another thread
@@ -441,8 +443,8 @@ UTEST_MT(Rcu, TortureTest, kTotalTasks) {
     }
 
     for (std::size_t i = 0; i < kReadingTasks; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
-            while (keep_running) {
+        tasks.push_back(engine::AsyncNoTracing([&] {
+            while (!test_deadline.IsReached()) {
                 const auto local_ptr = data.Read();
                 ASSERT_GT(local_ptr->value, 0);
             }
@@ -450,16 +452,17 @@ UTEST_MT(Rcu, TortureTest, kTotalTasks) {
     }
 
     for (std::size_t i = 0; i < kWritingTasks; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
-            while (keep_running) {
+        tasks.push_back(engine::AsyncNoTracing([&] {
+            while (!test_deadline.IsReached()) {
                 const auto old = data.Read();
                 data.Assign(CleaningUpInt{old->value + 1});
             }
         }));
     }
 
-    engine::SleepFor(std::chrono::milliseconds{100});
-    keep_running = false;
+    for (auto& task : tasks) {
+        task.Get();
+    }
 }
 
 UTEST(Rcu, WritablePtrUnlocksInCommit) {
@@ -553,7 +556,7 @@ UTEST_MT(Rcu, Core, 3) {
         tasks.reserve(2);
 
         // reader task
-        tasks.push_back(engine::AsyncNoSpan([&] {
+        tasks.push_back(engine::AsyncNoTracing([&] {
             auto* t_ptr = &non_null;
             // mimics storing current_ address into a hazard pointer
             hazard_pointer.store(t_ptr, std::memory_order_seq_cst);
@@ -566,7 +569,7 @@ UTEST_MT(Rcu, Core, 3) {
         }));
 
         // writer task
-        tasks.push_back(engine::AsyncNoSpan([&] {
+        tasks.push_back(engine::AsyncNoTracing([&] {
             // mimics changing current_
             is_old_value_current.store(nullptr);
             if (hazard_pointer.load() == nullptr) {

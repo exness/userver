@@ -83,7 +83,9 @@ TestsuiteSupport::TestsuiteSupport(
           config["cache-update-execution"].As<std::string>("concurrent") == "concurrent"
               ? testsuite::CacheControl::ExecPolicy::kConcurrent
               : testsuite::CacheControl::ExecPolicy::kSequential,
-          components::State{context}
+          components::State{context},
+          config["cache-reverse-dependencies"]
+              .As<testsuite::impl::CacheReverseDependencies>(testsuite::impl::GetDefaultCacheReverseDependencies())
       ),
       dump_control_(ParseDumpControl(config)),
       postgres_control_(ParsePostgresControl(config, GetIncreasedTimeout())),

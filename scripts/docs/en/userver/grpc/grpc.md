@@ -52,8 +52,8 @@ See @ref scripts/docs/en/userver/tutorial/grpc_service.md for a tutorial.
 In a component constructor, find @ref ugrpc::client::ClientFactoryComponent and store a reference to its
 @ref ugrpc::client::ClientFactory. Using it, you can create gRPC clients of code-generated `YourServiceClient` types.
 
-Client creation in an expensive operation! Either create them once at the server boot time or cache them. An automated
-solution for client creation and caching is the @ref ugrpc::client::SimpleClientComponent. It also allows to
+Client creation is an expensive operation! Either create them once at the server boot time or cache them. An automated
+solution for client creation and caching is the @ref ugrpc::client::SimpleClientComponent. It also allows you to
 specify dynamic config for @ref ugrpc::client::ClientQos :
 
 @snippet samples/grpc_service/src/greeter_client.hpp  component
@@ -201,7 +201,7 @@ Each method receives:
 * A request (for single-request RPCs only)
 
 Read the documentation on gRPC streams:
-* Single request, single response @ref ugrpc::server::Response
+* Single request, single response @ref ugrpc::server::Result
 * Request stream, single response @ref ugrpc::server::Reader + @ref ugrpc::server::Result
 * Single request, response stream @ref ugrpc::server::Writer + @ref ugrpc::server::StreamingResult
 * Request stream, response stream @ref ugrpc::server::ReaderWriter + @ref ugrpc::server::StreamingResult
@@ -368,7 +368,7 @@ If logging level is set in several components then the most verbose logging leve
 @anchor grpc_generic_api
 ## Generic API
 
-gRPC generic API allows to call and accept RPCs with dynamic service and method names.
+gRPC generic API allows you to call and accept RPCs with dynamic service and method names.
 The other side will see this as a normal RPC, it does not need to use generic API.
 
 Intended mainly for use in proxies. Metadata can be used to proxy the request without parsing it.
@@ -380,12 +380,12 @@ See details in:
 
 Full example showing the usage of both:
 
-* @ref grpc-generic-proxy/src/proxy_service.hpp
-* @ref grpc-generic-proxy/src/proxy_service.cpp
-* @ref grpc-generic-proxy/main.cpp
-* @ref grpc-generic-proxy/static_config.yaml
-* @ref grpc-generic-proxy/config_vars.yaml
-* @ref grpc-generic-proxy/CMakeLists.txt
+* @ref samples/grpc-generic-proxy/src/proxy_service.hpp
+* @ref samples/grpc-generic-proxy/src/proxy_service.cpp
+* @ref samples/grpc-generic-proxy/main.cpp
+* @ref samples/grpc-generic-proxy/static_config.yaml
+* @ref samples/grpc-generic-proxy/config_vars.yaml
+* @ref samples/grpc-generic-proxy/CMakeLists.txt
 
 Based on:
 
@@ -429,6 +429,11 @@ These are the metrics provided for each gRPC method:
    * `network-error` — other RPCs that finished abruptly without a status,
      see ugrpc::client::RpcInterruptedError and
      ugrpc::server::RpcInterruptedError.
+     Client-side, a unary call is counted here only when it was interrupted at the
+     transport level and no concrete gRPC status is available; when a status is
+     available (for example `UNAVAILABLE` or `CANCELLED`), it is reported under that
+     status instead. Such a unary network error is retryable, see
+     @ref scripts/docs/en/userver/grpc/timeouts_retries.md.
 * `abandoned-error` — RPCs that we forgot to `Finish`
   A client code drops an RPC object and don't wait of a response from a server OR is a bug in `ugrpc` usage.
 * `deadline-propagated` — RPCs, for which deadline was specified.
@@ -472,10 +477,10 @@ These are the metrics provided for each gRPC method:
 ⇦ @ref scripts/docs/en/userver/gdb_debugging.md | @ref scripts/docs/en/userver/grpc/timeouts_retries.md ⇨
 @htmlonly </div> @endhtmlonly
 
-@example grpc-generic-proxy/src/proxy_service.hpp
-@example grpc-generic-proxy/src/proxy_service.cpp
-@example grpc-generic-proxy/main.cpp
-@example grpc-generic-proxy/static_config.yaml
-@example grpc-generic-proxy/config_vars.yaml
-@example grpc-generic-proxy/CMakeLists.txt
+@example samples/grpc-generic-proxy/src/proxy_service.hpp
+@example samples/grpc-generic-proxy/src/proxy_service.cpp
+@example samples/grpc-generic-proxy/main.cpp
+@example samples/grpc-generic-proxy/static_config.yaml
+@example samples/grpc-generic-proxy/config_vars.yaml
+@example samples/grpc-generic-proxy/CMakeLists.txt
 @example grpc/functional_tests/metrics/tests/static/metrics_values.txt

@@ -6,6 +6,7 @@
 #include <userver/formats/json/serialize.hpp>
 #include <userver/formats/json/value_builder.hpp>
 
+#include <userver/formats/parse/common_containers.hpp>
 #include <userver/formats/serialize/common_containers.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -56,7 +57,7 @@ void JsonPathShort(benchmark::State& state) {
     auto json = formats::json::FromString(bench_json_data);
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto res = (json["short"].As<std::string>() == "1");
+        auto res = (json["short"].As<std::string>() == "1");
         benchmark::DoNotOptimize(res);
         if (!res) {
             throw std::runtime_error("unexpected");
@@ -69,7 +70,7 @@ void JsonPathLong(benchmark::State& state) {
     auto json = formats::json::FromString(bench_json_data);
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto res = (json["long_long_long_long_path"].As<std::string>() == "2");
+        auto res = (json["long_long_long_long_path"].As<std::string>() == "2");
         benchmark::DoNotOptimize(res);
         if (!res) {
             throw std::runtime_error("unexpected");
@@ -82,7 +83,7 @@ void JsonPathDeeplyNested(benchmark::State& state) {
     auto json = formats::json::FromString(bench_json_data);
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto res =
+        auto res =
             (json["long"]["deeply"]["deeply"]["nested"]["json"]["value"]["with"]["some"]["data"].As<std::string>() ==
              "3");
         benchmark::DoNotOptimize(res);
@@ -97,7 +98,7 @@ void JsonPathLongAndDeeplyNested(benchmark::State& state) {
     auto json = formats::json::FromString(bench_json_data);
 
     for ([[maybe_unused]] auto _ : state) {
-        const auto res =
+        auto res =
             (json["nested_long_long_long_long_path"]["deeply"]["deeply"]["nested"]["json"]["value"]["with"]["some"]
                  ["da"
                   "t"
@@ -181,6 +182,26 @@ void JsonObjectFromUnorderedStrongTypedef(benchmark::State& state) {
     }
 }
 BENCHMARK(JsonObjectFromUnorderedStrongTypedef)->RangeMultiplier(2)->Range(1, 1024);
+
+using StringDoubleMap = std::unordered_map<std::string, double>;
+
+formats::json::Value MakeDoubleObject(std::size_t size) {
+    formats::json::ValueBuilder builder{formats::json::Type::kObject};
+    for (std::size_t i = 0; i < size; ++i) {
+        builder.EmplaceNocheck(std::to_string(i), static_cast<double>(i));
+    }
+    return builder.ExtractValue();
+}
+
+void JsonObjectParseToUnorderedMap(benchmark::State& state) {
+    const auto json = MakeDoubleObject(state.range(0));
+
+    for ([[maybe_unused]] auto _ : state) {
+        benchmark::DoNotOptimize(json.As<StringDoubleMap>());
+    }
+    state.SetItemsProcessed(state.iterations() * state.range(0));
+}
+BENCHMARK(JsonObjectParseToUnorderedMap)->RangeMultiplier(4)->Range(1, 1024);
 
 void JsonObjectWideObjectOperatorEquals(benchmark::State& state) {
     const std::size_t size = state.range(0);

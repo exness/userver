@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/ydb/response.hpp
+/// @brief YDB query result rows, cursors and execute responses
+
 #include <ydb-cpp-sdk/client/query/client.h>
 #include <ydb-cpp-sdk/client/result/result.h>
 #include <ydb-cpp-sdk/client/table/table.h>
@@ -133,8 +136,8 @@ public:
     Row GetFirstRow();
 
     /// @brief Extract first row
-    /// @throws EmptyResponseError if @ref empty().
-    /// @throws IgnoreResultsError if @ref size() > 1.
+    /// @throws EmptyResponseError if @ref Cursor::empty.
+    /// @throws IgnoreResultsError if @ref Cursor::size > 1.
     Row GetSingleRow() &&;
 
     /// @brief Extract data into a container. Each row is parsed using @ref Row::As.
@@ -142,7 +145,7 @@ public:
     Container AsContainer() &&;
 
     /// @brief Extract first row into user type using @ref Row::As.
-    /// @throws EmptyResponseError if @ref empty().
+    /// @throws EmptyResponseError if @ref Cursor::empty.
     template <typename T>
     T AsSingleRow() &&;
 
@@ -155,7 +158,9 @@ public:
     /// (currently 1000 rows)
     bool IsTruncated() const;
 
+    /// @returns `true` if the cursor has no rows
     bool empty() const;
+    /// @returns the number of rows in the cursor
     std::size_t size() const;
 
     CursorIterator begin();
@@ -174,8 +179,7 @@ private:
 class ExecuteResponse final {
 public:
     /// @cond
-    explicit ExecuteResponse(std::variant<NYdb::NQuery::TExecuteQueryResult, NYdb::NTable::TDataQueryResult>&&
-                                 query_result);
+    explicit ExecuteResponse(NYdb::NQuery::TExecuteQueryResult&& query_result);
     /// @endcond
 
     ExecuteResponse(const ExecuteResponse&) = delete;

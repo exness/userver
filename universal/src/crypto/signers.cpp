@@ -100,8 +100,8 @@ void OutputCmsContent(BIO& to, CMS_ContentInfo& cms, CmsSigner::OutForm out_form
 
 }  // namespace
 
-Signer::Signer(const std::string& name)
-    : NamedAlgo(name)
+Signer::Signer(std::string name)
+    : NamedAlgo(std::move(name))
 {}
 Signer::~Signer() = default;
 
@@ -155,7 +155,7 @@ template class HmacShaSigner<DigestSize::k512>;
 ///
 
 template <DsaType Type, DigestSize Bits>
-DsaSigner<Type, Bits>::DsaSigner(const std::string& key, const std::string& password)
+DsaSigner<Type, Bits>::DsaSigner(std::string_view key, std::string_view password)
     : Signer(EnumValueToString(Type) + EnumValueToString(Bits)),
       pkey_(PrivateKey::LoadFromString(key, password))
 {

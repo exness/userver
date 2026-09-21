@@ -32,3 +32,12 @@ def test_string_format_byte(simple_parse):
     assert parsed.schemas == {
         'vfull#/definitions/type': front_types.String(format=front_types.StringFormat.BYTE),
     }
+
+
+def test_string_format_datetime_isobasic(simple_parse):
+    parsed = simple_parse({'type': 'string', 'format': 'date-time-iso-basic'})
+    assert parsed.schemas == {
+        'vfull#/definitions/type': front_types.String(
+            format=front_types.StringFormat.DATE_TIME_ISO_BASIC,
+        ),
+    }

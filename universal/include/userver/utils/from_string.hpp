@@ -4,6 +4,7 @@
 /// @brief @copybrief utils::FromString
 /// @ingroup userver_universal
 
+#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <charconv>
@@ -56,7 +57,7 @@ constexpr inline std::string_view ToString(FromStringErrorCode code) noexcept {
 class FromStringException : public std::runtime_error {
 public:
     /// @brief Creates exception for @a code .
-    FromStringException(FromStringErrorCode code, const std::string& what);
+    FromStringException(FromStringErrorCode code, utils::zstring_view what);
 
     /// @brief Returns conversion error code.
     FromStringErrorCode GetCode() const noexcept { return code_; }
@@ -68,20 +69,15 @@ private:
 namespace impl {
 
 template <typename T>
-struct IsFromCharsConvertible : std::false_type {};
-
-template <typename T>
-requires requires(T& v) { std::from_chars(std::declval<const char*>(), std::declval<const char*>(), v); }
-struct IsFromCharsConvertible<T> : std::true_type {};
-
-// libstdc++ before 13.1 parse long double incorrectly
+concept IsFromCharsConvertible =
+    requires(T& v) { std::from_chars(std::declval<const char*>(), std::declval<const char*>(), v); } &&
 #if defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 13
-template <>
-struct IsFromCharsConvertible<long double> : std::false_type {};
+    // libstdc++ before 13.1 parse long double incorrectly
+    !std::same_as<T, long double>
+#else
+    true
 #endif
-
-template <class T>
-inline constexpr bool kIsFromCharsConvertible = IsFromCharsConvertible<T>::value;
+    ;
 
 [[noreturn]] void ThrowFromStringException(
     FromStringErrorCode code,
@@ -90,7 +86,7 @@ inline constexpr bool kIsFromCharsConvertible = IsFromCharsConvertible<T>::value
 );
 
 template <typename T>
-requires(std::is_floating_point_v<T> && !kIsFromCharsConvertible<T>)
+requires(std::is_floating_point_v<T> && !IsFromCharsConvertible<T>)
 expected<T, FromStringErrorCode> FromString(utils::zstring_view str) noexcept {
     static_assert(!std::is_const_v<T> && !std::is_volatile_v<T>);
     static_assert(!std::is_reference_v<T>);
@@ -134,19 +130,19 @@ expected<T, FromStringErrorCode> FromString(utils::zstring_view str) noexcept {
 }
 
 template <typename T>
-requires(std::is_floating_point_v<T> && !kIsFromCharsConvertible<T>)
+requires(std::is_floating_point_v<T> && !IsFromCharsConvertible<T>)
 expected<T, FromStringErrorCode> FromString(const std::string& str) noexcept {
     return impl::FromString<T>(utils::zstring_view{str});
 }
 
 template <typename T>
-requires(std::is_floating_point_v<T> && !kIsFromCharsConvertible<T>)
+requires(std::is_floating_point_v<T> && !IsFromCharsConvertible<T>)
 expected<T, FromStringErrorCode> FromString(const char* str) noexcept {
     return impl::FromString<T>(utils::zstring_view{str});
 }
 
 template <typename T>
-requires(std::is_floating_point_v<T> && !kIsFromCharsConvertible<T>)
+requires(std::is_floating_point_v<T> && !IsFromCharsConvertible<T>)
 expected<T, FromStringErrorCode> FromString(std::string_view str) noexcept {
     static constexpr std::size_t kSmallBufferSize = 32;
 
@@ -156,14 +152,13 @@ expected<T, FromStringErrorCode> FromString(std::string_view str) noexcept {
     }
 
     char buffer[kSmallBufferSize];
-    std::copy(str.data(), str.data() + str.size(), buffer);
+    std::ranges::copy(str, buffer);
     buffer[str.size()] = '\0';
 
     return impl::FromString<T>(utils::zstring_view::UnsafeMake(buffer, str.size()));
 }
 
-template <typename T>
-requires kIsFromCharsConvertible<T>
+template <IsFromCharsConvertible T>
 expected<T, FromStringErrorCode> FromString(std::string_view str) noexcept {
     static_assert(!std::is_const_v<T> && !std::is_volatile_v<T>);
     static_assert(!std::is_reference_v<T>);

@@ -6,6 +6,7 @@
 
 #include <userver/engine/sleep.hpp>
 #include <userver/formats/json/value_builder.hpp>
+#include <userver/kafka/exceptions.hpp>
 #include <userver/kafka/impl/configuration.hpp>
 #include <userver/kafka/impl/stats.hpp>
 #include <userver/testsuite/testpoint.hpp>
@@ -91,6 +92,23 @@ void Consumer::DumpMetric(utils::statistics::Writer& writer) const {
     USERVER_NAMESPACE::kafka::impl::DumpMetric(writer, stats_, this->name_);
 }
 
+void Consumer::CloseConsumingAfterFatalError() noexcept {
+    if (!consumer_) {
+        return;
+    }
+
+    LOG_INFO("Closing consumer after fatal librdkafka error before restart");
+    try {
+        consumer_->StopConsuming();
+    } catch (const ConsumerRestartRequiredException&) {
+        // StopConsuming polls the event queue; a pending fatal error may surface again.
+        LOG_DEBUG("Consumer close after fatal error: restart still required (expected)");
+    } catch (const std::exception& e) {
+        LOG_ERROR() << "Failed to close consumer after fatal error: " << e;
+    }
+    consumer_.reset();
+}
+
 void Consumer::RunConsuming(ConsumerScope::Callback callback) {
     // note: Consumer must be recreated after each stop,
     // because stop invalidates some internal consumer state (in librdkafka).
@@ -173,6 +191,11 @@ void Consumer::StartMessageProcessing(ConsumerScope::Callback callback) {
             while (!engine::current_task::ShouldCancel()) {
                 try {
                     RunConsuming(callback);
+                } catch (const ConsumerRestartRequiredException& e) {
+                    LOG_WARNING("Restarting consumer after fatal librdkafka error: {}", e.what());
+
+                    CloseConsumingAfterFatalError();
+                    CallErrorTestpoint(fmt::format("tp_error_{}", name_), e.what());
                 } catch (const std::exception& e) {
                     LOG_ERROR("Messages processing failed in consumer: {}", e.what());
 

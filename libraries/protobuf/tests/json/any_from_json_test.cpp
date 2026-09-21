@@ -115,7 +115,8 @@ INSTANTIATE_TEST_SUITE_P(
             })",
             AnyMessageData{DurationMessageData{123, 987}},
             {.ignore_unknown_fields = true},
-            true  // we want 'ignore_unknown_options' to work in all cases
+            // We want 'ignore_unknown_options' to work in all cases.
+            true
         },
         AnyFromJsonSuccessTestParam{
             R"({
@@ -169,6 +170,39 @@ INSTANTIATE_TEST_SUITE_P(
               }
             })",
             AnyMessageData{ValueMessageData{std::map<std::string, std::string>{{"aaa", "hello"}, {"bbb", "world"}}}}
+        },
+        // nonportable_raw_any: parse Any from {"type_url": "...", "value": "<base64>"} without descriptor lookup
+        AnyFromJsonSuccessTestParam{
+            R"({"field1":{"type_url":"type.googleapis.com/proto_json.messages.Int32Message","value":"CAoQFBge"}})",
+            AnyMessageData{
+                RawAnyData{"type.googleapis.com/proto_json.messages.Int32Message", "\x08\x0a\x10\x14\x18\x1e"}
+            },
+            {.nonportable_raw_any = true},
+            // Native implementation does not support nonportable_raw_any option.
+            true
+        },
+        AnyFromJsonSuccessTestParam{
+            R"({"field1":{"typeUrl":"type.googleapis.com/proto_json.messages.Int32Message","value":"CAoQFBge"}})",
+            AnyMessageData{
+                RawAnyData{"type.googleapis.com/proto_json.messages.Int32Message", "\x08\x0a\x10\x14\x18\x1e"}
+            },
+            {.nonportable_raw_any = true},
+            // Native implementation does not support nonportable_raw_any option.
+            true
+        },
+        AnyFromJsonSuccessTestParam{
+            R"({"field1":{"type_url":"type.googleapis.com/proto_json.messages.NonExistent","value":"CAE="}})",
+            AnyMessageData{RawAnyData{"type.googleapis.com/proto_json.messages.NonExistent", "\x08\x01"}},
+            {.nonportable_raw_any = true},
+            // Native implementation does not support nonportable_raw_any option.
+            true
+        },
+        AnyFromJsonSuccessTestParam{
+            R"({"field1":{"type_url":"","value":""}})",
+            AnyMessageData{RawAnyData{"", ""}},
+            {.nonportable_raw_any = true},
+            // Native implementation does not support nonportable_raw_any option.
+            true
         }
     )
 );
@@ -248,6 +282,27 @@ INSTANTIATE_TEST_SUITE_P(
             ParseErrorCode::kUnknownField,
             "field1.unknown_field",
             {.ignore_unknown_fields = false}
+        },
+        // nonportable_raw_any: missing 'value' field
+        AnyFromJsonFailureTestParam{
+            R"({"field1":{"type_url":"type.googleapis.com/some.Type"}})",
+            ParseErrorCode::kInvalidValue,
+            "field1",
+            {.nonportable_raw_any = true}
+        },
+        // nonportable_raw_any: missing 'type_url' field
+        AnyFromJsonFailureTestParam{
+            R"({"field1":{"value":""}})",
+            ParseErrorCode::kInvalidValue,
+            "field1",
+            {.nonportable_raw_any = true}
+        },
+        // nonportable_raw_any: non-string 'type_url'
+        AnyFromJsonFailureTestParam{
+            R"({"field1":{"type_url":123,"value":""}})",
+            ParseErrorCode::kInvalidValue,
+            "field1",
+            {.nonportable_raw_any = true}
         }
     )
 );

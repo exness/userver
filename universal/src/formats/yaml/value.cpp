@@ -126,8 +126,6 @@ std::size_t Value::GetSize() const {
 
 bool Value::operator==(const Value& other) const { return GetNative().Scalar() == other.GetNative().Scalar(); }
 
-bool Value::operator!=(const Value& other) const { return !(*this == other); }
-
 bool Value::IsMissing() const { return !*value_pimpl_; }
 
 template <class T>

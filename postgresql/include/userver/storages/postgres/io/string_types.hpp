@@ -8,6 +8,8 @@
 #include <string>
 #include <string_view>
 
+#include <algorithm>
+
 #include <userver/storages/postgres/exceptions.hpp>
 #include <userver/storages/postgres/io/buffer_io_base.hpp>
 #include <userver/storages/postgres/io/traits.hpp>
@@ -126,7 +128,7 @@ template <>
 struct BufferFormatter<char> {
     char value;
 
-    explicit BufferFormatter(char val)
+    constexpr explicit BufferFormatter(char val)
         : value{val}
     {}
     template <typename Buffer>

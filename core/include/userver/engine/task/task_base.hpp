@@ -23,8 +23,8 @@ namespace engine {
 namespace impl {
 class TaskContextHolder;
 class TaskContext;
-class DetachedTasksSyncBlock;
-class ContextAccessor;
+class TaskContextAccessor;
+class AwaitableBase;
 }  // namespace impl
 
 /// @brief Base class for all the asynchronous tasks
@@ -199,8 +199,7 @@ protected:
     /// @endcond
 
 private:
-    friend class impl::DetachedTasksSyncBlock;
-    friend class TaskCancellationToken;
+    friend class impl::TaskContextAccessor;
 
     struct Impl;
     utils::FastPimpl<Impl, 8, 8> pimpl_;

@@ -27,7 +27,7 @@ void UtilsRegexCreateAndUse(benchmark::State& state) {
 
     for ([[maybe_unused]] auto _ : state) {
         const utils::regex regex{R"(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}\])"};
-        const bool matches = utils::regex_match(string, regex);
+        bool matches = utils::regex_match(string, regex);
         benchmark::DoNotOptimize(matches);
     }
 }
@@ -38,7 +38,7 @@ void UtilsRegexUse(benchmark::State& state) {
 
     for ([[maybe_unused]] auto _ : state) {
         constexpr std::string_view string{"[2000-01-01 00:00:00.000]"};
-        const bool matches = utils::regex_match(string, regex);
+        bool matches = utils::regex_match(string, regex);
         benchmark::DoNotOptimize(matches);
     }
 }

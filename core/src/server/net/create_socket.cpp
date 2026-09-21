@@ -88,7 +88,7 @@ engine::io::Socket DoCreateSocket(const ListenerConfig& config, const PortConfig
 engine::io::Socket CreateSocket(const ListenerConfig& config, const PortConfig& port_config) {
     //  Note: socket creation accesses filesystem
     auto& tp = engine::current_task::GetBlockingTaskProcessor();
-    return engine::AsyncNoSpan(tp, &DoCreateSocket, std::ref(config), std::ref(port_config)).Get();
+    return engine::AsyncNoTracing(tp, &DoCreateSocket, std::ref(config), std::ref(port_config)).Get();
 }
 
 }  // namespace server::net

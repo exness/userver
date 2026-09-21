@@ -43,7 +43,7 @@ public:
     }
 
 private:
-    Func func_;
+    [[no_unique_address]] Func func_;
 };
 
 template <typename Func>

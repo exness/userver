@@ -2,6 +2,7 @@
 
 #include <storages/redis/impl/thread_pools.hpp>
 #include <userver/dynamic_config/test_helpers.hpp>
+#include <userver/utest/utest.hpp>
 
 #include <storages/redis/impl/keyshard_impl.hpp>
 #include <storages/redis/impl/mock_server_test.hpp>
@@ -10,8 +11,12 @@
 
 USERVER_NAMESPACE_BEGIN
 
-// 100ms should be enough, but valgrind is too slow
-inline constexpr auto kSmallPeriod = std::chrono::milliseconds(500);
+// kSuccessTimeout is only used for waits that are expected to succeed
+// (EXPECT_TRUE(...WaitForFirstPingReply...)). WaitForFirstReply returns as soon
+// as the awaited reply arrives, so a generous timeout keeps the happy path fast
+// while preventing flaps under CI/sanitizer load (the redis ping interval alone
+// is 2000ms).
+inline constexpr auto kSuccessTimeout = utest::kMaxTestWaitTime;
 
 const std::string kLocalhost = "127.0.0.1";
 

@@ -41,7 +41,7 @@ bool WaitListLightWithEpoch::SetEpochThenGetAndResetSignal(std::uint32_t epoch) 
 
 std::uint32_t WaitListLightWithEpoch::GetEpoch() const noexcept { return state_.LoadWithTearing().epoch; }
 
-void WaitListLightWithEpoch::GetSignalOrAppend(boost::intrusive_ptr<Awaiter>& awaiter, std::uintptr_t context) {
+void WaitListLightWithEpoch::GetSignalOrAppend(AwaiterPtr& awaiter, std::uintptr_t context) {
     UASSERT(awaiter);
 
     const auto epoch = state_.LoadWithTearing().epoch;
@@ -73,17 +73,17 @@ void WaitListLightWithEpoch::GetSignalOrAppend(boost::intrusive_ptr<Awaiter>& aw
     [[maybe_unused]] auto* const released_ptr = new_awaiter_with_context.release();
 
     // Keep a reference logically stored in the WaitListLightWithEpoch.
-    awaiter.detach();
+    [[maybe_unused]] auto* const released_awaiter = awaiter.release();
 }
 
-void WaitListLightWithEpoch::Remove(Awaiter& awaiter, std::uintptr_t context) noexcept {
+AwaiterPtr WaitListLightWithEpoch::Remove(Awaiter& awaiter, std::uintptr_t context) noexcept {
     const auto current = state_.LoadWithTearing();
     AwaiterWithContextPtrAndEpoch expected = current;
 
     UASSERT(expected.awaiter_with_context != nullptr);
     if (expected.awaiter_with_context == kSignaled) {
         // Already removed/signaled.
-        return;
+        return {};
     }
 
     // Preserve the epoch when removing the awaiter.
@@ -97,7 +97,7 @@ void WaitListLightWithEpoch::Remove(Awaiter& awaiter, std::uintptr_t context) no
             expected.awaiter_with_context == nullptr || expected.awaiter_with_context == kSignaled,
             "An unexpected awaiter is occupying the WaitListLightWithEpoch or epoch changed mid-await"
         );
-        return;
+        return {};
     }
 
     UASSERT_MSG(
@@ -108,7 +108,7 @@ void WaitListLightWithEpoch::Remove(Awaiter& awaiter, std::uintptr_t context) no
     if (current.awaiter_with_context != nullptr && current.awaiter_with_context != kSignaled) {
         std::default_delete<AwaiterWithContext>{}(current.awaiter_with_context);
     }
-    intrusive_ptr_release(&awaiter);
+    return AwaiterPtr{&awaiter};
 }
 
 bool WaitListLightWithEpoch::GetAndResetSignal() noexcept {
@@ -147,10 +147,10 @@ void WaitListLightWithEpoch::SetSignalAndNotifyOneIfEpochMatches(std::uint32_t e
 
         if (success) {
             if (current.awaiter_with_context != nullptr && current.awaiter_with_context != kSignaled) {
-                boost::intrusive_ptr<Awaiter> awaiter{current.awaiter_with_context->awaiter, /*add_ref=*/false};
+                AwaiterPtr awaiter{current.awaiter_with_context->awaiter};
                 const auto context = current.awaiter_with_context->context;
                 std::default_delete<AwaiterWithContext>{}(current.awaiter_with_context);
-                impl::Notify(std::move(awaiter), context);
+                impl::NotifyAndDispose(std::move(awaiter), context);
             }
             return;
         }

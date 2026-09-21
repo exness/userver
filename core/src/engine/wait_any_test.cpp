@@ -15,6 +15,8 @@
 #include <userver/engine/wait_any.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/async.hpp>
+#include <userver/utils/expected.hpp>
+#include <userver/utils/slot_map.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -22,7 +24,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-class TestAwaitable final : engine::impl::ContextAccessor {
+class TestAwaitable final : engine::impl::AwaitableBase {
 public:
     TestAwaitable() = default;
     TestAwaitable(const TestAwaitable&) = delete;
@@ -30,19 +32,25 @@ public:
     TestAwaitable& operator=(const TestAwaitable&) = delete;
     TestAwaitable& operator=(TestAwaitable&&) = delete;
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return ready_ ? nullptr : this; }
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+        if (ready_) {
+            return {};
+        }
+
+        return engine::AwaitableToken{utils::impl::InternalTag{}, this};
+    }
 
     void SetReady() {
         ready_ = true;
         if (awaiter_ != nullptr) {
             auto awaiter = std::move(awaiter_);
-            engine::impl::Notify(std::move(awaiter), context_);
+            engine::impl::NotifyAndDispose(std::move(awaiter), context_);
         }
     }
 
     bool IsReady() const noexcept override { return ready_; }
 
-    void TryAppendAwaiter(boost::intrusive_ptr<engine::impl::Awaiter>& awaiter, std::uintptr_t context) override {
+    void TryAppendAwaiter(engine::impl::AwaiterPtr& awaiter, std::uintptr_t context) override {
         if (ready_) {
             return;
         }
@@ -51,19 +59,19 @@ public:
         context_ = context;
     }
 
-    void RemoveAwaiter(engine::impl::Awaiter& awaiter, std::uintptr_t context) noexcept override {
+    engine::impl::AwaiterPtr RemoveAwaiter(engine::impl::Awaiter& awaiter, std::uintptr_t context) noexcept override {
         UINVARIANT(context_ == context, "Context does not match");
 
         if (awaiter_ == nullptr) {
-            return;
+            return {};
         }
         UINVARIANT(awaiter_.get() == &awaiter, "Awaiter does not match");
-        awaiter_ = nullptr;
+        return std::move(awaiter_);
     }
 
 private:
     bool ready_{false};
-    boost::intrusive_ptr<engine::impl::Awaiter> awaiter_;
+    engine::impl::AwaiterPtr awaiter_;
     std::uintptr_t context_{0};
 };
 
@@ -99,7 +107,8 @@ struct StatefulWaitAnyProxy {
     template <typename... Awaitables>
     std::optional<std::size_t> WaitAny(Awaitables&... awaitables) {
         auto wait_any = engine::MakeWaitAny(awaitables...);
-        return wait_any.Wait();
+        const auto result = wait_any.Wait();
+        return result.has_value() ? std::optional<std::size_t>{*result} : std::nullopt;
     }
 
     template <typename... Awaitables, typename Rep, typename Period>
@@ -108,7 +117,8 @@ struct StatefulWaitAnyProxy {
         Awaitables&... awaitables
     ) {
         auto wait_any = engine::MakeWaitAny(awaitables...);
-        return wait_any.WaitFor(duration);
+        const auto result = wait_any.WaitFor(duration);
+        return result.has_value() ? std::optional<std::size_t>{*result} : std::nullopt;
     }
 
     template <typename... Awaitables, typename Clock, typename Duration>
@@ -117,13 +127,15 @@ struct StatefulWaitAnyProxy {
         Awaitables&... awaitables
     ) {
         auto wait_any = engine::MakeWaitAny(awaitables...);
-        return wait_any.WaitUntil(until);
+        const auto result = wait_any.WaitUntil(until);
+        return result.has_value() ? std::optional<std::size_t>{*result} : std::nullopt;
     }
 
     template <typename... Awaitables>
     std::optional<std::size_t> WaitAnyUntil(engine::Deadline deadline, Awaitables&... awaitables) {
         auto wait_any = engine::MakeWaitAny(awaitables...);
-        return wait_any.WaitUntil(deadline);
+        const auto result = wait_any.WaitUntil(deadline);
+        return result.has_value() ? std::optional<std::size_t>{*result} : std::nullopt;
     }
 };
 
@@ -148,7 +160,7 @@ TYPED_UTEST(WaitAny, VectorTasks) {
     tasks.reserve(kTaskCount);
 
     for (std::size_t i = 0; i < kTaskCount; i++) {
-        tasks.push_back(engine::AsyncNoSpan([&finished_counter, i] {
+        tasks.push_back(engine::AsyncNoTracing([&finished_counter, i] {
             const std::size_t order = (i + kTaskCount - kTaskOrderShift) % kTaskCount;
             while (finished_counter < order) {
                 engine::Yield();
@@ -178,11 +190,11 @@ TYPED_UTEST(WaitAny, Cancelled) {
     static constexpr std::size_t kTaskCount = 3;
 
     std::atomic<bool> started{false};
-    auto task = engine::AsyncNoSpan([&started, this]() {
+    auto task = engine::AsyncNoTracing([&started, this]() {
         std::vector<engine::TaskWithResult<void>> tasks;
         tasks.reserve(kTaskCount);
         for (size_t i = 0; i < kTaskCount; i++) {
-            tasks.push_back(engine::AsyncNoSpan([] {
+            tasks.push_back(engine::AsyncNoTracing([] {
                 for (;;) {
                     engine::Yield();
                     engine::current_task::CancellationPoint();
@@ -203,7 +215,7 @@ TYPED_UTEST(WaitAny, Cancelled) {
 
 TYPED_UTEST(WaitAny, VectorWithCancelledTask) {
     std::vector<engine::TaskWithResult<std::string>> tasks;
-    tasks.push_back(engine::AsyncNoSpan([] { return std::string{"some_value"}; }));
+    tasks.push_back(engine::AsyncNoTracing([] { return std::string{"some_value"}; }));
     tasks[0].RequestCancel();
 
     auto task_idx_opt = this->MakeWaitAnyProxy().WaitAny(tasks);
@@ -214,13 +226,13 @@ TYPED_UTEST(WaitAny, VectorWithCancelledTask) {
 
 TYPED_UTEST(WaitAny, WaitAnyFor) {
     engine::TaskWithResult<void> tasks[] = {
-        engine::AsyncNoSpan([] {
+        engine::AsyncNoTracing([] {
             for (;;) {
                 engine::Yield();
                 engine::current_task::CancellationPoint();
             }
         }),
-        engine::AsyncNoSpan([] {}),
+        engine::AsyncNoTracing([] {}),
     };
 
     engine::Yield();
@@ -244,7 +256,7 @@ TYPED_UTEST(WaitAny, WaitAnyUntil) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(kTaskCount);
     for (size_t i = 0; i < kTaskCount; i++) {
-        tasks.push_back(engine::AsyncNoSpan([i] {
+        tasks.push_back(engine::AsyncNoTracing([i] {
             if (i == 1) {
                 engine::SleepFor(10ms);
                 return;
@@ -269,11 +281,11 @@ TYPED_UTEST(WaitAny, WaitAnyUntil) {
 }
 
 TYPED_UTEST(WaitAny, DistinctTypes) {
-    auto task0 = engine::AsyncNoSpan([] {
+    auto task0 = engine::AsyncNoTracing([] {
         engine::SleepFor(30ms);
         return 1;
     });
-    auto task1 = engine::AsyncNoSpan([] {
+    auto task1 = engine::AsyncNoTracing([] {
         engine::SleepFor(10ms);
         return std::string{"abc"};
     });
@@ -295,7 +307,7 @@ TYPED_UTEST(WaitAny, DistinctTypes) {
 
 TYPED_UTEST(WaitAny, Sample) {
     /// [sample waitany]
-    auto task0 = engine::AsyncNoSpan([] { return 1; });
+    auto task0 = engine::AsyncNoTracing([] { return 1; });
 
     auto task1 = utils::Async("long_task", [] {
         engine::InterruptibleSleepFor(20s);
@@ -314,7 +326,7 @@ TYPED_UTEST(WaitAny, Throwing) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(kTaskCount);
     for (std::size_t i = 0; i < kTaskCount; i++) {
-        tasks.push_back(engine::AsyncNoSpan([i] {
+        tasks.push_back(engine::AsyncNoTracing([i] {
             if (i == 1) {
                 throw std::runtime_error("test");
             }
@@ -343,7 +355,7 @@ UTEST_DEATH(WaitAnyDeathTest, DuplicateTask) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(kTaskCount);
     for (std::size_t i = 0; i < kTaskCount; i++) {
-        tasks.push_back(engine::AsyncNoSpan([] { engine::SleepFor(10ms); }));
+        tasks.push_back(engine::AsyncNoTracing([] { engine::SleepFor(10ms); }));
     }
 
     UEXPECT_DEATH(engine::WaitAny(tasks[0], tasks[1], tasks[0]), "");
@@ -371,7 +383,7 @@ TYPED_UTEST(WaitAny, NoTasks) {
 TYPED_UTEST(WaitAny, HeterogenousWait) {
     constexpr int kExpectedValue = 42;
 
-    auto task = engine::AsyncNoSpan([expected_value = kExpectedValue] {
+    auto task = engine::AsyncNoTracing([expected_value = kExpectedValue] {
         engine::InterruptibleSleepFor(utest::kMaxTestWaitTime);
         return expected_value;
     });
@@ -379,7 +391,7 @@ TYPED_UTEST(WaitAny, HeterogenousWait) {
     engine::Promise<int> promise;
     auto future = promise.get_future();
 
-    auto notifier_task = engine::AsyncNoSpan([&] {
+    auto notifier_task = engine::AsyncNoTracing([&] {
         engine::SleepFor(20ms);
         promise.set_value(kExpectedValue);
     });
@@ -399,23 +411,23 @@ UTEST(WaitAnyContext, WaitAnyContextMoveAssignemt) {
     auto wait_any2 = engine::MakeWaitAny(awaitable2);
 
     // Force subscription to awaitable 1.
-    ASSERT_EQ(wait_any1.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+    EXPECT_EQ(wait_any1.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
     // This should remove the subscription from awaitable 1.
     wait_any1 = std::move(wait_any2);
     wait_any1.Append(awaitable1);
 
     // Force subscriptions
-    ASSERT_EQ(wait_any1.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+    EXPECT_EQ(wait_any1.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
     awaitable1.SetReady();
     auto ready = wait_any1.Wait();
-    ASSERT_NE(ready, std::nullopt);
+    ASSERT_TRUE(ready.has_value());
     EXPECT_EQ(*ready, 1);
 
     awaitable2.SetReady();
     ready = wait_any1.Wait();
-    ASSERT_NE(ready, std::nullopt);
+    ASSERT_TRUE(ready.has_value());
     EXPECT_EQ(*ready, 0);
 }
 
@@ -424,15 +436,15 @@ UTEST(WaitAnyContext, WaitAnyContextMoveConstruction) {
     auto wait_any1 = engine::MakeWaitAny(awaitable);
 
     // Force subscription to awaitable.
-    ASSERT_EQ(wait_any1.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+    EXPECT_EQ(wait_any1.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
     engine::WaitAnyContext wait_any2{std::move(wait_any1)};
 
-    ASSERT_EQ(wait_any2.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+    EXPECT_EQ(wait_any2.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
     awaitable.SetReady();
     auto ready = wait_any2.Wait();
-    ASSERT_NE(ready, std::nullopt);
+    ASSERT_TRUE(ready.has_value());
     EXPECT_EQ(*ready, 0);
 }
 
@@ -445,7 +457,7 @@ UTEST(WaitAnyContext, WaitAnyContextSingleVector) {
     tasks.reserve(kTaskCount);
 
     for (std::size_t i = 0; i < kTaskCount; i++) {
-        tasks.push_back(engine::AsyncNoSpan([&finished_counter, i] {
+        tasks.push_back(engine::AsyncNoTracing([&finished_counter, i] {
             const std::size_t order = (i + kTaskCount - kTaskOrderShift) % kTaskCount;
             while (finished_counter < order) {
                 engine::Yield();
@@ -456,8 +468,10 @@ UTEST(WaitAnyContext, WaitAnyContextSingleVector) {
     std::array<bool, kTaskCount> completed{};
     completed.fill(false);
     engine::WaitAnyContext wait_any;
-    wait_any.Append(tasks);
-    ASSERT_EQ(wait_any.GetNextIndex(), kTaskCount);
+    for (auto& task : tasks) {
+        wait_any.Append(task);
+    }
+    ASSERT_EQ(wait_any.GetNextId(), kTaskCount);
 
     for (std::size_t i = 0; i < kTaskCount; i++) {
         ASSERT_EQ(wait_any.GetSize(), kTaskCount - i);
@@ -473,7 +487,7 @@ UTEST(WaitAnyContext, WaitAnyContextSingleVector) {
         EXPECT_TRUE(completed[i]);
     }
     ASSERT_EQ(wait_any.GetSize(), 0);
-    EXPECT_EQ(wait_any.Wait(), std::nullopt);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
 }
 
 UTEST(WaitAnyContext, WaitAnyContextPlainAwaitables) {
@@ -481,9 +495,9 @@ UTEST(WaitAnyContext, WaitAnyContextPlainAwaitables) {
     std::vector<TestAwaitable> awaitables(3);
 
     auto wait_any = engine::MakeWaitAny(awaitables[0], awaitables[1], awaitables[2]);
-    ASSERT_EQ(wait_any.GetNextIndex(), awaitables.size());
+    ASSERT_EQ(wait_any.GetNextId(), awaitables.size());
 
-    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
     for (std::size_t i = 0; i < awaitables.size(); ++i) {
         ASSERT_EQ(wait_any.GetSize(), awaitables.size() - i);
@@ -493,7 +507,7 @@ UTEST(WaitAnyContext, WaitAnyContextPlainAwaitables) {
         EXPECT_EQ(*index, (i + 1) % awaitables.size());
     }
     ASSERT_EQ(wait_any.GetSize(), 0);
-    EXPECT_EQ(wait_any.Wait(), std::nullopt);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
     /// [sample MakeWaitAny]
 }
 
@@ -508,9 +522,9 @@ UTEST(WaitAnyContext, WaitAnyContextMixed) {
     std::vector<TestAwaitable*> all = {&awaitable1, &v1[0], &v1[1], &awaitable2, &awaitable3, &v2[0], &v2[1]};
 
     auto wait_any = engine::MakeWaitAny(awaitable1, v1, awaitable2, awaitable3, v2);
-    ASSERT_EQ(wait_any.GetNextIndex(), all.size());
+    ASSERT_EQ(wait_any.GetNextId(), all.size());
 
-    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
     for (std::size_t i = 0; i < all.size(); ++i) {
         ASSERT_EQ(wait_any.GetSize(), all.size() - i);
@@ -520,21 +534,21 @@ UTEST(WaitAnyContext, WaitAnyContextMixed) {
         EXPECT_EQ(*index, (i + 3) % all.size());
     }
     ASSERT_EQ(wait_any.GetSize(), 0);
-    EXPECT_EQ(wait_any.Wait(), std::nullopt);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
 }
 
 UTEST(WaitAnyContext, WaitAnyContextDynamicAppend) {
     std::vector<TestAwaitable> awaitables(10);
 
     engine::WaitAnyContext wait_any;
-    ASSERT_EQ(wait_any.GetNextIndex(), 0);
+    ASSERT_EQ(wait_any.GetNextId(), 0);
 
     for (std::size_t i = 0; i < awaitables.size() / 2; ++i) {
         wait_any.Append(awaitables[i * 2]);
-        wait_any.Append(awaitables[i * 2 + 1]);
+        wait_any.Append(awaitables[(i * 2) + 1]);
         ASSERT_EQ(wait_any.GetSize(), i + 2);
-        ASSERT_EQ(wait_any.GetNextIndex(), (i + 1) * 2);
-        EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+        ASSERT_EQ(wait_any.GetNextId(), (i + 1) * 2);
+        EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
         awaitables[i * 2].SetReady();
         auto index = wait_any.Wait();
@@ -543,16 +557,204 @@ UTEST(WaitAnyContext, WaitAnyContextDynamicAppend) {
     }
 
     for (std::size_t i = 0; i < awaitables.size() / 2; ++i) {
-        ASSERT_EQ(wait_any.GetSize(), awaitables.size() / 2 - i);
-        EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), std::nullopt);
+        ASSERT_EQ(wait_any.GetSize(), (awaitables.size() / 2) - i);
+        EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
 
-        awaitables[i * 2 + 1].SetReady();
+        awaitables[(i * 2) + 1].SetReady();
         auto index = wait_any.Wait();
         ASSERT_TRUE(index.has_value());
-        EXPECT_EQ(*index, i * 2 + 1);
+        EXPECT_EQ(*index, (i * 2) + 1);
     }
     ASSERT_EQ(wait_any.GetSize(), 0);
-    EXPECT_EQ(wait_any.Wait(), std::nullopt);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
+}
+
+UTEST(WaitAnyContext, AppendWithExplicitIndex) {
+    TestAwaitable awaitable0;
+    TestAwaitable awaitable1;
+    TestAwaitable awaitable2;
+
+    engine::WaitAnyContext wait_any;
+    // Append with explicit non-sequential ids.
+    wait_any.Append(std::uint64_t{100}, awaitable0);
+    wait_any.Append(std::uint64_t{42}, awaitable1);
+    wait_any.Append(std::uint64_t{999}, awaitable2);
+
+    // GetNextId must not be affected by explicit-id appends.
+    EXPECT_EQ(wait_any.GetNextId(), 0);
+    EXPECT_EQ(wait_any.GetSize(), 3);
+
+    // Force subscriptions.
+    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
+
+    awaitable1.SetReady();
+    auto index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 42);
+
+    awaitable2.SetReady();
+    index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 999);
+
+    awaitable0.SetReady();
+    index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 100);
+
+    EXPECT_EQ(wait_any.GetSize(), 0);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
+}
+
+UTEST(WaitAnyContext, AppendWithExplicitIndexMixedWithImplicit) {
+    TestAwaitable awaitable_explicit;
+    TestAwaitable awaitable_implicit0;
+    TestAwaitable awaitable_implicit1;
+
+    engine::WaitAnyContext wait_any;
+
+    // Implicit appends advance GetNextId.
+    wait_any.Append(awaitable_implicit0);
+    EXPECT_EQ(wait_any.GetNextId(), 1);
+
+    // Explicit-id append must NOT advance GetNextId.
+    wait_any.Append(std::uint64_t{77}, awaitable_explicit);
+    EXPECT_EQ(wait_any.GetNextId(), 1);
+
+    // Another implicit append continues the sequence.
+    wait_any.Append(awaitable_implicit1);
+    EXPECT_EQ(wait_any.GetNextId(), 2);
+
+    EXPECT_EQ(wait_any.GetSize(), 3);
+
+    // Force subscriptions.
+    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
+
+    awaitable_explicit.SetReady();
+    auto index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 77);
+
+    awaitable_implicit0.SetReady();
+    index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 0);
+
+    awaitable_implicit1.SetReady();
+    index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 1);
+
+    EXPECT_EQ(wait_any.GetSize(), 0);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
+}
+
+UTEST(WaitAnyContext, AppendWithExplicitIndexEmptyAwaitable) {
+    TestAwaitable awaitable;
+
+    engine::WaitAnyContext wait_any;
+
+    // Appending an already-ready (empty token) awaitable with explicit index is a no-op.
+    awaitable.SetReady();
+    wait_any.Append(std::uint64_t{55}, awaitable);
+
+    // GetNextId must remain 0 (explicit-id append never advances it).
+    EXPECT_EQ(wait_any.GetNextId(), 0);
+    // GetSize must be 0 because the token is empty (awaitable is ready, returns empty token).
+    EXPECT_EQ(wait_any.GetSize(), 0);
+
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
+}
+
+UTEST(WaitAnyContext, AppendWithExplicitIndexAlreadyReadyAwaitable) {
+    // Use a task that finishes immediately so its token is non-empty but ready.
+    auto task = engine::AsyncNoTracing([] {});
+    engine::Yield();  // Let the task finish.
+
+    engine::WaitAnyContext wait_any;
+    wait_any.Append(std::uint64_t{123}, task);
+
+    EXPECT_EQ(wait_any.GetNextId(), 0);
+
+    auto index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 123);
+}
+
+UTEST(WaitAnyContext, MakeReadyAwaitableTokenWithWaitAnyContext) {
+    // A struct that wraps MakeReadyAwaitableToken so it satisfies engine::Awaitable.
+    struct ReadyAwaitable {
+        engine::AwaitableToken GetAwaitableToken() noexcept { return engine::MakeReadyAwaitableToken(); }
+    };
+
+    ReadyAwaitable ready;
+    engine::WaitAnyContext wait_any;
+    wait_any.Append(ready);
+
+    EXPECT_EQ(wait_any.GetNextId(), 1);
+    EXPECT_EQ(wait_any.GetSize(), 1);
+
+    // A ready awaitable should be returned immediately.
+    auto index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 0);
+
+    EXPECT_EQ(wait_any.GetSize(), 0);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
+}
+
+UTEST(WaitAnyContext, AppendWithExplicitIndexDuplicateIndexAllowed) {
+    // The API does not forbid duplicate explicit indexes; both should be returned.
+    TestAwaitable awaitable0;
+    TestAwaitable awaitable1;
+
+    engine::WaitAnyContext wait_any;
+    wait_any.Append(std::uint64_t{7}, awaitable0);
+    wait_any.Append(std::uint64_t{7}, awaitable1);
+
+    EXPECT_EQ(wait_any.GetSize(), 2);
+
+    // Force subscriptions.
+    EXPECT_EQ(wait_any.WaitUntil(engine::Deadline::Passed()), utils::unexpected(engine::WaitAnyError::kTimeout));
+
+    awaitable0.SetReady();
+    auto index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 7);
+
+    awaitable1.SetReady();
+    index = wait_any.Wait();
+    ASSERT_TRUE(index.has_value());
+    EXPECT_EQ(*index, 7);
+
+    EXPECT_EQ(wait_any.GetSize(), 0);
+    EXPECT_EQ(wait_any.Wait(), utils::unexpected(engine::WaitAnyError::kEmpty));
+}
+
+UTEST(WaitAnyContext, AppendWithExplicitIndexSlotMap) {
+    /// [sample WaitAnyContext SlotMap]
+    utils::SlotMap<engine::TaskWithResult<int>> tasks;
+
+    // Spawn several tasks and register each one in the WaitAnyContext using its
+    // SlotMap index as the explicit WaitAnyContext index.
+    engine::WaitAnyContext wait_any;
+    for (int value : {1, 2, 3, 4}) {
+        auto [task, index] = tasks.emplace(engine::AsyncNoTracing([value] { return value; }));
+        wait_any.Append(index, task);
+    }
+
+    // Collect results as tasks finish, in completion order.
+    int sum = 0;
+    while (!tasks.empty()) {
+        const auto index = wait_any.Wait();
+        ASSERT_TRUE(index.has_value());
+
+        sum += tasks[*index].Get();
+        tasks.erase(*index);
+    }
+
+    EXPECT_EQ(sum, 1 + 2 + 3 + 4);
+    /// [sample WaitAnyContext SlotMap]
 }
 
 USERVER_NAMESPACE_END

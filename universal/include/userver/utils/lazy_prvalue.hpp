@@ -35,7 +35,7 @@ public:
     constexpr /* implicit */ operator std::invoke_result_t<Func&&>() && { return std::move(func_)(); }
 
 private:
-    Func func_;
+    [[no_unique_address]] Func func_;
 };
 
 }  // namespace utils

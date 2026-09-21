@@ -19,9 +19,13 @@ namespace engine {
 
 /// Asynchronous task with result
 ///
+/// @warning This class supports only a single concurrent awaiter. Use
+/// @ref engine::SharedTaskWithResult to await and retrieve the same result from
+/// multiple coroutines.
+///
 /// ## Example usage:
 ///
-/// @snippet engine/task/task_with_result_test.cpp  Sample TaskWithResult usage
+/// @snippet core/src/engine/task/task_with_result_test.cpp  Sample TaskWithResult usage
 ///
 /// @see @ref scripts/docs/en/userver/synchronization.md
 template <typename T>
@@ -62,7 +66,8 @@ public:
         return utils::impl::CastWrappedCall<T>(GetPayload()).Retrieve();
     }
 
-    using Task::TryGetContextAccessor;
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    using Task::GetAwaitableToken;
 
     /// @cond
     static constexpr WaitMode kWaitMode = WaitMode::kSingleAwaiter;

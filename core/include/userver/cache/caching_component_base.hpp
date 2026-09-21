@@ -25,6 +25,7 @@
 #include <userver/utils/assert.hpp>
 #include <userver/utils/impl/wait_token_storage.hpp>
 #include <userver/utils/meta.hpp>
+#include <userver/utils/resource_scopes.hpp>
 #include <userver/utils/shared_readable_ptr.hpp>
 #include <userver/yaml_config/schema.hpp>
 
@@ -154,6 +155,24 @@ public:
 
     /// Subscribes to cache updates using a member function. Also immediately
     /// invokes the function with the current cache contents.
+    ///
+    /// Further updates are delivered after @ref utils::ResourceScopeStorage::AfterConstruction, including those updates
+    /// that arrived before it. Unsubscribe runs in @ref utils::ResourceScopeStorage::BeforeDestruction.
+    ///
+    /// @param scopes storage that owns the subscription lifetime. In a component constructor pass `context.Scopes()`
+    /// or @ref components::GetResourceScopes.
+    template <class Class>
+    void UpdateAndListen(
+        utils::ResourceScopeStorage& scopes,
+        Class* obj,
+        std::string name,
+        void (Class::*func)(const std::shared_ptr<const T>&)
+    );
+
+    /// @overload
+    /// @deprecated Use the overload that takes @ref utils::ResourceScopeStorage.
+    ///
+    /// Store the returned scope as a member and call `Unsubscribe` explicitly.
     template <class Class>
     concurrent::AsyncEventSubscriberScope UpdateAndListen(
         Class* obj,
@@ -166,11 +185,12 @@ public:
     static yaml_config::Schema GetStaticConfigSchema();
 
 protected:
-    /// Sets the new value of cache. As a result the `Get()` member function starts
-    /// returning the value passed into this function after the `Update()` finishes.
+    /// @brief Sets the new value of cache. As a result, @ref Get member function starts returning the new value.
     ///
-    /// @warning Do not forget to update @ref cache::UpdateStatisticsScope, otherwise
-    /// the behavior is undefined.
+    /// Notifies subscribers after setting the new value, see @ref UpdateAndListen.
+    /// Should only be called from @ref Update normally.
+    ///
+    /// @warning Do not forget to update @ref cache::UpdateStatisticsScope, otherwise the behavior is undefined.
     void Set(std::unique_ptr<const T> value_ptr);
 
     /// @overload
@@ -252,6 +272,20 @@ utils::SharedReadablePtr<T> CachingComponentBase<T>::Get() const {
         throw cache::EmptyCacheError(Name());
     }
     return ptr;
+}
+
+template <typename T>
+template <typename Class>
+void CachingComponentBase<T>::UpdateAndListen(
+    utils::ResourceScopeStorage& scopes,
+    Class* obj,
+    std::string name,
+    void (Class::*func)(const std::shared_ptr<const T>&)
+) {
+    event_channel_.DoUpdateAndListenScoped(scopes, obj, std::move(name), func, [this, obj, func] {
+        auto ptr = Get();  // TODO: extra ref
+        (obj->*func)(ptr);
+    });
 }
 
 template <typename T>
@@ -370,7 +404,8 @@ auto MakeAsyncDeleter(engine::TaskProcessor& task_processor, Deleter deleter) {
     return [&task_processor, deleter = std::move(deleter)](const T* raw_ptr) mutable {
         std::unique_ptr<const T, Deleter> ptr(raw_ptr, std::move(deleter));
 
-        engine::DetachUnscopedUnsafe(engine::CriticalAsyncNoSpan(task_processor, [ptr = std::move(ptr)]() mutable {}));
+        engine::DetachUnscopedUnsafe(engine::CriticalAsyncNoTracing(task_processor, [ptr = std::move(ptr)]() mutable {})
+        );
     };
 }
 

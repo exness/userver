@@ -8,6 +8,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <userver/compiler/impl/nodebug.hpp>
 #include <userver/formats/common/items.hpp>
 #include <userver/formats/common/meta.hpp>
 #include <userver/formats/json/exception.hpp>
@@ -28,6 +29,7 @@ class InlineObjectBuilder;
 class InlineArrayBuilder;
 class MutableValueWrapper;
 class StringBuffer;
+class StableSerializer;
 
 // do not make a copy of string
 impl::Value MakeJsonStringViewValue(std::string_view view);
@@ -51,7 +53,7 @@ class JsonValueParser;
 ///
 /// ## Example usage:
 ///
-/// @snippet formats/json/value_test.cpp  Sample formats::json::Value usage
+/// @snippet universal/src/formats/json/value_test.cpp  Sample formats::json::Value usage
 ///
 /// @see @ref scripts/docs/en/userver/formats.md
 ///
@@ -131,7 +133,6 @@ public:
     /// @brief Compares values.
     /// @throw MemberMissingException if `*this` or `other` is missing.
     bool operator==(const Value& other) const;
-    bool operator!=(const Value& other) const;
 
     /// @brief Returns true if *this holds nothing. When `IsMissing()` returns
     /// `true` any attempt to get the actual value or iterate over *this will
@@ -170,20 +171,15 @@ public:
     /// @brief Returns true if *this holds a map (Type::kObject).
     bool IsObject() const noexcept;
 
-    // clang-format off
-
-  /// @brief Returns value of *this converted to the result type of
-  ///        Parse(const Value&, parse::To<T>). Almost always it is T.
-  /// @throw Anything derived from std::exception.
-  ///
-  /// ## Example usage:
-  ///
-  /// @snippet formats/json/value_test.cpp  Sample formats::json::Value::As<T>() usage
-  ///
-  /// @see @ref scripts/docs/en/userver/formats.md
-
-    // clang-format on
-
+    /// @brief Returns value of *this converted to the result type of
+    ///        Parse(const Value&, parse::To<T>). Almost always it is T.
+    /// @throw Anything derived from std::exception.
+    ///
+    /// ## Example usage:
+    ///
+    /// @snippet universal/src/formats/json/value_test.cpp  Sample formats::json::Value::As<T>() usage
+    ///
+    /// @see @ref scripts/docs/en/userver/formats.md
     template <typename T>
     auto As() const;
 
@@ -332,6 +328,7 @@ private:
     friend class impl::MutableValueWrapper;
     friend class parser::JsonValueParser;
     friend class impl::StringBuffer;
+    friend class impl::StableSerializer;
 
     friend bool Parse(const Value& value, parse::To<bool>);
     friend std::int64_t Parse(const Value& value, parse::To<std::int64_t>);
@@ -350,7 +347,7 @@ private:
 };
 
 template <typename T>
-auto Value::As() const {
+USERVER_IMPL_NODEBUG auto Value::As() const {
     static_assert(
         formats::common::impl::HasParse<Value, T>,
         "There is no `Parse(const Value&, formats::parse::To<T>)` in namespace of `T` or `formats::parse`. "
@@ -402,7 +399,7 @@ auto Value::As(Value::DefaultConstructed) const {
 }
 
 template <typename T>
-T Value::ConvertTo() const {
+USERVER_IMPL_NODEBUG T Value::ConvertTo() const {
     if constexpr (formats::common::impl::HasConvert<Value, T>) {
         return Convert(*this, formats::parse::To<T>{});
     } else if constexpr (formats::common::impl::HasParse<Value, T>) {
@@ -439,9 +436,7 @@ std::chrono::hours Parse(const Value& value, parse::To<std::chrono::hours>);
 
 /// @brief Wrapper for handy python-like iteration over a map
 ///
-/// @code
-///   for (const auto& [name, value]: Items(map)) ...
-/// @endcode
+/// @snippet universal/src/formats/common/items_test.cpp  Items const iteration
 using formats::common::Items;
 
 /// gtest formatter for formats::json::Value
@@ -449,7 +444,7 @@ void PrintTo(const Value&, std::ostream*);
 
 }  // namespace formats::json
 
-/// Although we provide user defined literals, please beware that
+/// @brief Although we provide user defined literals, please beware that
 /// 'using namespace ABC' may contradict code style of your company.
 namespace formats::literals {
 

@@ -8,11 +8,21 @@ userver_module(
     UTEST_LINK_LIBRARIES odbc
     DBTEST_DATABASES postgresql
     DBTEST_ENV POSTGRES_TEST_DSN=postgresql://testsuite@localhost:15433/postgres
-    DEPENDS core
+    COMPONENT_DEPENDS core
+    EMBED_FILES src/storages/odbc/component.yaml
 )
+
+userver_target_generate_chaotic_dynamic_configs(${PROJECT_NAME}-dynamic-configs dynamic_configs/*.yaml)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAME}-dynamic-configs)
+
+_userver_install_targets(COMPONENT odbc TARGETS ${PROJECT_NAME}-dynamic-configs)
 
 _userver_directory_install(
     COMPONENT odbc
     FILES "${USERVER_ROOT_DIR}/cmake/modules/Findlibodbc.cmake"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/userver/modules"
 )
+
+if(USERVER_BUILD_TESTS)
+    add_subdirectory(functional_tests)
+endif()

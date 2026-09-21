@@ -170,7 +170,7 @@ class RefResolver:
         result = dict()
         for key in sorted_nodes:
             value = types.get(key + '/')
-            if not value:
+            if value is None:
                 raise Exception(
                     f'$ref to unknown type "{key}", known refs:\n{sorted_nodes}',
                 )

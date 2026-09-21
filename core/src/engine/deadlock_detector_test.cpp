@@ -23,7 +23,7 @@ TEST(DeadlockDetectorDeathTest, Smoke) {
             [] {
                 engine::Mutex mutex;
                 std::unique_lock lock(mutex);
-                engine::AsyncNoSpan([&mutex] { std::unique_lock lock(mutex); }).Get();
+                engine::AsyncNoTracing([&mutex] { std::unique_lock lock(mutex); }).Get();
             }
         )),
         R"(Mutex \(ptr=0x[a-z0-9]*\) => Task \(ptr=0x[a-z0-9]*\) => Task \(ptr=0x[a-z0-9]*\))"

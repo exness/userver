@@ -22,12 +22,12 @@
 
 namespace samples::amqp {
 
-class MyRabbitProducer final : public components::LoggableComponentBase {
+class MyRabbitProducer final : public components::ComponentBase {
 public:
     static constexpr std::string_view kName{"my-producer"};
 
     MyRabbitProducer(const components::ComponentConfig& config, const components::ComponentContext& context)
-        : components::LoggableComponentBase{config, context},
+        : components::ComponentBase{config, context},
           client_{context.FindComponent<components::RabbitMQ>(config["rabbit_name"].As<std::string>()).GetClient()}
     {
         const auto setup_deadline = engine::Deadline::FromDuration(std::chrono::seconds{2});
@@ -57,7 +57,7 @@ public:
     }
 
     static yaml_config::Schema GetStaticConfigSchema() {
-        return yaml_config::MergeSchemas<components::LoggableComponentBase>(R"(
+        return yaml_config::MergeSchemas<components::ComponentBase>(R"(
 type: object
 description: My RabbitMQ producer component
 additionalProperties: false
@@ -90,7 +90,7 @@ public:
         auto messages = *storage;
         // We sort messages here because `Process` might run in parallel
         // and ordering is not guaranteed.
-        std::sort(messages.begin(), messages.end());
+        std::ranges::sort(messages);
 
         return messages;
     }

@@ -1,0 +1,68 @@
+#pragma once
+
+#include "any.hpp"
+
+#include <userver/chaotic/additional_properties.hpp>
+#include <userver/chaotic/primitive.hpp>
+#include <userver/chaotic/with_type.hpp>
+#include <userver/formats/parse/common_containers.hpp>
+#include <userver/formats/serialize/common_containers.hpp>
+#include <userver/utils/trivial_map.hpp>
+
+namespace ns {
+
+constexpr USERVER_NAMESPACE::utils::TrivialSet k__ns__ObjectWithRawJsonField_PropertiesNames = [](auto selector) {
+    return selector().template Type<std::string_view>()
+        .Case("inner_object")
+    ;
+};
+
+template <USERVER_NAMESPACE::formats::common::IsFormatValue Value>
+ObjectWithRawJsonField Parse(
+    Value value,
+    USERVER_NAMESPACE::formats::parse::To<ObjectWithRawJsonField>)
+{
+    value.CheckNotMissing();
+    value.CheckObjectOrNull();
+
+    ObjectWithRawJsonField res{
+        .inner_object = value["inner_object"].template As<
+            USERVER_NAMESPACE::formats::json::RawString
+        >(),
+    };
+
+    USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(
+        value, k__ns__ObjectWithRawJsonField_PropertiesNames
+    );
+
+    return res;
+}
+
+constexpr USERVER_NAMESPACE::utils::TrivialSet k__ns__WithAnyField_PropertiesNames = [](auto selector) {
+    return selector().template Type<std::string_view>()
+        .Case("payload")
+    ;
+};
+
+template <USERVER_NAMESPACE::formats::common::IsFormatValue Value>
+WithAnyField Parse(
+    Value value,
+    USERVER_NAMESPACE::formats::parse::To<WithAnyField>)
+{
+    value.CheckNotMissing();
+    value.CheckObjectOrNull();
+
+    WithAnyField res{
+        .payload = value["payload"].template As<
+            std::optional<USERVER_NAMESPACE::formats::json::Value>
+        >(),
+    };
+
+    USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(
+        value, k__ns__WithAnyField_PropertiesNames
+    );
+
+    return res;
+}
+
+}  // namespace ns

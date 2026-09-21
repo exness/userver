@@ -4,28 +4,27 @@
 /// @brief @copybrief utils::ForwardLike
 
 #include <type_traits>
-#include <utility>
+
+#include <userver/compiler/impl/nodebug.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace utils {
 
-// Analogue of std::forward_like from c++23.
-template <typename TOwner, typename TMember>
-decltype(auto) ForwardLike(TMember& member) {
-    if constexpr (std::is_lvalue_reference_v<TOwner> || std::is_lvalue_reference_v<TMember>) {
-        return member;
+/// Analogue of std::forward_like from C++23.
+template <typename T, typename U>
+USERVER_IMPL_NODEBUG_INLINE_FUNC inline constexpr auto&& ForwardLike(U&& x) noexcept {
+    constexpr bool is_adding_const = std::is_const_v<std::remove_reference_t<T>>;
+
+    using URef = std::remove_reference_t<U>;
+    using V = std::conditional_t<is_adding_const, std::add_const_t<URef>, URef>;
+
+    if constexpr (std::is_lvalue_reference_v<T&&>) {
+        return static_cast<V&>(x);
     } else {
-        return std::move(member);
+        return static_cast<V&&>(x);
     }
 }
 
-// Analogue of std::forward_like from c++23.
-template <typename TOwner, typename TMember>
-decltype(auto) ForwardLike(const TMember& member) {
-    return member;
-}
-
 }  // namespace utils
-
 USERVER_NAMESPACE_END

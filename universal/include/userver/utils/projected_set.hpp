@@ -75,19 +75,16 @@ void DoInsert(Set& set, Value&& value) {
     const_cast<SetValue&>(*iter) = std::forward<Value>(value);
 }
 
-template <typename T>
-using HasHasher = typename T::hasher;
-
 }  // namespace impl::projected_set
 
 /// @ingroup userver_universal
 /// @brief A `std::unordered_set` that compares its elements (of type @a Value)
-/// based on their @a Projection. It allows to create, essentially, an
+/// based on their @a Projection. It allows you to create, essentially, an
 /// equivalent of `std::unordered_map` where keys are stored inside values.
 ///
 /// Usage example:
-/// @snippet utils/projected_set_test.cpp  user
-/// @snippet utils/projected_set_test.cpp  usage
+/// @snippet universal/src/utils/projected_set_test.cpp  user
+/// @snippet universal/src/utils/projected_set_test.cpp  usage
 ///
 /// @see @ref utils::ProjectedInsertOrAssign
 /// @see @ref utils::ProjectedFind
@@ -123,11 +120,7 @@ void ProjectedInsertOrAssign(Container& set, Value&& value) {
 /// @note Always returns const iterator, even for a non-const `set` parameter.
 template <typename Container, typename Key>
 auto ProjectedFind(Container& set, const Key& key) {
-    if constexpr (meta::IsDetected<impl::projected_set::HasHasher, std::decay_t<Container>>) {
-        return utils::impl::FindTransparent(set, key);
-    } else {
-        return set.find(key);
-    }
+    return set.find(key);
 }
 
 namespace impl {

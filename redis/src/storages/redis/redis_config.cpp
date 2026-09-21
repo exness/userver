@@ -1,7 +1,5 @@
 #include <userver/storages/redis/redis_config.hpp>
 
-#include <unordered_map>
-
 #include <userver/logging/log.hpp>
 #include <userver/storages/redis/exception.hpp>
 
@@ -50,6 +48,16 @@ CommandControl Parse(const formats::json::Value& elem, formats::parse::To<Comman
             result.force_request_to_master = option.As<bool>();
         } else if (name == "consider_ping") {
             result.consider_ping = option.As<bool>();
+        } else if (name == "account_in_statistics") {
+            result.account_in_statistics = option.As<bool>();
+        } else if (name == "force_shard_idx") {
+            result.force_shard_idx = option.As<size_t>();
+        } else if (name == "chunk_size") {
+            result.chunk_size = option.As<size_t>();
+        } else if (name == "force_retries_to_master_on_nil_reply") {
+            result.force_retries_to_master_on_nil_reply = option.As<bool>();
+        } else if (name == "retry_counter") {
+            result.retry_counter = option.As<size_t>();
         } else {
             LOG_WARNING() << "unknown key for CommandControl map: " << name;
         }
@@ -132,6 +140,7 @@ Config Config::Parse(const dynamic_config::DocsMap& docs_map) {
     Into(result.pubsub_metrics_settings, docs_map.Get("REDIS_PUBSUB_METRICS_SETTINGS"));
     Into(result.replication_monitoring_settings, docs_map.Get("REDIS_REPLICA_MONITORING_SETTINGS"));
     Into(result.retry_budget_settings, docs_map.Get("REDIS_RETRY_BUDGET_SETTINGS"));
+    Into(result.ignore_health_check, docs_map.Get("REDIS_IGNORE_HEALTH_CHECK"));
     return result;
 }
 
@@ -175,6 +184,7 @@ const dynamic_config::Key<Config> kConfig{
             }
           }
         )"}},
+        {"REDIS_IGNORE_HEALTH_CHECK", false},
     },
 };
 

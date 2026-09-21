@@ -12,7 +12,11 @@ namespace storages::clickhouse::impl {
 
 class BlockWrapper final {
 public:
-    BlockWrapper(clickhouse_cpp::Block&& block);
+    // Takes Block by value; all call sites pass an rvalue (std::move or temporary).
+    // Using Block instead of Block&& because clickhouse_cpp::Block lacks a move constructor,
+    // so Block&& would still copy. The by-value signature makes the copy explicit
+    // while allowing move-construction once the library adds it.
+    BlockWrapper(clickhouse_cpp::Block block);
 
     clickhouse_cpp::ColumnRef At(size_t ind) const;
 

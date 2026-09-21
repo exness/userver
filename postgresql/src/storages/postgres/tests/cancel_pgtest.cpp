@@ -31,7 +31,7 @@ UTEST_P(PostgreConnection, Cancel) {
     };
 
     // sleep on postgres side for 1 minute
-    auto task = engine::CriticalAsyncNoSpan([&conn, &cmd_ctrl]() {
+    auto task = engine::CriticalAsyncNoTracing([&conn, &cmd_ctrl]() {
         LOG_DEBUG() << "Enter pg_sleep";
         conn->Execute("select pg_sleep(60)", /*query_params*/ {}, cmd_ctrl);
         LOG_DEBUG() << "Return from pg_sleep";
@@ -61,7 +61,7 @@ void CleanupConnectionTest(storages::postgres::detail::ConnectionPtr& conn, bool
     const DefaultCommandControlScope scope(pg::CommandControl{utest::kMaxTestWaitTime, utest::kMaxTestWaitTime});
 
     engine::SingleConsumerEvent task_started;
-    auto task = engine::AsyncNoSpan([&] {
+    auto task = engine::AsyncNoTracing([&] {
         task_started.Send();
         UEXPECT_THROW(conn->Execute("select pg_sleep(1)"), pg::ConnectionInterrupted);
     });

@@ -1,6 +1,7 @@
-from chaotic_openapi.back.cpp_client import translator
-from chaotic_openapi.front import parser as front_parser
 import pytest
+
+from chaotic_openapi.back.cpp.client import translator
+from chaotic_openapi.front import parser as front_parser
 
 
 @pytest.fixture

@@ -19,8 +19,6 @@
 #include <userver/storages/redis/wait_connected_mode.hpp>
 #include <userver/storages/secdist/secdist.hpp>
 #include <userver/testsuite/redis_control.hpp>
-#include <userver/utils/statistics/entry.hpp>
-
 USERVER_NAMESPACE_BEGIN
 
 /// Components, clients and helpers for different databases and storages
@@ -102,9 +100,7 @@ private:
     storages::redis::DynamicRedis dynamic_redis_;
     testsuite::RedisControl testsuite_redis_control_;
     dynamic_config::Source config_;
-    concurrent::AsyncEventSubscriberScope config_subscription_;
 
-    utils::statistics::Entry statistics_holder_;
     rcu::Variable<storages::redis::MetricsSettings> metrics_settings_;
 };
 

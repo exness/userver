@@ -34,8 +34,12 @@ struct DynamicSettings final {
 
     std::vector<std::string> shards;
     std::vector<HostPort> sentinels;
+    /// Username for ACL-based auth (Redis 6+). Leave empty for legacy AUTH.
+    std::string username;
     /// Password for nodes
     storages::redis::Password password{std::string()};
+    /// Username for sentinel ACL-based auth (Redis 6+). Leave empty for legacy AUTH.
+    std::string sentinel_username;
     /// Password for sentinels. Available since Redis 5.0.1. For early versions should be always empty.
     storages::redis::Password sentinel_password{std::string()};
     storages::redis::ConnectionSecurity secure_connection{storages::redis::ConnectionSecurity::kNone};
@@ -64,6 +68,7 @@ public:
     ///
     /// @param name the name of the client
     /// @param settings the dynamic settings for the client
+    /// @param config dynamic config source used by the client
     /// @return true if the client was added, false if a client with the same name already exists
     bool AddClient(const std::string& name, const DynamicSettings& settings, dynamic_config::Source& config);
 
@@ -92,6 +97,7 @@ public:
     /// @brief Writes statistics for all dynamic clients.
     ///
     /// @param writer statistics writer
+    /// @param settings metrics settings
     void WriteStatistics(utils::statistics::Writer& writer, const MetricsSettings& settings) const;
 
     void OnConfigUpdate(const dynamic_config::Snapshot& cfg);

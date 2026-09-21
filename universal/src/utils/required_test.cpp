@@ -4,6 +4,8 @@
 #include <string>
 #include <string_view>
 
+#include "overloaded_address_operator_test.hpp"
+
 #include <gtest/gtest.h>
 
 USERVER_NAMESPACE_BEGIN
@@ -85,6 +87,10 @@ TEST(UtilsRequired, DerefMove) {
     utils::Required<std::string> r{"move-me"};
     const std::string moved = *std::move(r);
     EXPECT_EQ(moved, "move-me");
+}
+
+TEST(UtilsRequired, DerefAddressof) {
+    [[maybe_unused]] utils::Required<utils::OverloadedAddressOperator> r{utils::OverloadedAddressOperator{}};
 }
 
 TEST(UtilsRequired, Mutate) {

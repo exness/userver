@@ -35,6 +35,7 @@ components_manager:
         tracing-manager-locator:
             incoming-format: ['taxi', 'yandex', 'b3-alternative', 'opentelemetry']
             new-requests-format: ['taxi', 'yandex', 'b3-alternative', 'opentelemetry']
+            otel-trace-sampling-enabled: true
 
     task_processors:  # Task processor is an executor for coroutine tasks
 

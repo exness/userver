@@ -5,7 +5,7 @@
 
 #include <sys/socket.h>
 
-#include <initializer_list>
+#include <span>
 
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/io/common.hpp>
@@ -37,7 +37,7 @@ enum class SocketType {
 /// It is not thread-safe to concurrently read from socket. It is not
 /// thread-safe to concurrently write to socket. However it is safe to
 /// concurrently read and write into socket:
-/// @snippet src/engine/io/socket_test.cpp send self concurrent
+/// @snippet core/src/engine/io/socket_test.cpp send self concurrent
 class [[nodiscard]] Socket final : public RwBase {
 public:
     struct RecvFromResult {
@@ -99,10 +99,12 @@ public:
 
     /// @brief Sends a buffer vector to the socket.
     /// @note Can return less than len if socket is closed by peer.
-    /// @snippet src/engine/io/socket_test.cpp send vector data in socket
+    /// @snippet core/src/engine/io/socket_test.cpp send vector data in socket
     [[nodiscard]] size_t SendAll(std::initializer_list<IoData> list, Deadline deadline);
 
-    [[nodiscard]] size_t WriteAll(std::initializer_list<IoData> list, Deadline deadline) override {
+    [[nodiscard]] size_t SendAll(std::span<const IoData> list, Deadline deadline);
+
+    [[nodiscard]] size_t WriteAll(std::span<const IoData> list, Deadline deadline) override {
         return SendAll(list, deadline);
     }
 
@@ -110,7 +112,7 @@ public:
     /// @note Can return less than len if socket is closed by peer.
     [[nodiscard]] size_t SendAll(const IoData* list, std::size_t list_size, Deadline deadline);
 
-    /// @brief Sends exactly list_size iovec to the socket.
+    /// @brief Sends exactly list_size iovec to the socket, has no IOV_MAX limits on list_size
     /// @note Can return less than len if socket is closed by peer.
     [[nodiscard]] size_t SendAll(const struct iovec* list, std::size_t list_size, Deadline deadline);
 

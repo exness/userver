@@ -68,12 +68,29 @@ UTEST_P(HttpRequestCookies, Test) {
     EXPECT_EQ(parsed, true);
 }
 
+UTEST(HttpRequestCookiesMultipleHeaders, Test) {
+    bool parsed = false;
+    auto parser = server::CreateTestParser([&parsed](std::shared_ptr<server::http::HttpRequest>&& http_request) {
+        parsed = true;
+        EXPECT_EQ(http_request->CookieCount(), 4);
+        EXPECT_EQ(http_request->GetCookie("a"), "1");
+        EXPECT_EQ(http_request->GetCookie("b"), "2");
+        EXPECT_EQ(http_request->GetCookie("c"), "3");
+        EXPECT_EQ(http_request->GetCookie("d"), "4");
+    });
+
+    // Two separate Cookie headers — must be joined with "; " (RFC 6265 §5.4).
+    const auto request = "GET / HTTP/1.1\r\nCookie: a=1; b=2\r\nCookie: c=3; d=4\r\n\r\n";
+    parser->Parse(request);
+    EXPECT_EQ(parsed, true);
+}
+
 UTEST(HttpRequestCookiesHashDos, HashDos) {
     bool parsed = false;
     auto parser = server::CreateTestParser([&parsed](std::shared_ptr<server::http::HttpRequest>&& http_request) {
         parsed = true;
 
-        EXPECT_EQ(http_request->CookieCount(), 3589);
+        EXPECT_EQ(http_request->CookieCount(), 3600);
     });
 
     std::string headers;

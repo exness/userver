@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/future.hpp>
 
@@ -30,7 +31,7 @@ public:
 
     ReplyPtr Get();
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND;
 
 private:
     friend class Sentinel;

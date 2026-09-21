@@ -433,7 +433,7 @@ struct HttpProxyServer {
         EXPECT_EQ(data_view.substr(data_view.size() - 4), "\r\n\r\n");
         EXPECT_EQ(data_view.substr(0, kMethodConnect.size()), kMethodConnect);
 
-        rx_task = engine::AsyncNoSpan([this, producer = rx_queue->GetProducer(), deadline]() mutable {
+        rx_task = engine::AsyncNoTracing([this, producer = rx_queue->GetProducer(), deadline]() mutable {
             while (!engine::current_task::IsCancelRequested()) {
                 TransferData item{};
                 try {
@@ -482,7 +482,7 @@ struct HttpProxyServer {
         EXPECT_TRUE(endpoint_socket.IsValid());
         LOG_DEBUG() << "Proxy Server connected to " << endpoint_addr;
 
-        tx_task = engine::AsyncNoSpan([this, producer = tx_queue->GetProducer(), deadline]() mutable {
+        tx_task = engine::AsyncNoTracing([this, producer = tx_queue->GetProducer(), deadline]() mutable {
             while (!engine::current_task::IsCancelRequested()) {
                 TransferData item{};
                 try {
@@ -506,14 +506,14 @@ struct HttpProxyServer {
     }
 
     void RunTransferring(engine::Deadline deadline) {
-        auto client_to_endpoint_transfer = engine::AsyncNoSpan([this, consumer = rx_queue->GetConsumer(), deadline] {
+        auto client_to_endpoint_transfer = engine::AsyncNoTracing([this, consumer = rx_queue->GetConsumer(), deadline] {
             TransferData item{};
             while (consumer.Pop(item, deadline)) {
                 LOG_TRACE() << "Proxying client request: " << item.data.data();
                 EXPECT_EQ(endpoint_socket.SendAll(item.data.data(), item.size, deadline), item.size);
             }
         });
-        auto endpoint_to_client_transfer = engine::AsyncNoSpan([this, consumer = tx_queue->GetConsumer(), deadline] {
+        auto endpoint_to_client_transfer = engine::AsyncNoTracing([this, consumer = tx_queue->GetConsumer(), deadline] {
             TransferData item{};
             while (consumer.Pop(item, deadline) && endpoint_socket.IsValid()) {
                 if (!drop_endpoint_response) {
@@ -543,7 +543,7 @@ auto InterceptCrlDistribution() {
     addr.SetPort(kCrlDistributionPort);
     listener.Bind(addr);
 
-    return engine::AsyncNoSpan([listener = std::move(listener)]() mutable {
+    return engine::AsyncNoTracing([listener = std::move(listener)]() mutable {
         while (!engine::current_task::IsCancelRequested()) {
             auto socket = listener.Accept({});
 
@@ -723,7 +723,7 @@ UTEST(HttpClientProxy, HttpsNoContentLengthNoBody) {
     auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
     UEXPECT_NO_THROW(proxy_server.ReceiveConnectionString(deadline));
     proxy_server.ConnectToEndpoint(deadline);
-    auto endpoint_task = engine::AsyncNoSpan([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
+    auto endpoint_task = engine::AsyncNoTracing([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
     UEXPECT_NO_THROW(http_server.ReceiveAndShutdown({ca}));
 
     const auto response = response_future.Get();
@@ -760,7 +760,7 @@ UTEST(HttpClientProxy, HttpsNoContentLengthWithBody) {
     auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
     UEXPECT_NO_THROW(proxy_server.ReceiveConnectionString(deadline));
     proxy_server.ConnectToEndpoint(deadline);
-    auto endpoint_task = engine::AsyncNoSpan([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
+    auto endpoint_task = engine::AsyncNoTracing([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
     UEXPECT_NO_THROW(http_server.ReceiveAndShutdown({ca}));
 
     const auto response = response_future.Get();
@@ -800,7 +800,7 @@ UTEST(HttpClientProxy, HttpsTruncatedHeaders) {
     auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
     UEXPECT_NO_THROW(proxy_server.ReceiveConnectionString(deadline));
     proxy_server.ConnectToEndpoint(deadline);
-    auto endpoint_task = engine::AsyncNoSpan([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
+    auto endpoint_task = engine::AsyncNoTracing([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
     UEXPECT_NO_THROW(http_server.ReceiveAndShutdown({ca}));
     UEXPECT_THROW(response_future.Get(), clients::http::NetworkProblemException);
 }
@@ -835,7 +835,7 @@ UTEST(HttpClientProxy, HttpsEmptyResponse) {
     auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
     UEXPECT_NO_THROW(proxy_server.ReceiveConnectionString(deadline));
     proxy_server.ConnectToEndpoint(deadline);
-    auto endpoint_task = engine::AsyncNoSpan([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
+    auto endpoint_task = engine::AsyncNoTracing([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
     UEXPECT_NO_THROW(http_server.ReceiveAndShutdown({ca}));
     UEXPECT_THROW(response_future.Get(), clients::http::TechnicalError);
 }
@@ -876,7 +876,7 @@ UTEST(HttpClientProxy, HttpsTruncatedBody) {
     auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
     UEXPECT_NO_THROW(proxy_server.ReceiveConnectionString(deadline));
     proxy_server.ConnectToEndpoint(deadline);
-    auto endpoint_task = engine::AsyncNoSpan([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
+    auto endpoint_task = engine::AsyncNoTracing([&proxy_server, &deadline] { proxy_server.RunTransferring(deadline); });
     UEXPECT_NO_THROW(http_server.ReceiveAndShutdown({ca}));
 
     endpoint_task.SyncCancel();

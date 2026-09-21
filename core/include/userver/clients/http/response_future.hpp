@@ -8,9 +8,10 @@
 
 #include <userver/clients/http/cancellation_policy.hpp>
 #include <userver/clients/http/response.hpp>
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/future.hpp>
-#include <userver/engine/impl/context_accessor.hpp>
 #include <userver/utils/impl/source_location.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -45,13 +46,16 @@ public:
     /// @returns std::future_status::ready or std::future_status::timeout
     std::future_status Wait(utils::impl::SourceLocation location = utils::impl::SourceLocation::Current());
 
+    /// @brief Returns whether the response is already available.
+    bool IsReady() const;
+
     /// @brief Wait for the response and return it
     std::shared_ptr<Response> Get(utils::impl::SourceLocation location = utils::impl::SourceLocation::Current());
 
-    /// @cond
-    /// Internal helper for WaitAny/WaitAll
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND;
 
+    /// @cond
     ResponseFuture(engine::Future<std::shared_ptr<Response>>&& future, std::shared_ptr<RequestState> request);
     /// @endcond
 

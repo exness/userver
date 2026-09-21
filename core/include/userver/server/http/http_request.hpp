@@ -5,11 +5,13 @@
 
 #include <chrono>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <userver/engine/task/task_processor_fwd.hpp>
 
 #include <userver/engine/io/sockaddr.hpp>
+#include <userver/http/url.hpp>
 #include <userver/server/http/form_data_arg.hpp>
 #include <userver/server/http/http_method.hpp>
 #include <userver/server/http/http_response.hpp>
@@ -73,8 +75,6 @@ public:
     const std::string& GetRequestPath() const;
 
     /// @cond
-    std::chrono::duration<double> GetRequestTime() const;
-
     std::chrono::duration<double> GetResponseTime() const;
     /// @endcond
 
@@ -124,6 +124,27 @@ public:
     /// - query part of the URL,
     /// - the HTTP body (only if `parse_args_from_body: true` for handler is set).
     std::vector<std::string> ArgNames() const;
+
+    /// @brief Reconstruct the request URL with selected query args masked.
+    ///
+    /// Iterates all query arguments, replacing each value with `"***"` when
+    /// `is_masked_arg_name(name)` returns true.
+    template <typename Predicate>
+    requires std::is_invocable_r_v<bool, Predicate, std::string_view>
+    std::string GetMaskedUrl(Predicate is_masked_arg_name) const {
+        const auto names = ArgNames();
+        std::vector<std::pair<std::string_view, std::string_view>> args;
+
+        // Common case: each arg vector size is 1, so hope we don't need more
+        args.reserve(names.size());
+
+        for (const auto& name : names) {
+            for (const auto& value : GetArgVector(name)) {
+                args.emplace_back(name, is_masked_arg_name(name) ? "***" : std::string_view{value});
+            }
+        }
+        return USERVER_NAMESPACE::http::MakeUrl(GetRequestPath(), args);
+    }
 
     /// @return First argument value with name arg_name from multipart/form-data
     /// request or an empty FormDataArg if no such argument.
@@ -238,9 +259,6 @@ public:
     /// @cond
     void MarkAsInternalServerError() const;
 
-    void SetStartSendResponseTime() noexcept;
-    void SetFinishSendResponseTime();
-
     void WriteAccessLogs(
         const logging::TextLoggerPtr& logger_access,
         const logging::TextLoggerPtr& logger_access_tskv,
@@ -278,11 +296,6 @@ private:
     // HTTP/2.0 only
     void SetResponseStreamId(std::int32_t);
     void SetStreamProducer(impl::Http2StreamEventProducer&& producer);
-
-    void SetTaskCreateTime();
-    void SetTaskStartTime();
-    void SetResponseNotifyTime();
-    void SetResponseNotifyTime(std::chrono::steady_clock::time_point now);
 
     friend class HttpRequestBuilder;
     friend class HttpRequestHandler;

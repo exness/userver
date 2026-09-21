@@ -12,6 +12,7 @@
 #include <mutex>  // for std::lock_guard
 #include <utility>
 
+#include <userver/compiler/thread_local.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/impl/fused_allocations.hpp>
 #include <userver/utils/not_null.hpp>
@@ -165,7 +166,10 @@ inline constinit Table<T> kNullTable{};
 ///
 /// This container grows monotonically - items can only be added, never removed.
 ///
-/// @warning Items are emplaced under `std::mutex`. Do not wait in item constructors!
+/// Once emplaced, items are never moved or destroyed. Reference stability is guaranteed.
+///
+/// @warning Items are emplaced under a per-bucket `std::mutex`. Do not wait in item constructors!
+/// It is expected that new items are only added rarely.
 ///
 /// @tparam T The value type
 /// @tparam Hash Hash function object type
@@ -175,7 +179,13 @@ class MonotonicConcurrentSet final {
 public:
     /// @brief Construct with initial capacity
     /// @param initial_capacity Initial table's capacity (default: 8)
-    explicit MonotonicConcurrentSet(std::size_t initial_capacity = 8);
+    /// @param hasher Hash function object (default: `Hash()`)
+    /// @param key_equal Equality comparison function object (default: `KeyEqual()`)
+    explicit MonotonicConcurrentSet(
+        std::size_t initial_capacity = 8,
+        const Hash& hasher = Hash(),
+        const KeyEqual& key_equal = KeyEqual()
+    );
 
     ~MonotonicConcurrentSet();
 
@@ -243,17 +253,20 @@ private:
 
     void Grow(Table& old_table);
 
-    Hash hasher_;
-    KeyEqual key_equal_;
+    [[no_unique_address]] Hash hasher_;
+    [[no_unique_address]] KeyEqual key_equal_;
     std::size_t initial_capacity_;
     std::atomic<utils::NotNull<Table*>> head_{monotonic_concurrent_set::kNullTable<T>};
     std::mutex grow_mutex_;
 };
 
 template <typename T, typename Hash, typename KeyEqual>
-MonotonicConcurrentSet<T, Hash, KeyEqual>::MonotonicConcurrentSet(std::size_t initial_capacity)
-    : hasher_(),
-      key_equal_(),
+MonotonicConcurrentSet<
+    T,
+    Hash,
+    KeyEqual>::MonotonicConcurrentSet(std::size_t initial_capacity, const Hash& hasher, const KeyEqual& key_equal)
+    : hasher_(hasher),
+      key_equal_(key_equal),
       initial_capacity_(initial_capacity)
 {
     UINVARIANT(monotonic_concurrent_set::IsPowerOf2(initial_capacity), "Capacity must be a power of 2");
@@ -356,7 +369,10 @@ std::pair<T*, bool> MonotonicConcurrentSet<
         return {nullptr, false};
     }
 
-    std::construct_at(&table.items[item_index].item, std::forward<Args>(args)...);
+    {
+        compiler::CoroutineSwitchBanScope coroutine_switch_ban_scope;
+        std::construct_at(&table.items[item_index].item, std::forward<Args>(args)...);
+    }
     T& new_item = table.items[item_index].item;
 
     ItemNode& new_node = GetNodeForItemIndex(table, item_index);

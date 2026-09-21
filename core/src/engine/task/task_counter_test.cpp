@@ -4,6 +4,7 @@
 #include <userver/engine/async.hpp>
 #include <userver/engine/exception.hpp>
 #include <userver/engine/sleep.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/engine/task/task_base.hpp>
 #include <userver/utest/utest.hpp>
 
@@ -14,7 +15,9 @@ USERVER_NAMESPACE_BEGIN
 // If the scheduler changes, these tests may have to change as well.
 
 UTEST(TaskCounter, Works) {
-    ASSERT_EQ(GetThreadCount(), 1) << "This test assumes that only 1 task can run at a time";
+    ASSERT_EQ(engine::current_task::GetWorkerCount(), 1)
+        << "This test assumes that only 1 "
+           "task can run at a time";
 
     auto& counter = engine::current_task::GetTaskProcessor().GetTaskCounter();
     EXPECT_EQ(counter.GetCreatedTasks(), 1);
@@ -30,7 +33,7 @@ UTEST(TaskCounter, Works) {
 
     EXPECT_EQ(counter.GetTasksStartedRunning(), 2);
 
-    auto task = engine::CriticalAsyncNoSpan([] { engine::InterruptibleSleepFor(utest::kMaxTestWaitTime); });
+    auto task = engine::CriticalAsyncNoTracing([] { engine::InterruptibleSleepFor(utest::kMaxTestWaitTime); });
 
     // `task` has not had the chance to run yet. Still, it is considered as "created".
     EXPECT_EQ(counter.GetCreatedTasks(), 2);

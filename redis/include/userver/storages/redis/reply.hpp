@@ -1,5 +1,9 @@
 #pragma once
 
+/// @file userver/storages/redis/reply.hpp
+/// @brief Redis reply payload (ReplyData) and per-command reply wrapper (Reply)
+
+#include <iterator>
 #include <string>
 #include <variant>
 #include <vector>
@@ -8,6 +12,7 @@
 #include <userver/utils/assert.hpp>
 
 #include <userver/storages/redis/base.hpp>
+#include <userver/storages/redis/impl/deadline_propagation_meta.hpp>
 #include <userver/storages/redis/reply_fwd.hpp>
 #include <userver/storages/redis/reply_status.hpp>
 
@@ -17,6 +22,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
 
+/// @brief Typed view of a hiredis `redisReply` value
 class ReplyData final {
 public:
     using Array = std::vector<ReplyData>;
@@ -47,16 +53,32 @@ public:
 
         class Iterator final {
         public:
-            constexpr Iterator(Array& array, std::size_t index) noexcept : array_(array), index_(index) {}
+            using iterator_category = std::input_iterator_tag;
+            using difference_type = std::ptrdiff_t;
+            using value_type = View;
+            using reference = View;
+            using pointer = void;
+
+            constexpr Iterator(Array& array, std::size_t index) noexcept : array_(&array), index_(index) {}
+
             Iterator& operator++() noexcept {
                 ++index_;
                 return *this;
             }
+
+            Iterator operator++(int) noexcept {
+                Iterator copy{*this};
+                ++*this;
+                return copy;
+            }
+
+            bool operator==(const Iterator& r) const noexcept { return index_ == r.index_; }
             bool operator!=(const Iterator& r) const noexcept { return index_ != r.index_; }
-            View operator*() noexcept { return {array_[index_ * 2], array_[index_ * 2 + 1]}; }
+
+            View operator*() const noexcept { return {(*array_)[index_ * 2], (*array_)[index_ * 2 + 1]}; }
 
         private:
-            Array& array_;
+            Array* array_;
             std::size_t index_;
         };
 
@@ -181,6 +203,7 @@ private:
     std::variant<NoReply, String, Array, Integer, Nil, Status, Error> data_{};
 };
 
+/// @brief Redis command reply with metadata (server, status, timing)
 class Reply final {
 public:
     Reply(std::string command, ReplyData&& reply_data, ReplyStatus reply_status = ReplyStatus::kOk);
@@ -192,6 +215,9 @@ public:
     const ReplyStatus status;
     double time = 0.0;
     logging::LogExtra log_extra;
+    /// @cond For internal use only
+    DeadlinePropagationMeta deadline_propagation_meta;
+    /// @endcond
 
     operator bool() const { return IsOk(); }
 

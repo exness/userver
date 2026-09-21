@@ -81,15 +81,46 @@ void FillRequestWithTracingContext(Format format, const tracing::Span& span, cli
 
 void FillResponseWithTracingContext(Format format, const Span& span, server::http::HttpResponse& response);
 
+/// W3C trace-flags byte values from the @c traceparent header.
+/// @see https://www.w3.org/TR/trace-context/#trace-flags
+enum OtelTraceFlags : std::uint8_t {
+    kNoTracing = 0x00,  ///< Tracing disabled
+    kSampled = 0x01,    ///< Trace is sampled
+};
+
+/// @returns the W3C trace-flags byte from the incoming request, stored in
+/// @ref engine::TaskInheritedVariable. Defaults to @ref OtelTraceFlags::kSampled
+/// when absent.
+OtelTraceFlags GetInheritedOtelTraceFlags();
+
+/// @returns the W3C `tracestate` header value from the incoming request, stored
+/// in @ref engine::TaskInheritedVariable. Empty string_view when absent.
+std::string_view GetInheritedOtelTraceState();
+
+/// Stores `tracestate` and the parsed `traceflags` hex byte into
+/// @ref engine::TaskInheritedVariable so they are available for outgoing
+/// request propagation within the current task tree.
+void SetInheritedOtelTracingData(std::string_view tracestate, std::string_view traceflags);
+
 /// @brief Generic tracing manager that knows about popular tracing
 /// headers and allows customising input and output headers.
 class GenericTracingManager final : public TracingManagerBase {
 public:
+    enum class SamplingEnabled : bool {
+        kNo = false,
+        kYes = true,
+    };
+
     GenericTracingManager() = delete;
 
-    GenericTracingManager(utils::Flags<Format> in_request_response, utils::Flags<Format> new_request)
+    GenericTracingManager(
+        utils::Flags<Format> in_request_response,
+        utils::Flags<Format> new_request,
+        SamplingEnabled sampling = SamplingEnabled::kNo
+    )
         : in_request_response_{in_request_response},
-          new_request_{new_request}
+          new_request_{new_request},
+          sampling_{sampling}
     {}
 
     bool TryFillSpanBuilderFromRequest(const server::http::HttpRequest& request, SpanBuilder& span_builder)
@@ -103,6 +134,7 @@ public:
 private:
     const utils::Flags<Format> in_request_response_;
     const utils::Flags<Format> new_request_;
+    const SamplingEnabled sampling_{SamplingEnabled::kNo};
 };
 
 }  // namespace tracing

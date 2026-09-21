@@ -10,6 +10,7 @@
 #include <userver/compiler/impl/lifetime.hpp>
 #include <userver/dynamic_config/impl/snapshot.hpp>
 #include <userver/dynamic_config/impl/to_json.hpp>
+#include <userver/dynamic_config/registered_config_meta.hpp>
 #include <userver/formats/json_fwd.hpp>
 #include <userver/utils/fast_pimpl.hpp>
 
@@ -74,6 +75,19 @@ public:
     /// used to add validation, e.g. minimum, maximum, string pattern, etc.
     Key(std::string_view name, JsonParser parser, DefaultAsJsonString default_json);
 
+    /// @brief Constructor with a schema_hash, used by chaotic codegen.
+    /// @param name config variable name
+    /// @param parser custom JSON parser for the variable
+    /// @param default_json default value as a JSON string
+    /// @param schema_hash SHA-256(canonical JSON of schema with inlined definitions),
+    ///        lowercase hex, 64 chars. Stored in the global registry and
+    ///        retrievable via dynamic_config::impl::GetRegisteredConfigsMeta()
+    ///        as dynamic_config::RegisteredConfigMeta::schema_hash.
+    /// @warning This constructor is intended for use by chaotic codegen only,
+    /// not for manual calls. Backwards-incompatible changes may be
+    /// introduced in the future, e.g. adding additional parameters.
+    Key(std::string_view name, JsonParser parser, DefaultAsJsonString default_json, std::string_view schema_hash);
+
     /// @brief The constructor that parses multiple JSON config items
     /// into a single C++ object.
     /// @warning Prefer to use a separate `Key` per JSON config item and use the
@@ -108,8 +122,6 @@ private:
     const impl::ConfigId id_;
 };
 
-// clang-format off
-
 /// @brief The shared snapshot of
 /// @ref scripts/docs/en/userver/dynamic_config.md "dynamic configs". Cheap to
 /// copy, even cheaper to move. Thread safe, not updated with new dynamic
@@ -123,9 +135,7 @@ private:
 /// somewhere in the program.
 ///
 /// ## Usage example:
-/// @snippet components/component_sample_test.cpp  Sample user component runtime config source
-
-// clang-format on
+/// @snippet core/src/components/component_sample_test.cpp  Sample user component runtime config source
 class Snapshot final {
 public:
     Snapshot(const Snapshot&);
@@ -143,16 +153,6 @@ public:
     /// Used to access individual configs in the type-safe config map
     template <typename VariableType>
     const VariableType& operator[](const Key<VariableType>&) &&;
-
-    /// @cond
-    // No longer supported, use `config[key]` instead
-    template <typename T>
-    const T& Get() const& USERVER_IMPL_LIFETIME_BOUND;
-
-    // No longer supported, use `config[key]` instead
-    template <typename T>
-    const T& Get() &&;
-    /// @endcond
 
 private:
     // for the constructor
@@ -214,6 +214,23 @@ Key<Variable>::Key(std::string_view name, JsonParser parser, DefaultAsJsonString
 {}
 
 template <typename Variable>
+Key<Variable>::Key(
+    std::string_view name,
+    JsonParser parser,
+    DefaultAsJsonString default_json,
+    std::string_view schema_hash
+)
+    : id_(impl::Register(
+          std::string{name},
+          [name = std::string{name}, parser](const auto& docs_map) -> std::any {
+              return parser(impl::DocsMapGet(docs_map, name));
+          },
+          impl::SingleToDocsMapString(name, default_json.json_string),
+          std::string{schema_hash}
+      ))
+{}
+
+template <typename Variable>
 template <std::size_t N>
 Key<Variable>::Key(DocsMapParser parser, const ConfigDefault (&default_json_map)[N])
     : id_(impl::Register(
@@ -266,16 +283,6 @@ const VariableType& Snapshot::operator[](const Key<VariableType>& key) const& US
 template <typename VariableType>
 const VariableType& Snapshot::operator[](const Key<VariableType>&) && {
     static_assert(!sizeof(VariableType), "keep the Snapshot before using, please");
-}
-
-template <typename T>
-const T& Snapshot::Get() const& USERVER_IMPL_LIFETIME_BOUND {
-    return (*this)[T::kDeprecatedKey];
-}
-
-template <typename T>
-const T& Snapshot::Get() && {
-    static_assert(!sizeof(T), "keep the Snapshot before using, please");
 }
 
 }  // namespace dynamic_config

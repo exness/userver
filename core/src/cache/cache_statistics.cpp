@@ -109,7 +109,7 @@ UpdateStatisticsScope::~UpdateStatisticsScope() {
     }
 }
 
-impl::UpdateState UpdateStatisticsScope::GetState(utils::impl::InternalTag) const { return state_; }
+impl::UpdateState UpdateStatisticsScope::GetState(utils::impl::InternalTag) const noexcept { return state_; }
 
 void UpdateStatisticsScope::Finish(std::size_t total_documents_count) {
     stats_.documents_current_count = total_documents_count;

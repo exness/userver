@@ -29,7 +29,8 @@ ConsumerBaseImpl::ConsumerBaseImpl(ConnectionPtr&& connection, const ConsumerSet
       queue_name_{settings.queue.GetUnderlying()},
       prefetch_count_{settings.prefetch_count},
       connection_ptr_{std::move(connection)},
-      channel_{connection_ptr_->GetChannel()} {
+      channel_{connection_ptr_->GetChannel()}
+{
     // We take ownership of the connection, because if it remains pooled
     // things get messy with lifetimes and callbacks
     connection_ptr_.Adopt();
@@ -110,7 +111,7 @@ void ConsumerBaseImpl::OnMessage(const AMQP::Message& message, uint64_t delivery
 
     consumed.headers = impl::TableToHeaders(headers);
 
-    bts_.Detach(engine::AsyncNoSpan(
+    bts_.Detach(engine::AsyncNoTracing(
         dispatcher_,
         [this,
          consumed = std::move(consumed),

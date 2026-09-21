@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <optional>
 #include <vector>
 
@@ -163,6 +164,10 @@ private:
 
     void AccountPolledMessageStat(const Message& polled_message);
 
+    void RequestRestartAfterFatalError(rd_kafka_resp_err_t error, const char* reason);
+
+    void ThrowIfRestartRequired();
+
     const std::string& name_;
     const std::vector<std::string> topics_;
     const ConsumerExecutionParams execution_params_;
@@ -170,6 +175,9 @@ private:
     Stats& stats_;
 
     engine::SingleConsumerEvent queue_became_non_empty_event_;
+
+    // Set from librdkafka internal threads; polled from consumer task.
+    std::atomic<bool> restart_after_fatal_error_{false};
 
     ConsumerHolder consumer_;
 };

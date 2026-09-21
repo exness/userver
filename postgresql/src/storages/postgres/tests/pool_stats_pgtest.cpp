@@ -39,22 +39,22 @@ UTEST_F(PostgrePoolStats, EmptyPool) {
     );
 
     const auto& stats = pool->GetStatistics();
-    EXPECT_EQ(stats.connection.open_total, 0);
-    EXPECT_EQ(stats.connection.drop_total, 0);
+    EXPECT_EQ(stats.connection.open_total.Load(), 0);
+    EXPECT_EQ(stats.connection.drop_total.Load(), 0);
     EXPECT_EQ(stats.connection.active, 0);
     EXPECT_EQ(stats.connection.used, 0);
     EXPECT_EQ(stats.connection.maximum, 10);
-    EXPECT_EQ(stats.transaction.total, 0);
-    EXPECT_EQ(stats.transaction.commit_total, 0);
-    EXPECT_EQ(stats.transaction.rollback_total, 0);
-    EXPECT_EQ(stats.transaction.parse_total, 0);
-    EXPECT_EQ(stats.transaction.execute_total, 0);
-    EXPECT_EQ(stats.transaction.reply_total, 0);
-    EXPECT_EQ(stats.transaction.portal_bind_total, 0);
-    EXPECT_EQ(stats.transaction.error_execute_total, 0);
-    EXPECT_EQ(stats.connection.error_total, 0);
-    EXPECT_EQ(stats.pool_exhaust_errors, 0);
-    EXPECT_EQ(stats.queue_size_errors, 0);
+    EXPECT_EQ(stats.transaction.total.Load(), 0);
+    EXPECT_EQ(stats.transaction.commit_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.rollback_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.parse_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.execute_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.reply_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.portal_bind_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.error_execute_total.Load(), 0);
+    EXPECT_EQ(stats.connection.error_total.Load(), 0);
+    EXPECT_EQ(stats.pool_exhaust_errors.Load(), 0);
+    EXPECT_EQ(stats.queue_size_errors.Load(), 0);
     EXPECT_EQ(stats.transaction.total_percentile.GetStatsForPeriod().GetPercentile(100), 0);
     EXPECT_EQ(stats.transaction.busy_percentile.GetStatsForPeriod().GetPercentile(100), 0);
 }
@@ -80,19 +80,19 @@ UTEST_F(PostgrePoolStats, MinPoolSize) {
 
     // We can't check all the counters as some of them are used for internal ops
     const auto& stats = pool->GetStatistics();
-    EXPECT_LE(stats.connection.open_total, min_pool_size);
-    EXPECT_EQ(stats.connection.drop_total, 0);
+    EXPECT_LE(stats.connection.open_total.Load(), min_pool_size);
+    EXPECT_EQ(stats.connection.drop_total.Load(), 0);
     EXPECT_LE(stats.connection.active, min_pool_size);
     EXPECT_EQ(stats.connection.used, 0);
     EXPECT_EQ(stats.connection.maximum, 10);
-    EXPECT_EQ(stats.transaction.total, 0);
-    EXPECT_EQ(stats.transaction.commit_total, 0);
-    EXPECT_EQ(stats.transaction.rollback_total, 0);
-    EXPECT_EQ(stats.transaction.portal_bind_total, 0);
-    EXPECT_EQ(stats.transaction.error_execute_total, 0);
-    EXPECT_EQ(stats.connection.error_total, 0);
-    EXPECT_EQ(stats.pool_exhaust_errors, 0);
-    EXPECT_EQ(stats.queue_size_errors, 0);
+    EXPECT_EQ(stats.transaction.total.Load(), 0);
+    EXPECT_EQ(stats.transaction.commit_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.rollback_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.portal_bind_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.error_execute_total.Load(), 0);
+    EXPECT_EQ(stats.connection.error_total.Load(), 0);
+    EXPECT_EQ(stats.pool_exhaust_errors.Load(), 0);
+    EXPECT_EQ(stats.queue_size_errors.Load(), 0);
     EXPECT_EQ(stats.transaction.total_percentile.GetStatsForPeriod().GetPercentile(100), 0);
     EXPECT_EQ(stats.transaction.busy_percentile.GetStatsForPeriod().GetPercentile(100), 0);
 }
@@ -125,6 +125,39 @@ UTEST_F(PostgrePoolStats, RunStatement) {
     auto ntrx = pg::detail::NonTransaction{std::move(conn)};
 
     UEXPECT_NO_THROW(ntrx.Execute(query));
+    pool->GetStatementStatsStorage().WaitForExhaustion();
+    const auto stats = pool->GetStatementStatsStorage().GetStatementsStats();
+    EXPECT_NE(stats.find(statement_name), stats.end());
+}
+
+UTEST_F(PostgrePoolStats, RunStatementWithParameterStore) {
+    auto pool = pg::detail::ConnectionPool::Create(
+        GetDsnFromEnv(),
+        nullptr,
+        GetTaskProcessor(),
+        "",
+        storages::postgres::InitMode::kAsync,
+        {1, 10, 10},
+        kCachePreparedStatements,
+        {10},
+        GetTestCmdCtls(),
+        {},
+        {},
+        {},
+        dynamic_config::GetDefaultSource(),
+        std::make_shared<utils::statistics::MetricsStorage>()
+    );
+
+    const std::string statement_name = "parameter_store_statement";
+    const auto query = pg::Query{"select $1", pg::Query::Name{statement_name}};
+
+    pg::detail::ConnectionPtr conn{nullptr};
+    UASSERT_NO_THROW(conn = pool->Acquire(MakeDeadline())) << "Obtained connection from pool";
+    CheckConnection(conn);
+
+    auto ntrx = pg::detail::NonTransaction{std::move(conn)};
+
+    UEXPECT_NO_THROW(ntrx.Execute(query, pg::ParameterStore{}.PushBack(1)));
     pool->GetStatementStatsStorage().WaitForExhaustion();
     const auto stats = pool->GetStatementStatsStorage().GetStatementsStats();
     EXPECT_NE(stats.find(statement_name), stats.end());
@@ -164,6 +197,36 @@ UTEST_F(PostgrePoolStats, RunSingleTransaction) {
     EXPECT_NE(stats.find(statement_name), stats.end());
 }
 
+UTEST_F(PostgrePoolStats, RunSingleTransactionWithParameterStore) {
+    auto pool = pg::detail::ConnectionPool::Create(
+        GetDsnFromEnv(),
+        nullptr,
+        GetTaskProcessor(),
+        "",
+        storages::postgres::InitMode::kAsync,
+        {1, 10, 10},
+        kCachePreparedStatements,
+        {10},
+        GetTestCmdCtls(),
+        {},
+        {},
+        {},
+        dynamic_config::GetDefaultSource(),
+        std::make_shared<utils::statistics::MetricsStorage>()
+    );
+
+    const std::string statement_name = "trx_parameter_store_statement";
+    const auto query = pg::Query{"select $1", pg::Query::Name{statement_name}};
+
+    auto trx = pool->Begin(pg::TransactionOptions{});
+    trx.Execute(query, pg::ParameterStore{}.PushBack(1));
+    trx.Commit();
+
+    pool->GetStatementStatsStorage().WaitForExhaustion();
+    const auto stats = pool->GetStatementStatsStorage().GetStatementsStats();
+    EXPECT_NE(stats.find(statement_name), stats.end());
+}
+
 UTEST_F(PostgrePoolStats, RunTransactions) {
     auto pool = pg::detail::ConnectionPool::Create(
         GetDsnFromEnv(),
@@ -188,7 +251,7 @@ UTEST_F(PostgrePoolStats, RunTransactions) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(trx_count);
     for (auto i = 0; i < trx_count; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&pool] {
+        tasks.push_back(engine::AsyncNoTracing([&pool] {
             pg::detail::ConnectionPtr conn(nullptr);
 
             UASSERT_NO_THROW(conn = pool->Acquire(MakeDeadline())) << "Obtained connection from pool";
@@ -210,8 +273,8 @@ UTEST_F(PostgrePoolStats, RunTransactions) {
     const auto query_exec_count = trx_count * (exec_count + /*begin-commit*/ 2);
     const auto duration_min = pg::detail::SteadyClock::duration::min();
     const auto& stats = pool->GetStatistics();
-    EXPECT_GE(stats.connection.open_total, 1);
-    EXPECT_EQ(stats.connection.drop_total, 0);
+    EXPECT_GE(stats.connection.open_total.Load(), 1u);
+    EXPECT_EQ(stats.connection.drop_total.Load(), 0);
     EXPECT_GE(stats.connection.active, 1);
     EXPECT_EQ(stats.connection.used, 0);
     EXPECT_EQ(stats.connection.maximum, 10);
@@ -220,17 +283,17 @@ UTEST_F(PostgrePoolStats, RunTransactions) {
     EXPECT_GT(prepared_stats.average, 0);
     EXPECT_EQ(prepared_stats.minimum, prepared_stats.maximum);
 
-    EXPECT_EQ(stats.transaction.total, trx_count);
-    EXPECT_EQ(stats.transaction.commit_total, trx_count);
-    EXPECT_EQ(stats.transaction.rollback_total, 0);
-    EXPECT_GE(stats.transaction.parse_total, 1);
-    EXPECT_EQ(stats.transaction.execute_total, query_exec_count);
-    EXPECT_EQ(stats.transaction.reply_total, trx_count * exec_count);
-    EXPECT_EQ(stats.transaction.portal_bind_total, 0);
-    EXPECT_EQ(stats.transaction.error_execute_total, 0);
-    EXPECT_EQ(stats.connection.error_total, 0);
-    EXPECT_EQ(stats.pool_exhaust_errors, 0);
-    EXPECT_EQ(stats.queue_size_errors, 0);
+    EXPECT_EQ(stats.transaction.total.Load(), trx_count);
+    EXPECT_EQ(stats.transaction.commit_total.Load(), trx_count);
+    EXPECT_EQ(stats.transaction.rollback_total.Load(), 0);
+    EXPECT_GE(stats.transaction.parse_total.Load(), 1u);
+    EXPECT_EQ(stats.transaction.execute_total.Load(), query_exec_count);
+    EXPECT_EQ(stats.transaction.reply_total.Load(), trx_count * exec_count);
+    EXPECT_EQ(stats.transaction.portal_bind_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.error_execute_total.Load(), 0);
+    EXPECT_EQ(stats.connection.error_total.Load(), 0);
+    EXPECT_EQ(stats.pool_exhaust_errors.Load(), 0);
+    EXPECT_EQ(stats.queue_size_errors.Load(), 0);
     EXPECT_EQ(stats.transaction.total_percentile.GetStatsForPeriod(duration_min, true).Count(), trx_count);
     EXPECT_EQ(stats.transaction.busy_percentile.GetStatsForPeriod(duration_min, true).Count(), trx_count);
 }
@@ -294,22 +357,22 @@ UTEST_F(PostgrePoolStats, Portal) {
     }
 
     const auto& stats = pool->GetStatistics();
-    EXPECT_GE(stats.connection.open_total, 1);
-    EXPECT_EQ(stats.connection.drop_total, 0);
+    EXPECT_GE(stats.connection.open_total.Load(), 1u);
+    EXPECT_EQ(stats.connection.drop_total.Load(), 0);
     EXPECT_GE(stats.connection.active, 1);
     EXPECT_EQ(stats.connection.used, 0);
     EXPECT_EQ(stats.connection.maximum, 10);
-    EXPECT_EQ(stats.transaction.total, 1);
-    EXPECT_EQ(stats.transaction.commit_total, 1);
-    EXPECT_EQ(stats.transaction.rollback_total, 0);
-    EXPECT_EQ(stats.transaction.parse_total, 1);
-    EXPECT_EQ(stats.transaction.execute_total, 3);
-    EXPECT_EQ(stats.transaction.reply_total, 1);
-    EXPECT_EQ(stats.transaction.portal_bind_total, 1);
-    EXPECT_EQ(stats.transaction.error_execute_total, 0);
-    EXPECT_EQ(stats.connection.error_total, 0);
-    EXPECT_EQ(stats.pool_exhaust_errors, 0);
-    EXPECT_EQ(stats.queue_size_errors, 0);
+    EXPECT_EQ(stats.transaction.total.Load(), 1u);
+    EXPECT_EQ(stats.transaction.commit_total.Load(), 1u);
+    EXPECT_EQ(stats.transaction.rollback_total.Load(), 0);
+    EXPECT_EQ(stats.transaction.parse_total.Load(), 1u);
+    EXPECT_EQ(stats.transaction.execute_total.Load(), 3u);
+    EXPECT_EQ(stats.transaction.reply_total.Load(), 1u);
+    EXPECT_EQ(stats.transaction.portal_bind_total.Load(), 1u);
+    EXPECT_EQ(stats.transaction.error_execute_total.Load(), 0);
+    EXPECT_EQ(stats.connection.error_total.Load(), 0);
+    EXPECT_EQ(stats.pool_exhaust_errors.Load(), 0);
+    EXPECT_EQ(stats.queue_size_errors.Load(), 0);
 }
 
 UTEST_F(PostgrePoolStats, MaxPreparedCacheSize) {

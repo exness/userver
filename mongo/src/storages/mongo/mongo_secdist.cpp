@@ -1,13 +1,13 @@
 #include "mongo_secdist.hpp"
 
+#include <ranges>
 #include <unordered_map>
 
+#include <userver/formats/common/items.hpp>
 #include <userver/formats/json/value.hpp>
 #include <userver/storages/mongo/exception.hpp>
 #include <userver/storages/secdist/exceptions.hpp>
 #include <userver/storages/secdist/helpers.hpp>
-
-#include <boost/range/adaptor/map.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -36,9 +36,7 @@ MongoSettings::MongoSettings(const formats::json::Value& doc) {
 
     storages::secdist::CheckIsObject(mongo_settings, "mongo_settings");
 
-    for (auto it = mongo_settings.begin(); it != mongo_settings.end(); ++it) {
-        const std::string& dbalias = it.GetName();
-        const formats::json::Value& dbsettings = *it;
+    for (const auto& [dbalias, dbsettings] : formats::common::Items(mongo_settings)) {
         storages::secdist::CheckIsObject(dbsettings, "dbsettings");
         settings_[dbalias] = storages::secdist::GetString(dbsettings, "uri");
     }
@@ -51,7 +49,7 @@ const std::string& MongoSettings::GetConnectionString(const std::string& dbalias
         throw storages::secdist::UnknownMongoDbAlias(fmt::format(
             "dbalias {} not found in secdist config. Available aliases: [{}]",
             dbalias,
-            fmt::join(settings_ | boost::adaptors::map_keys, ", ")
+            fmt::join(settings_ | std::views::keys, ", ")
         ));
     }
 

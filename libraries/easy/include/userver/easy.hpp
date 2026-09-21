@@ -35,6 +35,7 @@ public:
     ~DependenciesBase() override;
 };
 
+/// @cond
 template <class T>
 struct FirstFunctionArgument;
 
@@ -60,16 +61,30 @@ struct FirstFunctionArgument<Return (Class::*)(First, Args...) const> {
 
 template <class T>
 struct FirstFunctionArgument : FirstFunctionArgument<decltype(&std::decay_t<T>::operator())> {};
+/// @endcond
 
 template <typename T>
-using FromJsonStringDetector = decltype(FromJsonString(std::string_view{}, formats::parse::To<T>{}));
+concept HasFromJsonString = requires {
+    {
+        FromJsonString(std::string_view{}, formats::parse::To<T>{})
+    } -> std::same_as<T>;
+};
 
 template <typename T>
 T ParseFromJsonString(std::string_view json) {
-    if constexpr (std::is_same_v<meta::DetectedType<FromJsonStringDetector, T>, T>) {
+    if constexpr (HasFromJsonString<T>) {
         return FromJsonString(json, formats::parse::To<T>{});
     } else {
         return formats::json::FromString(json).As<T>();
+    }
+}
+
+template <typename T>
+std::string FormatToJsonString(const T& value) {
+    if constexpr (requires { ToJsonString(value); }) {
+        return ToJsonString(value);
+    } else {
+        return formats::json::ToString(formats::json::ValueBuilder{value}.ExtractValue());
     }
 }
 
@@ -81,7 +96,7 @@ T ParseFromJsonString(std::string_view json) {
 ///
 /// This component can be registered in the component list and used by any client. For example:
 ///
-/// @snippet libraries/easy/samples/6_pg_service_template_no_http_with/src/main.cpp  main
+/// @snippet samples/easy/6_pg_service_template_no_http_with/src/main.cpp  main
 template <class Dependencies>
 class DependenciesComponent : public impl::DependenciesBase {
 public:
@@ -356,15 +371,14 @@ HttpWith<Dependency>::Callback::Callback(Function func) {
             auto arg = impl::ParseFromJsonString<FirstArgument>(req.RequestBody());
 
             if constexpr (std::is_invocable_v<Function, FirstArgument, const Dependency&>) {
-                return formats::json::ToString(formats::json::ValueBuilder{f(std::move(arg), GetDependencies(deps))}
-                                                   .ExtractValue());
+                return impl::FormatToJsonString(f(std::move(arg), GetDependencies(deps)));
             } else {
                 static_assert(
                     std::is_invocable_v<Function, FirstArgument>,
                     "Found no matching signature, probably due to second argument of the provided function. See "
                     "the easy::HttpWith::Callback docs for info on supported signatures"
                 );
-                return formats::json::ToString(formats::json::ValueBuilder{f(std::move(arg))}.ExtractValue());
+                return impl::FormatToJsonString(f(std::move(arg)));
             }
         };
     }

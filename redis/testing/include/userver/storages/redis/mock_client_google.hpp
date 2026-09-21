@@ -19,6 +19,7 @@ public:
     MOCK_METHOD(size_t, ShardByKey, (const std::string& key), (const, override));
 
     MOCK_METHOD(void, WaitConnectedOnce, (RedisWaitConnected wait_connected), (override));
+    MOCK_METHOD(bool, IsReady, (const HealthCheckParams& params), (const, override));
 
     MOCK_METHOD(
         RequestAppend,
@@ -69,6 +70,8 @@ public:
     );
 
     MOCK_METHOD(RequestGet, Get, (std::string key, const CommandControl& command_control), (override));
+
+    MOCK_METHOD(RequestGetdel, Getdel, (std::string key, const CommandControl& command_control), (override));
 
     MOCK_METHOD(
         RequestGetset,
@@ -225,6 +228,22 @@ public:
         RequestMset,
         Mset,
         ((std::vector<std::pair<std::string, std::string>>)key_values, const CommandControl& command_control),
+        (override)
+    );
+
+    MOCK_METHOD(
+        RequestMsetex,
+        Msetex,
+        ((std::vector<std::pair<std::string, std::string>>)key_values, const CommandControl& command_control),
+        (override)
+    );
+
+    MOCK_METHOD(
+        RequestMsetex,
+        Msetex,
+        ((std::vector<std::pair<std::string, std::string>>)key_values,
+         MsetexOptions options,
+         const CommandControl& command_control),
         (override)
     );
 

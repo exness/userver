@@ -28,6 +28,7 @@ struct ServiceInternals final {
     Middlewares middlewares;
     const dynamic_config::Source config_source;
     boost::container::flat_map<grpc::StatusCode, logging::Level> status_codes_log_level;
+    bool otel_trace_sampling_enabled;
 };
 
 }  // namespace ugrpc::server::impl

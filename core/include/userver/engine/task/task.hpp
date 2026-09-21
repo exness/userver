@@ -3,6 +3,8 @@
 /// @file userver/engine/task/task.hpp
 /// @brief @copybrief engine::Task
 
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/task/task_base.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -11,7 +13,11 @@ namespace engine {
 
 /// @brief Asynchronous task that has a unique ownership of the payload.
 ///
-/// See engine::TaskWithResult for a type that could return a value or
+/// @warning This class supports only a single concurrent awaiter. Use
+/// @ref engine::SharedTaskWithResult "SharedTaskWithResult<void>" to await the
+/// same task from multiple coroutines and report exceptions from the payload.
+///
+/// See @ref engine::TaskWithResult for a type that could return a value or
 /// report an exception from the payload.
 class [[nodiscard]] Task : public TaskBase {
 public:
@@ -36,10 +42,8 @@ public:
     Task(const Task&) = delete;
     Task& operator=(const Task&) = delete;
 
-    /// @cond
-    // For internal use only.
-    impl::ContextAccessor* TryGetContextAccessor() noexcept;
-    /// @endcond
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND;
 
 protected:
     /// @cond

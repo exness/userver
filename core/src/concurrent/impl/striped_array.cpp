@@ -82,7 +82,7 @@ StripedArray::StripedArray()
     const auto elements_view = Elements();
     // This will induce some cache line flushing for neighbor StripedArray's.
     // Suppose that StripedArray's are not created very often.
-    std::uninitialized_fill(elements_view.begin(), elements_view.end(), 0);
+    std::ranges::uninitialized_fill(elements_view, 0);
 }
 
 StripedArray::~StripedArray() { ReleaseStripedArrayNode(node_); }

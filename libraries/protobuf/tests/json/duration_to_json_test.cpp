@@ -92,7 +92,11 @@ INSTANTIATE_TEST_SUITE_P(
             PrintErrorCode::kInvalidValue,
             "field1"
         },
-        DurationToJsonFailureTestParam{DurationMessageData{1, -1}, PrintErrorCode::kInvalidValue, "field1"}
+        DurationToJsonFailureTestParam{
+            DurationMessageData{-1, 1},
+            PrintErrorCode::kInvalidValue,
+            "field1",
+        }
     )
 );
 

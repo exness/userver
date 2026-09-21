@@ -66,7 +66,7 @@ public:
     const std::remove_reference_t<Data>* GetUserDataOptional() const;
 
     /// @brief Erases the user data.
-    void EraseUserData();
+    void EraseUserData() noexcept;
 
     /// @brief Stores the data with specified name if it was not previously stored
     /// in this.
@@ -103,7 +103,7 @@ public:
     const std::remove_reference_t<Data>* GetDataOptional(std::string_view name) const;
 
     /// @brief Erase data with specified name.
-    void EraseData(std::string_view name);
+    void EraseData(std::string_view name) noexcept;
 
     /// @brief Set the metrics shard (path + labels) for this request.
     /// When set, handler metrics will be accumulated on a new subpath "http.handler.path.*"
@@ -113,18 +113,18 @@ public:
     void SetHandlerMetricsShard(std::string_view path, utils::statistics::LabelsSpan labels);
 
     // TODO : TAXICOMMON-8252
-    impl::InternalRequestContext& GetInternalContext();
+    impl::InternalRequestContext& GetInternalContext() noexcept;
 
 private:
     utils::AnyMovable& SetUserAnyData(utils::AnyMovable&& data);
     utils::AnyMovable& GetUserAnyData();
-    utils::AnyMovable* GetUserAnyDataOptional();
-    void EraseUserAnyData();
+    utils::AnyMovable* GetUserAnyDataOptional() noexcept;
+    void EraseUserAnyData() noexcept;
 
     utils::AnyMovable& SetAnyData(std::string&& name, utils::AnyMovable&& data);
     utils::AnyMovable& GetAnyData(std::string_view name);
-    utils::AnyMovable* GetAnyDataOptional(std::string_view name);
-    void EraseAnyData(std::string_view name);
+    utils::AnyMovable* GetAnyDataOptional(std::string_view name) noexcept;
+    void EraseAnyData(std::string_view name) noexcept;
 
     class Impl;
     static constexpr std::size_t kPimplSize = 120;
@@ -177,7 +177,7 @@ const std::remove_reference_t<Data>* RequestContext::GetUserDataOptional() const
     return const_cast<RequestContext*>(this)->GetUserDataOptional<Data>();
 }
 
-inline void RequestContext::EraseUserData() { EraseUserAnyData(); }
+inline void RequestContext::EraseUserData() noexcept { EraseUserAnyData(); }
 
 template <typename Data>
 Data& RequestContext::SetData(std::string name, Data data) {
@@ -225,7 +225,7 @@ const std::remove_reference_t<Data>* RequestContext::GetDataOptional(std::string
     return const_cast<RequestContext*>(this)->GetDataOptional<Data>(name);
 }
 
-inline void RequestContext::EraseData(std::string_view name) { EraseAnyData(name); }
+inline void RequestContext::EraseData(std::string_view name) noexcept { EraseAnyData(name); }
 
 }  // namespace server::request
 

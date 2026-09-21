@@ -46,6 +46,7 @@ public:
     ~MockClientBase() override;
 
     void WaitConnectedOnce(RedisWaitConnected wait_connected) override;
+    bool IsReady(const HealthCheckParams& params) const override;
 
     size_t ShardsCount() const override;
     bool IsInClusterMode() const override;
@@ -176,6 +177,8 @@ public:
 
     RequestGet Get(std::string key, const CommandControl& command_control) override;
 
+    RequestGetdel Getdel(std::string key, const CommandControl& command_control) override;
+
     RequestGetset Getset(std::string key, std::string value, const CommandControl& command_control) override;
 
     RequestHdel Hdel(std::string key, std::string field, const CommandControl& command_control) override;
@@ -250,6 +253,17 @@ public:
 
     RequestMset Mset(std::vector<std::pair<std::string, std::string>> key_values, const CommandControl& command_control)
         override;
+
+    RequestMsetex Msetex(
+        std::vector<std::pair<std::string, std::string>> key_values,
+        const CommandControl& command_control
+    ) override;
+
+    RequestMsetex Msetex(
+        std::vector<std::pair<std::string, std::string>> key_values,
+        MsetexOptions options,
+        const CommandControl& command_control
+    ) override;
 
     RequestPersist Persist(std::string key, const CommandControl& command_control) override;
 
@@ -329,6 +343,13 @@ public:
         std::string key,
         std::chrono::seconds seconds,
         std::string value,
+        const CommandControl& command_control
+    ) override;
+
+    RequestSetAndGetPrevious SetAndGetPrevious(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl,
         const CommandControl& command_control
     ) override;
 
@@ -486,6 +507,143 @@ public:
         override;
 
     RequestZscore Zscore(std::string key, std::string member, const CommandControl& command_control) override;
+
+    RequestHexpire Hexpire(
+        std::string key,
+        std::chrono::seconds ttl,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hexpire(
+        std::string key,
+        std::chrono::seconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHexpiretime Hexpiretime(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHpexpiretime Hpexpiretime(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHttl Httl(std::string key, std::vector<std::string> fields, const CommandControl& command_control) override;
+
+    RequestHpttl Hpttl(std::string key, std::vector<std::string> fields, const CommandControl& command_control)
+        override;
+
+    RequestHpersist Hpersist(std::string key, std::vector<std::string> fields, const CommandControl& command_control)
+        override;
+
+    RequestHgetex Hgetex(std::string key, std::vector<std::string> fields, const CommandControl& command_control)
+        override;
+
+    RequestHgetex Hgetex(
+        std::string key,
+        HgetexOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHsetex Hsetex(
+        std::string key,
+        std::vector<HsetexFieldValue> field_values,
+        const CommandControl& command_control
+    ) override;
+
+    RequestHsetex Hsetex(
+        std::string key,
+        HsetexOptions options,
+        std::vector<HsetexFieldValue> field_values,
+        const CommandControl& command_control
+    ) override;
+
+    RequestJsonSet JsonSet(
+        std::string key,
+        std::string path,
+        formats::json::Value value,
+        const CommandControl& command_control
+    ) override;
+
+    RequestJsonSetIfNotExist JsonSetIfNotExist(
+        std::string key,
+        std::string path,
+        formats::json::Value value,
+        const CommandControl& command_control
+    ) override;
+
+    RequestJsonSetIfExist JsonSetIfExist(
+        std::string key,
+        std::string path,
+        formats::json::Value value,
+        const CommandControl& command_control
+    ) override;
+
+    RequestJsonGet JsonGet(std::string key, const CommandControl& command_control) override;
+
+    RequestJsonGet JsonGet(std::string key, std::string path, const CommandControl& command_control) override;
+
+    RequestJsonGet JsonGet(std::string key, std::vector<std::string> paths, const CommandControl& command_control)
+        override;
+
+    RequestJsonMget JsonMget(std::vector<std::string> keys, std::string path, const CommandControl& command_control)
+        override;
+
+    RequestJsonMset JsonMset(std::vector<JsonKeyPathValue> key_path_values, const CommandControl& command_control)
+        override;
 
     // end of redis commands
 

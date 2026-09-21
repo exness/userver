@@ -20,6 +20,9 @@ definitions:
                 type: string
             a_prop:
                 type: integer
+                minimum: 1
+                maximum: 100
+        x-taxi-extra-member: true
     B:
         type: object
         additionalProperties: true
@@ -28,6 +31,10 @@ definitions:
                 type: string
             b_prop:
                 type: integer
+                minimum: 1
+                maximum: 100
+
+        x-taxi-extra-member: true
 
     IntegerOneOfDiscriminator:
         type: object
@@ -49,6 +56,8 @@ definitions:
         properties:
             version:
                 type: integer
+                minimum: 40
+                maximum: 50
 
     D:
         type: object
@@ -56,6 +65,8 @@ definitions:
         properties:
             version:
                 type: integer
+                minimum: 50
+                maximum: 60
 
     OneOfToRefToRef:
         oneOf:

@@ -248,6 +248,19 @@ impl::Secret KafkaCluster::AddBootstrapServers(impl::Secret secrets) const {
     return secrets;
 }
 
+void KafkaCluster::PushMockRequestError(
+    const int16_t api_key,
+    const std::int32_t librdkafka_error_code,
+    const std::size_t count
+) {
+    rd_kafka_mock_push_request_errors(
+        mock_->GetMockCluster(),
+        api_key,
+        count,
+        static_cast<rd_kafka_resp_err_t>(librdkafka_error_code)
+    );
+}
+
 }  // namespace kafka::utest
 
 USERVER_NAMESPACE_END

@@ -24,7 +24,7 @@ public:
         const engine::ev::ThreadControl& sentinel_thread_control,
         const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
         const std::string& shard_group_name,
-        const Password& password,
+        const Credentials& credentials,
         std::size_t database_index,
         const std::vector<std::string>& shard_names,
         const std::vector<ConnectionInfo>& conns,
@@ -40,6 +40,7 @@ public:
     void Stop() override;
 
     bool WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) override;
+    bool IsReady(const HealthCheckParams& params) const override;
 
     rcu::ReadablePtr<ClusterTopology, rcu::BlockingRcuTraits> GetTopology() const override;
 
@@ -61,9 +62,9 @@ public:
 
     boost::signals2::signal<void(size_t)>& GetSignalTopologyChanged() override;
 
-    void UpdatePassword(const Password& password) override;
+    void UpdateCredentials(const Credentials& credentials) override;
 
-    Password GetPassword() override;
+    Credentials GetCredentials() override;
 
     std::string GetReadinessInfo() const override;
 
@@ -74,7 +75,7 @@ private:
     std::shared_ptr<engine::ev::ThreadPool> redis_thread_pool_;
     const std::string shard_group_name_;
     logging::LogExtra log_extra_;
-    concurrent::Variable<Password, std::mutex> password_;
+    concurrent::Variable<Credentials, std::mutex> credentials_;
     const std::size_t database_index_;
 
     // maps shard_name to shard_idx
@@ -102,7 +103,6 @@ private:
     std::mutex mutex_;
     engine::impl::ConditionVariableAny<std::mutex> cv_;
     std::atomic<bool> is_topology_received_{false};
-    bool IsInitialized() const { return is_topology_received_.load(); }
     ///}
 
     concurrent::Variable<std::optional<CommandsBufferingSettings>, std::mutex> commands_buffering_settings_;

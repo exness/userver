@@ -1,5 +1,6 @@
 #include <string_view>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <userver/http/url.hpp>
@@ -8,6 +9,16 @@
 USERVER_NAMESPACE_BEGIN
 
 using http::EncodeS3Key;
+using http::ExtractFragment;
+using http::ExtractHostname;
+using http::ExtractMetaTypeFromUrl;
+using http::ExtractPath;
+using http::ExtractPathOnly;
+using http::ExtractQuery;
+using http::ExtractScheme;
+using http::MakeQuery;
+using http::MakeUrl;
+using http::MakeUrlWithPathArgs;
 using http::UrlEncode;
 using http::UrlEncodePathSegment;
 
@@ -112,8 +123,8 @@ TEST(EncodeS3Key, UnicodeCharacters) {
     auto result = EncodeS3Key(key);
     // Check that Cyrillic characters are percent-encoded
     EXPECT_EQ(result, "folder/%D1%84%D0%B0%D0%B9%D0%BB.txt");
-    EXPECT_TRUE(result.find("folder/") != std::string::npos);
-    EXPECT_TRUE(result.find(".txt") != std::string::npos);
+    EXPECT_THAT(result, testing::HasSubstr("folder/"));
+    EXPECT_THAT(result, testing::HasSubstr(".txt"));
 }
 
 TEST(UrlEncode, Special) {
@@ -150,6 +161,7 @@ TEST(UrlDecode, Invalid) {
 }
 
 TEST(MakeQuery, MultiArgs) {
+    /// [MakeQuery MultiArgs]
     const http::MultiArgs multi_args = {
         {"arg", "123"},
         {"arg", "456"},
@@ -157,6 +169,7 @@ TEST(MakeQuery, MultiArgs) {
     };
 
     EXPECT_EQ("arg=123&arg=456&text=green%20apple", http::MakeQuery(multi_args));
+    /// [MakeQuery MultiArgs]
 }
 
 TEST(MakeUrl, InitializerList) { EXPECT_EQ("path?a=b&c=d", http::MakeUrl("path", {{"a", "b"}, {"c", "d"}})); }
@@ -240,6 +253,7 @@ TEST(MakeUrlWithPathArgs, WithQueryArgs) {
 }
 
 TEST(MakeUrlWithPathArgs, WithUnorderedMapQueryArgs) {
+    /// [MakeUrlWithPathArgs unordered map query args]
     const auto result = http::MakeUrlWithPathArgs(
         "/api/v1/users/{user_id}",
         {{"user_id", "123"}},
@@ -247,9 +261,11 @@ TEST(MakeUrlWithPathArgs, WithUnorderedMapQueryArgs) {
     );
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ("/api/v1/users/123?limit=20&page=1", result.value());
+    /// [MakeUrlWithPathArgs unordered map query args]
 }
 
 TEST(MakeUrlWithPathArgs, WithQueryArgsAndMultiArgs) {
+    /// [MakeUrlWithPathArgs MultiArgs]
     const http::MultiArgs multi_args = {{"tag", "new"}, {"tag", "featured"}};
 
     const auto result = http::MakeUrlWithPathArgs(
@@ -260,6 +276,7 @@ TEST(MakeUrlWithPathArgs, WithQueryArgsAndMultiArgs) {
     );
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ("/api/v1/products/electronics?sort=price&tag=new&tag=featured", result.value());
+    /// [MakeUrlWithPathArgs MultiArgs]
 }
 
 TEST(MakeUrlWithPathArgs, WithInitializerListQueryArgs) {
@@ -424,6 +441,218 @@ TEST(DecomposeUrlIntoViews, Basic) {
         EXPECT_EQ(decomposed.query, "");
         EXPECT_EQ(decomposed.fragment, "");
     }
+}
+
+TEST(UrlDocs, UrlEncodeExample) {
+    /// [UrlEncode example]
+    auto encoded = UrlEncode("hello world");
+    EXPECT_EQ(encoded, "hello%20world");
+    /// [UrlEncode example]
+}
+
+TEST(UrlDocs, UrlEncodePathSegmentExample) {
+    /// [UrlEncodePathSegment example]
+    auto encoded = UrlEncodePathSegment("file-name_with spaces.txt");
+    EXPECT_EQ(encoded, "file-name_with%20spaces.txt");
+    /// [UrlEncodePathSegment example]
+}
+
+TEST(UrlDocs, EncodeS3KeyExample) {
+    /// [EncodeS3Key example]
+    auto encoded = EncodeS3Key("folder/file with spaces.txt");
+    EXPECT_EQ(encoded, "folder/file%20with%20spaces.txt");
+    /// [EncodeS3Key example]
+}
+
+TEST(UrlDocs, MakeQueryExample) {
+    /// [MakeQuery example]
+    auto query = MakeQuery(http::Args{{"param", "value"}, {"filter", "active"}});
+    EXPECT_TRUE(query == "param=value&filter=active" || query == "filter=active&param=value");
+    /// [MakeQuery example]
+}
+
+TEST(UrlDocs, MakeQueryMultiArgsExample) {
+    /// [MakeQuery MultiArgs example]
+    http::MultiArgs args = {{"tag", "new"}, {"tag", "featured"}};
+    auto query = MakeQuery(args);
+    EXPECT_TRUE(query == "tag=new&tag=featured" || query == "tag=featured&tag=new");
+    /// [MakeQuery MultiArgs example]
+}
+
+TEST(UrlDocs, MakeQueryunorderedmapExample) {
+    /// [MakeQuery unordered_map example]
+    auto query = MakeQuery(std::unordered_map<std::string, std::string>{{"page", "1"}, {"size", "10"}});
+    EXPECT_TRUE(query == "page=1&size=10" || query == "size=10&page=1");
+    /// [MakeQuery unordered_map example]
+}
+
+TEST(UrlDocs, MakeQueryinitializerlistExample) {
+    /// [MakeQuery initializer list example]
+    auto query = MakeQuery({{"sort", "date"}, {"order", "desc"}});
+    EXPECT_TRUE(query == "sort=date&order=desc" || query == "order=desc&sort=date");
+    /// [MakeQuery initializer list example]
+}
+
+TEST(UrlDocs, MakeUrlExample) {
+    /// [MakeUrl example]
+    auto url = MakeUrl("/api/users", http::Args{{"status", "active"}});
+    EXPECT_EQ(url, "/api/users?status=active");
+    /// [MakeUrl example]
+}
+
+TEST(UrlDocs, MakeUrlwithunorderedmapExample) {
+    /// [MakeUrl with unordered_map example]
+    auto url = MakeUrl("/api/products", std::unordered_map<std::string, std::string>{{"category", "electronics"}});
+    EXPECT_EQ(url, "/api/products?category=electronics");
+    /// [MakeUrl with unordered_map example]
+}
+
+TEST(UrlDocs, MakeUrlwithMultiArgsExample) {
+    /// [MakeUrl with MultiArgs example]
+    http::MultiArgs multi_args = {{"tag", "new"}, {"tag", "featured"}};
+    auto url = MakeUrl("/api/products", http::Args{{"category", "electronics"}}, multi_args);
+    EXPECT_EQ(url, "/api/products?category=electronics&tag=new&tag=featured");
+    /// [MakeUrl with MultiArgs example]
+}
+
+TEST(UrlDocs, MakeUrlwithinitializerlistExample) {
+    /// [MakeUrl with initializer list example]
+    auto url = MakeUrl("/api/search", {{"q", "smartphone"}, {"sort", "relevance"}});
+    EXPECT_EQ(url, "/api/search?q=smartphone&sort=relevance");
+    /// [MakeUrl with initializer list example]
+}
+
+TEST(UrlDocs, MakeUrlWithPathArgsExample) {
+    /// [MakeUrlWithPathArgs example]
+    auto url = MakeUrlWithPathArgs("/api/v1/users/{user_id}", {{"user_id", "123"}});
+    ASSERT_TRUE(url.has_value());
+    EXPECT_EQ(*url, "/api/v1/users/123");
+    /// [MakeUrlWithPathArgs example]
+}
+
+TEST(UrlDocs, MakeUrlWithPathArgswithqueryExample) {
+    /// [MakeUrlWithPathArgs with query example]
+    auto url = MakeUrlWithPathArgs("/api/v1/users/{user_id}", {{"user_id", "123"}}, http::Args{{"filter", "active"}});
+    ASSERT_TRUE(url.has_value());
+    EXPECT_EQ(*url, "/api/v1/users/123?filter=active");
+    /// [MakeUrlWithPathArgs with query example]
+}
+
+TEST(UrlDocs, MakeUrlWithPathArgswithunorderedmapExample) {
+    /// [MakeUrlWithPathArgs with unordered_map example]
+    auto url = MakeUrlWithPathArgs(
+        "/api/v1/users/{user_id}",
+        {{"user_id", "123"}},
+        std::unordered_map<std::string, std::string>{{"page", "1"}}
+    );
+    ASSERT_TRUE(url.has_value());
+    EXPECT_EQ(*url, "/api/v1/users/123?page=1");
+    /// [MakeUrlWithPathArgs with unordered_map example]
+}
+
+TEST(UrlDocs, MakeUrlWithPathArgswithMultiArgsExample) {
+    /// [MakeUrlWithPathArgs with MultiArgs example]
+    http::MultiArgs multi_args = {{"tag", "new"}, {"tag", "featured"}};
+    auto url = MakeUrlWithPathArgs(
+        "/api/v1/products/{category}",
+        {{"category", "electronics"}},
+        http::Args{{"sort", "price"}},
+        multi_args
+    );
+    ASSERT_TRUE(url.has_value());
+    EXPECT_EQ(*url, "/api/v1/products/electronics?sort=price&tag=new&tag=featured");
+    /// [MakeUrlWithPathArgs with MultiArgs example]
+}
+
+TEST(UrlDocs, MakeUrlWithPathArgswithinitializerlistExample) {
+    /// [MakeUrlWithPathArgs with initializer list example]
+    auto url =
+        MakeUrlWithPathArgs("/api/v1/search/{term}", {{"term", "laptop"}}, {{"brand", "apple"}, {"price_max", "2000"}});
+    ASSERT_TRUE(url.has_value());
+    EXPECT_EQ(*url, "/api/v1/search/laptop?brand=apple&price_max=2000");
+    /// [MakeUrlWithPathArgs with initializer list example]
+}
+
+TEST(UrlDocs, ExtractMetaTypeFromUrlExample) {
+    /// [ExtractMetaTypeFromUrl example]
+    auto base = ExtractMetaTypeFromUrl("https://example.com/api/users?page=1&sort=name");
+    EXPECT_EQ(base, "https://example.com/api/users");
+    /// [ExtractMetaTypeFromUrl example]
+}
+
+TEST(UrlDocs, ExtractPathOnlyExample) {
+    /// [ExtractPathOnly example]
+    auto path = ExtractPath("https://example.com/api/users");
+    EXPECT_EQ(path, "/api/users");
+
+    auto path2 = ExtractPath("example.com/api/users?a=b");
+    EXPECT_EQ(path2, "/api/users");
+    /// [ExtractPathOnly example]
+}
+
+TEST(UrlDocs, ExtractPathOnlyExample2) {
+    /// [ExtractPathOnly example 2]
+    auto path = ExtractPathOnly("https://example.com/api/users");
+    EXPECT_EQ(path, "/api/users");
+
+    auto path2 = ExtractPathOnly("example.com/api/users?a=b");
+    EXPECT_EQ(path2, "/api/users");
+    /// [ExtractPathOnly example 2]
+}
+
+TEST(UrlDocs, ExtractHostnameExample) {
+    /// [ExtractHostname example]
+    auto host = ExtractHostname("https://example.com/api/users");
+    EXPECT_EQ(host, "example.com");
+
+    auto host2 = ExtractHostname("https://user:pass@example.com:8080/api");
+    EXPECT_EQ(host2, "example.com");
+
+    auto host3 = ExtractHostname("http://[::1]:8080/");
+    EXPECT_EQ(host3, "[::1]");
+    /// [ExtractHostname example]
+}
+
+TEST(UrlDocs, ExtractSchemeExample) {
+    /// [ExtractScheme example]
+    auto scheme = ExtractScheme("https://example.com/api/users");
+    EXPECT_EQ(scheme, "https");
+
+    auto scheme2 = ExtractScheme("http://user:pass@example.com:8080/api");
+    EXPECT_EQ(scheme2, "http");
+
+    auto scheme3 = ExtractScheme("ftp://[::1]:8080/");
+    EXPECT_EQ(scheme3, "ftp");
+    /// [ExtractScheme example]
+}
+
+TEST(UrlDocs, ExtractQueryExample) {
+    /// [ExtractQuery example]
+    auto query = ExtractQuery("https://example.com/api/users?q=1");
+    EXPECT_EQ(query, "q=1");
+
+    auto query2 = ExtractQuery("http://user:pass@example.com:8080/api");
+    EXPECT_EQ(query2, "");
+
+    auto query3 = ExtractQuery("ftp://[::1]:8080/?q=12&w=23");
+    EXPECT_TRUE(query3 == "q=12&w=23" || query3 == "w=23&q=12");
+    /// [ExtractQuery example]
+}
+
+TEST(UrlDocs, ExtractFragmentExample) {
+    /// [ExtractFragment example]
+    auto fragment = ExtractFragment("https://example.com/api/users?q=1");
+    EXPECT_EQ(fragment, "");
+
+    auto fragment2 = ExtractFragment("http://user:pass@example.com:8080/api#123");
+    EXPECT_EQ(fragment2, "123");
+
+    auto fragment3 = ExtractFragment("ftp://[::1]:8080/#123?q=12&w=23");
+    EXPECT_EQ(fragment3, "123?q=12&w=23");
+
+    auto fragment4 = ExtractFragment("ftp://[::1]:8080/?q=12&w=23#123");
+    EXPECT_EQ(fragment4, "123");
+    /// [ExtractFragment example]
 }
 
 USERVER_NAMESPACE_END

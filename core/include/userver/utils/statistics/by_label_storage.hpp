@@ -28,7 +28,7 @@ namespace utils::statistics {
 namespace impl {
 
 template <typename Metric>
-concept DumpableMetric = kHasWriterSupport<Metric>;
+concept DumpableMetric = HasWriterSupport<Metric>;
 
 template <typename Metric>
 concept ResettableMetric = requires(Metric& m) { ResetMetric(m); };

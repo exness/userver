@@ -19,7 +19,12 @@
 
 USERVER_NAMESPACE_BEGIN
 
-namespace chaotic::sax::impl {
+namespace chaotic {
+template <const auto& Value>
+struct ConstValue;
+
+namespace sax {
+namespace impl {
 
 template <typename RawParser, typename UserType>
 class WithType final : private formats::json::parser::Subscriber<typename RawParser::ResultType> {
@@ -99,8 +104,10 @@ private:
 template <typename T, typename ResultType = TypeOfDescriptor<T>>
 class RefParser final : private formats::json::parser::Subscriber<ResultType> {
 public:
+    using Subparser = chaotic::sax::Parser<T>;
+
     RefParser()
-        : parser_(std::make_unique<chaotic::sax::Parser<T>>())
+        : parser_(std::make_unique<Subparser>())
     {
         parser_->Subscribe(*this);
     }
@@ -109,12 +116,12 @@ public:
 
     void Subscribe(formats::json::parser::Subscriber<utils::Box<ResultType>>& subscriber) { subscriber_ = &subscriber; }
 
-    formats::json::parser::BaseParser& GetParser() { return *parser_; }
+    formats::json::parser::BaseParser& GetParser() { return parser_->GetParser(); }
+
+    void OnSend(ResultType&& value) override { subscriber_->OnSend(utils::Box<ResultType>(std::move(value))); }
 
 private:
-    void OnSend(ResultType&& value) { subscriber_->OnSend(utils::Box<ResultType>(std::move(value))); }
-
-    std::unique_ptr<formats::json::parser::TypedParser<ResultType>> parser_;
+    std::unique_ptr<Subparser> parser_;
     formats::json::parser::Subscriber<utils::Box<ResultType>>* subscriber_{nullptr};
 };
 
@@ -141,12 +148,13 @@ private:
     formats::json::parser::Subscriber<ResultType>* subscriber_{nullptr};
 };
 
-}  // namespace chaotic::sax::impl
-
-namespace chaotic::sax {
+}  // namespace impl
 
 template <typename T>
 sax::Parser<T> ParserOf(Type<Primitive<T>>);
+
+template <const auto& Value>
+impl::JsonDomParser<ConstValue<Value>> ParserOf(Type<ConstValue<Value>>);
 
 template <typename RawType, typename UserType>
 auto ParserOf(Type<WithType<RawType, UserType>>)
@@ -195,6 +203,8 @@ sax::impl::JsonDomParser<std::variant<Fields...>> ParserOf(Type<std::variant<Fie
 template <typename... Fields>
 sax::Parser<std::variant<Fields...>> ParserOf(Type<Variant<Fields...>>);
 
-}  // namespace chaotic::sax
+}  // namespace sax
+
+}  // namespace chaotic
 
 USERVER_NAMESPACE_END

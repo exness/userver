@@ -12,7 +12,6 @@ class Logging;
 }  // namespace components
 
 namespace server::handlers {
-// clang-format off
 
 /// @ingroup userver_components userver_http_handlers
 ///
@@ -23,15 +22,13 @@ namespace server::handlers {
 ///
 /// ## Static configuration example:
 ///
-/// @snippet components/common_server_component_list_test.cpp  Sample handler log level component config
+/// @snippet core/src/components/common_server_component_list_test.cpp  Sample handler log level component config
 ///
 /// ## Scheme
 /// POST request reopens log file for all loggers.
 /// Returns 200 status code after successful operation.
 /// If at least one of files was not successfully reopened returns 500 status
 /// code and error messages separated by comma in response body.
-
-// clang-format on
 class OnLogRotate final : public HttpHandlerBase {
 public:
     OnLogRotate(const components::ComponentConfig& config, const components::ComponentContext& component_context);

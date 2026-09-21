@@ -11,14 +11,14 @@ switches. Some use cases for this profiler are:
 
 ## How to profile a service
 
-1. Make sure that service is build with debug information and that the
+1. Make sure that service is built with debug information and that the
 cmake option `USERVER_FEATURE_STACKTRACE` was turned `ON`.
 2. In the static config file set the `task-trace` options for the task processor
 you are willing to profile. All the `task-trace` options are described at
 "Static task_processor options" in components::ManagerControllerComponent. It
 is recommended to place traces into a separate
 logger to avoid bloat of your default log file. For example:
-@snippet components/minimal_server_component_list_test.cpp  Sample task-switch tracing
+@snippet core/src/components/minimal_server_component_list_test.cpp  Sample task-switch tracing
 3. Start your service
 4. Look at the traces.
 
@@ -91,7 +91,7 @@ $ make -j4 userver-core_unittest && ./userver/core/userver-core_unittest --gtest
 7   INFO  Task 7F3081833C00 changed state to kRunning, delay = 584080us span_id=388dad66e4efd590	stacktrace= 0# userver::logging::impl::ExtendLogExtraWithStacktrace(userver::logging::LogExtra&, userver::utils::Flags<userver::logging::impl::LogExtraStacktraceFlags>) at /userver/core/src/logging/log_extra_stacktrace.cpp:41
  1# userver::engine::impl::(anonymous namespace)::StacktraceFromLoggerLevel(std::shared_ptr<userver::logging::impl::LoggerWithInfo> const&) at /userver/core/src/engine/task/task_context.cpp:73
  2# userver::engine::impl::TaskContext::TraceStateTransition(userver::engine::Task::State) at /userver/core/src/engine/task/task_context.cpp:729
- 3# userver::engine::impl::TaskContext::Sleep(userver::engine::impl::WaitStrategy&) at /userver/core/src/engine/task/task_context.cpp:368
+ 3# userver::engine::impl::TaskContext::Sleep(userver::engine::impl::WeakAwaitable&, userver::engine::Deadline) at /userver/core/src/engine/task/task_context.cpp:368
  4# userver::engine::Mutex::LockSlowPath(userver::engine::impl::TaskContext&, userver::engine::Deadline) at /userver/core/src/engine/mutex.cpp:63
  5# userver::engine::Mutex::try_lock_until(userver::engine::Deadline) at /userver/core/src/engine/mutex.cpp:92
  6# userver::engine::Mutex::lock() at /userver/core/src/engine/mutex.cpp:73
@@ -105,7 +105,7 @@ $ make -j4 userver-core_unittest && ./userver/core/userver-core_unittest --gtest
 
 - **Q:** I get barely readable traces, without function or file names.
 
-  **A:** You need to make sure that the service was build with the
+  **A:** You need to make sure that the service was built with the
   cmake option `USERVER_FEATURE_STACKTRACE` turned `ON`. Also check that
   the debug information was not stripped away from the service and that you
   have a modern `libbacktrace` library on your system.

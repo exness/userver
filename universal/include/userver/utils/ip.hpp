@@ -5,8 +5,10 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -19,7 +21,7 @@
 
 USERVER_NAMESPACE_BEGIN
 
-/// IP address and utilities
+/// @brief IP address parsing, formatting, and related utilities.
 namespace utils::ip {
 
 /// @ingroup userver_containers
@@ -64,7 +66,7 @@ using AddressV4 = AddressBase<4>;
 using AddressV6 = AddressBase<16>;
 
 template <typename T>
-inline constexpr bool kIsAddressType = std::is_same_v<T, AddressV4> || std::is_same_v<T, AddressV6>;
+concept IsAddressType = std::is_same_v<T, AddressV4> || std::is_same_v<T, AddressV6>;
 
 /// @brief Create an IPv4 address from an IP address string in dotted decimal form.
 /// @throw AddressSystemError
@@ -79,11 +81,16 @@ std::string AddressV4ToString(const AddressV4& address);
 /// @brief Get the address as a string in dotted decimal format.
 std::string AddressV6ToString(const AddressV6& address);
 
+/// @brief Returns true if `host` is an IPv4 or IPv6 address.
+bool IsIpAddress(std::string_view host) noexcept;
+
+/// @brief Same as @ref IsIpAddress, but slightly faster.
+bool IsNulTerminatedIpAddress(utils::zstring_view host) noexcept;
+
 /// @ingroup userver_containers
 ///
 /// @brief Base class for IPv4/IPv6 network
-template <typename Address>
-requires kIsAddressType<Address>
+template <IsAddressType Address>
 class NetworkBase final {
 public:
     using AddressType = Address;
@@ -133,8 +140,6 @@ public:
         return a.address_ == b.address_ && a.prefix_length_ == b.prefix_length_;
     }
 
-    friend bool operator!=(const NetworkBase<Address>& a, const NetworkBase<Address>& b) noexcept { return !(a == b); }
-
 private:
     AddressType address_;
     unsigned char prefix_length_ = 0;
@@ -153,11 +158,11 @@ using NetworkV6 = NetworkBase<AddressV6>;
 ///@brief Create an IPv4 network from a string containing IP address and prefix
 /// length.
 /// @throw std::invalid_argument, AddressSystemError
-NetworkV4 NetworkV4FromString(const std::string& str);
+NetworkV4 NetworkV4FromString(std::string_view str);
 
 /// @brief Create an IPv6 network from a string containing IP address and prefix
 /// length.
-NetworkV6 NetworkV6FromString(const std::string& str);
+NetworkV6 NetworkV6FromString(std::string_view str);
 
 ///@brief Get the network as an address in dotted decimal format.
 std::string NetworkV4ToString(const NetworkV4& network);

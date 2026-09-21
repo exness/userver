@@ -66,10 +66,10 @@ compiler::ThreadLocalScope<RandomImpl> UseLocalRandomImpl();
 /// ## Usage example
 ///
 /// Standard distributions can be passed to WithDefaultRandom directly:
-/// @snippet utils/rand_test.cpp  WithDefaultRandom distribution
+/// @snippet universal/src/utils/rand_test.cpp  WithDefaultRandom distribution
 ///
 /// A lambda can be passed to perform a series of operations more efficiently:
-/// @snippet utils/rand_test.cpp  WithDefaultRandom multiple
+/// @snippet universal/src/utils/rand_test.cpp  WithDefaultRandom multiple
 ///
 /// @param func functor that will be invoked with the RNG
 /// @returns The invocation result of @a func
@@ -101,7 +101,7 @@ T RandRange(T from_inclusive, T to_exclusive) {
 /// @note The used random generator is not cryptographically secure
 template <typename T>
 T RandRange(T to_exclusive) {
-    return RandRange(T{0}, to_exclusive);
+    return utils::RandRange(T{0}, to_exclusive);
 }
 
 /// @brief Shuffles the elements within the container
@@ -109,9 +109,7 @@ T RandRange(T to_exclusive) {
 /// cryptographically secure
 template <typename Container>
 void Shuffle(Container& container) {
-    utils::WithDefaultRandom([&container](RandomBase& rng) {
-        std::shuffle(std::begin(container), std::end(container), rng);
-    });
+    utils::WithDefaultRandom([&container](RandomBase& rng) { std::ranges::shuffle(container, rng); });
 }
 
 /// @brief Generate a random number in the whole `uint32_t` range

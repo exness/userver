@@ -13,8 +13,13 @@
 #include <userver/engine/io/socket.hpp>
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/request/request_config.hpp>
+#include <userver/utils/slot_map.hpp>
 
 USERVER_NAMESPACE_BEGIN
+
+namespace engine {
+class WaitAnyContext;
+}
 
 namespace server::http {
 class Http2Session;
@@ -47,16 +52,24 @@ public:
     std::unique_ptr<engine::io::RwBase> ExtractSocket() noexcept;
 
 private:
-    bool IsRequestTasksEmpty() const noexcept;
+    using RequestTask = engine::TaskWithResult<void>;
+
+    struct RequestTaskContext final {
+        RequestTask task;
+        HttpRequestPtr request;
+    };
 
     void ListenForRequests();
-    void ProcessRequest(std::shared_ptr<http::HttpRequest>&& request_ptr) noexcept;
-    bool WaitOnSocket(engine::Deadline deadline);
-
+    RequestTaskContext StartRequestTask(std::shared_ptr<http::HttpRequest>&& request_ptr) noexcept;
+    void StartAllRequestTasks(engine::WaitAnyContext& wait_any);
+    void OnRequestTaskFinished(std::uint64_t event_id) noexcept;
     void SendResponse(http::HttpRequest& request) noexcept;
 
     std::unique_ptr<http::Http2Session> MakeParser();
     void EnsureHttp2();
+
+    bool ShouldCloseConnection() const noexcept;
+    bool IsIdle() const noexcept;
 
     const ConnectionConfig& config_;
     const request::HttpRequestConfig& handler_defaults_config_;
@@ -69,6 +82,7 @@ private:
 
     engine::io::Sockaddr remote_address_;
     std::unique_ptr<http::Http2Session> parser_;
+    utils::SlotMap<RequestTaskContext, std::vector> handler_tasks_;
 };
 
 }  // namespace server::net

@@ -1,6 +1,7 @@
 #include <storages/mongo/cdriver/pool_impl.hpp>
 
 #include <limits>
+#include <optional>
 
 #include <bson/bson.h>
 #include <fmt/chrono.h>
@@ -62,6 +63,33 @@ int32_t CheckedDurationSeconds(const std::chrono::seconds& timeout, const char* 
     }
     return timeout_sec;
 }
+
+#ifdef MONGOC_BULKWRITE_H
+
+constexpr std::int32_t kBulkWriteMinWireVersion = 25;
+
+std::optional<std::int32_t> GetMaxWireVersion(mongoc_client_t* client) {
+    MongoError error;
+    const ServerDescriptionPtr description{
+        mongoc_client_select_server(client, /*for_writes=*/true, /*prefs=*/nullptr, error.GetNative())
+    };
+    if (!description) {
+        LOG_LIMITED_WARNING() << "Cannot detect MongoDB server version: " << error.Message();
+        return std::nullopt;
+    }
+
+    const bson_t* hello_response = mongoc_server_description_hello_response(description.get());
+    bson_iter_t iter;
+    if (!hello_response || !bson_iter_init_find(&iter, hello_response, "maxWireVersion") ||
+        !BSON_ITER_HOLDS_INT32(&iter))
+    {
+        LOG_LIMITED_WARNING() << "No 'maxWireVersion' in the MongoDB server handshake response";
+        return std::nullopt;
+    }
+    return bson_iter_int32(&iter);
+}
+
+#endif  // MONGOC_BULKWRITE_H
 
 bool HasOption(const UriPtr& uri, const char* opt) {
     const bson_t* options = mongoc_uri_get_options(uri.get());
@@ -299,30 +327,17 @@ void TopologyClosed(const mongoc_apm_topology_closed_t*) {
     LOG_DEBUG() << "The driver stops monitoring a server topology and destroys it";
 }
 
-void CreateGlobalInitializer() {
-    // Initialize static variable, and wait not on std::mutex, but on engine::Mutex.
-    // Otherwise, CPU will burn.
-    static engine::Mutex mutex;
-    const std::lock_guard lock(mutex);
-
-    static std::optional<GlobalInitializer> init_mongoc;
-    engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [] {
-        if (!init_mongoc) {
-            init_mongoc.emplace();
-        }
-    }).Get();
-}
-
 }  // namespace
 
 CDriverPoolImpl::CDriverPoolImpl(
+    utils::ResourceScopeStorage& scopes,
     std::string id,
     const std::string& uri_string,
     const PoolConfig& config,
     clients::dns::Resolver* dns_resolver,
     dynamic_config::Source config_source
 )
-    : PoolImpl(std::move(id), config, config_source),
+    : PoolImpl(scopes, std::move(id), config, config_source),
       app_name_(config.app_name),
       init_data_{dns_resolver, {}, {}},
       max_size_(config.pool_settings.max_size),
@@ -335,7 +350,7 @@ CDriverPoolImpl::CDriverPoolImpl(
       // FP?: pointer magic in boost.lockfree
       // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
       queue_(config.pool_settings.max_size) {
-    CreateGlobalInitializer();
+    (void)&kInitMongoc;
     GlobalInitializer::LogInitWarningsOnce();
 
     SetConnectionString(uri_string);
@@ -372,12 +387,11 @@ CDriverPoolImpl::CDriverPoolImpl(
             DoMaintenance();
         });
 
-    Start();  // Must be the last line in the constructor
+    // Must be the last line: UpdateAndListen synchronously calls virtual SetPoolSettings.
+    SubscribeToConfig(scopes);
 }
 
 CDriverPoolImpl::~CDriverPoolImpl() {
-    Stop();  // Must be the first line in the destructor
-
     const tracing::Span span("mongo_destroy");
     maintenance_task_.Stop();
 }
@@ -402,11 +416,57 @@ void CDriverPoolImpl::SetMaxSize(size_t max_size) { max_size_ = max_size; }
 
 const std::string& CDriverPoolImpl::DefaultDatabaseName() const { return default_database_; }
 
+const std::optional<std::chrono::seconds>& CDriverPoolImpl::GetMaxReplicationLag() const {
+    return pool_config_.max_replication_lag;
+}
+
 void CDriverPoolImpl::SetPoolSettings(const PoolSettings& pool_settings) {
     SetMaxSize(pool_settings.max_size);
     idle_limit_ = pool_settings.idle_limit;
     in_use_semaphore_.SetCapacity(pool_settings.max_size);
     connecting_semaphore_.SetCapacity(pool_settings.connecting_limit);
+}
+
+bool CDriverPoolImpl::IsBulkWriteSupported() const {
+    return bulk_write_support_.load(std::memory_order_relaxed) == BulkWriteSupport::kSupported;
+}
+
+void CDriverPoolImpl::MarkBulkWriteUnsupported() {
+    if (bulk_write_support_.exchange(BulkWriteSupport::kUnsupported, std::memory_order_relaxed) !=
+        BulkWriteSupport::kSupported)
+    {
+        return;
+    }
+
+    LOG_WARNING()
+        << "MongoDB server of pool '" << Id()
+        << "' does not support the 'bulkWrite' command, MongoDB 8.0 or newer is required. Operations that "
+           "are implemented via 'bulkWrite' fall back to the plain commands, max_server_time is ignored "
+           "for them";
+}
+
+void CDriverPoolImpl::RecheckBulkWriteSupport([[maybe_unused]] mongoc_client_t* client) {
+#ifdef MONGOC_BULKWRITE_H
+    if (bulk_write_support_.load(std::memory_order_relaxed) != BulkWriteSupport::kUnknown) {
+        return;
+    }
+
+    const auto max_wire_version = GetMaxWireVersion(client);
+    if (!max_wire_version) {
+        return;
+    }
+
+    const auto support =
+        *max_wire_version >= kBulkWriteMinWireVersion ? BulkWriteSupport::kSupported : BulkWriteSupport::kUnsupported;
+    auto expected = BulkWriteSupport::kUnknown;
+    if (bulk_write_support_.compare_exchange_strong(expected, support, std::memory_order_relaxed) &&
+        support == BulkWriteSupport::kSupported)
+    {
+        LOG_INFO()
+            << "MongoDB server of pool '" << Id()
+            << "' supports the 'bulkWrite' command, the operations that use it are enabled";
+    }
+#endif
 }
 
 void CDriverPoolImpl::SetConnectionString(const std::string& connection_string) {
@@ -415,6 +475,7 @@ void CDriverPoolImpl::SetConnectionString(const std::string& connection_string) 
         return;
     }
     orig_connection_string_ = connection_string;
+    bulk_write_support_.store(BulkWriteSupport::kUnknown, std::memory_order_relaxed);
     LOG_WARNING()
         << "New connection string for " << Id() << " found in secdist, all old sockets will be eventually closed";
 
@@ -495,6 +556,7 @@ CDriverPoolImpl::ConnPtr CDriverPoolImpl::Pop() {
                   << "' has too many establishing connections. " << MakeQueueDeadlineMessage(inherited_timeout);
             }
             conn = Create();
+            TESTPOINT("mongo-connection-created", {});
         }
     }
 

@@ -18,10 +18,16 @@ if(USERVER_FEATURE_CHAOTIC)
     add_subdirectory(chaotic_service)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-chaotic_service)
 
-    if(USERVER_FEATURE_CHAOTIC_EXPERIMENTAL)
+    if(USERVER_FEATURE_CHAOTIC_OPENAPI)
         add_subdirectory(chaotic_openapi_service)
         add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-chaotic-openapi_service)
+
     endif()
+endif()
+
+if(USERVER_FEATURE_POSTGRESQL AND USERVER_FEATURE_CHAOTIC)
+    add_subdirectory(benchmark_service)
+    add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-benchmark_service)
 endif()
 
 if(USERVER_FEATURE_OTLP)
@@ -100,6 +106,9 @@ if(USERVER_FEATURE_POSTGRESQL)
     add_subdirectory(postgres_service)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-postgres_service)
 
+    add_subdirectory(postgres_dto_service)
+    add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-postgres_dto_service)
+
     add_subdirectory(postgres_auth)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-postgres_auth)
 
@@ -149,9 +158,19 @@ if(USERVER_FEATURE_YDB AND USERVER_FEATURE_MONGODB)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-ydb_service)
 endif()
 
+if(USERVER_FEATURE_YDB)
+    add_subdirectory(ydb_topic_writer_service)
+    add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-ydb_topic_writer_service)
+endif()
+
 if(USERVER_FEATURE_SQLITE)
     add_subdirectory(sqlite_service)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-sqlite_service)
+endif()
+
+if(USERVER_FEATURE_SCYLLADB)
+    add_subdirectory(scylla_service)
+    add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-scylla_service)
 endif()
 
 if(USERVER_FEATURE_S3API)
@@ -159,14 +178,10 @@ if(USERVER_FEATURE_S3API)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-s3api)
 endif()
 
-_userver_directory_install(
-    COMPONENT examples
-    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DESTINATION share/userver
-)
-_userver_install_component(MODULE examples DEPENDS "")
-# libuserver-samples, not libuserver-samples-dev
-set(CPACK_DEBIAN_SAMPLES_PACKAGE_NAME libuserver-examples)
+if(USERVER_FEATURE_EASY)
+    add_subdirectory(easy)
+    add_dependencies(${PROJECT_NAME} userver-easy-samples)
+endif()
 
 # Clean up fake userver installation above to avoid messing with find_package(userver) in the parent project.
 file(REMOVE "${CMAKE_BINARY_DIR}/package_stubs/userverConfig.cmake")

@@ -50,13 +50,13 @@ public:
     bool IsUnbounded() const;
 
     /// Get current token limit (might be inaccurate as the result is stale)
-    size_t GetMaxSizeApprox() const;
+    size_t GetMaxSizeApprox() const noexcept;
 
     /// Get current refill amount (might be inaccurate as the result is stale)
-    size_t GetRefillAmountApprox() const;
+    size_t GetRefillAmountApprox() const noexcept;
 
     /// Get current refill interval (might be inaccurate as the result is stale)
-    Duration GetRefillIntervalApprox() const;
+    Duration GetRefillIntervalApprox() const noexcept;
 
     /// Get rate (tokens per second)
     double GetRatePs() const;

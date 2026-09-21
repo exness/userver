@@ -86,6 +86,15 @@ properties:
         type: boolean
         description: whether statement timeout is affected by deadline propagation
         default: true
+    pooler-mode:
+        type: string
+        enum:
+          - session
+          - transaction
+        description: |
+            Pooler mode. `session` (default) for session poolers; `transaction` for
+            Odyssey transaction pooler only
+        default: session
     monitoring-dbalias:
         type: string
         description: |
@@ -140,6 +149,11 @@ properties:
         description: |
             limit for concurrent establishing connections number per PostgreSQL host (0 - unlimited)
         default: 0
+    connecting_interval_ms:
+        type: integer
+        minimum: 0
+        description: |
+            minimum time in milliseconds between starting new connections to each PostgreSQL host (0 - unlimited)
     connlimit_mode:
         type: string
         enum:

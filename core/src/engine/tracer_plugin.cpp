@@ -23,14 +23,12 @@ TracePlugin::TracePlugin(std::size_t worker_count)
     : alive_tasks_(worker_count)
 {}
 
-void TracePlugin::HookTaskCreate(const impl::TaskContext&) noexcept {}
-
-void TracePlugin::HookTaskDestroy(const impl::TaskContext& task) noexcept {
+void TracePlugin::HookTaskDestroy(impl::TaskContext& task) noexcept {
     auto tasks = LockForTask(task);
     tasks->erase(&task);
 }
 
-void TracePlugin::HookBeforeSleep(const impl::TaskContext& task) noexcept {
+void TracePlugin::HookBeforeSleep(impl::TaskContext& task) noexcept {
     // stacktrace is slow, not under lock
     auto bt = boost::stacktrace::stacktrace();
 
@@ -52,8 +50,6 @@ void TracePlugin::HookBeforeSleep(const impl::TaskContext& task) noexcept {
         UASSERT(ok);
     }
 }
-
-void TracePlugin::HookAfterWakeup(const impl::TaskContext&) noexcept {}
 
 void TracePlugin::PrintStacksByComponentNames(const std::unordered_set<std::string>& component_names) const {
     auto tasks = GetAllTasks();

@@ -120,6 +120,9 @@ public:
         std::optional<std::function<void(MessageBatchView)>> user_callback = {}
     );
 
+    /// @brief The following @p count requests with ApiKey will receive an error from the mock broker.
+    void PushMockRequestError(int16_t api_key, std::int32_t librdkafka_error_code, std::size_t count = 1);
+
 private:
     impl::Secret AddBootstrapServers(impl::Secret secrets) const;
     std::string InitBootstrapServers();

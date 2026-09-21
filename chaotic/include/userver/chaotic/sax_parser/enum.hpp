@@ -4,7 +4,6 @@
 #include <userver/chaotic/sax_parser/primitive.hpp>
 #include <userver/formats/json/parser/int_parser.hpp>
 #include <userver/formats/json/parser/string_parser.hpp>
-#include <userver/utils/void_t.hpp>
 
 USERVER_NAMESPACE_BEGIN
 

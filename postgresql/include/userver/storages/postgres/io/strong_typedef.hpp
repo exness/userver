@@ -10,32 +10,10 @@
 #include <userver/storages/postgres/io/nullable_traits.hpp>
 
 #include <userver/utils/strong_typedef.hpp>
-#include <userver/utils/void_t.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::postgres::io {
-
-/// @page pg_strong_typedef uPg: support for C++ 'strong typedef' idiom
-///
-/// Within userver a strong typedef can be expressed as an enum class for
-/// integral types and as an instance of
-/// `USERVER_NAMESPACE::utils::StrongTypedef` template for all types. Both of
-/// them are supported transparently by the PostgresSQL driver with minor
-/// limitations. No additional code required.
-///
-/// @warning The underlying integral type for a strong typedef MUST be
-/// signed as PostgreSQL doesn't have unsigned types
-///
-/// The underlying type for a strong typedef must be mapped to a system or a
-/// user PostgreSQL data type. Strong typedef type derives nullability from
-/// underlying type.
-///
-/// Using `USERVER_NAMESPACE::utils::StrongTypedef` example:
-/// @snippet storages/postgres/tests/strong_typedef_pgtest.cpp Strong typedef
-///
-/// Using `enum class` example:
-/// @snippet storages/postgres/tests/strong_typedef_pgtest.cpp Enum typedef
 
 namespace traits {
 
@@ -75,7 +53,7 @@ struct GetSetNull<USERVER_NAMESPACE::utils::StrongTypedef<Tag, T, Ops>> {
 
 /// A metafunction that enables an enum type serialization to its
 /// underlying type. Can be specialized.
-template <typename T, typename = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct CanUseEnumAsStrongTypedef : std::false_type {};
 
 namespace impl {
@@ -101,9 +79,6 @@ constexpr bool CheckCanUseEnumAsStrongTypedef() {
 }
 
 }  // namespace impl
-
-template <typename T>
-using EnableIfCanUseEnumAsStrongTypedef = std::enable_if_t<impl::CheckCanUseEnumAsStrongTypedef<T>()>;
 
 template <typename T>
 concept RequiresCanUseEnumAsStrongTypedef = impl::CheckCanUseEnumAsStrongTypedef<T>();
@@ -164,10 +139,8 @@ struct BufferParser<USERVER_NAMESPACE::utils::StrongTypedef<Tag, T, Ops>>
 
 // StrongTypedef template mapping specialization
 template <typename Tag, typename T, USERVER_NAMESPACE::utils::StrongTypedefOps Ops>
-struct CppToPg<
-    USERVER_NAMESPACE::utils::StrongTypedef<Tag, T, Ops>,
-    std::enable_if_t<!traits::impl::IsStrongTypedefDirectlyMapped<Tag, T, Ops> && traits::kIsMappedToPg<T>>>
-    : CppToPg<T> {};
+requires(!traits::impl::IsStrongTypedefDirectlyMapped<Tag, T, Ops> && traits::kIsMappedToPg<T>)
+struct CppToPg<USERVER_NAMESPACE::utils::StrongTypedef<Tag, T, Ops>> : CppToPg<T> {};
 
 namespace traits {
 

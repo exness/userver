@@ -22,7 +22,7 @@ namespace crypto {
 /// Base verifier class
 class Verifier : public NamedAlgo {
 public:
-    explicit Verifier(const std::string& name);
+    explicit Verifier(std::string name);
     ~Verifier() override;
 
     /// Verifies a signature against the message

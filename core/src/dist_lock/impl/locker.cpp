@@ -111,7 +111,11 @@ void Locker::Run(LockerMode mode, dist_lock::DistLockWaitingMode waiting_mode, t
 
         try {
             if (settings.is_enabled || is_locked_) {
-                strategy_->Acquire(settings.lock_ttl, Id());
+                if (is_locked_) {
+                    strategy_->Prolong(settings.lock_ttl, Id());
+                } else {
+                    strategy_->Acquire(settings.lock_ttl, Id());
+                }
                 stats_.lock_successes++;
                 if (!ExchangeLockState(true, attempt_start)) {
                     LOG_DEBUG() << "Starting watchdog task";
@@ -199,7 +203,7 @@ engine::TaskWithResult<void> Locker::RunAsync(
     tracing::Span span(impl::LockerName(Name()));
     span.DetachFromCoroStack();
 
-    return engine::CriticalAsyncNoSpan(
+    return engine::CriticalAsyncNoTracing(
         task_processor,
         [this, locker_mode, waiting_mode, span = std::move(span)]() mutable {
             Run(locker_mode, waiting_mode, std::move(span));

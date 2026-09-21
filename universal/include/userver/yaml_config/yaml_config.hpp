@@ -258,9 +258,7 @@ auto YamlConfig::As(YamlConfig::DefaultConstructed) const {
 
 /// @brief Wrapper for handy python-like iteration over a map
 ///
-/// @code
-///   for (const auto& [name, value]: Items(map)) ...
-/// @endcode
+/// @snippet universal/src/formats/common/items_test.cpp  Items const iteration
 using formats::common::Items;
 
 /// @brief Parses duration from string, understands suffixes: ms, s, m, h, d
@@ -275,6 +273,10 @@ std::chrono::milliseconds Parse(const YamlConfig& value, formats::parse::To<std:
 /// @brief Converts YAML to JSON
 /// @throws yaml_config::YamlConfig::Exception if `value.IsMissing()`
 formats::json::Value Parse(const YamlConfig& value, formats::parse::To<formats::json::Value>);
+
+/// @brief Converts YAML to JSON string
+/// @throws yaml_config::YamlConfig::Exception if `value.IsMissing()`
+formats::json::RawString Parse(const YamlConfig& value, formats::parse::To<formats::json::RawString>);
 
 /// @brief Converts YAML to YAML. Returns self
 inline YamlConfig Parse(const YamlConfig& value, formats::parse::To<YamlConfig>) { return value; }

@@ -63,7 +63,8 @@ In practice, it won't work that way:
 ### How it works in userver
 
 In HTTP, we use custom headers, as described below: `X-YaTaxi-Client-TimeoutMs` for the remaining time until the
-deadline (duration), and optionally `X-Request-Deadline` for an absolute UTC timepoint for the whole call chain.
+deadline (duration), and optionally `X-Request-Deadline` for the absolute deadline of the whole call chain, encoded as a
+Unix timestamp.
 
 In gRPC, we use the built-in deadline mechanism based on the `grpc-timeout` header.
 
@@ -144,8 +145,8 @@ support deadline propagation.
 
 3. `X-Request-Deadline`
 
-    - Optional. The client may send an absolute deadline as a UTC timestamp string; the format matches
-      @ref utils::datetime::kAbsoluteDeadlineFormat (for example `2026-04-14T15:42:47.726911Z`).
+    - Optional. The client may send an absolute deadline as a Unix timestamp: microseconds since the Unix epoch, as a
+      numeric string.
 
     - When `deadline_propagation_prefer_timestamp` is `true` on the handler and absolute timestamps are allowed in
       dynamic config, userver uses this timepoint for the local request/task deadline when parsing succeeds and
@@ -168,7 +169,7 @@ mechanisms:
 
 - @ref concurrent::BackgroundTaskStorage::AsyncDetach()
 - @ref utils::AsyncBackground
-- @ref engine::AsyncNoSpan (don't use it if you are not sure that you need it!)
+- @ref engine::AsyncNoTracing (don't use it if you are not sure that you need it!)
 
 @warning when creating background tasks via `utils::Async` (instead of `utils::AsyncBackground`), requests performed
 in them will be interrupted along with the parent task**

@@ -8,7 +8,6 @@
 
 #include <userver/formats/parse/to.hpp>
 #include <userver/formats/serialize/to.hpp>
-#include <userver/utils/meta_light.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -35,7 +34,11 @@ concept HasConvert = requires(const Value& value) { Convert(value, parse::To<T>{
 /// Used in `Parse` overloads that are templated on `Value`, avoids clashing
 /// with `Parse` from string
 template <class Value>
-concept kIsFormatValue = requires { typename Value::ParseException; };  // NOLINT(readability-identifier-naming)
+concept IsFormatValue = requires { typename Value::ParseException; };
+
+/// @deprecated Use @ref formats::common::IsFormatValue instead.
+template <class Value>
+concept kIsFormatValue = IsFormatValue<Value>;  // NOLINT(readability-identifier-naming)
 
 // Unwraps a transient type - tag types, for which ADL-found `Parse` returns
 // another type, not the type specified in `formats::parse::To`. For example,

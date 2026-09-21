@@ -54,8 +54,8 @@ bool AsyncMethodInvocation::WaitNonCancellable() noexcept {
     return ok_;
 }
 
-engine::impl::ContextAccessor* AsyncMethodInvocation::TryGetContextAccessor() noexcept {
-    return event_.TryGetContextAccessor();
+engine::AwaitableToken AsyncMethodInvocation::GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+    return event_.GetAwaitableToken();
 }
 
 bool AsyncMethodInvocation::IsReady() const noexcept { return event_.IsReady(); }

@@ -25,12 +25,18 @@ set(SQLITE_THREADSAFE
 2 (Multi-thread): Permits SQLite to be safely used by multiple threads, provided that no single database connection is used simultaneously in two or more threads."
 )
 
+if(TARGET SQLite3::SQLite3)
+    set(USERVER_IMPL_SQLITE3_TARGET SQLite3::SQLite3)
+else()
+    set(USERVER_IMPL_SQLITE3_TARGET SQLite::SQLite3)
+endif()
+
 userver_module(
     sqlite
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-    LINK_LIBRARIES_PRIVATE SQLite::SQLite3
+    LINK_LIBRARIES_PRIVATE "${USERVER_IMPL_SQLITE3_TARGET}"
     UTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_test.cpp"
-    DEPENDS core
+    COMPONENT_DEPENDS core
     EMBED_FILES src/storages/sqlite/component.yaml
 )
 

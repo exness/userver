@@ -15,10 +15,12 @@ USERVER_NAMESPACE_BEGIN
 
 namespace {
 
+/// [StrongTypedef typical usage]
 using MyString = utils::StrongTypedef<class MyStringTag, std::string, utils::StrongTypedefOps::kCompareTransparent>;
 struct MyString2 final : utils::StrongTypedef<MyString2, std::string, utils::StrongTypedefOps::kCompareTransparent> {
     using StrongTypedef::StrongTypedef;
 };
+/// [StrongTypedef typical usage]
 
 using MySpecialInt = utils::StrongTypedef<class MySpecialIntTag, int, utils::StrongTypedefOps::kCompareTransparent>;
 
@@ -304,6 +306,30 @@ TEST(StrongTypedef, ToString) {
     EXPECT_EQ(utils::ToString(MySpecialDouble{123.456}), "123.456");
     EXPECT_EQ(utils::ToString(MySpecialDouble{1e-20}), "1e-20");
     EXPECT_EQ(utils::ToString(MySpecialDouble{1e+20}), "1e+20");
+}
+
+namespace docs_strong_typedef_alias {
+/// [StrongTypedef using alias]
+using MyString = utils::StrongTypedef<class MyStringTag, std::string>;
+/// [StrongTypedef using alias]
+}  // namespace docs_strong_typedef_alias
+
+namespace docs_strong_typedef_struct {
+/// [StrongTypedef struct inheritance]
+struct MyString final : utils::StrongTypedef<MyString, std::string> {
+    using StrongTypedef::StrongTypedef;
+};
+/// [StrongTypedef struct inheritance]
+}  // namespace docs_strong_typedef_struct
+
+TEST(StrongTypedef, DocsAliasUsage) {
+    docs_strong_typedef_alias::MyString s{"hello"};
+    EXPECT_EQ(s.GetUnderlying(), "hello");
+}
+
+TEST(StrongTypedef, DocsStructUsage) {
+    docs_strong_typedef_struct::MyString s{"hello"};
+    EXPECT_EQ(s.GetUnderlying(), "hello");
 }
 
 USERVER_NAMESPACE_END

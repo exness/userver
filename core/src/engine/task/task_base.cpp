@@ -29,7 +29,11 @@ static_assert(!std::is_polymorphic_v<TaskBase>, "Slicing is used by derived type
 TaskBase::TaskBase(impl::TaskContextHolder&& context)
     : pimpl_(Impl{std::move(context).Extract()})
 {
-    pimpl_->context->Wakeup(impl::TaskContext::WakeupSource::kBootstrap, impl::Epoch{0});
+    impl::TaskContext::Wakeup(
+        boost::intrusive_ptr<impl::TaskContext>{pimpl_->context},
+        impl::TaskContext::WakeupSource::kBootstrap,
+        impl::Epoch{0}
+    );
 }
 
 bool TaskBase::IsValid() const { return !!pimpl_->context; }
@@ -153,6 +157,8 @@ bool IsTaskProcessorThread() noexcept { return GetCurrentTaskContextUnchecked() 
 
 TaskProcessor& GetTaskProcessor() { return GetCurrentTaskContext().GetTaskProcessor(); }
 
+std::size_t GetWorkerCount() { return GetTaskProcessor().GetWorkerCount(); }
+
 TaskProcessor& GetBlockingTaskProcessor() { return GetTaskProcessor().GetBlockingTaskProcessor(); }
 
 std::size_t GetStackSize() { return GetTaskProcessor().GetTaskProcessorPools()->GetCoroPool().GetStackSize(); }
@@ -164,6 +170,8 @@ namespace impl {
 void* GetRawCurrentTaskContext() noexcept { return current_task::GetCurrentTaskContextUnchecked(); }
 
 bool IsCritical() { return GetCurrentTaskContext().WasStartedAsCritical(); }
+
+Deadline GetDeadline() noexcept { return GetCurrentTaskContext().GetCancelDeadline(); }
 
 }  // namespace impl
 

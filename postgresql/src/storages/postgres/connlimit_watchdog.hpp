@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <string_view>
 
 #include <userver/hostinfo/blocking/get_hostname.hpp>
 #include <userver/storages/postgres/postgres_fwd.hpp>
@@ -25,6 +26,7 @@ public:
         int shard_number,
         std::size_t min_fallback_connections,
         std::function<void()> on_new_connlimit,
+        std::size_t non_pool_connections_per_instance,
         std::string host_name = hostinfo::blocking::GetRealHostName()
     );
 
@@ -44,7 +46,7 @@ private:
     void UpdateConnectionsLimit(std::size_t max_connections, std::size_t instances);
 
     void DoStep(
-        const std::string& hostname,
+        std::string_view hostname,
         const Query& update_max_connections_query,
         const Query& select_instances_query
     );
@@ -57,6 +59,7 @@ private:
     USERVER_NAMESPACE::utils::PeriodicTask periodic_;
     int shard_number_;
     std::size_t min_fallback_connections_;
+    std::size_t non_pool_connections_per_instance_;
     std::string host_name_;
 };
 

@@ -1,10 +1,17 @@
 #pragma once
 
+/// @file userver/ydb/table.hpp
+/// @brief @copybrief ydb::TableClient
+
+#include <atomic>
+#include <memory>
+
 #include <ydb-cpp-sdk/client/query/client.h>
 #include <ydb-cpp-sdk/client/query/query.h>
 #include <ydb-cpp-sdk/client/table/table.h>
 
 #include <userver/dynamic_config/source.hpp>
+#include <userver/utils/not_null.hpp>
 #include <userver/utils/statistics/fwd.hpp>
 
 #include <userver/ydb/builder.hpp>
@@ -19,6 +26,10 @@ class TMetricRegistry;
 
 USERVER_NAMESPACE_BEGIN
 
+namespace engine {
+class Deadline;
+}  // namespace engine
+
 namespace tracing {
 class Span;
 }  // namespace tracing
@@ -32,6 +43,7 @@ namespace ydb {
 namespace impl {
 struct Stats;
 struct TableSettings;
+struct Connection;
 class Driver;
 template <typename Settings>
 class RequestContext;
@@ -57,6 +69,7 @@ using ScanQuerySettings = NYdb::NTable::TStreamExecScanQuerySettings;
 /// and metrics will become unusable.
 using DynamicTransactionName = utils::StrongTypedef<struct DynamicTransactionNameTag, std::string>;
 
+/// @brief YDB Table client
 class TableClient final {
 public:
     /// @cond
@@ -96,7 +109,7 @@ public:
     /// client.ExecuteDataQuery(query, "name1", value1, "name2", value2, ...);
     /// @endcode
     ///
-    /// @warning ExecuteDataQuery returns no more than 1000 rows. Consider @ref ExecuteQuery() instead, but make sure
+    /// @warning ExecuteDataQuery returns no more than 1000 rows. Consider @ref #ExecuteQuery instead, but make sure
     ///          that it works for your case.
     ///
     /// Use ydb::PreparedArgsBuilder for storing a generic buffer of query params if needed.
@@ -244,7 +257,7 @@ public:
     friend void DumpMetric(utils::statistics::Writer& writer, const TableClient& table_client);
     /// @endcond
 
-    /// Get native table or query client
+    /// Get native table, query or scheme client
     /// @warning Use with care! Facilities from
     /// `<core/include/userver/drivers/subscribable_futures.hpp>` can help with
     /// non-blocking wait operations.
@@ -252,9 +265,28 @@ public:
     NYdb::NTable::TTableClient& GetNativeTableClient();
 
     NYdb::NQuery::TQueryClient& GetNativeQueryClient();
+
+    NYdb::NScheme::TSchemeClient& GetNativeSchemeClient();
     /// @}
 
     utils::RetryBudget& GetRetryBudget();
+
+    /// @cond
+    // For internal use only: runtime database routing (YDB_DATABASE_ROUTING).
+    // Redirects this client to use `target`'s connection for subsequent
+    // operations (pass *this to revert to its own), keeping `target` alive while
+    // it stays routed here.
+    void SwitchConnectionTo(const TableClient& target) noexcept;
+
+    template <typename Settings>
+    impl::RequestContext<Settings> MakeRequestContext(
+        const Query& query,
+        Settings&& settings,
+        impl::IsStreaming is_streaming = impl::IsStreaming{false},
+        tracing::Span* custom_parent_span = nullptr,
+        engine::Deadline parent_deadline = {}
+    );
+    /// @endcond
 
 private:
     friend class Transaction;
@@ -262,12 +294,12 @@ private:
     template <typename Settings>
     friend class impl::RequestContext;
 
-    std::string JoinDbPath(std::string_view path) const;
+    // Currently active connection (never null after construction).
+    impl::Connection& CurrentConnection() const noexcept;
 
     void Select1();
 
     NYdb::NQuery::TExecuteQuerySettings ToExecuteQuerySettings(const QuerySettings& query_settings) const;
-    NYdb::NTable::TExecDataQuerySettings ToExecDataQuerySettings(const QuerySettings& query_settings) const;
 
     template <typename... Args>
     PreparedArgsBuilder MakeBuilder(Args&&... args);
@@ -289,13 +321,16 @@ private:
 
     dynamic_config::Source config_source_;
     const OperationSettings default_settings_;
-    const bool keep_in_query_cache_;
-    const bool use_query_client_;
     std::unique_ptr<impl::Stats> stats_;
-    std::shared_ptr<impl::Driver> driver_;
-    std::unique_ptr<NYdb::NScheme::TSchemeClient> scheme_client_;
-    std::unique_ptr<NYdb::NTable::TTableClient> table_client_;
-    std::unique_ptr<NYdb::NQuery::TQueryClient> query_client_;
+
+    // Connections are permanent: none is destroyed while the component lives
+    // (each is held by its home `own_connection_`), so the raw selector below is
+    // always valid. `routed_connection_` additionally keeps the routing target
+    // alive. If we ever start freeing detached connections, switch to rcu.
+    utils::SharedRef<impl::Connection> own_connection_;
+    utils::SharedRef<impl::Connection> routed_connection_;
+    // Lock-free selector read by every operation; swapped by SwitchConnectionTo().
+    std::atomic<utils::NotNull<impl::Connection*>> current_connection_;
 };
 
 template <typename... Args>

@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/ydb/io/primitives.hpp
+/// @brief YDB primitive type serialization traits
+
 #include <optional>
 #include <string>
 

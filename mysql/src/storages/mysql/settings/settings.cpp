@@ -1,10 +1,10 @@
 #include <storages/mysql/settings/settings.hpp>
 
+#include <cstring>
+#include <ranges>
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
-
-#include <boost/range/adaptor/map.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -107,7 +107,7 @@ const MysqlSettings& MysqlSettingsMulti::Get(const std::string& dbname) const {
         throw std::runtime_error{fmt::format(
             "Database '{}' is not found in secdist. Available databases: [{}]",
             dbname,
-            fmt::join(databases_ | boost::adaptors::map_keys, ", ")
+            fmt::join(databases_ | std::views::keys, ", ")
         )};
     }
 

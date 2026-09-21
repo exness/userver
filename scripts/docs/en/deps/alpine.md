@@ -1,8 +1,9 @@
+aws-sdk-cpp-dev
 benchmark-dev
 boost1.84-dev
 boost1.84-static
-clang19-extra-tools
-clang18
+clang22
+clang22-extra-tools
 cmake
 crypto++-dev
 curl-dev
@@ -19,6 +20,7 @@ krb5-dev
 libbson-dev
 libbson-static
 libev-dev
+liburing-dev
 lz4-dev
 lz4-static
 make

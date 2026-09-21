@@ -5,8 +5,37 @@
 #include <userver/formats/json/parser/exception.hpp>
 
 #include <schemas/int_minmax.hpp>
+#include <schemas/int_minmax_sax_parsers.hpp>
+
+#include "helper.hpp"
 
 USERVER_NAMESPACE_BEGIN
+
+TEST(MinMax, InclusiveInt) {
+    auto json = formats::json::MakeObject("value", 0);
+    UEXPECT_THROW_MSG(
+        json.As<ns::IntegerMinMaxObject>(),
+        chaotic::Error<formats::json::Value>,
+        "Error at path 'value': Invalid value, minimum=1, given=0"
+    );
+
+    json = formats::json::MakeObject("value", 21);
+    UEXPECT_THROW_MSG(
+        json.As<ns::IntegerMinMaxObject>(),
+        chaotic::Error<formats::json::Value>,
+        "Error at path 'value': Invalid value, maximum=20, given=21"
+    );
+
+    json = formats::json::MakeObject("value", 10);
+    EXPECT_EQ(json.As<ns::IntegerMinMaxObject>().value, 10);
+}
+
+TEST(MinMax, InclusiveIntSax) {
+    auto json = formats::json::MakeObject("value", 10);
+    auto obj = CallSaxParser<ns::IntegerMinMaxObject>(ToString(json));
+    EXPECT_EQ(obj.value, 10);
+    EXPECT_EQ(TestWriteToStream(obj), json);
+}
 
 TEST(MinMax, ExclusiveInt) {
     auto json = formats::json::MakeObject("foo", 1);
@@ -95,6 +124,23 @@ TEST(MinMax, Array) {
         formats::json::parser::ParseError,
         "Parse error at pos 23, path 'zoo': Error at path 'zoo': Too long array, maximum length=5, given=8"
     );
+}
+
+TEST(MinMax, ArrayUniqueItems) {
+    auto json = formats::json::MakeObject("qux", formats::json::MakeArray(1, 2, 1));
+    UEXPECT_THROW_MSG(
+        json.As<ns::IntegerObject>(),
+        chaotic::Error<formats::json::Value>,
+        "Error at path 'qux': Duplicate items are not allowed"
+    );
+    UEXPECT_THROW_MSG(
+        FromJsonString(ToString(json), formats::parse::To<ns::IntegerObject>()),
+        formats::json::parser::ParseError,
+        "Parse error at pos 13, path 'qux': Error at path 'qux': Duplicate items are not allowed"
+    );
+
+    json = formats::json::MakeObject("qux", formats::json::MakeArray(1, 2, 3));
+    EXPECT_NO_THROW(json.As<ns::IntegerObject>());
 }
 
 USERVER_NAMESPACE_END

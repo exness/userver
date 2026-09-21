@@ -2,12 +2,18 @@ project(userver-chaotic CXX)
 
 include(ChaoticGen)
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/bin/chaotic-gen" "${CMAKE_CURRENT_BINARY_DIR}/chaotic-gen" @ONLY)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/bin-dynamic-configs/chaotic-gen-dynamic-configs"
+    "${CMAKE_CURRENT_BINARY_DIR}/chaotic-gen-dynamic-configs" @ONLY
+)
+
 userver_module(
     chaotic
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
     UTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_test.cpp"
     LINK_LIBRARIES userver::universal
-    DEPENDS universal
+    COMPONENT_DEPENDS universal
     NO_CORE_LINK
 )
 
@@ -39,7 +45,12 @@ _userver_directory_install(
 )
 _userver_directory_install(
     COMPONENT chaotic
-    PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/bin/chaotic-gen"
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin-dynamic-configs"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/userver"
+)
+_userver_directory_install(
+    COMPONENT chaotic
+    PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/chaotic-gen" "${CMAKE_CURRENT_BINARY_DIR}/chaotic-gen-dynamic-configs"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
 _userver_directory_install(

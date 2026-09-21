@@ -1,9 +1,7 @@
 #include <userver/ydb/component.hpp>
 
+#include <ranges>
 #include <unordered_set>
-
-#include <boost/range/adaptor/map.hpp>
-#include <boost/range/adaptor/transformed.hpp>
 
 #include <fmt/ranges.h>
 
@@ -12,6 +10,7 @@
 #include <userver/components/statistics_storage.hpp>
 #include <userver/dynamic_config/storage/component.hpp>
 #include <userver/engine/async.hpp>
+#include <userver/logging/log.hpp>
 #include <userver/storages/secdist/component.hpp>
 #include <userver/utils/algo.hpp>
 #include <userver/utils/retry_budget.hpp>
@@ -29,6 +28,7 @@
 #include <ydb/impl/secdist.hpp>
 #include <ydb/impl/stats.hpp>
 
+#include <dynamic_config/variables/YDB_DATABASE_ROUTING.hpp>
 #include <dynamic_config/variables/YDB_RETRY_BUDGET.hpp>
 
 // YDB headers leak `ARCADIA_ROOT` macro, so we use __has_include()
@@ -46,7 +46,7 @@ std::unordered_set<std::string> GetDbNames(const components::ComponentConfig& co
     return utils::AsContainer<std::unordered_set<std::string>>(
         Items(config["databases"]) |
         // Caution: returning a reference to temporary here results in UB.
-        boost::adaptors::transformed([](auto kv) { return std::move(kv.key); })
+        std::views::transform([](auto kv) { return std::move(kv.key); })
     );
 }
 
@@ -111,7 +111,7 @@ YdbComponent::YdbComponent(const components::ComponentConfig& config, const comp
         }
 
         databases_
-            .emplace(dbname, engine::CriticalAsyncNoSpan(engine::current_task::GetBlockingTaskProcessor(), [&] {
+            .emplace(dbname, engine::CriticalAsyncNoTracing(engine::current_task::GetBlockingTaskProcessor(), [&] {
                                  return DatabaseUtils::Make(
                                      dbname,
                                      dbconfig,
@@ -140,15 +140,21 @@ YdbComponent::YdbComponent(const components::ComponentConfig& config, const comp
         }
     }
 
-    auto& stats_storage = context.FindComponent<components::StatisticsStorage>().GetStorage();
-    statistic_holder_ = stats_storage.RegisterWriter("ydb", [this](utils::statistics::Writer& writer) {
+    utils::statistics::RegisterWriterScope(context, "ydb", [this](utils::statistics::Writer& writer) {
         WriteStatistics(writer);
     });
 
-    config_subscription_ = config_.UpdateAndListen(this, "ydb", &YdbComponent::OnConfigUpdate);
+    config_.UpdateAndListen(
+        context.Scopes(),
+        this,
+        "ydb",
+        &YdbComponent::OnConfigUpdate,
+        ::dynamic_config::YDB_RETRY_BUDGET,
+        ::dynamic_config::YDB_DATABASE_ROUTING
+    );
 }
 
-YdbComponent::~YdbComponent() { statistic_holder_.Unregister(); }
+YdbComponent::~YdbComponent() = default;
 
 const YdbComponent::Database& YdbComponent::FindDatabase(const std::string& dbname) const {
     auto it = databases_.find(dbname);
@@ -156,7 +162,7 @@ const YdbComponent::Database& YdbComponent::FindDatabase(const std::string& dbna
         throw UndefinedDatabaseError(fmt::format(
             "Undefined ydb database name: {}. Available databases: [{}]",
             dbname,
-            fmt::join(databases_ | boost::adaptors::map_keys, ", ")
+            fmt::join(databases_ | std::views::keys, ", ")
         ));
     }
     return it->second;
@@ -193,6 +199,26 @@ void YdbComponent::OnConfigUpdate(const dynamic_config::Snapshot& cfg) {
             static_cast<float>(settings.token_ratio),
             settings.enabled,
         });
+    }
+
+    // Runtime database routing (YDB_DATABASE_ROUTING): redirect a logical
+    // database name to another configured database. Applied to every database
+    // on each update, so removing a route reverts to its own connection.
+    const auto& routing = cfg[::dynamic_config::YDB_DATABASE_ROUTING].extra;
+    for (auto& [dbname, database] : databases_) {
+        const auto route_it = routing.find(dbname);
+        const std::string& target = route_it != routing.end() ? route_it->second : dbname;
+
+        const auto target_it = databases_.find(target);
+        if (target_it == databases_.end()) {
+            LOG_WARNING()
+                << "ydb database routing: target '" << target << "' for database '" << dbname
+                << "' is not configured; keeping its own connection";
+            database.table_client->SwitchConnectionTo(*database.table_client);
+            continue;
+        }
+
+        database.table_client->SwitchConnectionTo(*target_it->second.table_client);
     }
 }
 
