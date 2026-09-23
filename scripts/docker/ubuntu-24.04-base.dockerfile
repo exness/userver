@@ -11,10 +11,16 @@ FROM ubuntu:24.04
 
 COPY scripts/docs/en/deps/ubuntu-24.04.md /userver_tmp/
 COPY scripts/postgres/ubuntu-install-postgresql-includes.sh /userver_tmp/
+# ydb-cpp-sdk .debs are not in Ubuntu archives; install them separately
+# rather than listing them in ubuntu-24.04.md.
+COPY scripts/ydb/install-ydb-cpp-sdk-debs.sh /userver_tmp/
 
 RUN apt update \
+  && apt install -y ca-certificates curl \
+  && /userver_tmp/install-ydb-cpp-sdk-debs.sh \
   && apt install -y $(cat /userver_tmp/ubuntu-24.04.md) \
   && apt install -y clang-format python3-pip \
+  && python3 -m pip install --break-system-packages uv \
   && apt install -y \
     clickhouse-server \
     mariadb-server \

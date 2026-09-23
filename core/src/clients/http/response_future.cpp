@@ -128,6 +128,8 @@ std::future_status ResponseFuture::Wait(utils::impl::SourceLocation location) {
     UINVARIANT(false, "Invalid engine::FutureStatus");
 }
 
+bool ResponseFuture::IsReady() const { return future_.is_ready(); }
+
 std::shared_ptr<Response> ResponseFuture::Get(utils::impl::SourceLocation location) {
     const auto future_status = Wait(location);
     if (future_status == std::future_status::ready) {
@@ -142,8 +144,8 @@ std::shared_ptr<Response> ResponseFuture::Get(utils::impl::SourceLocation locati
     throw TimeoutException("Future timeout", {});  // no local stats available
 }
 
-engine::impl::ContextAccessor* ResponseFuture::TryGetContextAccessor() noexcept {
-    return future_.TryGetContextAccessor();
+engine::AwaitableToken ResponseFuture::GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+    return future_.GetAwaitableToken();
 }
 
 }  // namespace clients::http

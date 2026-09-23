@@ -7,8 +7,18 @@ USERVER_NAMESPACE_BEGIN
 
 namespace {
 
+/// Use this CommandControl for read commands that follow a write in tests,
+/// to avoid replication lag causing flaky failures.
+const storages::redis::CommandControl kMasterCC = [] {
+    storages::redis::CommandControl cc{};
+    cc.force_request_to_master = true;
+    return cc;
+}();
+
 using storages::redis::ExpireOptions;
 using storages::redis::ExpireReply;
+using storages::redis::MsetexOptions;
+using storages::redis::MsetexReply;
 
 /// [Sample Redis Client usage]
 void RedisClientSampleUsage(storages::redis::Client& client) {
@@ -24,7 +34,7 @@ void RedisClientSampleUsage(storages::redis::Client& client) {
 std::optional<std::string> RedisClientCancelRequest(storages::redis::Client& client) {
     auto result = client.Get("foo", {});
 
-    engine::current_task::GetCancellationToken().RequestCancel();
+    engine::current_task::RequestCancel();
 
     // Throws redis::RequestCancelledException if Redis was not
     // fast enough to answer
@@ -51,16 +61,16 @@ UTEST_F(RedisClientTest, Lrem) {
     EXPECT_EQ(client->Rpush("testlist", "a", {}).Get(), 3);
     EXPECT_EQ(client->Rpush("testlist", "b", {}).Get(), 4);
     EXPECT_EQ(client->Rpush("testlist", "b", {}).Get(), 5);
-    EXPECT_EQ(client->Llen("testlist", {}).Get(), 5);
+    EXPECT_EQ(client->Llen("testlist", kMasterCC).Get(), 5);
 
     EXPECT_EQ(client->Lrem("testlist", 1, "b", {}).Get(), 1);
-    EXPECT_EQ(client->Llen("testlist", {}).Get(), 4);
+    EXPECT_EQ(client->Llen("testlist", kMasterCC).Get(), 4);
     EXPECT_EQ(client->Lrem("testlist", -2, "b", {}).Get(), 2);
-    EXPECT_EQ(client->Llen("testlist", {}).Get(), 2);
+    EXPECT_EQ(client->Llen("testlist", kMasterCC).Get(), 2);
     EXPECT_EQ(client->Lrem("testlist", 0, "c", {}).Get(), 0);
-    EXPECT_EQ(client->Llen("testlist", {}).Get(), 2);
+    EXPECT_EQ(client->Llen("testlist", kMasterCC).Get(), 2);
     EXPECT_EQ(client->Lrem("testlist", 0, "a", {}).Get(), 2);
-    EXPECT_EQ(client->Llen("testlist", {}).Get(), 0);
+    EXPECT_EQ(client->Llen("testlist", kMasterCC).Get(), 0);
 }
 
 UTEST_F(RedisClientTest, Lpushx) {
@@ -78,7 +88,7 @@ UTEST_F(RedisClientTest, Lpushx) {
 UTEST_F(RedisClientTest, SetGet) {
     auto client = GetClient();
     UEXPECT_NO_THROW(client->Set("key0", "foo", {}).Get());
-    EXPECT_EQ(client->Get("key0", {}).Get(), "foo");
+    EXPECT_EQ(client->Get("key0", kMasterCC).Get(), "foo");
 }
 
 UTEST_F(RedisClientTest, Mget) {
@@ -92,7 +102,7 @@ UTEST_F(RedisClientTest, Mget) {
         keys.push_back("key" + std::to_string(i));
     }
 
-    storages::redis::CommandControl cc{};
+    storages::redis::CommandControl cc = kMasterCC;
     cc.chunk_size = 11;
 
     auto result = client->Mget(std::move(keys), cc).Get();
@@ -122,7 +132,7 @@ UTEST_F(RedisClientTest, Unlink) {
 
 UTEST_F(RedisClientTest, Geosearch) {
     const Version since{6, 2, 0};
-    if (!CheckVersion(since)) {
+    if (!CheckRedisVersion(since)) {
         GTEST_SKIP() << SkipMsgByVersion("Geosearch", since);
     }
 
@@ -142,29 +152,29 @@ UTEST_F(RedisClientTest, Geosearch) {
     const auto height = storages::redis::BoxHeight(200);
 
     // FROMLONLAT BYRADIUS
-    auto result = client->Geosearch("Sicily", lon, lat, 100, options, {}).Get();
+    auto result = client->Geosearch("Sicily", lon, lat, 100, options, kMasterCC).Get();
     EXPECT_EQ(result.size(), 1);
     EXPECT_EQ(result[0].member, "Catania");
 
-    result = client->Geosearch("Sicily", lon, lat, 200, options, {}).Get();
+    result = client->Geosearch("Sicily", lon, lat, 200, options, kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0].member, "Palermo");
     EXPECT_EQ(result[1].member, "Catania");
 
     // FROMLONLAT BYBOX
-    result = client->Geosearch("Sicily", lon, lat, width, height, options, {}).Get();
+    result = client->Geosearch("Sicily", lon, lat, width, height, options, kMasterCC).Get();
     // FROMMEMBER BYRADIUS
-    result = client->Geosearch("Sicily", "Palermo", 200, options, {}).Get();
+    result = client->Geosearch("Sicily", "Palermo", 200, options, kMasterCC).Get();
     // FROMMEMBER BYBOX
-    result = client->Geosearch("Sicily", "Palermo", width, height, options, {}).Get();
+    result = client->Geosearch("Sicily", "Palermo", width, height, options, kMasterCC).Get();
 }
 
 UTEST_F(RedisClientTest, Append) {
     auto client = GetClient();
-    EXPECT_EQ(client->Exists("key", {}).Get(), 0);
+    EXPECT_EQ(client->Exists("key", kMasterCC).Get(), 0);
     EXPECT_EQ(client->Append("key", "Hello", {}).Get(), 5);
     EXPECT_EQ(client->Append("key", " World", {}).Get(), 11);
-    EXPECT_EQ(client->Get("key", {}).Get(), "Hello World");
+    EXPECT_EQ(client->Get("key", kMasterCC).Get(), "Hello World");
 }
 
 UTEST_F(RedisClientTest, BitopAnd) {
@@ -172,7 +182,7 @@ UTEST_F(RedisClientTest, BitopAnd) {
     client->Set("bit1", "acbd", {}).Get();
     client->Set("bit2", "def8", {}).Get();
     EXPECT_EQ(client->Bitop(storages::redis::BitOperation::kAnd, "dest", {"bit1", "bit2"}, {}).Get(), 4);
-    EXPECT_EQ(client->Get("dest", {}).Get(), "`ab ");
+    EXPECT_EQ(client->Get("dest", kMasterCC).Get(), "`ab ");
 }
 
 UTEST_F(RedisClientTest, BitopOr) {
@@ -180,7 +190,7 @@ UTEST_F(RedisClientTest, BitopOr) {
     client->Set("bit1", "acbd", {}).Get();
     client->Set("bit2", "def8", {}).Get();
     EXPECT_EQ(client->Bitop(storages::redis::BitOperation::kOr, "dest", {"bit1", "bit2"}, {}).Get(), 4);
-    EXPECT_EQ(client->Get("dest", {}).Get(), "egf|");
+    EXPECT_EQ(client->Get("dest", kMasterCC).Get(), "egf|");
 }
 
 UTEST_F(RedisClientTest, BitopXor) {
@@ -188,14 +198,14 @@ UTEST_F(RedisClientTest, BitopXor) {
     client->Set("bit1", "acbd", {}).Get();
     client->Set("bit2", "def8", {}).Get();
     EXPECT_EQ(client->Bitop(storages::redis::BitOperation::kXor, "dest", {"bit1", "bit2"}, {}).Get(), 4);
-    EXPECT_EQ(client->Get("dest", {}).Get(), "\x5\x6\x4\\");
+    EXPECT_EQ(client->Get("dest", kMasterCC).Get(), "\x5\x6\x4\\");
 }
 
 UTEST_F(RedisClientTest, BitopNot) {
     auto client = GetClient();
     client->Set("bit1", "acbd", {}).Get();
     EXPECT_EQ(client->Bitop(storages::redis::BitOperation::kNot, "dest", {"bit1"}, {}).Get(), 4);
-    EXPECT_EQ(client->Get("dest", {}).Get(), "\x9E\x9C\x9D\x9B");
+    EXPECT_EQ(client->Get("dest", kMasterCC).Get(), "\x9E\x9C\x9D\x9B");
 }
 
 UTEST_F(RedisClientTest, Dbsize) {
@@ -217,7 +227,7 @@ UTEST_F(RedisClientTest, Decr) {
 
     client->Set("key", "10", {}).Get();
     client->Decr("key", {}).Get();
-    auto result = client->Get("key", {}).Get();
+    auto result = client->Get("key", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "9");
 }
@@ -247,18 +257,13 @@ UTEST_F(RedisClientTest, EvalSha) {
 
 UTEST_F(RedisClientTest, Generic) {
     auto client = GetClient();
-    const storages::redis::CommandControl command_control{};
     constexpr size_t kKeyIndex = 0;
-    UEXPECT_NO_THROW(client->GenericCommand<void>("set", {"key0", "foo"}, kKeyIndex, command_control).Wait());
-    EXPECT_EQ(client->GenericCommand<std::string>("get", {"key0"}, kKeyIndex, command_control).Get(), "foo");
-    EXPECT_EQ(
-        client->GenericCommand<int64_t>("LPUSH", {"list", "1", "2", "3", "4"}, kKeyIndex, command_control).Get(),
-        4
-    );
+    UEXPECT_NO_THROW(client->GenericCommand<void>("set", {"key0", "foo"}, kKeyIndex, {}).Wait());
+    EXPECT_EQ(client->GenericCommand<std::string>("get", {"key0"}, kKeyIndex, kMasterCC).Get(), "foo");
+    EXPECT_EQ(client->GenericCommand<int64_t>("LPUSH", {"list", "1", "2", "3", "4"}, kKeyIndex, {}).Get(), 4);
     const std::vector<std::string> expected{"4", "3", "2", "1"};
     EXPECT_EQ(
-        client->GenericCommand<std::vector<std::string>>("LRANGE", {"list", "0", "-1"}, kKeyIndex, command_control)
-            .Get(),
+        client->GenericCommand<std::vector<std::string>>("LRANGE", {"list", "0", "-1"}, kKeyIndex, kMasterCC).Get(),
         expected
     );
 }
@@ -266,10 +271,10 @@ UTEST_F(RedisClientTest, Generic) {
 UTEST_F(RedisClientTest, Exists) {
     auto client = GetClient();
     client->Set("key1", "Hello", {}).Get();
-    EXPECT_EQ(client->Exists("key1", {}).Get(), 1);
-    EXPECT_EQ(client->Exists("nosuchkey", {}).Get(), 0);
+    EXPECT_EQ(client->Exists("key1", kMasterCC).Get(), 1);
+    EXPECT_EQ(client->Exists("nosuchkey", kMasterCC).Get(), 0);
     client->Set("key2", "World", {}).Get();
-    EXPECT_EQ(client->Exists(std::vector<std::string>{"key1", "key2", "nosuchkey"}, {}).Get(), 2);
+    EXPECT_EQ(client->Exists(std::vector<std::string>{"key1", "key2", "nosuchkey"}, kMasterCC).Get(), 2);
 }
 
 UTEST_F(RedisClientTest, Expire) {
@@ -279,9 +284,9 @@ UTEST_F(RedisClientTest, Expire) {
         client->Expire("mykey", std::chrono::seconds(10), {}).Get(),
         storages::redis::ExpireReply::kTimeoutWasSet
     );
-    EXPECT_EQ(client->Ttl("mykey", {}).Get().GetExpire().count(), 10);
+    EXPECT_EQ(client->Ttl("mykey", kMasterCC).Get().GetExpire().count(), 10);
     client->Set("mykey", "Hello World", {}).Get();
-    EXPECT_FALSE(client->Ttl("mykey", {}).Get().KeyHasExpiration());
+    EXPECT_FALSE(client->Ttl("mykey", kMasterCC).Get().KeyHasExpiration());
 }
 
 struct RedisExpireOptionsTestCase {
@@ -297,7 +302,7 @@ class RedisExpireOptionsTest
 
 UTEST_P(RedisExpireOptionsTest, ExpireOptionsTest) {
     const Version since{7, 0, 0};
-    if (!CheckVersion(since)) {
+    if (!CheckRedisVersion(since)) {
         GTEST_SKIP() << SkipMsgByVersion("Expire options", since);
     }
 
@@ -313,13 +318,13 @@ UTEST_P(RedisExpireOptionsTest, ExpireOptionsTest) {
     switch (expected_reply) {
         case ExpireReply::kKeyDoesNotExist:
             if (initial_expire.has_value()) {
-                EXPECT_EQ(client->Ttl("mykey", {}).Get().GetExpire().count(), initial_expire.value());
+                EXPECT_EQ(client->Ttl("mykey", kMasterCC).Get().GetExpire().count(), initial_expire.value());
             } else {
-                EXPECT_FALSE(client->Ttl("mykey", {}).Get().KeyHasExpiration());
+                EXPECT_FALSE(client->Ttl("mykey", kMasterCC).Get().KeyHasExpiration());
             }
             break;
         case ExpireReply::kTimeoutWasSet:
-            EXPECT_EQ(client->Ttl("mykey", {}).Get().GetExpire().count(), new_expire);
+            EXPECT_EQ(client->Ttl("mykey", kMasterCC).Get().GetExpire().count(), new_expire);
             break;
     }
 }
@@ -426,7 +431,7 @@ UTEST_F(RedisClientTest, Georadius) {
     const auto lon = storages::redis::Longitude(15);
     const auto lat = storages::redis::Latitude(37);
 
-    auto result = client->Georadius("Sicily", lon, lat, 200, options, {}).Get();
+    auto result = client->Georadius("Sicily", lon, lat, 200, options, kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0].member, "Palermo");
     EXPECT_EQ(result[0].dist, 190.4424);
@@ -437,8 +442,8 @@ UTEST_F(RedisClientTest, Georadius) {
 UTEST_F(RedisClientTest, Geopos) {
     auto client = GetClient();
     client->Geoadd("Sicily", {{13.1, 38.2, "Palermo"}, {15.3, 37.4, "Catania"}}, {}).Get();
-    const auto
-        result = client->Geopos("Sicily", std::vector<std::string>{"Palermo", "Catania", "NonExisting"}, {}).Get();
+    const auto result =
+        client->Geopos("Sicily", std::vector<std::string>{"Palermo", "Catania", "NonExisting"}, kMasterCC).Get();
     const auto geo_tolerance = 1e-5;
     EXPECT_EQ(result.size(), 3);
     EXPECT_TRUE(result[0].has_value());
@@ -450,11 +455,23 @@ UTEST_F(RedisClientTest, Geopos) {
     EXPECT_NEAR(result[1].value().lat, 37.4, geo_tolerance);
 }
 
+UTEST_F(RedisClientTest, Getdel) {
+    const Version since{6, 2, 0};
+    if (!CheckRedisVersion(since)) {
+        GTEST_SKIP() << SkipMsgByVersion("Getdel", since);
+    }
+
+    auto client = GetClient();
+    EXPECT_EQ(client->Incr("key", {}).Get(), 1);
+    EXPECT_EQ(client->Getdel("key", {}).Get(), "1");
+    EXPECT_EQ(client->Exists("key", kMasterCC).Get(), false);
+}
+
 UTEST_F(RedisClientTest, Getset) {
     auto client = GetClient();
     EXPECT_EQ(client->Incr("key", {}).Get(), 1);
     EXPECT_EQ(client->Getset("key", "0", {}).Get(), "1");
-    EXPECT_EQ(client->Get("key", {}).Get(), "0");
+    EXPECT_EQ(client->Get("key", kMasterCC).Get(), "0");
 }
 
 UTEST_F(RedisClientTest, Hdel) {
@@ -476,24 +493,24 @@ UTEST_F(RedisClientTest, HdelMultiple) {
 UTEST_F(RedisClientTest, Hexists) {
     auto client = GetClient();
     client->Hset("hash", "field1", "foo", {}).Get();
-    EXPECT_EQ(client->Hexists("hash", "field1", {}).Get(), 1);
-    EXPECT_EQ(client->Hexists("hash", "field2", {}).Get(), 0);
+    EXPECT_EQ(client->Hexists("hash", "field1", kMasterCC).Get(), 1);
+    EXPECT_EQ(client->Hexists("hash", "field2", kMasterCC).Get(), 0);
 }
 
 UTEST_F(RedisClientTest, Hget) {
     auto client = GetClient();
     client->Hset("hash", "field1", "foo", {}).Get();
-    auto result = client->Hget("hash", "field1", {}).Get();
+    auto result = client->Hget("hash", "field1", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "foo");
-    EXPECT_FALSE(client->Hget("hash", "field2", {}).Get().has_value());
+    EXPECT_FALSE(client->Hget("hash", "field2", kMasterCC).Get().has_value());
 }
 
 UTEST_F(RedisClientTest, Hgetall) {
     auto client = GetClient();
     client->Hset("hash", "field1", "Hello", {}).Get();
     client->Hset("hash", "field2", "World", {}).Get();
-    auto result = client->Hgetall("hash", {}).Get();
+    auto result = client->Hgetall("hash", kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result["field1"], "Hello");
     EXPECT_EQ(result["field2"], "World");
@@ -515,7 +532,7 @@ UTEST_F(RedisClientTest, Hkeys) {
     auto client = GetClient();
     client->Hset("hash", "field1", "Hello", {}).Get();
     client->Hset("hash", "field2", "World", {}).Get();
-    auto result = client->Hkeys("hash", {}).Get();
+    auto result = client->Hkeys("hash", kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0], "field1");
     EXPECT_EQ(result[1], "field2");
@@ -525,14 +542,14 @@ UTEST_F(RedisClientTest, Hlen) {
     auto client = GetClient();
     client->Hset("hash", "field1", "Hello", {}).Get();
     client->Hset("hash", "field2", "World", {}).Get();
-    EXPECT_EQ(client->Hlen("hash", {}).Get(), 2);
+    EXPECT_EQ(client->Hlen("hash", kMasterCC).Get(), 2);
 }
 
 UTEST_F(RedisClientTest, Hmget) {
     auto client = GetClient();
     client->Hset("hash", "field1", "Hello", {}).Get();
     client->Hset("hash", "field2", "World", {}).Get();
-    auto result = client->Hmget("hash", std::vector<std::string>{"field1", "field2", "nofield"}, {}).Get();
+    auto result = client->Hmget("hash", std::vector<std::string>{"field1", "field2", "nofield"}, kMasterCC).Get();
     EXPECT_EQ(result.size(), 3);
     EXPECT_TRUE(result[0].has_value());
     EXPECT_TRUE(result[1].has_value());
@@ -547,10 +564,10 @@ UTEST_F(RedisClientTest, Hmset) {
         client->Hmset("hash", std::vector<std::pair<std::string, std::string>>{{"field1", "1"}, {"field2", "2"}}, {})
             .Get()
     );
-    auto result = client->Hget("hash", "field1", {}).Get();
+    auto result = client->Hget("hash", "field1", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "1");
-    result = client->Hget("hash", "field2", {}).Get();
+    result = client->Hget("hash", "field2", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "2");
 }
@@ -559,7 +576,7 @@ UTEST_F(RedisClientTest, Hset) {
     auto client = GetClient();
 
     EXPECT_EQ(client->Hset("hash", "field", "Hello", {}).Get(), storages::redis::HsetReply::kCreated);
-    auto result = client->Hget("hash", "field", {}).Get();
+    auto result = client->Hget("hash", "field", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "Hello");
     EXPECT_EQ(client->Hset("hash", "field", "World", {}).Get(), storages::redis::HsetReply::kUpdated);
@@ -570,7 +587,7 @@ UTEST_F(RedisClientTest, Hsetnx) {
 
     EXPECT_TRUE(client->Hsetnx("hash", "field", "Hello", {}).Get());
     EXPECT_FALSE(client->Hsetnx("hash", "field", "World", {}).Get());
-    auto result = client->Hget("hash", "field", {}).Get();
+    auto result = client->Hget("hash", "field", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "Hello");
 }
@@ -580,7 +597,7 @@ UTEST_F(RedisClientTest, Hvals) {
 
     client->Hset("hash", "field1", "Hello", {}).Get();
     client->Hset("hash", "field2", "World", {}).Get();
-    auto result = client->Hvals("hash", {}).Get();
+    auto result = client->Hvals("hash", kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0], "Hello");
     EXPECT_EQ(result[1], "World");
@@ -591,7 +608,7 @@ UTEST_F(RedisClientTest, Incr) {
 
     client->Set("key", "10", {}).Get();
     client->Incr("key", {}).Get();
-    auto result = client->Get("key", {}).Get();
+    auto result = client->Get("key", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "11");
 }
@@ -601,13 +618,13 @@ UTEST_F(RedisClientTest, Lindex) {
 
     client->Lpush("list", "World", {}).Get();
     client->Lpush("list", "Hello", {}).Get();
-    auto result = client->Lindex("list", 0, {}).Get();
+    auto result = client->Lindex("list", 0, kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "Hello");
-    result = client->Lindex("list", -1, {}).Get();
+    result = client->Lindex("list", -1, kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "World");
-    result = client->Lindex("list", 3, {}).Get();
+    result = client->Lindex("list", 3, kMasterCC).Get();
     EXPECT_FALSE(result.has_value());
 }
 
@@ -617,17 +634,17 @@ UTEST_F(RedisClientTest, Llen) {
     client->Lpush("list", "World", {}).Get();
     client->Lpush("list", "Hello", {}).Get();
 
-    EXPECT_EQ(client->Llen("list", {}).Get(), 2);
+    EXPECT_EQ(client->Llen("list", kMasterCC).Get(), 2);
 }
 
 UTEST_F(RedisClientTest, Lpop) {
     auto client = GetClient();
 
     client->Rpush("list", {"1", "2", "3", "4"}, {}).Get();
-    auto result = client->Lpop("list", {}).Get();
+    auto result = client->Lpop("list", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "1");
-    EXPECT_EQ(client->Llen("list", {}).Get(), 3);
+    EXPECT_EQ(client->Llen("list", kMasterCC).Get(), 3);
 }
 
 UTEST_F(RedisClientTest, Lpush) {
@@ -637,7 +654,7 @@ UTEST_F(RedisClientTest, Lpush) {
     EXPECT_EQ(client->Lpush("list", "Hello", {}).Get(), 2);
     EXPECT_EQ(client->Lpush("list", std::vector<std::string>{"v1", "v2"}, {}).Get(), 4);
 
-    auto result = client->Lrange("list", 0, -1, {}).Get();
+    auto result = client->Lrange("list", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 4);
     EXPECT_EQ(result[0], "v2");
 }
@@ -649,7 +666,7 @@ UTEST_F(RedisClientTest, Lrange) {
     client->Rpush("list", "two", {}).Get();
     client->Rpush("list", "three", {}).Get();
 
-    auto result = client->Lrange("list", -3, 2, {}).Get();
+    auto result = client->Lrange("list", -3, 2, kMasterCC).Get();
     EXPECT_EQ(result.size(), 3);
     EXPECT_EQ(result[0], "one");
 }
@@ -662,7 +679,7 @@ UTEST_F(RedisClientTest, Ltrim) {
     client->Rpush("list", "three", {}).Get();
 
     EXPECT_NO_THROW(client->Ltrim("list", 1, -1, {}).Get());
-    auto result = client->Lrange("list", 0, -1, {}).Get();
+    auto result = client->Lrange("list", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0], "two");
 }
@@ -671,9 +688,151 @@ UTEST_F(RedisClientTest, Mset) {
     auto client = GetClient();
 
     EXPECT_NO_THROW(client->Mset({{"key1", "value1"}, {"key2", "value2"}}, {}).Get());
-    auto result = client->Get("key1", {}).Get();
+    auto result = client->Get("key1", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "value1");
+}
+
+UTEST_F(RedisClientTest, MsetexSharedTtl) {
+    if (!HasMsetexCommand()) {
+        GTEST_SKIP() << SkipMsgMsetexUnsupported();
+    }
+
+    auto client = GetClient();
+    constexpr auto kTtl = std::chrono::seconds{60};
+    const std::vector<std::pair<std::string, std::string>> key_values{
+        {"{msetex-shared-ttl}:1", "value1"},
+        {"{msetex-shared-ttl}:2", "value2"},
+    };
+
+    EXPECT_EQ(client->Msetex(key_values, MsetexOptions::Expire(kTtl), {}).Get(), MsetexReply::kKeysSet);
+
+    for (const auto& [key, expected_value] : key_values) {
+        const auto value = client->Get(key, kMasterCC).Get();
+        ASSERT_TRUE(value.has_value());
+        EXPECT_EQ(*value, expected_value);
+
+        const auto ttl = client->Ttl(key, kMasterCC).Get();
+        ASSERT_TRUE(ttl.KeyHasExpiration());
+        EXPECT_GT(ttl.GetExpire().count(), 0);
+        EXPECT_LE(ttl.GetExpire().count(), kTtl.count());
+    }
+}
+
+UTEST_F(RedisClientTest, MsetexNoExpiryRemovesTtl) {
+    if (!HasMsetexCommand()) {
+        GTEST_SKIP() << SkipMsgMsetexUnsupported();
+    }
+
+    auto client = GetClient();
+    constexpr auto kTtl = std::chrono::seconds{60};
+    const std::vector<std::pair<std::string, std::string>> key_values{
+        {"{msetex-no-expiry}:1", "new-value1"},
+        {"{msetex-no-expiry}:2", "new-value2"},
+    };
+
+    for (const auto& [key, value] : key_values) {
+        client->Set(key, "old-" + value, kTtl, {}).Get();
+        ASSERT_TRUE(client->Ttl(key, kMasterCC).Get().KeyHasExpiration());
+    }
+
+    EXPECT_EQ(client->Msetex(key_values, {}).Get(), MsetexReply::kKeysSet);
+
+    for (const auto& [key, expected_value] : key_values) {
+        const auto value = client->Get(key, kMasterCC).Get();
+        ASSERT_TRUE(value.has_value());
+        EXPECT_EQ(*value, expected_value);
+        EXPECT_FALSE(client->Ttl(key, kMasterCC).Get().KeyHasExpiration());
+    }
+}
+
+UTEST_F(RedisClientTest, MsetexKeepTtl) {
+    if (!HasMsetexCommand()) {
+        GTEST_SKIP() << SkipMsgMsetexUnsupported();
+    }
+
+    auto client = GetClient();
+    constexpr auto kTtl = std::chrono::seconds{60};
+    const std::vector<std::pair<std::string, std::string>> key_values{
+        {"{msetex-keep-ttl}:1", "new-value1"},
+        {"{msetex-keep-ttl}:2", "new-value2"},
+    };
+
+    for (const auto& [key, value] : key_values) {
+        client->Set(key, "old-" + value, kTtl, {}).Get();
+    }
+
+    EXPECT_EQ(client->Msetex(key_values, MsetexOptions::KeepTtl(), {}).Get(), MsetexReply::kKeysSet);
+
+    for (const auto& [key, expected_value] : key_values) {
+        const auto value = client->Get(key, kMasterCC).Get();
+        ASSERT_TRUE(value.has_value());
+        EXPECT_EQ(*value, expected_value);
+
+        const auto ttl = client->Ttl(key, kMasterCC).Get();
+        ASSERT_TRUE(ttl.KeyHasExpiration());
+        EXPECT_GT(ttl.GetExpire().count(), 0);
+        EXPECT_LE(ttl.GetExpire().count(), kTtl.count());
+    }
+}
+
+UTEST_F(RedisClientTest, MsetexNxIsAllOrNothing) {
+    if (!HasMsetexCommand()) {
+        GTEST_SKIP() << SkipMsgMsetexUnsupported();
+    }
+
+    auto client = GetClient();
+    const std::string key1 = "{msetex-nx}:1";
+    const std::string key2 = "{msetex-nx}:2";
+    const auto options = MsetexOptions::NoTtl().OnlyIfNoneOfKeysExist();
+
+    client->Set(key1, "original", {}).Get();
+    EXPECT_EQ(client->Msetex({{key1, "updated"}, {key2, "created"}}, options, {}).Get(), MsetexReply::kConditionNotMet);
+
+    const auto original = client->Get(key1, kMasterCC).Get();
+    ASSERT_TRUE(original.has_value());
+    EXPECT_EQ(*original, "original");
+    EXPECT_FALSE(client->Get(key2, kMasterCC).Get().has_value());
+
+    EXPECT_EQ(client->Del(key1, {}).Get(), 1);
+    EXPECT_EQ(client->Msetex({{key1, "updated"}, {key2, "created"}}, options, {}).Get(), MsetexReply::kKeysSet);
+    EXPECT_EQ(client->Get(key1, kMasterCC).Get(), "updated");
+    EXPECT_EQ(client->Get(key2, kMasterCC).Get(), "created");
+}
+
+UTEST_F(RedisClientTest, MsetexXxIsAllOrNothing) {
+    if (!HasMsetexCommand()) {
+        GTEST_SKIP() << SkipMsgMsetexUnsupported();
+    }
+
+    auto client = GetClient();
+    const std::string key1 = "{msetex-xx}:1";
+    const std::string key2 = "{msetex-xx}:2";
+    const auto options = MsetexOptions::NoTtl().OnlyIfAllKeysExist();
+
+    client->Set(key1, "original1", {}).Get();
+    EXPECT_EQ(
+        client->Msetex({{key1, "updated1"}, {key2, "updated2"}}, options, {}).Get(),
+        MsetexReply::kConditionNotMet
+    );
+
+    const auto original = client->Get(key1, kMasterCC).Get();
+    ASSERT_TRUE(original.has_value());
+    EXPECT_EQ(*original, "original1");
+    EXPECT_FALSE(client->Get(key2, kMasterCC).Get().has_value());
+
+    client->Set(key2, "original2", {}).Get();
+    EXPECT_EQ(client->Msetex({{key1, "updated1"}, {key2, "updated2"}}, options, {}).Get(), MsetexReply::kKeysSet);
+    EXPECT_EQ(client->Get(key1, kMasterCC).Get(), "updated1");
+    EXPECT_EQ(client->Get(key2, kMasterCC).Get(), "updated2");
+}
+
+UTEST_F(RedisClientTest, MsetexEmptyInput) {
+    auto client = GetClient();
+    using KeyValues = std::vector<std::pair<std::string, std::string>>;
+
+    EXPECT_EQ(client->Msetex(KeyValues{}, {}).Get(), MsetexReply::kKeysSet);
+    EXPECT_EQ(client->Msetex(KeyValues{}, MsetexOptions::NoTtl(), {}).Get(), MsetexReply::kKeysSet);
 }
 
 // multi
@@ -683,9 +842,9 @@ UTEST_F(RedisClientTest, Persist) {
 
     client->Set("key", "Hello", {}).Get();
     client->Expire("key", std::chrono::seconds{10}, {}).Get();
-    EXPECT_TRUE(client->Ttl("key", {}).Get().KeyHasExpiration());
+    EXPECT_TRUE(client->Ttl("key", kMasterCC).Get().KeyHasExpiration());
     EXPECT_EQ(client->Persist("key", {}).Get(), storages::redis::PersistReply::kTimeoutRemoved);
-    EXPECT_FALSE(client->Ttl("key", {}).Get().KeyHasExpiration());
+    EXPECT_FALSE(client->Ttl("key", kMasterCC).Get().KeyHasExpiration());
 }
 
 UTEST_F(RedisClientTest, Pexpire) {
@@ -693,10 +852,10 @@ UTEST_F(RedisClientTest, Pexpire) {
 
     client->Set("key", "Hello", {}).Get();
     EXPECT_EQ(
-        client->Pexpire("key", std::chrono::milliseconds{1999}, {}).Get(),
+        client->Pexpire("key", std::chrono::milliseconds{1999}, kMasterCC).Get(),
         storages::redis::ExpireReply::kTimeoutWasSet
     );
-    EXPECT_EQ(client->Ttl("key", {}).Get().GetExpire().count(), 2);
+    EXPECT_EQ(client->Ttl("key", kMasterCC).Get().GetExpire().count(), 2);
 }
 
 UTEST_F(RedisClientTest, Ping) {
@@ -713,7 +872,7 @@ UTEST_F(RedisClientTest, Rename) {
 
     client->Set("key", "value", {}).Get();
     EXPECT_NO_THROW(client->Rename("key", "new key", {}).Get());
-    auto result = client->Get("new key", {}).Get();
+    auto result = client->Get("new key", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
 }
 
@@ -721,11 +880,11 @@ UTEST_F(RedisClientTest, Rpop) {
     auto client = GetClient();
 
     client->Rpush("list", std::vector<std::string>{"1", "2"}, {}).Get();
-    auto result = client->Rpop("list", {}).Get();
+    auto result = client->Rpop("list", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(result.value(), "2");
     client->Rpop("list", {}).Get();
-    result = client->Rpop("list", {}).Get();
+    result = client->Rpop("list", kMasterCC).Get();
     EXPECT_FALSE(result.has_value());
 }
 
@@ -734,7 +893,7 @@ UTEST_F(RedisClientTest, Rpush) {
 
     EXPECT_EQ(client->Rpush("list", std::vector<std::string>{"1", "2"}, {}).Get(), 2);
     EXPECT_EQ(client->Rpush("list", "3", {}).Get(), 3);
-    auto result = client->Lrange("list", 0, -1, {}).Get();
+    auto result = client->Lrange("list", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 3);
 }
 
@@ -751,7 +910,7 @@ UTEST_F(RedisClientTest, Sadd) {
 
     EXPECT_EQ(client->Sadd("set", "hello", {}).Get(), 1);
     EXPECT_EQ(client->Sadd("set", std::vector<std::string>{"world", "world"}, {}).Get(), 1);
-    auto result = client->Smembers("set", {}).Get();
+    auto result = client->Smembers("set", kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
 }
 
@@ -760,17 +919,17 @@ UTEST_F(RedisClientTest, Scard) {
 
     client->Sadd("set", "hello", {}).Get();
     client->Sadd("set", "set", {}).Get();
-    EXPECT_EQ(client->Scard("set", {}).Get(), 2);
+    EXPECT_EQ(client->Scard("set", kMasterCC).Get(), 2);
 }
 
 UTEST_F(RedisClientTest, Set) {
     auto client = GetClient();
 
     EXPECT_NO_THROW(client->Set("key", "value", {}).Get());
-    auto result = client->Get("key", {}).Get();
+    auto result = client->Get("key", kMasterCC).Get();
     EXPECT_TRUE(result.has_value());
     EXPECT_NO_THROW(client->Set("another key", "value", std::chrono::milliseconds{1999}, {}).Get());
-    EXPECT_TRUE(client->Ttl("another key", {}).Get().KeyHasExpiration());
+    EXPECT_TRUE(client->Ttl("another key", kMasterCC).Get().KeyHasExpiration());
 
     EXPECT_TRUE(client->SetIfExist("key", "new value", {}).Get());
     EXPECT_FALSE(client->SetIfExist("new key", "value", {}).Get());
@@ -778,26 +937,46 @@ UTEST_F(RedisClientTest, Set) {
     EXPECT_TRUE(client->SetIfNotExist("new key", "value", {}).Get());
 }
 
+UTEST_F(RedisClientTest, SetAndGetPrevious) {
+    const Version since{6, 2, 0};
+    if (!CheckRedisVersion(since)) {
+        GTEST_SKIP() << SkipMsgByVersion("SetAndGetPrevious", since);
+    }
+
+    auto client = GetClient();
+
+    auto key = "not_existing_key";
+    auto value = "value";
+    auto previous_value = client->SetAndGetPrevious(key, value, std::chrono::milliseconds{1999}, {}).Get();
+    EXPECT_FALSE(previous_value.has_value());
+    EXPECT_TRUE(client->Ttl(key, kMasterCC).Get().KeyHasExpiration());
+
+    previous_value = client->SetAndGetPrevious(key, "new value", std::chrono::milliseconds{1999}, {}).Get();
+    EXPECT_TRUE(previous_value.has_value());
+    EXPECT_TRUE(client->Ttl(key, kMasterCC).Get().KeyHasExpiration());
+    EXPECT_EQ(previous_value.value(), value);
+}
+
 UTEST_F(RedisClientTest, Setex) {
     auto client = GetClient();
 
     EXPECT_NO_THROW(client->Setex("key", std::chrono::seconds{10}, "value", {}).Get());
-    EXPECT_EQ(client->Ttl("key", {}).Get().GetExpire().count(), 10);
+    EXPECT_EQ(client->Ttl("key", kMasterCC).Get().GetExpire().count(), 10);
 }
 
 UTEST_F(RedisClientTest, Sismember) {
     auto client = GetClient();
 
     client->Sadd("key", "one", {}).Get();
-    EXPECT_EQ(client->Sismember("key", "one", {}).Get(), 1);
-    EXPECT_EQ(client->Sismember("key", "two", {}).Get(), 0);
+    EXPECT_EQ(client->Sismember("key", "one", kMasterCC).Get(), 1);
+    EXPECT_EQ(client->Sismember("key", "two", kMasterCC).Get(), 0);
 }
 
 UTEST_F(RedisClientTest, Smembers) {
     auto client = GetClient();
 
     client->Sadd("set", std::vector<std::string>{"world", "world", "hello"}, {}).Get();
-    auto result = client->Smembers("set", {}).Get();
+    auto result = client->Smembers("set", kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
 }
 
@@ -805,13 +984,13 @@ UTEST_F(RedisClientTest, Srandmember) {
     auto client = GetClient();
 
     client->Sadd("set", std::vector<std::string>{"one", "two", "three"}, {}).Get();
-    auto result1 = client->Srandmember("set", {}).Get();
+    auto result1 = client->Srandmember("set", kMasterCC).Get();
     EXPECT_TRUE(result1.has_value());
     EXPECT_TRUE(result1 == "one" || result1 == "two" || result1 == "three");
 
-    auto result2 = client->Srandmembers("set", 2, {}).Get();
+    auto result2 = client->Srandmembers("set", 2, kMasterCC).Get();
     EXPECT_EQ(result2.size(), 2);
-    result2 = client->Srandmembers("set", -5, {}).Get();
+    result2 = client->Srandmembers("set", -5, kMasterCC).Get();
     EXPECT_EQ(result2.size(), 5);
 }
 
@@ -828,8 +1007,8 @@ UTEST_F(RedisClientTest, Strlen) {
     auto client = GetClient();
 
     client->Set("key", "value", {}).Get();
-    EXPECT_EQ(client->Strlen("key", {}).Get(), 5);
-    EXPECT_EQ(client->Strlen("nonexisting", {}).Get(), 0);
+    EXPECT_EQ(client->Strlen("key", kMasterCC).Get(), 5);
+    EXPECT_EQ(client->Strlen("nonexisting", kMasterCC).Get(), 0);
 }
 
 UTEST_F(RedisClientTest, Time) {
@@ -843,8 +1022,8 @@ UTEST_F(RedisClientTest, Type) {
 
     client->Set("key1", "value", {}).Get();
     client->Lpush("key2", "value", {}).Get();
-    EXPECT_EQ(client->Type("key1", {}).Get(), storages::redis::KeyType::kString);
-    EXPECT_EQ(client->Type("key2", {}).Get(), storages::redis::KeyType::kList);
+    EXPECT_EQ(client->Type("key1", kMasterCC).Get(), storages::redis::KeyType::kString);
+    EXPECT_EQ(client->Type("key2", kMasterCC).Get(), storages::redis::KeyType::kList);
 }
 
 UTEST_F(RedisClientTest, Zadd) {
@@ -860,7 +1039,7 @@ UTEST_F(RedisClientTest, Zadd) {
     options.exist = storages::redis::ZaddOptions::Exist::kAddIfExist;
     options.return_value = storages::redis::ZaddOptions::ReturnValue::kChangedCount;
     EXPECT_EQ(client->Zadd("zset", {{2.5, "two"}, {3.5, "three"}}, options, {}).Get(), 2);
-    auto result = client->ZrangeWithScores("zset", 0, -1, {}).Get();
+    auto result = client->ZrangeWithScores("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result[1].score, 2.5);
 
     EXPECT_EQ(client->ZaddIncr("zset", 1.2, "two", {}).Get(), 3.7);
@@ -871,7 +1050,7 @@ UTEST_F(RedisClientTest, Zadd) {
 
 UTEST_F(RedisClientTest, ZaddGtLt) {
     const Version since{6, 2, 0};
-    if (!CheckVersion(since)) {
+    if (!CheckRedisVersion(since)) {
         GTEST_SKIP() << SkipMsgByVersion("Zadd gt/lt", since);
     }
 
@@ -880,36 +1059,36 @@ UTEST_F(RedisClientTest, ZaddGtLt) {
     storages::redis::ZaddOptions options;
     options.compare = storages::redis::ZaddOptions::Compare::kGreaterThan;
     EXPECT_EQ(client->Zadd("zset_gt_lt", {{1., "one"}, {3., "two"}}, options, {}).Get(), 2);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", {}).Get(), 1);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", {}).Get(), 3);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", kMasterCC).Get(), 1);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", kMasterCC).Get(), 3);
 
     EXPECT_EQ(client->Zadd("zset_gt_lt", {{3., "one"}, {1., "two"}}, options, {}).Get(), 0);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", {}).Get(), 3);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", {}).Get(), 3);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", kMasterCC).Get(), 3);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", kMasterCC).Get(), 3);
 
     EXPECT_EQ(client->Zadd("zset_gt_lt", {{4., "one"}, {4., "two"}}, options, {}).Get(), 0);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", {}).Get(), 4);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", {}).Get(), 4);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", kMasterCC).Get(), 4);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", kMasterCC).Get(), 4);
 
     options.compare = storages::redis::ZaddOptions::Compare::kLessThan;
     EXPECT_EQ(client->Zadd("zset_gt_lt", {{3., "one"}, {5., "two"}}, options, {}).Get(), 0);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", {}).Get(), 3);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", {}).Get(), 4);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", kMasterCC).Get(), 3);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", kMasterCC).Get(), 4);
 
     EXPECT_EQ(client->Zadd("zset_gt_lt", {{5., "one"}, {3., "two"}}, options, {}).Get(), 0);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", {}).Get(), 3);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", {}).Get(), 3);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", kMasterCC).Get(), 3);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", kMasterCC).Get(), 3);
 
     EXPECT_EQ(client->Zadd("zset_gt_lt", {{1., "one"}, {1., "two"}}, options, {}).Get(), 0);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", {}).Get(), 1);
-    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", {}).Get(), 1);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "one", kMasterCC).Get(), 1);
+    EXPECT_EQ(client->Zscore("zset_gt_lt", "two", kMasterCC).Get(), 1);
 }
 
 UTEST_F(RedisClientTest, Zcard) {
     auto client = GetClient();
 
     client->Zadd("zset", {{2., "two"}, {3., "three"}}, {}).Get();
-    EXPECT_EQ(client->Zcard("zset", {}).Get(), 2);
+    EXPECT_EQ(client->Zcard("zset", kMasterCC).Get(), 2);
 }
 
 UTEST_F(RedisClientTest, Zcount) {
@@ -917,17 +1096,17 @@ UTEST_F(RedisClientTest, Zcount) {
 
     client->Zadd("zset", {{2., "two"}, {3., "three"}}, {}).Get();
     const auto inf = std::numeric_limits<double>::infinity();
-    EXPECT_EQ(client->Zcount("zset", 3., inf, {}).Get(), 1);
+    EXPECT_EQ(client->Zcount("zset", 3., inf, kMasterCC).Get(), 1);
 }
 
 UTEST_F(RedisClientTest, Zrange) {
     auto client = GetClient();
 
     client->Zadd("zset", {{2., "two"}, {3., "three"}, {1., "one"}}, {}).Get();
-    auto result = client->Zrange("zset", 0, -1, {}).Get();
+    auto result = client->Zrange("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 3);
     EXPECT_EQ(result[0], "one");
-    auto result_with_scores = client->ZrangeWithScores("zset", 0, -1, {}).Get();
+    auto result_with_scores = client->ZrangeWithScores("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result_with_scores.size(), 3);
     EXPECT_EQ(result_with_scores[0].score, 1.);
 }
@@ -941,17 +1120,17 @@ UTEST_F(RedisClientTest, Zrangebyscore) {
     options.offset = 1;
     options.count = 10;
 
-    auto result1 = client->Zrangebyscore("zset", 2., 4., {}).Get();
+    auto result1 = client->Zrangebyscore("zset", 2., 4., kMasterCC).Get();
     EXPECT_EQ(result1.size(), 3);
     EXPECT_EQ(result1[0], "two");
-    auto result2 = client->Zrangebyscore("zset", 2., 4., options, {}).Get();
+    auto result2 = client->Zrangebyscore("zset", 2., 4., options, kMasterCC).Get();
     EXPECT_EQ(result2.size(), 2);
     EXPECT_EQ(result2[0], "three");
 
-    auto result1_scores = client->ZrangebyscoreWithScores("zset", 2., 4., {}).Get();
+    auto result1_scores = client->ZrangebyscoreWithScores("zset", 2., 4., kMasterCC).Get();
     EXPECT_EQ(result1_scores.size(), 3);
     EXPECT_EQ(result1_scores[0].member, "two");
-    auto result2_scores = client->ZrangebyscoreWithScores("zset", 2., 4., options, {}).Get();
+    auto result2_scores = client->ZrangebyscoreWithScores("zset", 2., 4., options, kMasterCC).Get();
     EXPECT_EQ(result2_scores.size(), 2);
     EXPECT_EQ(result2_scores[0].member, "three");
 }
@@ -965,16 +1144,16 @@ UTEST_F(RedisClientTest, ZrangebyscoreString) {
     options.offset = 1;
     options.count = 10;
 
-    auto result1 = client->Zrangebyscore("zset", "(2.0", "4.0", {}).Get();
+    auto result1 = client->Zrangebyscore("zset", "(2.0", "4.0", kMasterCC).Get();
     EXPECT_EQ(result1.size(), 2);
     EXPECT_EQ(result1[0], "three");
-    auto result2 = client->Zrangebyscore("zset", "2.0", "(5.0", options, {}).Get();
+    auto result2 = client->Zrangebyscore("zset", "2.0", "(5.0", options, kMasterCC).Get();
     EXPECT_EQ(result2.size(), 2);
     EXPECT_EQ(result2[0], "three");
-    auto result1_scores = client->ZrangebyscoreWithScores("zset", "(2.0", "4.0", {}).Get();
+    auto result1_scores = client->ZrangebyscoreWithScores("zset", "(2.0", "4.0", kMasterCC).Get();
     EXPECT_EQ(result1_scores.size(), 2);
     EXPECT_EQ(result1_scores[0].member, "three");
-    auto result2_scores = client->ZrangebyscoreWithScores("zset", "2.0", "(5.0", options, {}).Get();
+    auto result2_scores = client->ZrangebyscoreWithScores("zset", "2.0", "(5.0", options, kMasterCC).Get();
     EXPECT_EQ(result2_scores.size(), 2);
     EXPECT_EQ(result2_scores[0].member, "three");
 }
@@ -985,7 +1164,7 @@ UTEST_F(RedisClientTest, Zrem) {
     client->Zadd("zset", {{2., "two"}, {3., "three"}, {1., "one"}, {4., "four"}, {5., "five"}}, {}).Get();
     EXPECT_EQ(client->Zrem("zset", "two", {}).Get(), 1);
     EXPECT_EQ(client->Zrem("zset", std::vector<std::string>{"two", "one", "three"}, {}).Get(), 2);
-    auto result = client->Zrange("zset", 0, -1, {}).Get();
+    auto result = client->Zrange("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 2);
 }
 
@@ -994,7 +1173,7 @@ UTEST_F(RedisClientTest, Zremrangebyrank) {
 
     client->Zadd("zset", {{2., "two"}, {3., "three"}, {1., "one"}}, {}).Get();
     EXPECT_EQ(client->Zremrangebyrank("zset", 0, 1, {}).Get(), 2);
-    auto result = client->Zrange("zset", 0, -1, {}).Get();
+    auto result = client->Zrange("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 1);
     EXPECT_EQ(result[0], "three");
 }
@@ -1004,13 +1183,13 @@ UTEST_F(RedisClientTest, Zremrangebyscore) {
 
     client->Zadd("zset", {{2., "two"}, {3., "three"}, {1., "one"}}, {}).Get();
     EXPECT_EQ(client->Zremrangebyscore("zset", 1., 2., {}).Get(), 2);
-    auto result = client->Zrange("zset", 0, -1, {}).Get();
+    auto result = client->Zrange("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 1);
     EXPECT_EQ(result[0], "three");
 
     client->Zadd("zset", {{2., "two"}, {3., "three"}, {1., "one"}}, {}).Get();
     EXPECT_EQ(client->Zremrangebyscore("zset", "-inf", "(3", {}).Get(), 2);
-    result = client->Zrange("zset", 0, -1, {}).Get();
+    result = client->Zrange("zset", 0, -1, kMasterCC).Get();
     EXPECT_EQ(result.size(), 1);
     EXPECT_EQ(result[0], "three");
 }
@@ -1019,7 +1198,7 @@ UTEST_F(RedisClientTest, Zscore) {
     auto client = GetClient();
 
     client->Zadd("zset", 2., "two", {}).Get();
-    EXPECT_EQ(client->Zscore("zset", "two", {}).Get(), 2.);
+    EXPECT_EQ(client->Zscore("zset", "two", kMasterCC).Get(), 2.);
 }
 
 UTEST_F(RedisClientTest, TransactionType) {

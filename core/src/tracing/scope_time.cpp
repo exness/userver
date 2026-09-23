@@ -71,7 +71,7 @@ ScopeTime::Duration ScopeTime::DurationSinceReset() const {
     return std::chrono::steady_clock::now() - start_;
 }
 
-ScopeTime::Duration ScopeTime::DurationTotal(const std::string& scope_name) const {
+ScopeTime::Duration ScopeTime::DurationTotal(std::string_view scope_name) const {
     const auto duration = ts_.DurationTotal(scope_name);
     return scope_name_ == scope_name ? duration + DurationSinceReset() : duration;
 }
@@ -88,7 +88,7 @@ ScopeTime::DurationMillis ScopeTime::ElapsedSinceReset() const {
     return std::chrono::duration_cast<DurationMillis>(DurationSinceReset());
 }
 
-ScopeTime::DurationMillis ScopeTime::ElapsedTotal(const std::string& scope_name) const {
+ScopeTime::DurationMillis ScopeTime::ElapsedTotal(std::string_view scope_name) const {
     return std::chrono::duration_cast<DurationMillis>(DurationTotal(scope_name));
 }
 

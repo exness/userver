@@ -136,16 +136,16 @@ Socket::Socket(AddrDomain domain, SocketType type)
     : domain_(domain),
       fd_control_(MakeSocket(domain, type))
 {
-    SetReadableContextAccessor(fd_control_->Read().TryGetContextAccessor());
-    SetWritableContextAccessor(fd_control_->Write().TryGetContextAccessor());
+    SetReadableAwaitableToken(fd_control_->Read().GetAwaitableToken());
+    SetWritableAwaitableToken(fd_control_->Write().GetAwaitableToken());
 }
 
 Socket::Socket(int fd, AddrDomain domain)
     : domain_(domain),
       fd_control_(impl::FdControl::Adopt(fd))
 {
-    SetReadableContextAccessor(fd_control_->Read().TryGetContextAccessor());
-    SetWritableContextAccessor(fd_control_->Write().TryGetContextAccessor());
+    SetReadableAwaitableToken(fd_control_->Read().GetAwaitableToken());
+    SetWritableAwaitableToken(fd_control_->Write().GetAwaitableToken());
 // MAC_COMPAT: no socket domain access on mac
 #ifdef SO_DOMAIN
     if (domain_ != AddrDomain::kUnspecified) {
@@ -287,8 +287,12 @@ std::optional<size_t> Socket::RecvNoblock(void* buf, size_t len) {
     throw IoException("Attempt to RecvNoblock from closed socket");
 }
 
+size_t Socket::SendAll(std::span<const IoData> list, Deadline deadline) {
+    return SendAll(list.data(), list.size(), deadline);
+}
+
 size_t Socket::SendAll(std::initializer_list<IoData> list, Deadline deadline) {
-    return SendAll(list.begin(), list.size(), deadline);
+    return SendAll(std::span<const IoData>{list.begin(), list.size()}, deadline);
 }
 
 size_t Socket::SendAll(const IoData* list, std::size_t list_size, Deadline deadline) {
@@ -310,21 +314,11 @@ size_t Socket::SendAll(const struct iovec* list, std::size_t list_size, Deadline
         throw IoException("Attempt to SendAll to closed socket");
     }
     UASSERT(list);
-    UASSERT(list_size > 0);
-    UINVARIANT(list_size <= IOV_MAX, "To big array of IoData for SendAll");
     auto& dir = fd_control_->Write();
     dir.ResetReady();
     impl::Direction::SingleUserGuard guard(dir);
-    return dir.PerformIoV(
-        guard,
-        &writev,
-        const_cast<struct iovec*>(list),  // NOLINT(cppcoreguidelines-pro-type-const-cast)
-        list_size,
-        impl::TransferMode::kWhole,
-        deadline,
-        "SendAll to ",
-        peername_
-    );
+    return dir
+        .PerformIoV(guard, &writev, list, list_size, impl::TransferMode::kWhole, deadline, "SendAll to ", peername_);
 }
 
 size_t Socket::SendAll(const void* buf, size_t len, Deadline deadline) {

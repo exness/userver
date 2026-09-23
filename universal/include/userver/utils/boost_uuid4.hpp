@@ -3,6 +3,8 @@
 /// @file userver/utils/boost_uuid4.hpp
 /// @brief @copybrief utils::generators::GenerateBoostUuid()
 
+#include <string_view>
+
 #include <boost/uuid/uuid.hpp>
 
 #include <fmt/core.h>
@@ -12,7 +14,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace utils {
 
-/// Generators
+/// @brief Generators, including UUID and random string/id generators.
 namespace generators {
 
 /// Generates UUIDv4

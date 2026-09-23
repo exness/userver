@@ -2,6 +2,7 @@
 
 #include <userver/dynamic_config/source.hpp>
 #include <userver/logging/log.hpp>
+#include <userver/tracing/manager.hpp>
 #include <userver/tracing/opentelemetry.hpp>
 #include <userver/tracing/tags.hpp>
 #include <userver/utils/algo.hpp>
@@ -21,7 +22,8 @@ namespace {
 void ConstructSpan(
     std::optional<tracing::InPlaceSpan>& span_storage,
     std::string_view call_name,
-    const grpc::ServerContext& server_context
+    const grpc::ServerContext& server_context,
+    bool otel_sampling_enabled
 ) {
     const auto& client_metadata = server_context.client_metadata();
 
@@ -36,6 +38,19 @@ void ConstructSpan(
                 traceparent_data.span_id,
                 utils::impl::SourceLocation::Current()
             );
+
+            const auto* const ts = utils::FindOrNullptr(client_metadata, ugrpc::impl::kTraceState);
+            tracing::SetInheritedOtelTracingData(
+                ts ? ugrpc::impl::ToStringView(*ts) : std::string_view{},
+                traceparent_data.trace_flags
+            );
+
+            if (otel_sampling_enabled) {
+                span_storage->Get().SetSampled(
+                    (tracing::GetInheritedOtelTraceFlags() & tracing::OtelTraceFlags::kSampled) !=
+                    tracing::OtelTraceFlags::kNoTracing
+                );
+            }
         } else {
             LOG_LIMITED_WARNING() << fmt::format(
                 "Invalid traceparent header format ({}). Skipping Opentelemetry "
@@ -74,7 +89,7 @@ CallState::CallState(CallParams&& params)
       statistics_scope(method_statistics),
       config_snapshot(config_source.GetSnapshot())
 {
-    ConstructSpan(span, call_name, server_context);
+    ConstructSpan(span, call_name, server_context, otel_trace_sampling_enabled);
     AddServiceMethodTags(span->Get(), service_name, method_name);
 }
 

@@ -4,9 +4,8 @@
 /// @brief @copybrief utils::StringLiteral
 /// @ingroup userver_universal
 
-#include <string>
+#include <concepts>
 #include <string_view>
-#include <type_traits>
 
 #include <fmt/core.h>
 
@@ -46,14 +45,31 @@ public:
         return StringLiteral(str, len);
     }
 
+    friend constexpr auto operator<=>(StringLiteral lhs, StringLiteral rhs) noexcept = default;
+
+    friend constexpr auto operator<=>(StringLiteral lhs, const std::convertible_to<std::string_view> auto& rhs)
+        noexcept {
+        return std::string_view{lhs} <=> std::string_view{rhs};
+    }
+
+    friend constexpr bool operator==(StringLiteral lhs, const std::convertible_to<std::string_view> auto& rhs)
+        noexcept {
+        return std::string_view{lhs} == std::string_view{rhs};
+    }
+
 private:
-    explicit constexpr StringLiteral(const char* str, std::size_t len) noexcept
+    constexpr explicit StringLiteral(const char* str, std::size_t len) noexcept
         : zstring_view{zstring_view::UnsafeMake(str, len)} {}
 };
 
 template <class Value>
 Value Serialize(StringLiteral literal, formats::serialize::To<Value>) {
     return typename Value::Builder(std::string_view{literal}).ExtractValue();
+}
+
+template <typename StringBuilder>
+void WriteToStream(StringLiteral literal, StringBuilder& sw) {
+    WriteToStream(std::string_view{literal}, sw);
 }
 
 }  // namespace utils

@@ -20,9 +20,9 @@ TimePointTzBase& TimePointTzBase::operator=(TimePointTzBase&& other) noexcept = 
 
 TimePointTzBase::operator TimePoint() const { return tp_; }
 
-std::chrono::seconds TimePointTzBase::GetTzOffset() const { return tz_offset_; }
+std::chrono::seconds TimePointTzBase::GetTzOffset() const noexcept { return tz_offset_; }
 
-TimePointTzBase::TimePoint TimePointTzBase::GetTimePoint() const { return tp_; }
+TimePointTzBase::TimePoint TimePointTzBase::GetTimePoint() const noexcept { return tp_; }
 
 bool TimePointTzBase::operator==(const TimePointTzBase& other) const {
     return tp_ == other.tp_ && tz_offset_ == other.tz_offset_;

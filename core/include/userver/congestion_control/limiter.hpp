@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/congestion_control/limiter.hpp
+/// @brief @copybrief congestion_control::Limiter
+
 #include <optional>
 #include <string>
 
@@ -16,6 +19,7 @@ struct Limit {
     }
 };
 
+/// @brief Applies congestion control load limits
 class Limiter {
 public:
     virtual void SetLimit(const Limit& new_limit) = 0;

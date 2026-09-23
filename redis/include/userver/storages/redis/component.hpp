@@ -16,7 +16,7 @@
 #include <userver/storages/redis/wait_connected_mode.hpp>
 #include <userver/storages/secdist/secdist.hpp>
 #include <userver/testsuite/redis_control.hpp>
-#include <userver/utils/statistics/entry.hpp>
+#include <userver/utils/statistics/fwd.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -31,6 +31,7 @@ class SubscribeClientImpl;
 namespace impl {
 class Sentinel;
 class ThreadPools;
+class HealthCheckManager;
 }  // namespace impl
 }  // namespace storages::redis
 
@@ -52,6 +53,7 @@ namespace components {
 /// * @ref REDIS_SUBSCRIBER_DEFAULT_COMMAND_CONTROL
 /// * @ref REDIS_SUBSCRIPTIONS_REBALANCE_MIN_INTERVAL_SECONDS
 /// * @ref REDIS_WAIT_CONNECTED
+/// * @ref REDIS_IGNORE_HEALTH_CHECK
 ///
 /// ## Static options of components::Redis :
 /// @include{doc} scripts/docs/en/components_schema/redis/src/storages/redis/component.md
@@ -141,6 +143,8 @@ public:
         storages::redis::RedisWaitConnected wait_connected = {}
     ) const;
 
+    ComponentHealth GetComponentHealth() const override;
+
     static yaml_config::Schema GetStaticConfigSchema();
 
 private:
@@ -161,12 +165,9 @@ private:
     std::unordered_map<std::string, std::shared_ptr<storages::redis::Client>> clients_;
     std::unordered_map<std::string, std::shared_ptr<storages::redis::SubscribeClientImpl>> subscribe_clients_;
 
-    dynamic_config::Source config_;
-    concurrent::AsyncEventSubscriberScope config_subscription_;
-    concurrent::AsyncEventSubscriberScope secdist_subscription_;
+    std::shared_ptr<storages::redis::impl::HealthCheckManager> health_check_manager_;
 
-    utils::statistics::Entry statistics_holder_;
-    utils::statistics::Entry subscribe_statistics_holder_;
+    dynamic_config::Source config_;
 
     rcu::Variable<storages::redis::MetricsSettings> metrics_settings_;
     rcu::Variable<storages::redis::PubsubMetricsSettings> pubsub_metrics_settings_;

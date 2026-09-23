@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/storages/mongo/multi_mongo.hpp
+/// @brief @copybrief storages::mongo::MultiMongo
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -7,6 +10,7 @@
 #include <userver/dynamic_config/source.hpp>
 #include <userver/rcu/rcu.hpp>
 #include <userver/storages/secdist/fwd.hpp>
+#include <userver/utils/resource_scopes_fwd.hpp>
 #include <userver/utils/statistics/fwd.hpp>
 
 #include <userver/storages/mongo/pool.hpp>
@@ -16,6 +20,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::mongo {
 
+/// @brief Dynamic set of named MongoDB connection pools (secdist + dynamic config)
 class MultiMongo {
     using PoolMap = std::unordered_map<std::string, storages::mongo::PoolPtr>;
 
@@ -52,6 +57,7 @@ public:
 
     /// @cond
     MultiMongo(
+        utils::ResourceScopeStorage& scopes,
         std::string name,
         storages::secdist::Secdist& secdist,
         storages::mongo::PoolConfig pool_config,
@@ -99,10 +105,6 @@ private:
     const storages::mongo::PoolConfig pool_config_;
     clients::dns::Resolver* dns_resolver_;
     rcu::Variable<PoolMap> pool_map_;
-
-    // Subscriptions (config_subscriber_ and secdist_subscriber_) must be the last fields.
-    concurrent::AsyncEventSubscriberScope config_subscriber_;
-    concurrent::AsyncEventSubscriberScope secdist_subscriber_;
 };
 
 }  // namespace storages::mongo

@@ -28,7 +28,7 @@ struct CommandControl final {
     /// Overall timeout for a command being executed.
     std::chrono::milliseconds execute;
 
-    explicit constexpr CommandControl(std::chrono::milliseconds execute)
+    constexpr explicit CommandControl(std::chrono::milliseconds execute)
         : execute{execute}
     {}
 };

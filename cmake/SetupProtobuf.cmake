@@ -66,9 +66,9 @@ if(NOT USERVER_FORCE_DOWNLOAD_PROTOBUF)
 
     if(Protobuf_FOUND)
         _userver_set_protobuf_version_category()
-        if (Protobuf_PROTOC_EXECUTABLE)
+        if(Protobuf_PROTOC_EXECUTABLE)
             set(PROTOBUF_PROTOC "${Protobuf_PROTOC_EXECUTABLE}")
-        elseif (TARGET protobuf::protoc)  # Newer protobuf versions outside Conan dropped additional cmake variable.
+        elseif(TARGET protobuf::protoc) # Newer protobuf versions outside Conan dropped additional cmake variable.
             set(PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
         endif()
         return()
@@ -78,17 +78,22 @@ endif()
 include(DownloadUsingCPM)
 include(SetupAbseil)
 
+# Use the official release tarball (same sources as tag v5.26.0 / v26.0).
+# Avoids a shallow git clone with --no-single-branch of the protobuf monorepo.
 cpmaddpackage(
     NAME Protobuf
-    VERSION 4.24.4
-    GITHUB_REPOSITORY protocolbuffers/protobuf
-    GIT_SHALLOW TRUE
+    VERSION 5.26.0
+    URL https://github.com/protocolbuffers/protobuf/releases/download/v26.0/protobuf-26.0.tar.gz
+    URL_HASH SHA256=e32100a8013870d24ffc37dad6781a61e5d0c99501bcb04d39c340a1c44a8e63
     SYSTEM
     OPTIONS "protobuf_BUILD_SHARED_LIBS OFF" "protobuf_BUILD_TESTS OFF" "protobuf_INSTALL OFF"
             "protobuf_MSVC_STATIC_RUNTIME OFF" "protobuf_ABSL_PROVIDER package"
 )
 
-set(Protobuf_VERSION "${CPM_PACKAGE_Protobuf_VERSION}" CACHE INTERNAL "")
+set(Protobuf_VERSION
+    "${CPM_PACKAGE_Protobuf_VERSION}"
+    CACHE INTERNAL ""
+)
 set(Protobuf_FOUND TRUE)
 set(PROTOBUF_INCLUDE_DIRS "${Protobuf_SOURCE_DIR}/src")
 set(Protobuf_INCLUDE_DIR "${Protobuf_SOURCE_DIR}/src")
@@ -97,3 +102,7 @@ write_package_stub(Protobuf)
 mark_targets_as_system("${Protobuf_SOURCE_DIR}")
 _userver_set_protobuf_version_category()
 set(PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
+
+# protobuf_generate() is defined in protobuf's own cmake module.
+# When using CPM, FindProtobuf.cmake is not loaded, so we include it manually.
+include("${Protobuf_SOURCE_DIR}/cmake/protobuf-generate.cmake")

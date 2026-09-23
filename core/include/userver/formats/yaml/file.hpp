@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/formats/yaml/file.hpp
+/// @brief @copybrief formats::yaml::FromFile
+
 #include <userver/formats/yaml/value.hpp>
 
 USERVER_NAMESPACE_BEGIN

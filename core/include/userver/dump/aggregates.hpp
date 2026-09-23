@@ -24,7 +24,7 @@ namespace impl {
 // Only the non-specialized IsDumpedAggregate struct is defined,
 // the specializations are declared without a definition
 template <typename T>
-using IsNotDumpedAggregate = decltype(sizeof(IsDumpedAggregate<T>));
+concept IsDumpedAggregateSpecialized = requires { sizeof(IsDumpedAggregate<T>); };
 
 template <typename T, std::size_t... Indices>
 constexpr bool AreAllDumpable(std::index_sequence<Indices...>) {
@@ -33,7 +33,7 @@ constexpr bool AreAllDumpable(std::index_sequence<Indices...>) {
 
 template <typename T>
 constexpr bool IsDumpableAggregate() {
-    if constexpr (std::is_aggregate_v<T> && !meta::IsDetected<IsNotDumpedAggregate, T>) {
+    if constexpr (std::is_aggregate_v<T> && !IsDumpedAggregateSpecialized<T>) {
         constexpr auto kSize = boost::pfr::tuple_size_v<T>;
         static_assert(
             AreAllDumpable<T>(std::make_index_sequence<kSize>{}),
@@ -61,10 +61,7 @@ T ReadAggregate(Reader& reader, std::index_sequence<Indices...>) {
 ///
 /// To enable dumps and loads for an aggregate, add in the global namespace:
 ///
-/// @code
-/// template <>
-/// struct dump::IsDumpedAggregate<MyStruct>;
-/// @endcode
+/// @snippet core/src/dump/aggregates_test.cpp  IsDumpedAggregate declaration
 ///
 /// @warning Don't forget to increment format-version if data layout changes
 template <typename T>
@@ -77,10 +74,7 @@ void Write(Writer& writer, const T& value) {
 ///
 /// To enable dumps and loads for an aggregate, add in the global namespace:
 ///
-/// @code
-/// template <>
-/// struct dump::IsDumpedAggregate<MyStruct>;
-/// @endcode
+/// @snippet core/src/dump/aggregates_test.cpp  IsDumpedAggregate declaration
 ///
 /// @warning Don't forget to increment format-version if data layout changes
 template <typename T>

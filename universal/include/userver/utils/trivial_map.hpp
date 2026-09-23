@@ -14,6 +14,7 @@
 #include <fmt/format.h>
 
 #include <userver/compiler/demangle.hpp>
+#include <userver/compiler/impl/nodebug.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/string_literal.hpp>
 
@@ -233,7 +234,7 @@ private:
 template <typename First, typename Second>
 class SwitchByFirst final {
 public:
-    constexpr explicit SwitchByFirst(First search) noexcept : state_(search) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit SwitchByFirst(First search) noexcept : state_(search) {}
 
     constexpr SwitchByFirst& Case(First first, Second second) noexcept {
         if (!state_.IsFound() && state_.GetKey() == first) {
@@ -243,7 +244,7 @@ public:
     }
 
     template <typename T, typename U = void>
-    constexpr SwitchByFirst& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr SwitchByFirst& Type() noexcept {
         return *this;
     }
 
@@ -256,7 +257,7 @@ private:
 template <typename First>
 class SwitchByFirst<First, void> final {
 public:
-    constexpr explicit SwitchByFirst(First search) noexcept : state_(search) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit SwitchByFirst(First search) noexcept : state_(search) {}
 
     constexpr SwitchByFirst& Case(First first) noexcept {
         if (!state_.IsFound() && state_.GetKey() == first) {
@@ -266,7 +267,7 @@ public:
     }
 
     template <typename T, typename U = void>
-    constexpr SwitchByFirst& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr SwitchByFirst& Type() noexcept {
         return *this;
     }
 
@@ -279,7 +280,7 @@ private:
 template <typename Second>
 class SwitchByFirstICase final {
 public:
-    constexpr explicit SwitchByFirstICase(std::string_view search) noexcept : state_(search) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit SwitchByFirstICase(std::string_view search) noexcept : state_(search) {}
 
     constexpr SwitchByFirstICase& Case(std::string_view first, Second second) noexcept {
         UASSERT_MSG(
@@ -295,7 +296,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr SwitchByFirstICase& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr SwitchByFirstICase& Type() noexcept {
         return *this;
     }
 
@@ -308,7 +309,7 @@ private:
 template <>
 class SwitchByFirstICase<void> final {
 public:
-    constexpr explicit SwitchByFirstICase(std::string_view search) noexcept : state_(search) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit SwitchByFirstICase(std::string_view search) noexcept : state_(search) {}
 
     constexpr SwitchByFirstICase& Case(std::string_view first) noexcept {
         UASSERT_MSG(
@@ -324,7 +325,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr SwitchByFirstICase& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr SwitchByFirstICase& Type() noexcept {
         return *this;
     }
 
@@ -337,7 +338,7 @@ private:
 template <typename First>
 class SwitchBySecondICase final {
 public:
-    constexpr explicit SwitchBySecondICase(std::string_view search) noexcept : state_(search) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit SwitchBySecondICase(std::string_view search) noexcept : state_(search) {}
 
     constexpr SwitchBySecondICase& Case(First first, std::string_view second) noexcept {
         UASSERT_MSG(
@@ -353,7 +354,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr SwitchBySecondICase& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr SwitchBySecondICase& Type() noexcept {
         return *this;
     }
 
@@ -366,7 +367,7 @@ private:
 template <typename First, typename Second>
 class SwitchBySecond final {
 public:
-    constexpr explicit SwitchBySecond(Second search) noexcept : state_(search) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit SwitchBySecond(Second search) noexcept : state_(search) {}
 
     constexpr SwitchBySecond& Case(First first, Second second) noexcept {
         if (!state_.IsFound() && state_.GetKey() == second) {
@@ -376,7 +377,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr SwitchBySecond& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr SwitchBySecond& Type() noexcept {
         return *this;
     }
 
@@ -428,7 +429,7 @@ public:
     }
 
     template <typename First, typename Second = void>
-    constexpr auto Type() noexcept {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr auto Type() noexcept {
         return SwitchTypesDetected<DetectType<First>, DetectType<Second>>{};
     }
 };
@@ -447,8 +448,8 @@ public:
         return *this;
     }
 
-    template <typename T, typename U>
-    constexpr CaseCounter& Type() {
+    template <typename T, typename U = void>
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseCounter& Type() noexcept {
         return *this;
     }
 
@@ -472,7 +473,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr CaseDescriber& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseDescriber& Type() noexcept {
         return *this;
     }
 
@@ -501,7 +502,7 @@ public:
     }
 
     template <typename T, typename U = void>
-    constexpr CaseFirstDescriber& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseFirstDescriber& Type() noexcept {
         return *this;
     }
 
@@ -525,7 +526,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr CaseSecondDescriber& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseSecondDescriber& Type() noexcept {
         return *this;
     }
 
@@ -538,7 +539,7 @@ private:
 template <typename First, typename Second>
 class CaseGetValuesByIndex final {
 public:
-    explicit constexpr CaseGetValuesByIndex(std::size_t search_index)
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit CaseGetValuesByIndex(std::size_t search_index)
         : index_(search_index + 1)
     {}
 
@@ -555,7 +556,7 @@ public:
     }
 
     template <typename T, typename U>
-    constexpr CaseGetValuesByIndex& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseGetValuesByIndex& Type() noexcept {
         return *this;
     }
 
@@ -573,8 +574,8 @@ private:
     };
 
     union Lazy {
-        constexpr Lazy() noexcept : empty{} {}
-        constexpr Lazy(Storage s) noexcept : storage{s} {}
+        USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr Lazy() noexcept : empty{} {}
+        USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr Lazy(Storage s) noexcept : storage{s} {}
 
         char empty;
         Storage storage;
@@ -583,9 +584,49 @@ private:
 };
 
 template <typename First>
+class CaseGetValuesByIndex<First, void> final {
+public:
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit CaseGetValuesByIndex(std::size_t search_index)
+        : index_(search_index + 1)
+    {}
+
+    constexpr CaseGetValuesByIndex& Case(First first) noexcept {
+        if (index_ == 0) {
+            return *this;
+        }
+        if (index_ == 1) {
+            lazy_ = Lazy{first};
+        }
+        --index_;
+
+        return *this;
+    }
+
+    template <typename T>
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseGetValuesByIndex& Type() noexcept {
+        return *this;
+    }
+
+    [[nodiscard]] constexpr First GetFirst() noexcept { return std::move(lazy_.first); }
+
+private:
+    std::size_t index_;
+
+    // Work with non default constructible types
+    union Lazy {
+        USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr Lazy() noexcept : empty{} {}
+        USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr Lazy(First f) noexcept : first{f} {}
+
+        char empty;
+        First first;
+    };
+    Lazy lazy_;
+};
+
+template <typename First>
 class CaseFirstIndexer final {
 public:
-    constexpr explicit CaseFirstIndexer(First search_value) noexcept : state_(search_value) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit CaseFirstIndexer(First search_value) noexcept : state_(search_value) {}
 
     constexpr CaseFirstIndexer& Case(First first) noexcept {
         if (!state_.IsFound() && state_.GetKey() == first) {
@@ -596,7 +637,7 @@ public:
     }
 
     template <typename T, typename U = void>
-    constexpr CaseFirstIndexer& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseFirstIndexer& Type() noexcept {
         return *this;
     }
 
@@ -610,7 +651,7 @@ private:
 template <typename First>
 class CaseFirstIndexerICase final {
 public:
-    constexpr explicit CaseFirstIndexerICase(First search_value) noexcept : state_(search_value) {}
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr explicit CaseFirstIndexerICase(First search_value) noexcept : state_(search_value) {}
 
     constexpr CaseFirstIndexerICase& Case(First first) noexcept {
         if (!state_.IsFound() && state_.GetKey().size() == first.size() &&
@@ -623,7 +664,7 @@ public:
     }
 
     template <typename T, typename U = void>
-    constexpr CaseFirstIndexerICase& Type() {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr CaseFirstIndexerICase& Type() noexcept {
         return *this;
     }
 
@@ -681,12 +722,11 @@ public:
         Second second;
     };
 
-    /// Returns Second if T is convertible to First, otherwise returns Second
-    /// type.
+    /// Returns Second if T is convertible to First, otherwise returns First type.
     template <class T>
     using MappedTypeFor = std::conditional_t<std::is_convertible_v<T, DecayToStringView<First>>, Second, First>;
 
-    constexpr TrivialBiMap(BuilderFunc&& func) noexcept : func_(std::move(func)) {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr TrivialBiMap(BuilderFunc&& func) noexcept : func_(std::move(func)) {
         static_assert(std::is_empty_v<BuilderFunc>, "Mapping function should not capture variables");
         static_assert(std::is_trivially_copyable_v<First>, "First type in Case must be trivially copyable");
         static_assert(
@@ -796,6 +836,7 @@ public:
         }
     }
 
+    /// Returns the parameters of a Case with index `index`
     constexpr ValueType GetValuesByIndex(std::size_t index) const {
         UASSERT_MSG(index < size(), "Index is out of bounds");
         auto result = func_([index]() { return impl::CaseGetValuesByIndex<First, Second>{index}; });
@@ -806,9 +847,12 @@ public:
     public:
         using iterator_category = std::input_iterator_tag;
         using difference_type = std::ptrdiff_t;
+        using value_type = ValueType;
+        using reference = ValueType;
+        using pointer = void;
 
-        explicit constexpr Iterator(const TrivialBiMap& map, std::size_t position)
-            : map_{map},
+        constexpr explicit Iterator(const TrivialBiMap& map, std::size_t position)
+            : map_{&map},
               position_{position}
         {}
 
@@ -816,21 +860,21 @@ public:
 
         constexpr bool operator!=(Iterator other) const { return position_ != other.position_; }
 
-        constexpr Iterator operator++() {
+        constexpr Iterator& operator++() {
             ++position_;
             return *this;
         }
 
         constexpr Iterator operator++(int) {
             Iterator copy{*this};
-            ++position_;
+            ++*this;
             return copy;
         }
 
-        constexpr ValueType operator*() const { return map_.GetValuesByIndex(position_); }
+        constexpr ValueType operator*() const { return map_->GetValuesByIndex(position_); }
 
     private:
-        const TrivialBiMap& map_;
+        const TrivialBiMap* map_;
         std::size_t position_;
     };
 
@@ -840,7 +884,7 @@ public:
     constexpr Iterator cend() const { return end(); }
 
 private:
-    const BuilderFunc func_;
+    [[no_unique_address]] const BuilderFunc func_;
 };
 
 template <typename BuilderFunc>
@@ -860,7 +904,7 @@ public:
     using First = typename TypesPair::first_type;
     using Second = typename TypesPair::second_type;
 
-    constexpr TrivialSet(BuilderFunc&& func) noexcept : func_(std::move(func)) {
+    USERVER_IMPL_NODEBUG_INLINE_FUNC constexpr TrivialSet(BuilderFunc&& func) noexcept : func_(std::move(func)) {
         static_assert(std::is_empty_v<BuilderFunc>, "Mapping function should not capture variables");
         static_assert(std::is_trivially_copyable_v<First>, "First type in Case must be trivially copyable");
         static_assert(std::is_void_v<Second>, "Second type in Case should be skipped in utils::TrivialSet");
@@ -879,6 +923,7 @@ public:
         return func_([value]() { return impl::SwitchByFirstICase<void>{value}; }).Extract();
     }
 
+    /// Returns count of Case's in mapping
     constexpr std::size_t size() const noexcept {
         return func_([]() { return impl::CaseCounter{}; }).Extract();
     }
@@ -892,8 +937,7 @@ public:
         return func_([]() { return impl::CaseFirstDescriber{}; }).Extract();
     }
 
-    /// Returns index of the value in Case parameters or std::nullopt if no such
-    /// value.
+    /// Returns index of the value in Case parameters or std::nullopt if no such value.
     constexpr std::optional<std::size_t> GetIndex(DecayToStringView<First> value) const {
         return func_([value]() { return impl::CaseFirstIndexer{value}; }).Extract();
     }
@@ -904,8 +948,15 @@ public:
         return func_([value]() { return impl::CaseFirstIndexerICase{value}; }).Extract();
     }
 
+    /// Returns the parameter of a Case with index `index`
+    constexpr First GetKeyByIndex(std::size_t index) const {
+        UASSERT_MSG(index < size(), "Index is out of bounds");
+        auto result = func_([index]() { return impl::CaseGetValuesByIndex<First, Second>{index}; });
+        return result.GetFirst();
+    }
+
 private:
-    const BuilderFunc func_;
+    [[no_unique_address]] const BuilderFunc func_;
 };
 
 template <typename BuilderFunc>
@@ -1000,14 +1051,14 @@ struct TrivialSetMultiCaseDispatch {
 
 /// @brief Zips two global `constexpr` arrays into an utils::TrivialBiMap.
 template <const auto& Keys, const auto& Values>
-constexpr auto MakeTrivialBiMap() {
+consteval auto MakeTrivialBiMap() {
     static_assert(std::size(Keys) == std::size(Values));
     static_assert(std::size(Keys) >= 1);
     return TrivialBiMap(impl::TrivialBiMapMultiCaseDispatch<Keys, Values>{});
 }
 
 template <const auto& Values>
-constexpr auto MakeTrivialSet() {
+consteval auto MakeTrivialSet() {
     return TrivialSet(impl::TrivialSetMultiCaseDispatch<Values>{});
 }
 

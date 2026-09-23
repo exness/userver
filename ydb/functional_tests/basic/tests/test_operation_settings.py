@@ -63,8 +63,6 @@ async def test_get_settings_from_dynamic_config(
         operation_settings = {
             'select': {
                 'attempts': 5,
-                'operation-timeout-ms': 1002,
-                'cancel-after-ms': 1002,
                 'client-timeout-ms': 1102,
                 'get-session-timeout-ms': 5002,
             },

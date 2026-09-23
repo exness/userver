@@ -1,4 +1,11 @@
+cmake_minimum_required(VERSION 3.14)
 project(userver-samples-http-client-perf CXX)
+
+find_package(
+    userver
+    COMPONENTS core
+    REQUIRED
+)
 
 find_package(Boost REQUIRED CONFIG COMPONENTS program_options)
 
@@ -10,7 +17,7 @@ userver_venv_setup(REQUIREMENTS ${CMAKE_CURRENT_SOURCE_DIR}/requirements.txt PYT
 
 add_test(
     NAME "${PROJECT_NAME}-pytest"
-    COMMAND "${httperf_venv}" -m pytest "--test-binary=${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}"
+    COMMAND "${httperf_venv}" -m pytest testsuite "--test-binary=${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}"
             "-c /dev/null" # Do not search for pytest.ini
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 )

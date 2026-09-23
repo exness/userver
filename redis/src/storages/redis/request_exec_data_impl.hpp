@@ -3,6 +3,8 @@
 #include "request_data_impl.hpp"
 #include "transaction_impl.hpp"
 
+#include <userver/compiler/impl/lifetime.hpp>
+
 USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
@@ -17,9 +19,9 @@ public:
 
     ReplyPtr GetRaw() override { return GetReply(); }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept override {
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND override {
         UASSERT_MSG(false, "Not implemented");
-        return nullptr;
+        return engine::AwaitableToken{};
     }
 
 private:

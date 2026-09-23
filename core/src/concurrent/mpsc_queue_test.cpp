@@ -2,14 +2,17 @@
 
 #include <gmock/gmock.h>
 
+#include <userver/engine/async.hpp>
 #include <userver/engine/exception.hpp>
 #include <userver/engine/task/cancel.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/tracing/span.hpp>
 #include <userver/utest/utest.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/async.hpp>
 #include <userver/utils/fixed_array.hpp>
+#include <userver/utils/task_builder.hpp>
 
 #include "mp_queue_test.hpp"
 
@@ -99,9 +102,10 @@ public:
     {
         // There is no use for a Span in a task that lives until the service stops.
         // The task should be Critical, because the whole service (not just a single request) depends on it.
-        consumer_task_ = engine::CriticalAsyncNoSpan([&, consumer = queue_->GetConsumer()] {
-            ConsumerTaskLoop(consumer);
-        });
+        consumer_task_ =
+            utils::TaskBuilder{}.NoTracing().Background().Critical().Build([&, consumer = queue_->GetConsumer()] {
+                ConsumerTaskLoop(consumer);
+            });
     }
 
     ~FooProcessor() {
@@ -173,7 +177,7 @@ void FooProcessor::DoProcess(const FooItem& item) { foo_items.push_back(item); }
 }  // namespace
 
 UTEST(MpscQueue, ProcessingRemainingItemsSample) {
-    ASSERT_EQ(GetThreadCount(), 1)
+    ASSERT_EQ(engine::current_task::GetWorkerCount(), 1)
         << "In this test we can observe the exact moments of task switching, because there "
            "is a single TaskProcessor thread. We also don't need protecting 'foo_items'";
     foo_items.clear();
@@ -205,7 +209,7 @@ UTEST(MpscQueue, ProcessingRemainingItemsSample) {
 }
 
 UTEST(MpscQueue, ProcessingRemainingItemsCancelled) {
-    ASSERT_EQ(GetThreadCount(), 1)
+    ASSERT_EQ(engine::current_task::GetWorkerCount(), 1)
         << "In this test we can observe the exact moments of task switching, because there "
            "is a single TaskProcessor thread. We also don't need protecting 'foo_items'";
     foo_items.clear();
@@ -294,7 +298,7 @@ UTEST_MT(MpscQueue, FifoTest, kProducersCount + 1) {
 
     consumer_task.Get();
 
-    ASSERT_TRUE(std::all_of(consumed_messages.begin(), consumed_messages.end(), [](int item) { return (item == 1); }));
+    ASSERT_TRUE(std::ranges::all_of(consumed_messages, [](int item) { return (item == 1); }));
 }
 
 UTEST_MT(MpscQueue, ProducerRace, kProducersCount + 1) {
@@ -305,7 +309,7 @@ UTEST_MT(MpscQueue, ProducerRace, kProducersCount + 1) {
     auto producers = utils::GenerateFixedArray(kProducersCount, [&](std::size_t) { return queue->GetProducer(); });
 
     while (!test_deadline.IsReached()) {
-        auto consumer_task = engine::AsyncNoSpan([&consumer] {
+        auto consumer_task = engine::AsyncNoTracing([&consumer] {
             for (std::size_t i = 0; i < kProducersCount; ++i) {
                 std::size_t item{};
                 // If there queue is buggy (loses wakeups), then we'll eventually hang here until the deadline.
@@ -316,7 +320,7 @@ UTEST_MT(MpscQueue, ProducerRace, kProducersCount + 1) {
         std::atomic<bool> go{false};
 
         auto producer_tasks = utils::GenerateFixedArray(kProducersCount, [&](std::size_t i) {
-            return engine::AsyncNoSpan([&producers, &go, i] {
+            return engine::AsyncNoTracing([&producers, &go, i] {
                 while (!go.load()) {
                     // Busy loop
                 }

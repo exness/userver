@@ -11,10 +11,10 @@ namespace server::http {
 namespace {
 
 inline void Strip(const char*& begin, const char*& end) {
-    while (begin < end && isspace(*begin)) {
+    while (begin < end && isspace(static_cast<unsigned char>(*begin))) {
         ++begin;
     }
-    while (begin < end && isspace(end[-1])) {
+    while (begin < end && isspace(static_cast<unsigned char>(end[-1]))) {
         --end;
     }
 }
@@ -128,11 +128,7 @@ HttpResponse& HttpRequestBuilder::GetHttpResponse() { return request_->GetHttpRe
 std::shared_ptr<HttpRequest> HttpRequestBuilder::Build() {
     ParseCookies();
 
-    UASSERT(std::all_of(
-        request_->pimpl_->request_args.begin(),
-        request_->pimpl_->request_args.end(),
-        [](const auto& arg) { return !arg.second.empty(); }
-    ));
+    UASSERT(std::ranges::all_of(request_->pimpl_->request_args, [](const auto& arg) { return !arg.second.empty(); }));
 
     LOG_TRACE() << "method=" << request_->GetMethodStr();
     LOG_TRACE() << "request_args:" << request_->pimpl_->request_args;

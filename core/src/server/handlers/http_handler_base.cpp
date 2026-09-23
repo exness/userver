@@ -1,6 +1,6 @@
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/container/small_vector.hpp>
 
@@ -27,7 +27,6 @@
 #include <userver/server/http/http_status.hpp>
 #include <userver/server/middlewares/configuration.hpp>
 #include <userver/server/middlewares/http_middleware_base.hpp>
-#include <userver/tracing/tracing.hpp>
 #include <userver/utils/algo.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
 #include <userver/utils/from_string.hpp>
@@ -69,6 +68,10 @@ void SetFormattedErrorResponse(http::HttpResponse& http_response, FormattedError
     if (formatted_error_data.content_type) {
         http_response.SetContentType(*std::move(formatted_error_data.content_type));
     }
+}
+
+bool CanOverwriteResponse(const http::HttpResponse& response) noexcept {
+    return !response.IsHeadersEnd() && !response.IsSent();
 }
 
 std::unordered_map<int, logging::Level> ParseStatusCodesLogLevel(
@@ -196,11 +199,14 @@ HttpHandlerBase::HttpHandlerBase(
 
 HttpHandlerBase::~HttpHandlerBase() = default;
 
-void HttpHandlerBase::HandleRequestStream(http::HttpRequest& http_request, request::RequestContext& context) const {
-    auto& http_response = http_request.GetHttpResponse();
-    server::http::ResponseBodyStream response_body_stream(http_response.GetBodyProducer(), http_response);
-
-    HandleStreamRequest(http_request, context, response_body_stream);
+void HttpHandlerBase::HandleMaybeStreamRequest(http::HttpRequest& request, request::RequestContext& context) const {
+    auto& response = request.GetHttpResponse();
+    if (IsStreamed(request, context)) {
+        server::http::ResponseBodyStream response_body_stream(response);
+        HandleStreamRequest(request, context, response_body_stream);
+    } else {
+        response.SetData(HandleRequest(request, context));
+    }
 }
 
 void HttpHandlerBase::HandleHttpRequest(http::HttpRequest& http_request, request::RequestContext& context) const {
@@ -211,12 +217,7 @@ void HttpHandlerBase::HandleHttpRequest(http::HttpRequest& http_request, request
     context.GetInternalContext().ResetConfigSnapshot();
 
     const auto scope_time = tracing::ScopeTime::CreateOptionalScopeTime("http_handle_request");
-    if (IsStreamed(http_request, context)) {
-        HandleRequestStream(http_request, context);
-    } else {
-        // !IsBodyStreamed()
-        response.SetData(HandleRequest(http_request, context));
-    }
+    HandleMaybeStreamRequest(http_request, context);
 }
 
 void HttpHandlerBase::PrepareAndHandleRequest(http::HttpRequest& http_request, request::RequestContext& context) const {
@@ -392,6 +393,12 @@ void HttpHandlerBase::HandleCustomHandlerException(
     LOG(level) << "custom handler exception in '" << HandlerName() << "' handler: msg=" << ex;
 
     auto& response = request.GetHttpResponse();
+    if (!CanOverwriteResponse(response)) {
+        LOG_LIMITED_WARNING()
+            << "Cannot convert custom handler exception into an HTTP error: the response streaming has already "
+               "started";
+        return;
+    }
     response.SetStatus(http_status);
     if (ex.IsExternalErrorBodyFormatted()) {
         response.SetData(ex.GetExternalErrorBody());
@@ -411,6 +418,12 @@ void HttpHandlerBase::HandleUnknownException(
     LogUnknownException(ex);
 
     auto& response = request.GetHttpResponse();
+    if (!CanOverwriteResponse(response)) {
+        LOG_LIMITED_WARNING()
+            << "Cannot convert exception into an HTTP error: the response streaming has already "
+               "started";
+        return;
+    }
     if (engine::current_task::ShouldCancel()) {
         response.SetStatus(http::HttpStatus::kClientClosedRequest);
     } else {

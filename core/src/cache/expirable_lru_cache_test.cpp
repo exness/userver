@@ -49,8 +49,6 @@ public:
 
     bool operator==(const Counter& other) const { return value_ == other.value_; }
 
-    bool operator!=(const Counter& other) const { return !(*this == other); }
-
     Counter& operator++() {
         value_++;
         return *this;

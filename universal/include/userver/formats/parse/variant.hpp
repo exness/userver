@@ -37,13 +37,19 @@ template <typename ParseException, typename Variant, typename TypeA>
 }
 
 template <class ParseException, typename Variant>
-[[noreturn]] void ThrowVariantParseException(std::string_view path) {
-    throw ParseException(fmt::format("Value of '{}' cannot be parsed as {}", path, compiler::GetTypeName<Variant>()));
+[[noreturn]] void ThrowVariantParseException(std::string_view path, std::string_view errors) {
+    throw ParseException(fmt::format(
+        "Value of '{}' cannot be parsed as {}. Issues during parsing follow: {}",
+        path,
+        compiler::GetTypeName<Variant>(),
+        errors
+    ));
 }
 
 namespace impl {
+
 template <class T, class Value, typename Result>
-void ParseVariantSingle(const Value& value, std::optional<Result>& result) {
+void ParseVariantSingle(const Value& value, std::optional<Result>& result, std::string& errors) {
     if (result) {
         const auto old_type = std::visit([](const auto& v) -> std::type_index { return typeid(v); }, *result);
         try {
@@ -52,12 +58,14 @@ void ParseVariantSingle(const Value& value, std::optional<Result>& result) {
             return;
         }
 
-        ThrowVariantAmbiguousParse<typename Value::ParseException, Result, T>(value.GetPath(), old_type);
+        using ParseException = typename Value::ParseException;
+        formats::parse::ThrowVariantAmbiguousParse<ParseException, Result, T>(value.GetPath(), old_type);
     } else {
         // No result yet
         try {
             result = value.template As<T>();
-        } catch (const std::exception&) {
+        } catch (const std::exception& e) {
+            errors = fmt::format("{}\n* Failed to parse as {}: {}", errors, compiler::GetTypeName<T>(), e.what());
         }
     }
 }
@@ -69,16 +77,20 @@ std::variant<decltype(Parse(std::declval<Value>(), To<Types>{}))...>
 Parse(const Value& value, formats::parse::To<std::variant<Types...>>) {
     std::optional<std::variant<decltype(Parse(std::declval<Value>(), To<Types>{}))...>> result;
 
+    std::string errors;
+
     if constexpr (std::is_same_v<Value, formats::json::Value>) {
         Value value2{value};
         value2.DropRootPath();
-        (impl::ParseVariantSingle<Types>(value2, result), ...);
+        (impl::ParseVariantSingle<Types>(value2, result, errors), ...);
     } else {
-        (impl::ParseVariantSingle<Types>(value, result), ...);
+        (impl::ParseVariantSingle<Types>(value, result, errors), ...);
     }
 
     if (!result) {
-        ThrowVariantParseException<typename Value::ParseException, std::variant<Types...>>(value.GetPath());
+        formats::parse::ThrowVariantParseException<
+            typename Value::ParseException,
+            std::variant<Types...>>(value.GetPath(), errors);
     }
 
     return std::move(*result);

@@ -108,7 +108,7 @@ INSTANTIATE_TEST_SUITE_P(
             WrapperMessageData{0, 0, 0, 0, 0, 0, false, "", ""},
         },
         WrapperFromJsonSuccessTestParam{
-            // using 1.5 for doubles because it is represented without precision loss in IEEE 754
+            // Using 1.5 for doubles because it is represented without precision loss in IEEE 754.
             R"({
                "field1":1.5,
                "field2":1.5,
@@ -123,7 +123,7 @@ INSTANTIATE_TEST_SUITE_P(
             WrapperMessageData{1.5, 1.5, -123, 123, -321, 321, true, "hello", "world"},
         },
         WrapperFromJsonSuccessTestParam{
-            // using 1.5 for doubles because it is represented without precision loss in IEEE 754
+            // Using 1.5 for doubles because it is represented without precision loss in IEEE 754.
             R"({
                "field3":"-123",
                "field5":-321,

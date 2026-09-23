@@ -23,7 +23,7 @@ namespace crypto {
 /// Base signer class
 class Signer : public NamedAlgo {
 public:
-    explicit Signer(const std::string& name);
+    explicit Signer(std::string name);
     ~Signer() override;
 
     /// Signs a raw message, returning the signature
@@ -67,7 +67,7 @@ template <DsaType Type, DigestSize Bits>
 class DsaSigner final : public Signer {
 public:
     /// Constructor from a PEM-encoded private key and an optional passphrase
-    explicit DsaSigner(const std::string& privkey, const std::string& password = {});
+    explicit DsaSigner(std::string_view privkey, std::string_view password = {});
 
     /// Signs a raw message, returning the signature
     std::string Sign(std::initializer_list<std::string_view> data) const override;
@@ -145,6 +145,7 @@ private:
     PrivateKey pkey_;
 };
 
+/// @brief Non-cryptographic signature helpers.
 namespace weak {
 
 /// Outputs RSASSA signature using SHA-1 and PKCS1 padding.

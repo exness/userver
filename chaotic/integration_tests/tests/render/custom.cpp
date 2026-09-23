@@ -3,10 +3,14 @@
 #include <userver/formats/json/exception.hpp>
 #include <userver/formats/json/inline.hpp>
 #include <userver/formats/json/parser/exception.hpp>
+#include <userver/formats/json/serialize.hpp>
 #include <userver/formats/json/value_builder.hpp>
 
 #include <schemas/array_of_xcpptype.hpp>
 #include <schemas/custom_cpp_type.hpp>
+#include <schemas/custom_cpp_type_sax_parsers.hpp>
+
+#include "helper.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
@@ -14,9 +18,29 @@ TEST(Custom, Int) {
     auto json = formats::json::MakeObject("integer", 12);
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.integer, std::chrono::milliseconds(12));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
+
+    const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
+    EXPECT_EQ(custom2, custom);
+    EXPECT_EQ(TestWriteToStream(custom), json);
+}
+
+TEST(Custom, IntSax) {
+    auto json = formats::json::MakeObject("integer", 12);
+    auto custom = CallSaxParser<ns::ObjWithCustom>(ToString(json));
+    EXPECT_EQ(custom.integer, std::chrono::milliseconds(12));
+    EXPECT_EQ(TestWriteToStream(custom), json);
+}
+
+TEST(Custom, Ms) {
+    auto json = formats::json::MakeObject("ms", "12ms");
+    auto custom = json.As<ns::ObjWithCustom>();
+    EXPECT_EQ(custom.ms, std::chrono::milliseconds(12));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
+
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -26,9 +50,9 @@ TEST(Custom, String) {
     auto json = formats::json::MakeObject("string", "make love");
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.string, my::CustomString{"make love"});
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -38,9 +62,9 @@ TEST(Custom, Decimal) {
     auto json = formats::json::MakeObject("decimal", "12.3456789");
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.decimal, decimal64::Decimal<10>::FromBiased(1234567890, 8));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -50,21 +74,30 @@ TEST(Custom, Boolean) {
     auto json = formats::json::MakeObject("boolean", true);
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.boolean, my::CustomBoolean{true});
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
+}
+
+TEST(Custom, SizeTMinimum) {
+    auto json = formats::json::MakeObject("sizet", -1);
+    UEXPECT_THROW_MSG(
+        json.As<ns::ObjWithCustom>(),
+        chaotic::Error<formats::json::Value>,
+        "Error at path 'sizet': Invalid value, minimum=0, given=-1"
+    );
 }
 
 TEST(Custom, Number) {
     auto json = formats::json::MakeObject("number", 1.23);
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.number, my::CustomNumber{1.23});
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -74,9 +107,9 @@ TEST(Custom, Object) {
     auto json = formats::json::MakeObject("object", formats::json::MakeObject("foo", "bar"));
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.object, my::CustomObject{"bar"});
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -86,9 +119,9 @@ TEST(Custom, XCppContainer) {
     auto json = formats::json::MakeObject("std_array", formats::json::MakeArray("bar", "foo"));
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.std_array, (std::set<std::string>{"foo", "bar"}));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -98,9 +131,9 @@ TEST(Custom, XCppType) {
     auto json = formats::json::MakeObject("custom_array", formats::json::MakeArray("bar", "foo"));
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.custom_array, (my::CustomArray<std::string>{std::set<std::string>{"foo", "bar"}}));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -110,9 +143,9 @@ TEST(Custom, OneOf) {
     auto json = formats::json::MakeObject("oneOf", 5);
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(*custom.oneOf, my::CustomOneOf(5));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json) << ToString(json_back) << " " << ToString(json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -125,9 +158,9 @@ TEST(Custom, OneOfWithDiscriminator) {
     );
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.oneOfWithDiscriminator, my::CustomOneOfWithDiscriminator(3));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -137,9 +170,9 @@ TEST(Custom, AllOf) {
     auto json = formats::json::MakeObject("allOf", formats::json::MakeObject("field1", "foo", "field2", "bar"));
     auto custom = json.As<ns::ObjWithCustom>();
     EXPECT_EQ(custom.allOf, (my::CustomAllOf{"foo", "bar"}));
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     const auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjWithCustom>{});
     EXPECT_EQ(custom2, custom);
@@ -184,9 +217,9 @@ TEST(Custom, ArrayOfXCppType) {
         {"additional3", std::vector<my::Point>{}},
     };
     EXPECT_EQ(custom, ethalon);
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjectArrayOfXCppType>{});
     EXPECT_EQ(custom2, ethalon);
@@ -218,12 +251,28 @@ TEST(Custom, ArrayOfXCppTypeValidation) {
         {"additional2", std::vector<my::Point>{my::Point{5, 6}, my::Point{7, 8}}},
     };
     EXPECT_EQ(custom, ethalon);
+    EXPECT_EQ(TestToJsonString(custom), TestDomSerializer(custom));
 
-    auto json_back = formats::json::ValueBuilder{custom}.ExtractValue();
-    EXPECT_EQ(json_back, json);
+    EXPECT_EQ(TestDomSerializer(custom), json);
 
     auto custom2 = FromJsonString(ToString(json), formats::parse::To<ns::ObjectNonZeroArrayOfXCppType>{});
     EXPECT_EQ(custom2, ethalon);
+
+    auto too_long_json = formats::json::MakeObject(
+        "too_long",
+        formats::json::MakeArray(
+            formats::json::MakeObject("lon", 1, "lat", 1),
+            formats::json::MakeObject("lon", 2, "lat", 2),
+            formats::json::MakeObject("lon", 3, "lat", 3),
+            formats::json::MakeObject("lon", 4, "lat", 4),
+            formats::json::MakeObject("lon", 5, "lat", 5)
+        )
+    );
+    UEXPECT_THROW_MSG(
+        too_long_json.As<ns::ObjectNonZeroArrayOfXCppType>(),
+        chaotic::Error<formats::json::Value>,
+        "Error at path 'too_long': Too long array, maximum length=4, given=5"
+    );
 
     auto too_short_json = formats::json::MakeObject("too_short", formats::json::MakeArray());
     UEXPECT_THROW_MSG(

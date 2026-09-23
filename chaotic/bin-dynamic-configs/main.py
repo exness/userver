@@ -11,7 +11,18 @@ if (BINDIR / '..' / 'chaotic' / 'main.py').exists():
 else:
     sys.path.append(str(BINDIR.parent / 'lib' / 'userver'))
 
-from chaotic.compilers import dynamic_config  # noqa: E402
+
+def make_compiler():
+    try:
+        from util.dynamic_configs import dynamic_configs as taxi_dynamic_config
+    except ModuleNotFoundError as error:
+        if error.name not in {'util', 'util.dynamic_configs'}:
+            raise
+        from chaotic.compilers import dynamic_config
+
+        return dynamic_config.Compiler(strict_parsing_default=False)
+
+    return taxi_dynamic_config.Compiler(strict_parsing_default=False)
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,7 +38,16 @@ def parse_args() -> argparse.Namespace:
         '-I',
         '--include-dir',
         action='append',
-        help='Path to search for include files for x-usrv-cpp-type',
+        help=(
+            'Path to search for include files for x-usrv-cpp-type, used only '
+            'to produce a nicer error message if the header is missing.'
+        ),
+    )
+    parser.add_argument(
+        '--no-check-includes',
+        action='store_false',
+        dest='check_includes',
+        help='Do not check that x-usrv-cpp-type headers exist',
     )
     parser.add_argument(
         '--clang-format',
@@ -49,18 +69,19 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
     for file in args.file:
-        compiler = dynamic_config.Compiler()
+        compiler = make_compiler()
         name = pathlib.Path(file).stem
         compiler.parse_variable(
             file,
             name,
-            include_dirs=(args.include_dir or []),
+            include_dirs=None if not args.check_includes else args.include_dir or [],
             namespace='dynamic_config',
         )
         compiler.generate_variable(
             name,
             args.output_dir,
             parse_extra_formats=True,
+            generate_stream_writer=False,
             generate_taxi_aliases=False,
             namespace='dynamic_config',
         )

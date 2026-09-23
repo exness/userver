@@ -125,7 +125,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientReadManyRead) {
     CheckSuccessRead(call, response, "Two userver");
     CheckSuccessRead(call, response, "Three userver");
 
-    UEXPECT_THROW(res = call.Read(response), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW(res = call.Read(response), ugrpc::client::RpcCancelledError);
 
     EXPECT_FALSE(call.Read(response));
 }
@@ -144,7 +144,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientWriteManyWriteAndCheck) {
     WaitClientDeadline();
 
     request.set_name(tests::kRequests[2]);
-    UEXPECT_THROW(call.WriteAndCheck(request), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW(call.WriteAndCheck(request), ugrpc::client::RpcCancelledError);
 
     EXPECT_FALSE(call.Write(sample::ugrpc::StreamGreetingRequest()));
     UEXPECT_THROW_MSG(
@@ -165,7 +165,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientWriteManyFinish) {
     CheckSuccessWrite(call, request, tests::kRequests[1]);
     CheckSuccessWrite(call, request, tests::kRequests[2]);
 
-    UEXPECT_THROW(response = call.Finish(), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW(response = call.Finish(), ugrpc::client::RpcCancelledError);
 
     EXPECT_FALSE(call.Write(sample::ugrpc::StreamGreetingRequest()));
     UEXPECT_THROW_MSG(
@@ -200,7 +200,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientChatWrite) {
         ugrpc::client::RpcError,
         "'WriteAndCheck' called on a finished or closed stream"
     );
-    UEXPECT_THROW([[maybe_unused]] auto _ = call.Read(response), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW([[maybe_unused]] auto _ = call.Read(response), ugrpc::client::RpcCancelledError);
     EXPECT_FALSE(call.Read(response));
     UEXPECT_THROW_MSG(
         [[maybe_unused]] auto _ = call.ReadAsync(response),
@@ -227,7 +227,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientChatRead) {
     CheckSuccessRead(call, response, "One request1");
     CheckSuccessRead(call, response, "Two request2");
 
-    UEXPECT_THROW(res = call.Read(response), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW(res = call.Read(response), ugrpc::client::RpcCancelledError);
 
     EXPECT_FALSE(call.Write(sample::ugrpc::StreamGreetingRequest()));
     EXPECT_FALSE(call.WritesDone());
@@ -261,7 +261,7 @@ UTEST_F(GrpcDeadlinePropagation, TestClientChatReadAsync) {
     CheckSuccessRead(call, response, "Two request2");
 
     auto future = call.ReadAsync(response);
-    UEXPECT_THROW(future.Get(), ugrpc::client::DeadlineExceededError);
+    UEXPECT_THROW(future.Get(), ugrpc::client::RpcCancelledError);
 
     EXPECT_FALSE(call.Write(sample::ugrpc::StreamGreetingRequest()));
     EXPECT_FALSE(call.WritesDone());
@@ -418,7 +418,7 @@ UTEST_F(UnitTestClientInfiniteTest, NegativeDeadline) {
     ugrpc::client::CallOptions call_options;
     call_options.SetDeadline(engine::Deadline::FromDuration(std::chrono::milliseconds{-10}));
 
-    auto task = engine::AsyncNoSpan([&] { return GetClient().SayHello({}, std::move(call_options)); });
+    auto task = engine::AsyncNoTracing([&] { return GetClient().SayHello({}, std::move(call_options)); });
 
     // Check that SayHello did not hang.
     const auto wait_status = task.WaitNothrowUntil(engine::Deadline::FromDuration(utest::kMaxTestWaitTime / 2));

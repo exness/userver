@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include <fmt/format.h>
 #include <gtest/gtest.h>
 #include <boost/uuid/uuid_generators.hpp>
 

@@ -3,6 +3,7 @@
 /// @file
 /// @brief Structs future wrapper over Vanilla ResponseFufure.
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/proto-structs/convert.hpp>
 #include <userver/ugrpc/client/response_future.hpp>
 #include <userver/ugrpc/client/stream.hpp>
@@ -54,10 +55,10 @@ public:
     /// @overload
     const ugrpc::client::CallContext& GetContext() const { return future_.GetContext(); }
 
-    /// @cond
-    // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return future_.TryGetContextAccessor(); }
-    /// @endcond
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+        return future_.GetAwaitableToken();
+    }
 
 private:
     VanillaFuture future_;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <userver/storages/redis/command_control.hpp>
+
 #include <storages/redis/util_redistest.hpp>
 
 USERVER_NAMESPACE_BEGIN

@@ -204,7 +204,7 @@ void DynamicConfigClientUpdater::UpdateFull(
         const std::lock_guard lock(update_config_mutex_);
         if (IsDuplicate(cache::UpdateType::kFull, docs_map)) {
             stats.FinishNoChanges();
-            server_timestamp_ = reply.timestamp;
+            server_timestamp_ = std::move(reply.timestamp);
             return;
         }
 
@@ -213,7 +213,7 @@ void DynamicConfigClientUpdater::UpdateFull(
     }
 
     stats.Finish(size);
-    server_timestamp_ = reply.timestamp;
+    server_timestamp_ = std::move(reply.timestamp);
 }
 
 void DynamicConfigClientUpdater::UpdateIncremental(

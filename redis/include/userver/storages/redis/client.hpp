@@ -1,14 +1,14 @@
 #pragma once
 
 /// @file userver/storages/redis/client.hpp
-/// @brief @copybrief storages::redis::Client
+/// @brief Valkey or Redis client
 
 #include <chrono>
 #include <memory>
 #include <string>
 
 #include <userver/storages/redis/base.hpp>
-#include <userver/storages/redis/wait_connected_mode.hpp>
+#include <userver/storages/redis/health_check_param.hpp>
 
 #include <userver/storages/redis/bit_operation.hpp>
 #include <userver/storages/redis/client_fwd.hpp>
@@ -36,7 +36,7 @@ enum class PubShard {
 ///
 /// ## Example usage:
 ///
-/// @snippet storages/redis/client_redistest.cpp  Sample Redis Client usage
+/// @snippet redis/src/storages/redis/client_redistest.cpp  Sample Redis Client usage
 class Client {
 public:
     virtual ~Client() = default;
@@ -49,6 +49,9 @@ public:
     void CheckShardIdx(size_t shard_idx) const;
 
     virtual void WaitConnectedOnce(RedisWaitConnected wait_connected) = 0;
+    virtual bool IsReady(const HealthCheckParams& params) const = 0;
+
+    bool IsReady(WaitConnectedMode mode) const { return IsReady(HealthCheckParams{mode, 0, 0}); }
 
     // redis commands:
 
@@ -147,7 +150,10 @@ public:
     }
 
     /// @brief Execute a custom Redis command.
+    /// @param command Redis command name
+    /// @param args command arguments
     /// @param key_index Index of the key in the args vector used to determine the shard
+    /// @param command_control per-command execution options
     ///
     /// Sample usage:
     /// @snippet redis/src/storages/redis/client_cluster_redistest.cpp  Sample generic command usage
@@ -254,6 +260,8 @@ public:
     ) = 0;
 
     virtual RequestGet Get(std::string key, const CommandControl& command_control) = 0;
+
+    virtual RequestGetdel Getdel(std::string key, const CommandControl& command_control) = 0;
 
     virtual RequestGetset Getset(std::string key, std::string value, const CommandControl& command_control) = 0;
 
@@ -373,6 +381,27 @@ public:
         const CommandControl& command_control
     ) = 0;
 
+    /// @brief Atomically set multiple key-value pairs, without an expiration clause.
+    ///
+    /// Available since Valkey 9.1.0 and Redis 8.4.0. In cluster mode all keys
+    /// must belong to the same hash slot; use a common hash tag to ensure that.
+    /// @throws InvalidArgumentException in cluster mode if the keys belong to different hash slots
+    virtual RequestMsetex Msetex(
+        std::vector<std::pair<std::string, std::string>> key_values,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Atomically set multiple key-value pairs with optional existence and TTL conditions.
+    ///
+    /// Available since Valkey 9.1.0 and Redis 8.4.0. In cluster mode all keys
+    /// must belong to the same hash slot; use a common hash tag to ensure that.
+    /// @throws InvalidArgumentException in cluster mode if the keys belong to different hash slots
+    virtual RequestMsetex Msetex(
+        std::vector<std::pair<std::string, std::string>> key_values,
+        MsetexOptions options,
+        const CommandControl& command_control
+    ) = 0;
+
     virtual TransactionPtr Multi() = 0;
 
     virtual TransactionPtr Multi(Transaction::CheckShards check_shards) = 0;
@@ -481,6 +510,13 @@ public:
         std::string key,
         std::chrono::seconds seconds,
         std::string value,
+        const CommandControl& command_control
+    ) = 0;
+
+    virtual RequestSetAndGetPrevious SetAndGetPrevious(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl,
         const CommandControl& command_control
     ) = 0;
 
@@ -671,6 +707,193 @@ public:
     virtual RequestZscan Zscan(std::string key, ZscanOptions options, const CommandControl& command_control) = 0;
 
     virtual RequestZscore Zscore(std::string key, std::string member, const CommandControl& command_control) = 0;
+
+    // Hash field expiration commands:
+
+    /// @brief Set TTL (in seconds) on one or more hash fields (HEXPIRE).
+    virtual RequestHexpire Hexpire(
+        std::string key,
+        std::chrono::seconds ttl,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set TTL (in seconds) on one or more hash fields with NX/XX/GT/LT modifier (HEXPIRE).
+    virtual RequestHexpire Hexpire(
+        std::string key,
+        std::chrono::seconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set TTL (in milliseconds) on one or more hash fields (HPEXPIRE).
+    virtual RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set TTL (in milliseconds) on one or more hash fields with NX/XX/GT/LT modifier (HPEXPIRE).
+    virtual RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set absolute expiration deadline on one or more hash fields (HEXPIREAT, seconds-precision).
+    virtual RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set absolute expiration deadline on one or more hash fields with modifier (HEXPIREAT).
+    virtual RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set absolute expiration deadline on one or more hash fields (HPEXPIREAT, ms-precision).
+    virtual RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set absolute expiration deadline on one or more hash fields with modifier (HPEXPIREAT).
+    virtual RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get absolute expiration unix timestamp (seconds) of one or more hash fields (HEXPIRETIME).
+    virtual RequestHexpiretime Hexpiretime(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get absolute expiration unix timestamp (ms) of one or more hash fields (HPEXPIRETIME).
+    virtual RequestHpexpiretime Hpexpiretime(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get remaining TTL (in seconds) of one or more hash fields (HTTL).
+    virtual RequestHttl Httl(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get remaining TTL (in milliseconds) of one or more hash fields (HPTTL).
+    virtual RequestHpttl Hpttl(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Remove the TTL from one or more hash fields.
+    virtual RequestHpersist Hpersist(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get the values of one or more hash fields.
+    virtual RequestHgetex Hgetex(
+        std::string key,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get the values of one or more hash fields, optionally updating their TTL.
+    virtual RequestHgetex Hgetex(
+        std::string key,
+        HgetexOptions options,
+        std::vector<std::string> fields,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set one or more field/value pairs in a hash without a TTL clause.
+    virtual RequestHsetex Hsetex(
+        std::string key,
+        std::vector<HsetexFieldValue> field_values,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set one or more field/value pairs in a hash with optional FNX|FXX and TTL modifiers.
+    virtual RequestHsetex Hsetex(
+        std::string key,
+        HsetexOptions options,
+        std::vector<HsetexFieldValue> field_values,
+        const CommandControl& command_control
+    ) = 0;
+
+    // JSON module commands:
+
+    /// @brief Set a JSON value at the given key and path.
+    virtual RequestJsonSet JsonSet(
+        std::string key,
+        std::string path,
+        formats::json::Value value,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set a JSON value only if the path does not already exist (NX).
+    virtual RequestJsonSetIfNotExist JsonSetIfNotExist(
+        std::string key,
+        std::string path,
+        formats::json::Value value,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set a JSON value only if the path already exists (XX).
+    virtual RequestJsonSetIfExist JsonSetIfExist(
+        std::string key,
+        std::string path,
+        formats::json::Value value,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get the JSON value at the root path of the given key.
+    virtual RequestJsonGet JsonGet(std::string key, const CommandControl& command_control) = 0;
+
+    /// @brief Get the JSON value at the given path of the given key.
+    virtual RequestJsonGet JsonGet(std::string key, std::string path, const CommandControl& command_control) = 0;
+
+    /// @brief Get the JSON value at multiple paths of the given key.
+    virtual RequestJsonGet JsonGet(
+        std::string key,
+        std::vector<std::string> paths,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Get JSON values from multiple keys at the given path.
+    virtual RequestJsonMget JsonMget(
+        std::vector<std::string> keys,
+        std::string path,
+        const CommandControl& command_control
+    ) = 0;
+
+    /// @brief Set JSON values for multiple key-path-value triplets.
+    virtual RequestJsonMset JsonMset(
+        std::vector<JsonKeyPathValue> key_path_values,
+        const CommandControl& command_control
+    ) = 0;
 
     // end of redis commands
 

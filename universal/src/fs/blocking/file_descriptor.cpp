@@ -4,7 +4,9 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <unistd.h>
+#include <numeric>
 #include <system_error>
 #include <utility>
 
@@ -12,6 +14,7 @@
 
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
+#include <userver/utils/iovec_advance.hpp>
 #include <utils/check_syscall.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -82,7 +85,7 @@ FileDescriptor::FileDescriptor(int fd)
     UASSERT(fd != kNoFd);
 }
 
-FileDescriptor FileDescriptor::Open(const std::string& path, OpenMode flags, boost::filesystem::perms perms) {
+FileDescriptor FileDescriptor::Open(utils::zstring_view path, OpenMode flags, boost::filesystem::perms perms) {
     UASSERT(!path.empty());
     const auto fd = utils::CheckSyscall(::open(path.c_str(), ToNative(flags), perms), "opening file '{}'", path);
     return FileDescriptor{fd};
@@ -93,7 +96,7 @@ FileDescriptor FileDescriptor::AdoptFd(int fd) noexcept {
     return FileDescriptor{fd};
 }
 
-FileDescriptor FileDescriptor::OpenDirectory(const std::string& path) {
+FileDescriptor FileDescriptor::OpenDirectory(utils::zstring_view path) {
     UASSERT(!path.empty());
     const auto fd = utils::CheckSyscall(::open(path.c_str(), O_RDONLY | O_DIRECTORY), "opening directory '{}'", path);
     return FileDescriptor{fd};
@@ -125,14 +128,14 @@ FileDescriptor::~FileDescriptor() {
     }
 }
 
-bool FileDescriptor::IsOpen() const { return fd_ != kNoFd; }
+bool FileDescriptor::IsOpen() const noexcept { return fd_ != kNoFd; }
 
 void FileDescriptor::Close() && {
     const auto fd = std::exchange(fd_, kNoFd);
     utils::CheckSyscall(::close(fd), "calling ::close");
 }
 
-int FileDescriptor::GetNative() const { return fd_; }
+int FileDescriptor::GetNative() const noexcept { return fd_; }
 
 int FileDescriptor::Release() && { return std::exchange(fd_, kNoFd); }
 
@@ -158,9 +161,47 @@ void FileDescriptor::Write(std::string_view contents) {
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const)
-std::size_t FileDescriptor::Read(char* buffer, std::size_t max_size) {
+void FileDescriptor::Write(std::span<const struct iovec> contents) {
+    if (contents.empty()) {
+        return;
+    }
+
+    const auto* list = contents.data();
+    auto list_size = contents.size();
+    do {
+        const auto chunk_size = ::writev(fd_, list, (list_size < IOV_MAX ? list_size : IOV_MAX));
+        if (chunk_size < 0) {
+            if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            }
+
+            const auto code = std::make_error_code(std::errc{errno});
+            throw std::system_error(code, "calling ::writev");
+        } else if (chunk_size > 0) {
+            utils::IovIter iter{list, list_size};
+            utils::Advance(iter, chunk_size);
+            if (0 == iter.iov_offset) {
+                list = iter.iov;
+                list_size = iter.iov_size;
+            } else [[unlikely]] {
+                // Never happens?
+                struct iovec iov = *iter.iov;
+                utils::Advance(iov, iter.iov_offset);
+                Write(std::string_view{static_cast<char*>(iov.iov_base), iov.iov_len});
+                list = iter.iov + 1;
+                list_size = iter.iov_size - 1;
+            }
+        } else [[unlikely]] {
+            UASSERT(chunk_size == 0);
+            break;
+        }
+    } while (list_size != 0);
+}
+
+// NOLINTNEXTLINE(readability-make-member-function-const)
+std::size_t FileDescriptor::Read(std::span<char> buffer) {
     while (true) {
-        const ::ssize_t s = ::read(fd_, buffer, max_size);
+        const ::ssize_t s = ::read(fd_, buffer.data(), buffer.size());
         if (s < 0) {
             if (errno == EAGAIN || errno == EINTR) {
                 continue;

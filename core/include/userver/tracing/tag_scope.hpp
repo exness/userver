@@ -4,6 +4,7 @@
 /// @brief @copybrief tracing::TagScope
 
 #include <string>
+#include <vector>
 
 #include <userver/logging/log_extra.hpp>
 #include <userver/tracing/span.hpp>
@@ -16,7 +17,7 @@ namespace tracing {
 /// in constructor and reverts these actions in destructor.
 ///
 /// ## Example usage:
-/// @snippet tracing/tag_scope_test.cpp  TagScope - sample
+/// @snippet core/src/tracing/tag_scope_test.cpp  TagScope - sample
 class TagScope {
 public:
     explicit TagScope(

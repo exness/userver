@@ -21,6 +21,7 @@ components:
                     type: string
                 a_prop:
                     type: integer
+            x-taxi-extra-member: true
         B:
             type: object
             additionalProperties: true
@@ -30,6 +31,7 @@ components:
                 b_prop:
                     type: integer
 
+            x-taxi-extra-member: true
         IntegerOneOfDiscriminator:
             type: object
             additionalProperties: false

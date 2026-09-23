@@ -60,6 +60,7 @@ void ConsumerBase::Start() {
     }
 
     monitor_.Start(fmt::format("{}_consumer_monitor", settings_.queue.GetUnderlying()), {kMonitorInterval}, [this] {
+        LOG_DEBUG("Checking for queue {} state", settings_.queue.GetUnderlying());
         if (impl_ == nullptr || impl_->IsBroken()) {
             LOG_WARNING()
                 << "Consumer for queue '" << settings_.queue.GetUnderlying() << "' is broken, trying to restart";
@@ -76,6 +77,8 @@ void ConsumerBase::Start() {
             } catch (const std::exception& ex) {
                 LOG_WARNING() << "Failed to restart a consumer: '" << ex.what() << "'; will try to restart again";
             }
+        } else {
+            LOG_DEBUG("Consumer for queue {} is ok", settings_.queue.GetUnderlying());
         }
     });
 }

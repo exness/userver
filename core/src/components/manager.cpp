@@ -1,14 +1,13 @@
 #include <components/manager.hpp>
 
 #include <chrono>
+#include <ranges>
 #include <set>
 #include <stdexcept>
 #include <thread>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <fmt/ranges.h>
-#include <boost/range/adaptor/map.hpp>
-#include <boost/range/adaptor/transformed.hpp>
 
 #include <components/component_context_impl.hpp>
 #include <components/manager_config.hpp>
@@ -19,6 +18,7 @@
 #include <userver/components/component_list.hpp>
 #include <userver/engine/async.hpp>
 #include <userver/engine/task/current_task.hpp>
+#include <userver/engine/wait_all_checked.hpp>
 #include <userver/hostinfo/cpu_limit.hpp>
 #include <userver/logging/component.hpp>
 #include <userver/logging/log.hpp>
@@ -37,7 +37,7 @@ constexpr std::size_t kDefaultHwThreadsEstimate = 512;
 template <typename Func>
 auto RunInCoro(engine::TaskProcessor& task_processor, Func&& func) {
     UASSERT(!engine::current_task::IsTaskProcessorThread());
-    auto task = engine::CriticalAsyncNoSpan(task_processor, std::forward<Func>(func));
+    auto task = engine::CriticalAsyncNoTracing(task_processor, std::forward<Func>(func));
     task.BlockingWait();
     return task.Get();
 }
@@ -143,8 +143,8 @@ void Manager::TaskProcessorsStorage::Add(std::string name, std::unique_ptr<engin
 
 void Manager::TaskProcessorsStorage::WaitForAllTasksBlocking() const noexcept {
     const auto indicators =
-        task_processors_map_ | boost::adaptors::map_values |
-        boost::adaptors::transformed([](const auto& task_processor_ptr) -> const auto& {
+        task_processors_map_ | std::views::values |
+        std::views::transform([](const auto& task_processor_ptr) -> const auto& {
             const engine::TaskProcessor& task_processor = *task_processor_ptr;
             return task_processor.GetTaskCounter();
         });
@@ -219,7 +219,7 @@ Manager::Manager(std::unique_ptr<ManagerConfig>&& config, std::chrono::steady_cl
 }
 
 engine::TaskWithResult<void> Manager::StartComponentSystem(const ComponentList& component_list, bool signal_on_stop) {
-    return engine::CriticalAsyncNoSpan(*default_task_processor_, [this, &component_list, signal_on_stop]() {
+    return engine::CriticalAsyncNoTracing(*default_task_processor_, [this, &component_list, signal_on_stop]() {
         try {
             CreateComponentContext(component_list);
             if (!config_->disable_phdr_cache) {
@@ -275,7 +275,7 @@ const TaskProcessorsMap& Manager::GetTaskProcessorsMap() const { return task_pro
 
 engine::TaskProcessor& Manager::GetTaskProcessor(std::string_view name) const {
     const auto& map = task_processors_storage_.GetMap();
-    if (const auto* const task_processor = utils::impl::FindTransparentOrNullptr(map, name)) {
+    if (const auto* const task_processor = utils::FindOrNullptr(map, name)) {
         return **task_processor;
     }
     throw std::runtime_error(fmt::format("Failed to find task processor with name: {}", name));
@@ -367,49 +367,46 @@ components::ComponentConfigMap Manager::MakeComponentConfigMap(const ComponentLi
 }
 
 void Manager::AddComponents(const ComponentList& component_list) {
-    const auto component_config_map = MakeComponentConfigMap(component_list);
-
     auto start_time = std::chrono::steady_clock::now();
-    std::vector<engine::TaskWithResult<void>> tasks;
-    bool is_load_cancelled = false;
-    try {
-        ValidateConfigs(component_list, component_config_map, config_->validate_components_configs);
 
+    const auto component_config_map = MakeComponentConfigMap(component_list);
+    ValidateConfigs(component_list, component_config_map, config_->validate_components_configs);
+
+    std::atomic<bool> is_first_std_exception{true};
+    std::vector<engine::TaskWithResult<void>> tasks;
+
+    try {
         for (const auto& adder : component_list) {
             const auto& component_name = adder->GetComponentName();
             auto task_name = "boot/" + component_name;
-            tasks.push_back(utils::CriticalAsync(std::move(task_name), [&]() {
+
+            tasks.push_back(utils::CriticalAsync(std::move(task_name), [&] {
                 tracing::Span::CurrentSpan().AddTag("component_name", component_name);
                 tracing::Span::CurrentSpan().SetLogLevel(logging::Level::kDebug);
                 try {
                     AddComponentImpl(component_config_map, component_name, *adder);
-                } catch (const ComponentsLoadCancelledException& ex) {
-                    LOG_WARNING() << "Cannot start component " << component_name << ": " << ex;
-                    component_context_->CancelComponentsLoad();
-                    throw;
                 } catch (const std::exception& ex) {
-                    LOG_ERROR() << "Cannot start component " << component_name << ": " << ex;
-                    component_context_->CancelComponentsLoad();
+                    const bool is_likely_root_cause_of_startup_failure = is_first_std_exception.exchange(false);
+                    const auto log_level =
+                        is_likely_root_cause_of_startup_failure ? logging::Level::kError : logging::Level::kWarning;
+                    LOG(log_level) << "Cannot start component " << component_name << ": " << ex;
                     throw std::runtime_error(fmt::format("Cannot start component {}: {}", component_name, ex.what()));
-                } catch (...) {
-                    component_context_->CancelComponentsLoad();
-                    throw;
                 }
             }));
         }
 
-        for (auto& task : tasks) {
-            try {
-                task.Get();
-            } catch (const ComponentsLoadCancelledException&) {
-                is_load_cancelled = true;
-            }
-        }
+        // Wait for tasks in completion order and rethrow exceptions as soon as possible.
+        engine::WaitAllChecked(tasks);
     } catch (const std::exception& ex) {
         component_context_->CancelComponentsLoad();
 
-        /* Wait for all tasks to exit, but don't .Get() them - we've already caught
-         * an exception, ignore the rest */
+        // Cancel and wait for all tasks to exit, but don't .Get() them - we've
+        // already caught an exception, ignore the rest
+        for (auto& task : tasks) {
+            if (task.IsValid()) {
+                task.RequestCancel();
+            }
+        }
         for (auto& task : tasks) {
             if (task.IsValid()) {
                 task.Wait();
@@ -418,14 +415,6 @@ void Manager::AddComponents(const ComponentList& component_list) {
 
         ClearComponents();
         throw;
-    }
-
-    if (is_load_cancelled) {
-        ClearComponents();
-        throw std::logic_error(
-            "Components load cancelled, but only ComponentsLoadCancelledExceptions "
-            "were caught"
-        );
     }
 
     LOG_INFO()

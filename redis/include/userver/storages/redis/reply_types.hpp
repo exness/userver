@@ -9,7 +9,6 @@
 #include <userver/storages/redis/base.hpp>
 #include <userver/storages/redis/expire_reply.hpp>
 #include <userver/storages/redis/ttl_reply.hpp>
-#include <userver/utils/void_t.hpp>
 
 #include <userver/storages/redis/key_type.hpp>
 #include <userver/storages/redis/reply_fwd.hpp>
@@ -20,6 +19,18 @@ USERVER_NAMESPACE_BEGIN
 namespace storages::redis {
 
 enum class HsetReply { kCreated, kUpdated };
+
+/// @brief Result of HSETEX.
+enum class HsetexReply : std::int8_t {
+    kConditionNotMet = 0,  ///< FNX/FXX condition failed; no fields written
+    kFieldsSet = 1,        ///< Fields written
+};
+
+/// @brief Result of MSETEX.
+enum class MsetexReply : std::int8_t {
+    kConditionNotMet = 0,  ///< NX/XX condition failed; no keys written
+    kKeysSet = 1,          ///< Keys written
+};
 
 struct Point {
     double lon;
@@ -46,8 +57,6 @@ struct GeoPoint final {
     bool operator==(const GeoPoint& rhs) const {
         return std::tie(member, dist, hash, point) == std::tie(rhs.member, rhs.dist, rhs.hash, rhs.point);
     }
-
-    bool operator!=(const GeoPoint& rhs) const { return !(*this == rhs); }
 };
 
 /// @brief Data type that holds `member` and `score`.
@@ -73,11 +82,24 @@ struct MemberScore final {
     operator std::pair<const std::string, double>() && { return {std::move(member), score}; }
 
     bool operator==(const MemberScore& rhs) const { return member == rhs.member && score == rhs.score; }
-
-    bool operator!=(const MemberScore& rhs) const { return !(*this == rhs); }
 };
 
 enum class PersistReply { kKeyOrTimeoutNotFound, kTimeoutRemoved };
+
+/// @brief Per-field result of HEXPIRE / HPEXPIRE / HEXPIREAT / HPEXPIREAT.
+enum class HexpireReply : std::int8_t {
+    kFieldDoesNotExist = -2,
+    kConditionNotMet = 0,    ///< NX/XX/GT/LT predicate failed
+    kExpirationUpdated = 1,  ///< TTL applied
+    kFieldDeleted = 2,       ///< ttl <= 0 / already in the past — field removed
+};
+
+/// @brief Per-field result of HPERSIST.
+enum class HpersistReply : std::int8_t {
+    kFieldDoesNotExist = -2,
+    kFieldHasNoExpiration = -1,
+    kExpirationRemoved = 1,
+};
 
 template <ScanTag>
 struct ScanReplyElem;

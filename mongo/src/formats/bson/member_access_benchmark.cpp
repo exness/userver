@@ -105,7 +105,7 @@ void bson_path_first_access(benchmark::State& state) {
         auto bson = formats::bson::FromJsonString(bench_bson_data);
         state.ResumeTiming();
 
-        const auto res =
+        auto res =
             (bson["nested_very_long_long_long_long_path"]["deeply"]["deeply"]["nested"]["bson"]["value"]["with"]["some"]
                  ["data"]
                      .As<std::string>() == "4");

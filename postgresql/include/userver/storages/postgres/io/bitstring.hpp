@@ -33,7 +33,7 @@ template <std::size_t N>
 struct IsBitStringCompatible<std::array<bool, N>> : std::true_type {};
 
 template <typename T>
-inline constexpr bool kIsBitStringCompatible = IsBitStringCompatible<T>::value;
+concept kIsBitStringCompatible = IsBitStringCompatible<T>::value;  // NOLINT(readability-identifier-naming)
 
 template <typename BitContainer, typename Enable = void>
 struct BitContainerTraits;

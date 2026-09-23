@@ -2,13 +2,17 @@ project(userver-chaotic-openapi CXX)
 
 include(ChaoticGen)
 
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/bin/chaotic-openapi-gen" "${CMAKE_CURRENT_BINARY_DIR}/chaotic-openapi-gen" @ONLY
+)
+
 userver_module(
     chaotic-openapi
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
     LINK_LIBRARIES userver-core userver-chaotic
     UTEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*_test.cpp"
     UTEST_LINK_LIBRARIES userver-core userver-chaotic
-    DEPENDS core
+    COMPONENT_DEPENDS core
 )
 
 if(USERVER_BUILD_TESTS)
@@ -35,4 +39,9 @@ _userver_directory_install(
     COMPONENT chaotic-openapi
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/chaotic_openapi"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/userver"
+)
+_userver_directory_install(
+    COMPONENT chaotic-openapi
+    PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/chaotic-openapi-gen"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )

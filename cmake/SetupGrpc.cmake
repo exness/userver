@@ -67,11 +67,13 @@ include(DownloadUsingCPM)
 
 set(USERVER_GPRC_BUILD_FROM_SOURCE ON)
 
+# Prefer a release tarball over a git clone: FetchContent would otherwise run
+# `git submodule update --recursive --init` on grpc's huge third_party tree.
 cpmaddpackage(
     NAME gRPC
     VERSION 1.59.1
-    GITHUB_REPOSITORY grpc/grpc
-    GIT_SHALLOW TRUE
+    URL https://github.com/grpc/grpc/archive/v1.59.1.tar.gz
+    URL_HASH SHA256=916f88a34f06b56432611aaa8c55befee96d0a7b7d7457733b9deeacbc016f99
     SYSTEM
     PATCHES grpc_pr_36805.patch
     OPTIONS "BUILD_SHARED_LIBS OFF"
@@ -110,7 +112,12 @@ if(NOT TARGET "gRPC::grpcpp_channelz")
 endif()
 mark_targets_as_system("${gRPC_SOURCE_DIR}")
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.0)
+# -Wmissing-template-arg-list-after-template-kw was introduced in upstream Clang 19.
+# AppleClang uses its own versioning: AppleClang 17 corresponds to upstream Clang ~19.
+# So we check for Clang >= 19 OR AppleClang >= 17.
+if((CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.0)
+   OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17.0)
+)
     userver_is_cxx_compile_option_supported(
         COMPILER_HAS_MISSING_TEMPLATE_ARG_LIST_AFTER_TEMPLATE_KW -Wno-error=missing-template-arg-list-after-template-kw
     )

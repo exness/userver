@@ -93,7 +93,7 @@ VariantType ReadVariant(Reader& reader, std::size_t index) {
 
 /// @brief Container serialization support
 template <typename T>
-requires(kIsContainer<T> && kIsWritable<meta::RangeValueType<T>>)
+requires(IsContainer<T> && kIsWritable<meta::RangeValueType<T>>)
 void Write(Writer& writer, const T& value) {
     writer.Write(std::size(value));
     for (const auto& item : value) {
@@ -104,7 +104,7 @@ void Write(Writer& writer, const T& value) {
 
 /// @brief Container deserialization support
 template <typename T>
-requires(kIsContainer<T> && kIsReadable<meta::RangeValueType<T>>)
+requires(IsContainer<T> && kIsReadable<meta::RangeValueType<T>>)
 T Read(Reader& reader, To<T>) {
     const auto size = reader.Read<std::size_t>();
     T result{};

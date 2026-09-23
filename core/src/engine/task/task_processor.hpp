@@ -11,12 +11,14 @@
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
 #include <engine/plugin_manager.hpp>
+#include <engine/profiler_execution_plugin.hpp>
 #include <engine/task/task_counter.hpp>
 #include <engine/task/task_processor_config.hpp>
 #include <engine/task/task_queue.hpp>
 #include <engine/task/task_queue_pull_pin.hpp>
 #include <engine/task/task_queue_tsan.hpp>
-#include <engine/task/work_stealing_queue/task_queue.hpp>
+#include <engine/task/work_stealing_queue/queue.hpp>
+#include <engine/trace_state_transition_plugin.hpp>
 #include <engine/tracer_plugin.hpp>
 #include <userver/concurrent/impl/interference_shield.hpp>
 #include <userver/engine/impl/detached_tasks_sync_block.hpp>
@@ -41,7 +43,7 @@ class ThreadPool;
 
 class TaskProcessor final {
 public:
-    using TaskQueueVariant = std::variant<TaskQueue, WorkStealingTaskQueue, TaskQueuePullPin, TaskQueueTSan>;
+    using TaskQueueVariant = std::variant<TaskQueue, fast::Queue, TaskQueuePullPin, TaskQueueTSan>;
 
     TaskProcessor(TaskProcessorConfig, std::shared_ptr<impl::TaskProcessorPools>);
     ~TaskProcessor();
@@ -90,13 +92,17 @@ public:
 
     void SetBlockingTaskProcessor(TaskProcessor& task_processor);
 
-    void HookBeforeSleep(const impl::TaskContext& task) noexcept;
+    void HookBeforeSleep(impl::TaskContext& task) noexcept;
 
-    void HookAfterWakeup(const impl::TaskContext& task) noexcept;
+    void HookAfterWakeup(impl::TaskContext& task) noexcept;
 
-    void HookTaskCreate(const impl::TaskContext& task) noexcept;
+    void HookTaskCreate(impl::TaskContext& task) noexcept;
 
-    void HookTaskDestroy(const impl::TaskContext& task) noexcept;
+    void HookTaskDestroy(impl::TaskContext& task) noexcept;
+
+    void HookTaskStart(impl::TaskContext& task) noexcept;
+
+    void HookTaskStop(impl::TaskContext& task) noexcept;
 
     void RegisterPlugin(PluginBase& plugin);
 
@@ -158,8 +164,10 @@ private:
     std::unique_ptr<utils::statistics::ThreadPoolCpuStatsStorage> cpu_stats_storage_{nullptr};
     TaskProcessor* fs_task_processor_{nullptr};
 
-    // TracePlugin must start before any task is created to account it
+    // TracePlugin must start before any task is created to account it.
     TracePlugin trace_plugin_;
+    TraceStateTransitionPlugin trace_state_transition_plugin_;
+    ProfilerExecutionPlugin profiler_execution_plugin_;
 };
 
 /// Register a function that runs on all threads on task processor creation.

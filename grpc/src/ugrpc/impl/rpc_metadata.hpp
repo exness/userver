@@ -15,6 +15,7 @@ extern const grpc::string kXYaRequestId;
 extern const grpc::string kXBaggage;
 
 extern const grpc::string kTraceParent;
+extern const grpc::string kTraceState;
 
 extern const grpc::string kXYaTaxiRatelimitedBy;
 extern const grpc::string kXYaTaxiRatelimitReason;
@@ -30,6 +31,8 @@ extern const grpc::string kXTestsuiteClientName;
 
 extern const grpc::string kTestsuiteNetworkCode;
 extern const grpc::string kTestsuiteTimeoutCode;
+
+extern const grpc::string kXRequestDeadline;
 
 }  // namespace ugrpc::impl
 

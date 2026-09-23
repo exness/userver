@@ -13,13 +13,15 @@ RedisConnectionHolder::RedisConnectionHolder(
     const std::string& shard_group_name,
     const std::string& host,
     uint16_t port,
-    Password password,
+    Credentials credentials,
     std::size_t database_index,
     CommandsBufferingSettings buffering_settings,
     ReplicationMonitoringSettings replication_monitoring_settings,
     utils::RetryBudgetSettings retry_budget_settings,
     redis::RedisCreationSettings redis_creation_settings,
-    Statistics& stats
+    Statistics& stats,
+    Hysteresis::Config config,
+    std::chrono::seconds max_disconnect_time
 )
     : commands_buffering_settings_(std::move(buffering_settings)),
       replication_monitoring_settings_(std::move(replication_monitoring_settings)),
@@ -29,11 +31,13 @@ RedisConnectionHolder::RedisConnectionHolder(
       shard_group_name_(shard_group_name),
       host_(host),
       port_(port),
-      password_(std::move(password)),
+      credentials_(std::move(credentials)),
       database_index_(database_index),
       statistics_(stats),
       connection_check_timer_(ev_thread_, [this] { EnsureConnected(); }, kCheckRedisConnectedInterval),
-      redis_creation_settings_(redis_creation_settings)
+      redis_creation_settings_(redis_creation_settings),
+      failed_hysteresis_(config),
+      max_disconnect_time_(max_disconnect_time)
 {}
 
 RedisConnectionHolder::~RedisConnectionHolder() {
@@ -46,13 +50,15 @@ std::shared_ptr<RedisConnectionHolder> RedisConnectionHolder::Create(
     const std::string& shard_group_name,
     const std::string& host,
     uint16_t port,
-    Password password,
+    Credentials credentials,
     std::size_t database_index,
     CommandsBufferingSettings buffering_settings,
     ReplicationMonitoringSettings replication_monitoring_settings,
     utils::RetryBudgetSettings retry_budget_settings,
     Statistics& stats,
-    redis::RedisCreationSettings redis_creation_settings
+    redis::RedisCreationSettings redis_creation_settings,
+    Hysteresis::Config config,
+    std::chrono::seconds max_disconnect_time
 ) {
     auto holder = std::make_shared<RedisConnectionHolder>(
         EmplaceEnabler{},
@@ -61,13 +67,15 @@ std::shared_ptr<RedisConnectionHolder> RedisConnectionHolder::Create(
         shard_group_name,
         host,
         port,
-        std::move(password),
+        std::move(credentials),
         database_index,
         std::move(buffering_settings),
         std::move(replication_monitoring_settings),
         std::move(retry_budget_settings),
         std::move(redis_creation_settings),
-        stats
+        stats,
+        config,
+        max_disconnect_time
     );
 
     // https://github.com/boostorg/signals2/issues/59
@@ -100,7 +108,7 @@ void RedisConnectionHolder::CreateConnection() {
             return;
         }
 
-        ptr->signal_state_change(state);
+        ptr->OnStateChanged(state);
     });
 
     {
@@ -118,8 +126,30 @@ void RedisConnectionHolder::CreateConnection() {
         instance->SetRetryBudgetSettings(*settings_ptr);
     }
 
-    instance->Connect({host_}, port_, password_, database_index_);
+    instance->Connect({host_}, port_, credentials_, database_index_);
     redis_.Assign(std::move(instance));
+}
+
+void RedisConnectionHolder::OnStateChanged(Redis::State state) {
+    switch (state) {
+        case RedisState::kConnected: {
+            disconnected_time_ = std::chrono::steady_clock::time_point();
+            was_ever_connected_ = true;
+            break;
+        }
+        case RedisState::kInit:
+        case RedisState::kInitError:
+        case RedisState::kDisconnected:
+        case RedisState::kDisconnecting:
+        case RedisState::kDisconnectError: {
+            if (disconnected_time_ == std::chrono::steady_clock::time_point()) {
+                disconnected_time_ = std::chrono::steady_clock::now();
+            }
+            break;
+        }
+    }
+
+    signal_state_change(state);
 }
 
 void RedisConnectionHolder::SetReplicationMonitoringSettings(ReplicationMonitoringSettings settings) {
@@ -138,6 +168,26 @@ void RedisConnectionHolder::SetRetryBudgetSettings(utils::RetryBudgetSettings se
     auto ptr = retry_budget_settings_.Lock();
     *ptr = settings;
     redis_.ReadCopy()->SetRetryBudgetSettings(std::move(settings));
+}
+
+bool RedisConnectionHolder::IsReady() const noexcept {
+    if (failed_hysteresis_.IsFailed()) {
+        return true;
+    }
+
+    // workaround to allow WaitConnectedOnce to work
+    if (!was_ever_connected_ && GetState() != RedisState::kConnected) {
+        return false;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (disconnected_time_ != std::chrono::steady_clock::time_point() &&
+        (now - disconnected_time_) > max_disconnect_time_)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 Redis::State RedisConnectionHolder::GetState() const {

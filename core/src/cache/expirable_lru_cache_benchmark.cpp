@@ -42,7 +42,7 @@ void ExpirableLruCacheInvalidateByKeyIf(benchmark::State& state) {
         std::uniform_int_distribution<int> key_dist(0, static_cast<int>(key_count) - 1);
 
         for ([[maybe_unused]] auto _ : state) {
-            const int key = key_dist(generator);
+            int key = key_dist(generator);
             cache.InvalidateByKeyIf(key, [](const int&) { return true; });
             benchmark::DoNotOptimize(key);
         }

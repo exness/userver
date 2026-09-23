@@ -199,7 +199,8 @@ engine::Deadline GetDeadline(tracing::Span& span, const dynamic_config::Snapshot
 
 template <typename Settings>
 RequestContext<Settings>::RequestContext(
-    TableClient& l_table_client,
+    Connection& connection,
+    TableClient& table_client,
     const Query& query,
     Settings&& settings,
     IsStreaming is_streaming,
@@ -207,7 +208,7 @@ RequestContext<Settings>::RequestContext(
     engine::Deadline parent_deadline,
     const utils::impl::SourceLocation& location
 )
-    : table_client(l_table_client),
+    : connection(connection),
       settings(std::move(settings)),
       initial_uncaught_exceptions(std::uncaught_exceptions()),
       stats_scope(*table_client.stats_, query),

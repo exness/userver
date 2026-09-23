@@ -71,7 +71,7 @@ UTEST_F_MT(GrpcBidirectionalStream, BidirectionalStreamTest, 2) {
     std::vector<sample::ugrpc::StreamGreetingResponse> responses;
 
     /// [concurrent bidirectional stream]
-    auto write_task = engine::AsyncNoSpan([&stream, &requests] {
+    auto write_task = engine::AsyncNoTracing([&stream, &requests] {
         for (const auto& request : requests) {
             const bool success = stream.Write(request);
             if (!success) {

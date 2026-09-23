@@ -51,7 +51,7 @@ TaskProcessorHolder::~TaskProcessorHolder() = default;
 
 void RunOnTaskProcessorSync(TaskProcessor& tp, utils::function_ref<void()> user_cb) {
     UASSERT(!current_task::IsTaskProcessorThread());
-    engine::AsyncNoSpan(tp, [user_cb] {
+    engine::AsyncNoTracing(tp, [user_cb] {
         tracing::Span span("span");
         span.SetLogLevel(logging::Level::kNone);
         user_cb();

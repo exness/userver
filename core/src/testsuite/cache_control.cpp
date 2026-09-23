@@ -20,12 +20,20 @@
 #include <userver/utils/algo.hpp>
 #include <userver/utils/fast_scope_guard.hpp>
 #include <userver/utils/impl/intrusive_link_mode.hpp>
+#include <userver/utils/resource_scopes.hpp>
+#include <userver/utils/task_builder.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace testsuite {
 
-constexpr std::string_view kKnownReverseDependency = components::DynamicConfigClientUpdater::kName;
+namespace impl {
+
+CacheReverseDependencies GetDefaultCacheReverseDependencies() {
+    return {std::string{components::DynamicConfigClientUpdater::kName}};
+}
+
+}  // namespace impl
 
 struct CacheControl::CacheInfoNode final {
     CacheInfoNode() = default;
@@ -71,9 +79,15 @@ public:
 };
 
 struct CacheControl::Impl final {
-    Impl(impl::PeriodicUpdatesMode mode, ExecPolicy policy, std::optional<components::State> components_state)
+    Impl(
+        impl::PeriodicUpdatesMode mode,
+        ExecPolicy policy,
+        std::optional<components::State> components_state,
+        impl::CacheReverseDependencies reverse_dependencies
+    )
         : periodic_updates_mode(mode),
           execution_policy(policy),
+          reverse_dependencies(std::move(reverse_dependencies)),
           state(components_state)
     {
         UASSERT(execution_policy == ExecPolicy::kSequential || components_state);
@@ -90,16 +104,23 @@ struct CacheControl::Impl final {
 
     const impl::PeriodicUpdatesMode periodic_updates_mode;
     const ExecPolicy execution_policy;
+    const impl::CacheReverseDependencies reverse_dependencies;
     std::optional<components::State> state;
     concurrent::Variable<List> caches{};
 };
 
 CacheControl::CacheControl(impl::PeriodicUpdatesMode mode, UnitTests)
-    : impl_(std::make_unique<Impl>(mode, ExecPolicy::kSequential, std::nullopt))
+    : impl_(std::make_unique<
+            Impl>(mode, ExecPolicy::kSequential, std::nullopt, impl::GetDefaultCacheReverseDependencies()))
 {}
 
-CacheControl::CacheControl(impl::PeriodicUpdatesMode mode, ExecPolicy execution_policy, components::State state)
-    : impl_(std::make_unique<Impl>(mode, execution_policy, state))
+CacheControl::CacheControl(
+    impl::PeriodicUpdatesMode mode,
+    ExecPolicy execution_policy,
+    components::State state,
+    impl::CacheReverseDependencies reverse_dependencies
+)
+    : impl_(std::make_unique<Impl>(mode, execution_policy, std::move(state), std::move(reverse_dependencies)))
 {}
 
 CacheControl::~CacheControl() = default;
@@ -231,7 +252,7 @@ void CacheControl::DoResetCachesConcurrently(
             continue;
         }
 
-        if (node.info.name == kKnownReverseDependency) {
+        if (impl_->reverse_dependencies.contains(node.info.name)) {
             DoResetSingleCache(node.info, update_type, force_incremental_names);
         } else {
             async_jobs.emplace_back(node);
@@ -241,18 +262,20 @@ void CacheControl::DoResetCachesConcurrently(
     {
         const std::lock_guard lock{tasks_init_mutex};
         for (std::size_t i = 0; i < async_jobs.size(); ++i) {
-            async_jobs[i].task = engine::SharedAsyncNoSpan(
-                [i, &async_jobs, &tasks_init_mutex, &force_incremental_names, update_type, state] {
-                    const std::shared_lock lock{tasks_init_mutex};
+            async_jobs[i].task =
+                utils::TaskBuilder{}
+                    .NoTracing()
+                    .Background()
+                    .BuildShared([i, &async_jobs, &tasks_init_mutex, &force_incremental_names, update_type, state] {
+                        const std::shared_lock lock{tasks_init_mutex};
 
-                    auto& job = async_jobs[i];
-                    for (auto& other_job : async_jobs) {
-                        job.WaitIfDependsOn(other_job, state);
-                    }
+                        auto& job = async_jobs[i];
+                        for (auto& other_job : async_jobs) {
+                            job.WaitIfDependsOn(other_job, state);
+                        }
 
-                    DoResetSingleCache(job.node.info, update_type, force_incremental_names);
-                }
-            );
+                        DoResetSingleCache(job.node.info, update_type, force_incremental_names);
+                    });
         }
     }
 
@@ -317,6 +340,17 @@ void CacheResetRegistration::Unregister() noexcept {
         cache_control_ = nullptr;
     }
 }
+
+namespace impl {
+
+void DoRegisterCacheScope(
+    const components::ComponentContext& context,
+    utils::move_only_function<CacheResetRegistration()> factory
+) {
+    context.Scopes().Register(std::move(factory));
+}
+
+}  // namespace impl
 
 CacheControl& FindCacheControl(const components::ComponentContext& context) {
     return context.FindComponent<components::TestsuiteSupport>().GetCacheControl();

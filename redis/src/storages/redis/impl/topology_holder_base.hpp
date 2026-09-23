@@ -4,7 +4,7 @@
 #include <storages/redis/impl/redis.hpp>
 #include <storages/redis/impl/redis_stats.hpp>
 #include <storages/redis/impl/shard.hpp>
-#include <userver/storages/redis/wait_connected_mode.hpp>
+#include <userver/storages/redis/health_check_param.hpp>
 
 #include <userver/storages/redis/base.hpp>
 
@@ -23,6 +23,7 @@ public:
     virtual void Start() = 0;
     virtual void Stop() = 0;
     virtual bool WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) = 0;
+    virtual bool IsReady(const HealthCheckParams& params) const = 0;
     virtual rcu::ReadablePtr<ClusterTopology, rcu::BlockingRcuTraits> GetTopology() const = 0;
     virtual void SendUpdateClusterTopology() = 0;
     virtual std::shared_ptr<Redis> GetRedisInstance(const HostPort& host_port) const = 0;
@@ -35,8 +36,8 @@ public:
 
     virtual boost::signals2::signal<void(HostPort, Redis::State)>& GetSignalNodeStateChanged() = 0;
     virtual boost::signals2::signal<void(size_t)>& GetSignalTopologyChanged() = 0;
-    virtual void UpdatePassword(const Password& password) = 0;
-    virtual Password GetPassword() = 0;
+    virtual void UpdateCredentials(const Credentials& credentials) = 0;
+    virtual Credentials GetCredentials() = 0;
 
     virtual std::string GetReadinessInfo() const = 0;
     virtual ~TopologyHolderBase() = default;

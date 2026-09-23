@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/ydb/transaction.hpp
+/// @brief YDB transaction and retry transaction actor
+
 #include <functional>
 #include <string>
 
@@ -26,8 +29,8 @@ class TxActor;
 
 /// Action to take after the retry function completes.
 enum class TxAction {
-    kCommit,
-    kRollback,
+    kCommit,    ///< Commit the transaction
+    kRollback,  ///< Roll back the transaction
 };
 
 /// Signature for the function passed to TableClient::RetryTx.
@@ -76,7 +79,7 @@ private:
         NYdb::NQuery::TTxSettings&& tx_settings,
         engine::Deadline deadline,
         std::uint32_t attempt
-    ) noexcept;
+    );
 
     NYdb::NQuery::TTransaction BeginTx(NYdb::NQuery::TSession& session, NYdb::NQuery::TTxSettings&& tx_settings);
 
@@ -160,7 +163,7 @@ public:
     // For internal use only.
     Transaction(
         TableClient& table_client,
-        std::variant<NYdb::NQuery::TTransaction, NYdb::NTable::TTransaction> ydb_tx,
+        NYdb::NQuery::TTransaction ydb_tx,
         std::string name,
         OperationSettings&& rollback_settings
     ) noexcept;
@@ -182,7 +185,7 @@ private:
     std::string name_;
     impl::StatsScope stats_scope_;
     tracing::Span span_;
-    std::variant<NYdb::NQuery::TTransaction, NYdb::NTable::TTransaction> ydb_tx_;
+    NYdb::NQuery::TTransaction ydb_tx_;
     OperationSettings rollback_settings_;
     bool is_active_{true};
     utils::trx_tracker::TransactionLock trx_lock_;

@@ -16,10 +16,12 @@
 #include <userver/utils/swappingsmart.hpp>
 
 #include <storages/redis/impl/keyshard.hpp>
+#include <storages/redis/impl/redis_group.hpp>
 #include <storages/redis/impl/redis_stats.hpp>
 #include <userver/storages/redis/client.hpp>
 #include <userver/storages/redis/fwd.hpp>
-#include <userver/storages/redis/wait_connected_mode.hpp>
+#include <userver/storages/redis/health_check_param.hpp>
+#include <userver/storages/redis/topology_update_method.hpp>
 
 #include "shard.hpp"
 
@@ -61,10 +63,9 @@ public:
         const std::vector<std::string>& shards,
         const std::vector<ConnectionInfo>& conns,
         std::string shard_group_name,
-        const std::string& client_name,
-        const Password& password,
+        const Credentials& credentials,
         ConnectionSecurity connection_security,
-        KeyShardFactory&& key_shard_factory,
+        SentinelStaticConfig creation_config,
         dynamic_config::Source dynamic_config_source,
         std::size_t database_index
     );
@@ -79,6 +80,7 @@ public:
     void WaitConnectedDebug(bool allow_empty_slaves);
 
     void WaitConnectedOnce(RedisWaitConnected wait_connected);
+    bool IsReady(const HealthCheckParams& params) const;
 
     void ForceUpdateHosts();
 
@@ -101,7 +103,7 @@ public:
     static size_t GetClusterSlotsCalledCounter();
 
     void SetConnectionInfo(const std::vector<ConnectionInfoInt>& info_array);
-    void UpdatePassword(const Password& password);
+    void UpdateCredentials(const Credentials& credentials);
 
 private:
     void Init();  // used from constructor

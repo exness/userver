@@ -1,6 +1,7 @@
 #include <userver/utils/ip.hpp>
 
 #include <arpa/inet.h>
+#include <algorithm>
 
 #include <fmt/format.h>
 
@@ -41,8 +42,8 @@ std::string AddressToString(const AddressBase<N>& address) {
     );
 }
 
-template <typename Address, typename = std::enable_if_t<kIsAddressType<Address>>>
-NetworkBase<Address> NetworkFromString(const std::string& str) {
+template <IsAddressType Address>
+NetworkBase<Address> NetworkFromString(std::string_view str) {
     const auto throw_exception = []() {
         throw std::invalid_argument(fmt::format(
             "Error while converting {} to string",
@@ -57,7 +58,7 @@ NetworkBase<Address> NetworkFromString(const std::string& str) {
     if (end != std::string::npos) {
         throw_exception();
     }
-    const auto addr = AddressFromString<Address::kAddressSize>(str.substr(0, pos));
+    const auto addr = AddressFromString<Address::kAddressSize>(std::string{str.substr(0, pos)});
     const int prefix_len = utils::FromString<int>(str.substr(pos + 1));
     if (prefix_len < 0 || prefix_len > NetworkBase<Address>::kMaximumPrefixLength) {
         throw_exception();
@@ -89,20 +90,52 @@ AddressV6 AddressV6FromString(utils::zstring_view str) { return AddressFromStrin
 
 std::string AddressV6ToString(const AddressV6& address) { return AddressToString(address); }
 
+bool IsNulTerminatedIpAddress(utils::zstring_view host) noexcept {
+    if (host.empty()) {
+        return false;
+    }
+
+    in_addr v4{};
+    if (inet_pton(AF_INET, host.c_str(), &v4) == 1) {
+        return true;
+    }
+
+    in6_addr v6{};
+    return inet_pton(AF_INET6, host.c_str(), &v6) == 1;
+}
+
+bool IsIpAddress(std::string_view host) noexcept {
+    if (host.empty() || host.size() >= INET6_ADDRSTRLEN) {
+        return false;
+    }
+
+    char buffer[INET6_ADDRSTRLEN];
+    std::ranges::copy(host, buffer);
+    buffer[host.size()] = '\0';
+    return IsNulTerminatedIpAddress(buffer);
+}
+
 template <typename T>
-T CidrNetworkFromInetNetwork(const InetNetwork& inet_network) {
+static T CidrNetworkFromInetNetwork(const InetNetwork& inet_network) {
     typename T::AddressType::BytesType bytes;
     const auto& inet_bytes = inet_network.GetBytes();
-    std::copy(inet_bytes.cbegin(), inet_bytes.cend(), bytes.begin());
+    if (inet_bytes.size() != bytes.size()) {
+        throw std::invalid_argument(fmt::format(
+            "InetNetwork address size {} does not match the target CIDR network size {}",
+            inet_bytes.size(),
+            bytes.size()
+        ));
+    }
+    std::ranges::copy(inet_bytes, bytes.begin());
     return T(typename T::AddressType(bytes), inet_network.GetPrefixLength());
 }
 
 template <typename T>
-InetNetwork InetNetworkFromCidrNetwork(const T& network) {
+static InetNetwork InetNetworkFromCidrNetwork(const T& network) {
     const auto bytes = network.GetAddress().GetBytes();
     std::vector<unsigned char> inet_bytes;
     inet_bytes.reserve(bytes.size());
-    std::copy(bytes.cbegin(), bytes.cend(), std::back_inserter(inet_bytes));
+    std::ranges::copy(bytes, std::back_inserter(inet_bytes));
     return InetNetwork(
         std::move(inet_bytes),
         network.GetPrefixLength(),
@@ -145,7 +178,7 @@ std::string NetworkV4ToString(const NetworkV4& network) {
     return fmt::format("{}/{}", AddressV4ToString(network.GetAddress()), network.GetPrefixLength());
 }
 
-NetworkV4 NetworkV4FromString(const std::string& str) { return NetworkFromString<AddressV4>(str); }
+NetworkV4 NetworkV4FromString(std::string_view str) { return NetworkFromString<AddressV4>(str); }
 
 NetworkV4 TransformToCidrFormat(NetworkV4 network) { return TransformToCidrNetwork<AddressV4>(network); }
 
@@ -153,7 +186,7 @@ std::string NetworkV6ToString(const NetworkV6& network) {
     return fmt::format("{}/{}", AddressV6ToString(network.GetAddress()), network.GetPrefixLength());
 }
 
-NetworkV6 NetworkV6FromString(const std::string& str) { return NetworkFromString<AddressV6>(str); }
+NetworkV6 NetworkV6FromString(std::string_view str) { return NetworkFromString<AddressV6>(str); }
 
 NetworkV6 TransformToCidrFormat(NetworkV6 network) { return TransformToCidrNetwork<AddressV6>(network); }
 

@@ -63,7 +63,7 @@ CFile::CFile(std::FILE* file) noexcept {
     impl_->handle.reset(file);
 }
 
-CFile::CFile(const std::string& path, OpenMode flags, boost::filesystem::perms perms) {
+CFile::CFile(utils::zstring_view path, OpenMode flags, boost::filesystem::perms perms) {
     auto fd = FileDescriptor::Open(path, flags, perms);
     impl_->handle
         .reset(utils::CheckSyscallNotEquals(::fdopen(fd.GetNative(), ToMode(flags)), nullptr, "calling ::fdopen"));
@@ -76,7 +76,7 @@ CFile::CFile(const std::string& path, OpenMode flags, boost::filesystem::perms p
 #endif
 }
 
-bool CFile::IsOpen() const { return static_cast<bool>(impl_->handle); }
+bool CFile::IsOpen() const noexcept { return static_cast<bool>(impl_->handle); }
 
 std::FILE* CFile::GetNative() & {
     UASSERT(IsOpen());
@@ -90,11 +90,11 @@ void CFile::Close() && {
     utils::CheckSyscall(std::fclose(impl_->handle.release()), "calling fclose");
 }
 
-std::size_t CFile::Read(char* buffer, std::size_t size) {
+std::size_t CFile::Read(std::span<char> buffer) {
     UASSERT(IsOpen());
 
-    const auto bytes_read = std::fread(buffer, 1, size, impl_->handle.get());
-    if (bytes_read != size && !std::feof(impl_->handle.get())) {
+    const auto bytes_read = std::fread(buffer.data(), 1, buffer.size(), impl_->handle.get());
+    if (bytes_read != buffer.size() && !std::feof(impl_->handle.get())) {
         throw std::system_error(std::ferror(impl_->handle.get()), std::generic_category(), "calling fread");
     }
 

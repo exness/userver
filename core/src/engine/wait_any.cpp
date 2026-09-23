@@ -3,6 +3,7 @@
 #include <deque>
 
 #include <boost/intrusive/slist.hpp>
+#include <boost/smart_ptr/intrusive_ptr.hpp>
 
 #include <engine/impl/wait_any_utils.hpp>
 #include <engine/task/task_context.hpp>
@@ -10,24 +11,26 @@
 #include <userver/engine/impl/awaiter.hpp>
 #include <userver/engine/single_consumer_event.hpp>
 #include <userver/utils/enumerate.hpp>
+#include <userver/utils/fast_scope_guard.hpp>
 #include <userver/utils/impl/intrusive_link_mode.hpp>
-#include <userver/utils/make_intrusive_ptr.hpp>
+#include <userver/utils/impl/intrusive_ref_counter_one.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace engine {
 
 namespace impl {
-std::optional<std::size_t> DoWaitAny(utils::span<ContextAccessor*> targets, Deadline deadline) {
-    UASSERT_MSG(AreUniqueValues(targets), "Same tasks/futures were detected in WaitAny* call");
+std::optional<std::size_t> DoWaitAny(utils::span<AwaitableToken> target_tokens, Deadline deadline) {
+    UASSERT_MSG(AreUniqueValues(target_tokens), "Same tasks/futures were detected in WaitAny* call");
     bool none_valid = true;
 
-    for (const auto& [idx, target] : utils::enumerate(targets)) {
-        if (!target) {
+    for (const auto& [idx, target] : utils::enumerate(target_tokens)) {
+        if (target.IsEmpty()) {
             continue;
         }
+        const auto& awaitable = target.GetAwaitable(utils::impl::InternalTag{});
         none_valid = false;
-        if (target->IsReady()) {
+        if (awaitable.IsReady()) {
             return idx;
         }
     }
@@ -37,11 +40,15 @@ std::optional<std::size_t> DoWaitAny(utils::span<ContextAccessor*> targets, Dead
     }
 
     auto& current = current_task::GetCurrentTaskContext();
-    WaitAnyWaitStrategy wait_strategy{targets, current};
-    current.Sleep(wait_strategy, deadline);
+    WaitAnyAwaitable wait_any_awaitable{target_tokens};
+    current.Sleep(wait_any_awaitable, deadline);
 
-    for (const auto& [idx, target] : utils::enumerate(targets)) {
-        if (target && target->IsReady()) {
+    for (const auto& [idx, target] : utils::enumerate(target_tokens)) {
+        if (target.IsEmpty()) {
+            continue;
+        }
+        const auto& awaitable = target.GetAwaitable(utils::impl::InternalTag{});
+        if (awaitable.IsReady()) {
             return idx;
         }
     }
@@ -51,9 +58,13 @@ std::optional<std::size_t> DoWaitAny(utils::span<ContextAccessor*> targets, Dead
 
 }  // namespace impl
 
-class WaitAnyContext::Impl final : public impl::PolymorphicAwaiter {
+// The refcounter of Impl counts:
+// 1. the reference from WaitAnyContext (impl_);
+// 2. one reference per subscribed QueueItem. This way, Impl stays alive until all in-flight
+//    notifications complete, even if WaitAnyContext is destroyed concurrently with them.
+class WaitAnyContext::Impl final : public utils::impl::IntrusiveRefCounterOne<Impl> {
 public:
-    Impl();
+    Impl() = default;
     ~Impl() noexcept = default;
 
     Impl(Impl&&) = delete;
@@ -61,44 +72,75 @@ public:
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
 
-    void Append(impl::ContextAccessor* awaitable);
+    void Append(AwaitableToken awaitable);
 
-    std::optional<std::uint64_t> WaitUntil(Deadline deadline);
+    void Append(std::uint64_t id, engine::AwaitableToken awaitable);
+
+    utils::expected<std::uint64_t, WaitAnyError> WaitUntil(Deadline deadline);
 
     std::size_t GetSize() const noexcept { return subscribed_count_ + pending_subscription_.size(); }
 
-    std::uint64_t GetNextIndex() const noexcept { return next_index_; }
+    std::uint64_t GetNextId() const noexcept { return next_id_; }
 
     void Unsubscribe() noexcept;
 
 private:
+    // Unlike Impl itself, a QueueItem is an Awaiter, so it has its own wait list hook, allowing
+    // multiple QueueItems of a single WaitAnyContext to be linked into the WaitList of a single
+    // shared target (as well as into wait lists of distinct targets).
+    //
+    // QueueItems are owned by Impl (queue_items_). The AwaiterPtr ownership passed to wait lists
+    // is logical: instead of destroying the QueueItem, its dispose hooks release
+    // the subscription's reference to Impl.
     // NOLINTNEXTLINE(fuchsia-multiple-inheritance)
-    struct QueueItem
-        : public concurrent::impl::SinglyLinkedBaseHook,
+    struct QueueItem final
+        : public impl::PolymorphicAwaiter,
+          public concurrent::impl::SinglyLinkedBaseHook,
           public boost::intrusive::slist_base_hook<utils::impl::IntrusiveLinkMode> {
-        explicit QueueItem(impl::ContextAccessor* context_accessor, std::uint64_t index)
-            : context_accessor(context_accessor),
-              index(index)
+        explicit QueueItem(Impl& owner, AwaitableToken awaitable, std::uint64_t id)
+            : owner(owner),
+              awaitable(awaitable),
+              id(id)
         {}
 
-        impl::ContextAccessor* context_accessor;
-        std::uint64_t index;
+        void NotifyAndDispose(std::uintptr_t context) noexcept override {
+            UASSERT(context == kUnusedContext);
+
+            Impl& owner_snapshot = owner;
+            // After Push, `*this` may be immediately recycled and reused by the waiter,
+            // so `this` must not be accessed, only Impl.
+            owner_snapshot.notified_.Push(*this);
+            owner_snapshot.queue_non_empty_.Send();
+            // Release the subscription's reference to Impl, see above. After this point,
+            // Impl may be destroyed (if WaitAnyContext is destroyed concurrently).
+            intrusive_ptr_release(&owner_snapshot);
+        }
+
+        void DisposeWithoutNotification() noexcept override {
+            // The QueueItem is removed from a wait list without notification, or the subscription
+            // did not happen. Release the subscription's reference to Impl.
+            intrusive_ptr_release(&owner);
+        }
+
+        Impl& owner;
+        AwaitableToken awaitable;
+        std::uint64_t id;
         bool subscribed{false};
     };
 
     using Queue = concurrent::impl::IntrusiveMpscQueue<QueueItem>;
 
-    void DoNotify(boost::intrusive_ptr<impl::PolymorphicAwaiter> self, std::uintptr_t context) noexcept override;
-
-    void Destroy() noexcept override { delete this; }
+    // QueueItems do not need to pass any information through the context parameter of Awaiter:
+    // a QueueItem itself identifies the subscription.
+    static constexpr std::uintptr_t kUnusedContext = 0;
 
     std::optional<std::uint64_t> TryProcessQueue() noexcept;
 
     std::optional<std::uint64_t> TrySubscribe();
 
-    bool ProcessNotified(QueueItem& item) noexcept;
+    void ProcessNotified(QueueItem& item) noexcept;
 
-    std::uint64_t next_index_{0};
+    std::uint64_t next_id_{0};
     std::size_t subscribed_count_{0};
     boost::intrusive::slist<QueueItem, boost::intrusive::constant_time_size<true>> pending_subscription_;
     boost::intrusive::slist<QueueItem, boost::intrusive::constant_time_size<false>> unused_;
@@ -107,48 +149,53 @@ private:
     engine::SingleConsumerEvent queue_non_empty_{engine::SingleConsumerEvent::NoAutoReset{}};
 };
 
-WaitAnyContext::Impl::Impl()
-    : PolymorphicAwaiter(Awaiter::InitialRefCounter::kOne)
-{}
+void WaitAnyContext::Impl::Append(AwaitableToken awaitable) {
+    Append(next_id_, awaitable);
+    ++next_id_;
+}
 
-void WaitAnyContext::Impl::Append(impl::ContextAccessor* awaitable) {
-    if (awaitable == nullptr) {
-        ++next_index_;
+void WaitAnyContext::Impl::Append(std::uint64_t id, engine::AwaitableToken awaitable) {
+    if (awaitable.IsEmpty()) {
         return;
     }
     if (unused_.empty()) {
-        auto& item = queue_items_.emplace_back(awaitable, next_index_++);
+        auto& item = queue_items_.emplace_back(*this, awaitable, id);
         pending_subscription_.push_front(item);
         return;
     }
     auto& item = unused_.front();
     unused_.pop_front();
-    item.context_accessor = awaitable;
-    item.index = next_index_++;
+    item.awaitable = awaitable;
+    item.id = id;
     pending_subscription_.push_front(item);
 }
 
-std::optional<std::uint64_t> WaitAnyContext::Impl::WaitUntil(Deadline deadline) {
+utils::expected<std::uint64_t, WaitAnyError> WaitAnyContext::Impl::WaitUntil(Deadline deadline) {
     for (;;) {
         queue_non_empty_.Reset();
         if (subscribed_count_ != 0) {
             auto result = TryProcessQueue();
             if (result.has_value()) {
-                return result;
+                return *result;
             }
         }
 
         auto result = TrySubscribe();
         if (result.has_value()) {
-            return result;
+            return *result;
         }
 
         if (subscribed_count_ == 0) {
-            return std::nullopt;
+            return utils::unexpected(WaitAnyError::kEmpty);
         }
 
-        if (!queue_non_empty_.WaitForEventUntil(deadline)) {
-            return std::nullopt;
+        switch (queue_non_empty_.WaitUntil(deadline)) {
+            case FutureStatus::kReady:
+                break;
+            case FutureStatus::kTimeout:
+                return utils::unexpected(WaitAnyError::kTimeout);
+            case FutureStatus::kCancelled:
+                return utils::unexpected(WaitAnyError::kCancelled);
         }
     }
 }
@@ -164,31 +211,30 @@ void WaitAnyContext::Impl::Unsubscribe() noexcept {
         if (!item.subscribed) {
             continue;
         }
-        UASSERT(item.context_accessor != nullptr);
-        item.context_accessor->RemoveAwaiter(*this, reinterpret_cast<std::uintptr_t>(&item));
+        auto& awaitable = item.awaitable.GetAwaitable(utils::impl::InternalTag{});
+        auto removed = awaitable.RemoveAwaiter(item, kUnusedContext);
+        if (removed != nullptr) {
+            UASSERT(removed.get() == &item);
+        }
+        // Dropping `removed` calls DisposeWithoutNotification, releasing the subscription's
+        // reference to Impl. This never destroys Impl here, because the caller (WaitAnyContext)
+        // still holds its own reference. If the item was already notified, `removed` is null,
+        // and the in-flight NotifyAndDispose releases the subscription's reference.
+        removed.reset();
         if (--subscribed_count_ == 0) {
             break;
         }
     }
 }
 
-void WaitAnyContext::Impl::DoNotify(boost::intrusive_ptr<impl::PolymorphicAwaiter> /*self*/, std::uintptr_t context)
-    noexcept {
-    notified_.Push(*reinterpret_cast<QueueItem*>(context));
-    queue_non_empty_.Send();
-}
-
 std::optional<std::uint64_t> WaitAnyContext::Impl::TryProcessQueue() noexcept {
-    for (;;) {
-        QueueItem* const item = notified_.TryPopBlocking();
-        if (item == nullptr) {
-            return std::nullopt;
-        }
-
-        if (ProcessNotified(*item)) {
-            return item->index;
-        }
+    QueueItem* const item = notified_.TryPopBlocking();
+    if (item == nullptr) {
+        return std::nullopt;
     }
+
+    ProcessNotified(*item);
+    return item->id;
 }
 
 std::optional<std::uint64_t> WaitAnyContext::Impl::TrySubscribe() {
@@ -196,36 +242,50 @@ std::optional<std::uint64_t> WaitAnyContext::Impl::TrySubscribe() {
         auto& item = pending_subscription_.front();
         pending_subscription_.pop_front();
 
-        UASSERT(item.context_accessor);
+        auto& awaitable = item.awaitable.GetAwaitable(utils::impl::InternalTag{});
 
-        boost::intrusive_ptr<impl::Awaiter> awaiter_ptr{this};
-        item.context_accessor->TryAppendAwaiter(awaiter_ptr, reinterpret_cast<std::uintptr_t>(&item));
-        if (awaiter_ptr != nullptr) {  // context_accessor is already ready.
-            unused_.push_front(item);
-            return item.index;
+        // Acquire the subscription's reference to Impl in advance.
+        intrusive_ptr_add_ref(this);
+
+        impl::AwaiterPtr awaiter_ptr{&item};
+
+        {
+            const utils::FastScopeGuard finalize_subscription([&]() noexcept {
+                if (awaiter_ptr != nullptr) {
+                    // The awaitable is already ready, or TryAppendAwaiter has thrown:
+                    // the subscription did not happen.
+                    UASSERT(awaiter_ptr.get() == &item);
+                    unused_.push_front(item);
+                    // Dropping awaiter_ptr calls DisposeWithoutNotification, which releases
+                    // the subscription's reference to Impl.
+                    awaiter_ptr.reset();
+                } else {
+                    item.subscribed = true;
+                    ++subscribed_count_;
+                }
+            });
+
+            awaitable.TryAppendAwaiter(awaiter_ptr, kUnusedContext);
         }
 
-        item.subscribed = true;
-        ++subscribed_count_;
+        if (!item.subscribed) {  // awaitable is already ready.
+            return item.id;
+        }
     }
     return std::nullopt;
 }
 
-bool WaitAnyContext::Impl::ProcessNotified(QueueItem& item) noexcept {
-    UASSERT(item.index < next_index_);
-    UASSERT(item.context_accessor);
+void WaitAnyContext::Impl::ProcessNotified(QueueItem& item) noexcept {
     UASSERT(item.subscribed);
+    UASSERT(item.awaitable.GetAwaitable(utils::impl::InternalTag{}).IsReady());
 
     item.subscribed = false;
     --subscribed_count_;
     unused_.push_front(item);
-    // The caller might have already changed the awaitable's state between Wait* calls.
-    // So, we check the ready flag to avoid erroneous wakeups on non-ready awaitables.
-    return item.context_accessor->IsReady();
 }
 
 WaitAnyContext::WaitAnyContext()
-    : impl_(new WaitAnyContext::Impl(), /*add_ref=*/false)
+    : impl_(utils::impl::MakeIntrusiveOne<WaitAnyContext::Impl>())
 {}
 
 WaitAnyContext::~WaitAnyContext() noexcept {
@@ -247,9 +307,9 @@ WaitAnyContext& WaitAnyContext::operator=(WaitAnyContext&& other) noexcept {
     return *this;
 }
 
-std::optional<std::uint64_t> WaitAnyContext::Wait() { return WaitUntil(Deadline{}); }
+utils::expected<std::uint64_t, WaitAnyError> WaitAnyContext::Wait() { return WaitUntil(Deadline{}); }
 
-std::optional<std::uint64_t> WaitAnyContext::WaitUntil(Deadline deadline) {
+utils::expected<std::uint64_t, WaitAnyError> WaitAnyContext::WaitUntil(Deadline deadline) {
     UASSERT(impl_ != nullptr);
     return impl_->WaitUntil(deadline);
 }
@@ -259,14 +319,19 @@ std::size_t WaitAnyContext::GetSize() const noexcept {
     return impl_->GetSize();
 }
 
-std::uint64_t WaitAnyContext::GetNextIndex() const noexcept {
+std::uint64_t WaitAnyContext::GetNextId() const noexcept {
     UASSERT(impl_ != nullptr);
-    return impl_->GetNextIndex();
+    return impl_->GetNextId();
 }
 
-void WaitAnyContext::AppendAccessor(impl::ContextAccessor* awaitable) {
+void WaitAnyContext::AppendToken(engine::AwaitableToken awaitable) {
     UASSERT(impl_ != nullptr);
     impl_->Append(awaitable);
+}
+
+void WaitAnyContext::AppendToken(std::uint64_t id, engine::AwaitableToken awaitable) {
+    UASSERT(impl_ != nullptr);
+    impl_->Append(id, awaitable);
 }
 
 }  // namespace engine

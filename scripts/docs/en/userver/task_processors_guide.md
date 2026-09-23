@@ -9,22 +9,22 @@ engine::TaskProcessor or task processor is a thread pool on which the tasks
 Task processors are configured via the static config file and are created at
 the start of the @ref scripts/docs/en/userver/component_system.md "component system". Example:
 
-@snippet components/common_component_list_test.cpp  Sample components manager config component config
+@snippet core/src/components/common_component_list_test.cpp  Sample components manager config component config
 
 Any amount of task processors could be created with any names.
 
 ## How to use
 
-utils::Async and engine::AsyncNoSpan start a new task on a provided as a
+utils::Async and engine::AsyncNoTracing start a new task on a provided as a
 first argument task processor. If the task processor is not provided
-utils::Async and engine::AsyncNoSpan use the task processor that
+utils::Async and engine::AsyncNoTracing use the task processor that
 runs the current task (engine::current_task::GetTaskProcessor()).
 
 A task processor could be obtained from components::ComponentContext in the
 constructor of the component. References to task processors outlive the
 component system tear-down, they are safe to use from within any components:
 
-@snippet components/component_sample_test.cpp  Sample user component source
+@snippet core/src/components/component_sample_test.cpp  Sample user component source
 
 @warning If a blocking system call (for example, one that reads
 a file in a synchronous way) runs on `main-task-processor`, then the thread
@@ -77,7 +77,7 @@ A common usage pattern for this task processor looks like:
 
 ```cpp
 // lib_sample synchronously reads some of /etc/* files.
-auto result = engine::AsyncNoSpan(fs_task_processor_, [preset_name]() {
+auto result = engine::AsyncNoTracing(fs_task_processor_, [preset_name]() {
   return lib_sample::quick_check_config_preset(preset_name);
 }).Get();
 ```

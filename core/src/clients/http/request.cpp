@@ -349,7 +349,7 @@ Request& Request::connect_to(const ConnectTo& connect_to) & {
 Request Request::connect_to(const ConnectTo& connect_to) && { return std::move(this->connect_to(connect_to)); }
 
 Request& Request::data(std::string data) & {
-    pimpl_->data(data);
+    pimpl_->data(std::move(data));
     return *this;
 }
 Request Request::data(std::string data) && { return std::move(this->data(std::move(data))); }

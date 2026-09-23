@@ -11,11 +11,9 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace multi_index_lru::impl {
-template <typename T, typename = std::void_t<>>
-inline constexpr bool is_mpl_na = false;
 
 template <typename T>
-inline constexpr bool is_mpl_na<T, std::void_t<decltype(std::declval<T>().~na())>> = true;
+concept IsMplNa = requires(T& t) { t.~na(); };
 
 template <typename IndexType, typename... Indices>
 struct lazy_add_index {
@@ -43,7 +41,7 @@ struct add_index<IndexType, boost::multi_index::indexed_by<Indices...>> {
     using LastType = decltype((Indices{}, ...));
 
     using type = typename std::conditional_t<
-        is_mpl_na<LastType>,
+        IsMplNa<LastType>,
         lazy_add_index_no_last<IndexType, Indices...>,
         lazy_add_index<IndexType, Indices...>>::type;
 };
@@ -83,6 +81,28 @@ public:
     explicit IteratorToValue(Iterator iter)
         : Iterator(std::move(iter))
     {}
+
+    IteratorToValue& operator++() {
+        Iterator::operator++();
+        return *this;
+    }
+
+    IteratorToValue operator++(int) {
+        IteratorToValue copy{*this};
+        ++*this;
+        return copy;
+    }
+
+    IteratorToValue& operator--() {
+        Iterator::operator--();
+        return *this;
+    }
+
+    IteratorToValue operator--(int) {
+        IteratorToValue copy{*this};
+        --*this;
+        return copy;
+    }
 
     decltype(auto) operator->() noexcept { return std::addressof((**this).value); }
 

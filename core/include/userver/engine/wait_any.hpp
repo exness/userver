@@ -11,7 +11,9 @@
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
+#include <userver/utils/expected.hpp>
 #include <userver/utils/fast_pimpl.hpp>
 #include <userver/utils/meta.hpp>
 #include <userver/utils/span.hpp>
@@ -27,10 +29,10 @@ namespace engine {
 /// cancellation of the caller.
 ///
 /// Could be used to get the ready HTTP requests ASAP:
-/// @snippet src/clients/http/client_wait_test.cpp HTTP Client - waitany
+/// @snippet core/src/clients/http/client_wait_test.cpp HTTP Client - waitany
 ///
 /// Works with different types of tasks and futures:
-/// @snippet src/engine/wait_any_test.cpp sample waitany
+/// @snippet core/src/engine/wait_any_test.cpp sample waitany
 ///
 /// @param tasks either a single container, or a pack of future-like elements.
 /// @returns the index of the completed task, or `std::nullopt` if there are no
@@ -76,18 +78,17 @@ std::optional<std::size_t> WaitAnyUntil(const std::chrono::time_point<Clock, Dur
 
 namespace impl {
 
-class ContextAccessor;
-
-std::optional<std::size_t> DoWaitAny(utils::span<ContextAccessor*> targets, Deadline deadline);
+std::optional<std::size_t> DoWaitAny(utils::span<AwaitableToken> target_tokens, Deadline deadline);
 
 template <typename Container>
 std::optional<std::size_t> WaitAnyFromContainer(Deadline deadline, Container& tasks) {
     const auto size = std::size(tasks);
-    std::vector<ContextAccessor*> targets;
+    std::vector<AwaitableToken> targets;
     targets.reserve(size);
 
     for (auto& task : tasks) {
-        targets.push_back(task.TryGetContextAccessor());
+        static_assert(engine::Awaitable<decltype(task)>, "Tasks must be awaitable");
+        targets.push_back(task.GetAwaitableToken());
     }
 
     return DoWaitAny(targets, deadline);
@@ -95,7 +96,8 @@ std::optional<std::size_t> WaitAnyFromContainer(Deadline deadline, Container& ta
 
 template <typename... Tasks>
 std::optional<std::size_t> WaitAnyFromTasks(Deadline deadline, Tasks&... tasks) {
-    ContextAccessor* wa_elements[]{tasks.TryGetContextAccessor()...};
+    static_assert((true && ... && engine::Awaitable<Tasks>), "Tasks must be awaitable");
+    AwaitableToken wa_elements[]{tasks.GetAwaitableToken()...};
     return DoWaitAny(wa_elements, deadline);
 }
 
@@ -105,7 +107,7 @@ inline std::optional<std::size_t> WaitAnyFromTasks(Deadline) { return {}; }
 
 template <typename... Tasks>
 std::optional<std::size_t> WaitAnyUntil(Deadline deadline, Tasks&... tasks) {
-    if constexpr (meta::impl::IsSingleRange<Tasks...>()) {
+    if constexpr (meta::impl::IsSingleRange<Tasks...>) {
         return impl::WaitAnyFromContainer(deadline, tasks...);
     } else {
         return impl::WaitAnyFromTasks(deadline, tasks...);
@@ -114,10 +116,19 @@ std::optional<std::size_t> WaitAnyUntil(Deadline deadline, Tasks&... tasks) {
 
 /// @ingroup userver_concurrency
 ///
+/// @brief The reason why @ref WaitAnyContext::Wait and friends did not return the index of a completed awaitable.
+enum class WaitAnyError : std::uint8_t {
+    kEmpty,      ///< there were no awaitables to wait for
+    kCancelled,  ///< the wait operation was interrupted by task cancellation
+    kTimeout,    ///< the wait operation timed out (see also @ref FutureStatus)
+};
+
+/// @ingroup userver_concurrency
+///
 /// @brief Stores a set of awaitables and allows waiting for completion of any of the stored awaitables.
 ///
 /// Works with different types of awaitables:
-/// @snippet src/engine/wait_any_test.cpp sample MakeWaitAny
+/// @snippet core/src/engine/wait_any_test.cpp sample MakeWaitAny
 ///
 /// No methods (except .dtor) should be called on a moved-out instance.
 class WaitAnyContext final {
@@ -129,88 +140,83 @@ public:
     WaitAnyContext(const WaitAnyContext&) = delete;
     WaitAnyContext& operator=(const WaitAnyContext&) = delete;
 
-    /// @brief Append the given awaitables and sequences of awaitables to the context.
+    /// @brief Appends a single awaitable to the context.
     ///
-    /// Each passed awaitable could be either a single awaitable or a container of awaitables.
-    /// In the latter case all awaitables from the container are appended to the context.
-    /// The appended awaitables will have indexes [GetNextIndex() before the call, GetNextIndex() after the call - 1].
-    template <typename... Awaitables>
-    void Append(Awaitables&... awaitables);
+    /// The appended awaitable will be assigned the next id from the auto-incrementing counter;
+    /// see also @ref GetNextId.
+    void Append(engine::Awaitable auto& awaitable);
+
+    /// @brief Appends the given awaitable to the context with an explicit id.
+    ///
+    /// The id is an arbitrary number that will be returned by @ref Wait.
+    /// It does not have to be sequential or starting from 0. Duplicate ids are allowed.
+    ///
+    /// @ref GetNextId will be unaffected by this call. When mixing the id-less @ref Append
+    /// and this overload, the id-less `Append` maintains a sequence only within its own calls.
+    ///
+    /// Works well together with @ref utils::SlotMap to process and erase tasks in completion order:
+    /// @snippet core/src/engine/wait_any_test.cpp sample WaitAnyContext SlotMap
+    ///
+    /// @param id the id that will be returned by @ref Wait.
+    /// @param awaitable the awaitable to append.
+    void Append(std::uint64_t id, engine::Awaitable auto& awaitable);
 
     /// @brief Waits either for the completion of any of the awaitables stored in the context
     /// or for the cancellation of the caller.
     ///
-    /// @returns the index of the completed awaitable, or `std::nullopt` if there are no
-    /// completed awaitables (possible if current task was cancelled).
-    std::optional<std::uint64_t> Wait();
+    /// The completed awaitable is dropped out of the context.
+    ///
+    /// @returns the index of the completed awaitable, or a @ref WaitAnyError if there are no
+    /// completed awaitables (possible if current task was cancelled or the context is empty).
+    utils::expected<std::uint64_t, WaitAnyError> Wait();
 
     /// @brief Waits for the completion of any of the awaitables stored in the context
     /// or cancellation of the caller or deadline expiration.
     ///
-    /// @returns the index of the completed awaitable, or `std::nullopt` if there are no
-    /// completed awaitables (possible if current task was cancelled or the deadline was reached).
-    std::optional<std::uint64_t> WaitUntil(Deadline deadline);
-
-    /// @brief Waits for the completion of any of the awaitables stored in the context
-    /// or cancellation of the caller or expiration of the given duration.
+    /// The completed awaitable is dropped from the context.
     ///
-    /// @returns the index of the completed awaitable, or `std::nullopt` if there are no
-    /// completed awaitables (possible if current task was cancelled or the given duration has passed).
+    /// @returns the index of the completed awaitable, or a @ref WaitAnyError if there are no
+    /// completed awaitables (possible if current task was cancelled, the deadline was reached,
+    /// or the context is empty).
+    utils::expected<std::uint64_t, WaitAnyError> WaitUntil(Deadline deadline);
+
+    /// @overload
     template <typename Rep, typename Period>
-    std::optional<std::uint64_t> WaitFor(const std::chrono::duration<Rep, Period>& duration) {
+    utils::expected<std::uint64_t, WaitAnyError> WaitFor(const std::chrono::duration<Rep, Period>& duration) {
         return WaitUntil(Deadline::FromDuration(duration));
     }
 
-    /// @overload std::optional<std::size_t> Wait()
+    /// @overload
     template <typename Clock, typename Duration>
-    std::optional<std::uint64_t> WaitUntil(const std::chrono::time_point<Clock, Duration>& until) {
+    utils::expected<std::uint64_t, WaitAnyError> WaitUntil(const std::chrono::time_point<Clock, Duration>& until) {
         return WaitUntil(Deadline::FromTimePoint(until));
     }
 
-    /// @brief Returns the number of awaitables actually stored in the context.
+    /// @brief Returns the number of awaitables stored in the context.
     ///
-    /// It consists of actively awaited and pending subscription awaitables.
-    /// Already notified awaitables are dropped out.
+    /// These are awaitables which have been `Append`ed, but not yet retrieved by `Wait` or `WaitUntil`.
+    /// The awaitables that have already been reported using `Wait*` are dropped out.
     std::size_t GetSize() const noexcept;
 
-    /// @brief Returns the next awaitable index.
+    /// @brief Returns the next id that will be assigned by the next @ref Append call.
     ///
-    /// It could be used to calculate indexes of awaitables appended via Append call.
-    std::uint64_t GetNextIndex() const noexcept;
+    /// It could be used to calculate ids of awaitables appended via @ref Append call.
+    std::uint64_t GetNextId() const noexcept;
 
 private:
     class Impl;
 
-    template <typename Container>
-    void AppendFromContainer(Container& awaitables);
+    void AppendToken(engine::AwaitableToken awaitable);
 
-    template <typename Awaitable>
-    void AppendSingle(Awaitable& awaitable);
-
-    void AppendAccessor(impl::ContextAccessor* awaitable);
+    void AppendToken(std::uint64_t id, engine::AwaitableToken awaitable);
 
     boost::intrusive_ptr<Impl> impl_;
 };
 
-template <typename Container>
-void WaitAnyContext::AppendFromContainer(Container& awaitables) {
-    for (auto& awaitable : awaitables) {
-        AppendAccessor(awaitable.TryGetContextAccessor());
-    }
-}
+void WaitAnyContext::Append(engine::Awaitable auto& awaitable) { AppendToken(awaitable.GetAwaitableToken()); }
 
-template <typename Awaitable>
-void WaitAnyContext::AppendSingle(Awaitable& awaitable) {
-    if constexpr (meta::impl::IsSingleRange<Awaitable>()) {
-        AppendFromContainer(awaitable);
-    } else {
-        AppendAccessor(awaitable.TryGetContextAccessor());
-    }
-}
-
-template <typename... Awaitables>
-void WaitAnyContext::Append(Awaitables&... awaitables) {
-    (AppendSingle(awaitables), ...);
+void WaitAnyContext::Append(std::uint64_t id, engine::Awaitable auto& awaitable) {
+    AppendToken(id, awaitable.GetAwaitableToken());
 }
 
 /// @ingroup userver_concurrency
@@ -219,13 +225,20 @@ void WaitAnyContext::Append(Awaitables&... awaitables) {
 ///
 /// Each passed awaitable could be either a single awaitable or a container of awaitables.
 /// In the latter case all awaitables from the container are appended to the context.
-/// The stored awaitables will have indexes [0, GetNextIndex() - 1].
+/// The stored awaitables will have ids [0, GetNextId() - 1].
 template <typename... Awaitables>
 WaitAnyContext MakeWaitAny(Awaitables&... awaitables) {
     auto context = WaitAnyContext();
-    if constexpr (sizeof...(Awaitables) > 0) {
-        context.Append(awaitables...);
-    }
+    [[maybe_unused]] const auto append_one = [&context](auto& arg) {
+        if constexpr (meta::IsRange<decltype(arg)>) {
+            for (auto& awaitable : arg) {
+                context.Append(awaitable);
+            }
+        } else {
+            context.Append(arg);
+        }
+    };
+    (append_one(awaitables), ...);
     return context;
 }
 

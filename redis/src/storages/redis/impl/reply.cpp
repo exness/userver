@@ -276,7 +276,8 @@ void ReplyData::ExpectError(const std::string& request_description) const {
 Reply::Reply(std::string command, ReplyData&& reply_data, ReplyStatus reply_status)
     : cmd(std::move(command)),
       data(std::move(reply_data)),
-      status(reply_status)
+      status(reply_status),
+      deadline_propagation_meta(utils::impl::InternalTag{})
 {
     UASSERT_MSG(
         !IsOk() || !data.IsError(),

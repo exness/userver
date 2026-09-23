@@ -1,8 +1,7 @@
 #pragma once
 
 /// @file userver/utils/hedged_request.hpp
-/// @brief
-/// Classes and functions for performing hedged requests.
+/// @brief Classes and functions for performing hedged requests.
 ///
 /// To perform hedged request you need to define RequestStrategy - a class
 /// similar to following ExampleStrategy:
@@ -50,12 +49,14 @@
 ///
 
 #include <chrono>
+#include <compare>
 #include <functional>
 #include <optional>
 #include <queue>
-#include <tuple>
 #include <type_traits>
 
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/task/cancel.hpp>
 #include <userver/engine/wait_any.hpp>
 #include <userver/utils/assert.hpp>
@@ -99,16 +100,7 @@ struct PlanEntry {
           action(action)
     {}
 
-    bool operator<(const PlanEntry& other) const noexcept { return Tie() < other.Tie(); }
-    bool operator>(const PlanEntry& other) const noexcept { return Tie() > other.Tie(); }
-    bool operator==(const PlanEntry& other) const noexcept { return Tie() == other.Tie(); }
-    bool operator<=(const PlanEntry& other) const noexcept { return Tie() <= other.Tie(); }
-    bool operator>=(const PlanEntry& other) const noexcept { return Tie() >= other.Tie(); }
-    bool operator!=(const PlanEntry& other) const noexcept { return Tie() != other.Tie(); }
-
-    std::tuple<const TimePoint&, const size_t&, const size_t&, const Action&> Tie() const noexcept {
-        return std::tie(timepoint, request_index, attempt_id, action);
-    }
+    auto operator<=>(const PlanEntry& other) const noexcept = default;
 
     TimePoint timepoint;
     std::size_t request_index{0};
@@ -128,11 +120,12 @@ struct SubrequestWrapper {
         : request(std::move(request))
     {}
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() {
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() USERVER_IMPL_LIFETIME_BOUND {
         if (!request) {
-            return nullptr;
+            return engine::AwaitableToken{};
         }
-        return request->TryGetContextAccessor();
+        return request->GetAwaitableToken();
     }
 
     std::optional<RequestType> request;
@@ -312,7 +305,8 @@ struct HedgedRequestBulkFuture {
     /// @copydoc engine::TaskWithResult::Get()
     std::vector<std::optional<ReplyType>> Get() { return task_.Get(); }
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() { return task_.TryGetContextAccessor(); }
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() USERVER_IMPL_LIFETIME_BOUND { return task_.GetAwaitableToken(); }
 
 private:
     template <typename TRequestStrategy>
@@ -341,7 +335,8 @@ struct HedgedRequestFuture {
 
     void IgnoreResult() {}
 
-    engine::impl::ContextAccessor* TryGetContextAccessor() { return task_.TryGetContextAccessor(); }
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() USERVER_IMPL_LIFETIME_BOUND { return task_.GetAwaitableToken(); }
 
 private:
     template <typename TRequestStrategy>

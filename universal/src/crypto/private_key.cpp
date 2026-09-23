@@ -1,5 +1,7 @@
 #include <userver/crypto/private_key.hpp>
 
+#include <cstring>
+
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>

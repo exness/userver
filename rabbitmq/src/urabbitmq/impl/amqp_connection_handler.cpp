@@ -109,7 +109,8 @@ AmqpConnectionHandler::AmqpConnectionHandler(
       reader_{*this, *socket_},
       configured_heartbeat_seconds_{static_cast<
           std::uint16_t>(std::min<std::size_t>(heartbeat_interval_seconds, std::numeric_limits<std::uint16_t>::max()))},
-      stats_{stats} {}
+      stats_{stats}
+{}
 
 AmqpConnectionHandler::~AmqpConnectionHandler() {
     heartbeat_task_.Stop();
@@ -226,7 +227,10 @@ statistics::ConnectionStatistics& AmqpConnectionHandler::GetStatistics() { retur
 const AMQP::Address& AmqpConnectionHandler::GetAddress() const { return address_; }
 
 void AmqpConnectionHandler::SendHeartbeat() {
+    LOG_DEBUG() << "Sending AMQP heartbeat";
+
     if (IsBroken() || connection_ == nullptr) {
+        LOG_DEBUG("Failed to send AMQP heartbeat. Connection is broken");
         return;
     }
 

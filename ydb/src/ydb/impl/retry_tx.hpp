@@ -125,14 +125,13 @@ public:
     }
 
     void UpdateSession(std::uint32_t retry_number) {
-        RequestContext get_session_context{
-            table_client_,
+        auto get_session_context = table_client_.MakeRequestContext(
             Query{"", Query::Name{"GetSession"}},
             GetSessionSettings{settings_.get_session_settings},
             IsStreaming{false},
             nullptr,
             deadline_
-        };
+        );
 
         get_session_context.span.AddTag("attempt", retry_number + 1);
 

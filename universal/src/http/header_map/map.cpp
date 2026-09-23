@@ -1,4 +1,5 @@
 #include <http/header_map/map.hpp>
+#include <userver/http/common_headers.hpp>
 #include <userver/utils/small_string.hpp>
 
 // Inspired by
@@ -179,7 +180,7 @@ MaybeOwnedKey::MaybeOwnedKey(std::string_view key)
       key_str_if_exists_{nullptr}
 {}
 
-std::string_view MaybeOwnedKey::GetValue() const { return key_; }
+std::string_view MaybeOwnedKey::GetValue() const noexcept { return key_; }
 
 std::string MaybeOwnedKey::ExtractValue() && {
     if (key_str_if_exists_) {
@@ -441,11 +442,13 @@ Map::Iterator Map::DoInsertOrModify(
     ReserveOne();
 
     const auto perform_occupied = [this, occupied_action](std::size_t entries_idx, std::string&& value) {
-        auto& header_value = entries_[entries_idx].Get().second;
+        auto& header = entries_[entries_idx].Get();
+        auto& header_value = header.second;
 
         switch (occupied_action) {
             case InsertOrModifyOccupiedAction::kAppend: {
-                header_value += ',';
+                // RFC 6265 §5.4: Cookie headers must be joined with "; ", not ",".
+                header_value += AreValuesICaseEqual(header.first, kCookie) ? "; " : ",";
                 header_value += value;
                 break;
             }

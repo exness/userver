@@ -1,5 +1,9 @@
 #pragma once
 
+/// @file userver/http/header_map.hpp
+/// @brief @copybrief http::headers::HeaderMap
+/// @ingroup userver_universal
+
 #include <initializer_list>
 #include <iterator>
 #include <string>
@@ -16,6 +20,7 @@ namespace http::headers {
 
 class TestsHelper;
 
+/// @brief Internal helpers for `HeaderMap` storage and iteration.
 namespace header_map {
 class Map;
 }
@@ -50,20 +55,28 @@ public:
 
     /// The exception being thrown in case of capacity overflow
     class TooManyHeadersException final : public std::runtime_error {
+    public:
         using std::runtime_error::runtime_error;
+
+        TooManyHeadersException(const TooManyHeadersException&) = default;
+        TooManyHeadersException(TooManyHeadersException&&) = default;
+        TooManyHeadersException& operator=(const TooManyHeadersException&) = default;
+        TooManyHeadersException& operator=(TooManyHeadersException&&) = default;
+
+        ~TooManyHeadersException() override;
     };
 
     /// Default constructor.
     HeaderMap();
     /// Constructor from initializer list: `HeaderMap({{"a", "b"}, {"c", "d"}})`.
-    /// Its unspecified which pair is inserted in case of names not being unique.
+    /// It's unspecified which pair is inserted in case of names not being unique.
     /*implicit*/ HeaderMap(std::initializer_list<std::pair<std::string_view, std::string_view>> headers);
     /// Constructor with capacity: preallocates `capacity` elements for internal
     /// storage.
     explicit HeaderMap(std::size_t capacity);
     /// Constructor from iterator pair:
     /// `HeaderMap{key_value_pairs.begin(), key_value_pairs.end()}`.
-    /// Its unspecified which pair is inserted in case of names not being unique.
+    /// It's unspecified which pair is inserted in case of names not being unique.
     template <typename InputIt>
     HeaderMap(InputIt first, InputIt last);
 
@@ -167,7 +180,7 @@ public:
     }
 
     /// For every iterator it in [first, last) inserts *it.
-    /// Its unspecified which pair is inserted in case of names not being unique.
+    /// It's unspecified which pair is inserted in case of names not being unique.
     template <typename InputIt>
     void insert(InputIt first, InputIt last);
 
@@ -371,10 +384,8 @@ public:
     Iterator operator++(int);
     Iterator& operator++();
 
-    reference operator*();
-    const_reference operator*() const;
-    pointer operator->();
-    const_pointer operator->() const;
+    reference operator*() const;
+    pointer operator->() const;
 
     bool operator==(const Iterator& other) const;
     bool operator!=(const Iterator& other) const;
@@ -414,9 +425,7 @@ public:
     ConstIterator operator++(int);
     ConstIterator& operator++();
 
-    reference operator*();
     const_reference operator*() const;
-    pointer operator->();
     const_pointer operator->() const;
 
     bool operator==(const ConstIterator& other) const;

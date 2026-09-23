@@ -2,6 +2,7 @@ import asyncio
 import datetime
 
 import pytest
+import pytest_userver.client
 
 DP_TIMEOUT_MS = 'X-YaTaxi-Client-TimeoutMs'
 DP_DEADLINE_EXPIRED = 'X-YaTaxi-Deadline-Expired'
@@ -80,6 +81,23 @@ def get_handler_exception_logs(capture):
     return [log for log in capture.select() if log['text'].startswith("exception in 'handler-chaos-httpclient'")]
 
 
+async def _wait_for_timeout_error_metrics(
+    client_metrics: pytest_userver.client.MetricsDiffer,
+    expected_count: int,
+    *,
+    max_wait: float = 2.0,
+) -> None:
+    """httpclient timeout counters are written asynchronously."""
+    poll_interval = 0.05
+    attempts = int(max_wait / poll_interval)
+    for _ in range(attempts):
+        client_metrics.current = await client_metrics.fetch()
+        count = client_metrics.value_at('errors', {'http_error': 'timeout', **VERSION}, default=0)
+        if count == expected_count:
+            return
+        await asyncio.sleep(poll_interval)
+
+
 @pytest.mark.parametrize(
     'timeout,deadline,attempts',
     [(100, 2000, 1), (100, 2000, 1), (200, 2000, 2)],
@@ -102,6 +120,8 @@ async def test_timeout_expired(
             )
             assert response.status == 500
             assert response.text == ''
+
+            await _wait_for_timeout_error_metrics(client_metrics, attempts)
 
     assert client_metrics.value_at('cancelled-by-deadline', VERSION) == 0
     assert client_metrics.value_at('errors', {'http_error': 'ok', **VERSION}) == 0
@@ -145,6 +165,8 @@ async def test_timeout_expired_with_reuse(
             )
             assert response.status == 500
             assert response.text == ''
+
+            await _wait_for_timeout_error_metrics(client_metrics, reuse_attempts)
 
     assert client_metrics.value_at('cancelled-by-deadline', VERSION) == 0
     assert client_metrics.value_at('errors', {'http_error': 'ok', **VERSION}) == 0
@@ -401,11 +423,12 @@ async def test_dp_timeout_not_retried(
 
 async def test_absolute_deadline_propagated_as_is(call, mockserver):
     epoch_us_deadline = _make_deadline_epoch_us(10.0)
-    captured = {}
+    captured_headers = None
 
     @mockserver.handler('/test')
     async def mock(request):
-        captured['headers'] = dict(request.headers)
+        nonlocal captured_headers
+        captured_headers = dict(request.headers)
         return mockserver.make_response('OK!')
 
     response = await call(
@@ -415,4 +438,22 @@ async def test_absolute_deadline_propagated_as_is(call, mockserver):
         },
     )
     assert response.status == 200
-    assert captured['headers'].get(DP_ABSOLUTE_DEADLINE) == epoch_us_deadline
+    assert captured_headers is not None
+    assert captured_headers.get(DP_ABSOLUTE_DEADLINE) == epoch_us_deadline
+
+
+async def test_absolute_deadline_synthesized_when_only_duration_propagated(call, mockserver):
+    captured_headers = None
+
+    @mockserver.handler('/test')
+    async def mock(request):
+        nonlocal captured_headers
+        captured_headers = dict(request.headers)
+        return mockserver.make_response('OK!')
+
+    response = await call(
+        headers={DP_TIMEOUT_MS: '500'},
+    )
+    assert captured_headers is not None
+    assert response.status == 200
+    assert DP_ABSOLUTE_DEADLINE in captured_headers

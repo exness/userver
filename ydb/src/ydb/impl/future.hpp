@@ -17,16 +17,22 @@ namespace ydb::impl {
 void HandleOnceRetry(utils::RetryBudget& retry_budget, NYdb::EStatus status);
 
 template <typename T>
-void WaitForFuture(const NThreading::TFuture<T>& future) {
-    if (engine::FutureStatus::kReady != drivers::TryWaitForSubscribableFuture(future, engine::Deadline{})) {
+void WaitForFuture(const NThreading::TFuture<T>& future, engine::Deadline deadline = {}) {
+    const auto status = drivers::TryWaitForSubscribableFuture(future, deadline);
+
+    if (status == engine::FutureStatus::kTimeout) {
+        throw DeadlineExceededError("Deadline exceeded while waiting for future");
+    }
+
+    if (status != engine::FutureStatus::kReady) {
         throw OperationCancelledError();
     }
 }
 
 template <typename T>
-T GetFutureValue(NThreading::TFuture<T>&& future) {
+T GetFutureValue(NThreading::TFuture<T>&& future, engine::Deadline deadline = {}) {
     static_assert(!std::is_base_of_v<NYdb::TStatus, T>, "for T derived from NYdb::TStatus use GetFutureValueUnchecked");
-    impl::WaitForFuture(future);
+    impl::WaitForFuture(future, deadline);
     if constexpr (std::is_void_v<T>) {
         future.GetValue();
     } else {

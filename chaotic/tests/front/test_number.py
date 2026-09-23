@@ -97,3 +97,49 @@ def test_integer_min_wrong_str(simple_parse):
         simple_parse({'type': 'integer', 'minimum': '1'})
     assert exc.value.infile_path == '/definitions/type/minimum'
     assert exc.value.msg == 'Integer type is expected, 1 is found'
+
+
+def test_integer_nullable(simple_parse):
+    parsed = simple_parse({'type': 'integer', 'nullable': True})
+    assert parsed.schemas == {
+        'vfull#/definitions/type': front_types.Integer(nullable=True),
+    }
+
+
+def test_integer_default(simple_parse):
+    parsed = simple_parse({'type': 'integer', 'default': 42})
+    assert parsed.schemas == {
+        'vfull#/definitions/type': front_types.Integer(default=42),
+    }
+
+
+def test_integer_min_max_exclusive_false(simple_parse):
+    parsed = simple_parse({
+        'type': 'integer',
+        'exclusiveMinimum': False,
+        'exclusiveMaximum': False,
+    })
+    assert parsed.schemas == {
+        'vfull#/definitions/type': front_types.Integer(
+            exclusiveMinimum=False,
+            exclusiveMaximum=False,
+        ),
+    }
+
+
+def test_integer_min_max_exclusive_legacy(simple_parse):
+    parsed = simple_parse({
+        'type': 'integer',
+        'exclusiveMinimum': True,
+        'minimum': 2,
+        'exclusiveMaximum': True,
+        'maximum': 10,
+    })
+    assert parsed.schemas == {
+        'vfull#/definitions/type': front_types.Integer(
+            exclusiveMinimum=True,
+            minimum=2,
+            exclusiveMaximum=True,
+            maximum=10,
+        ),
+    }

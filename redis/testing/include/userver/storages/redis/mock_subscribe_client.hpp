@@ -38,8 +38,33 @@ public:
         (std::string pattern, SubscriptionToken::OnPmessageCb on_pmessage_cb, const CommandControl& command_control),
         (override)
     );
+    MOCK_METHOD(
+        SubscriptionToken,
+        Subscribe,
+        (std::vector<std::string> channel,
+         SubscriptionToken::OnMessageCb on_message_cb,
+         const CommandControl& command_control),
+        (override)
+    );
+    MOCK_METHOD(
+        SubscriptionToken,
+        Ssubscribe,
+        (std::vector<std::string> channel,
+         SubscriptionToken::OnMessageCb on_message_cb,
+         const CommandControl& command_control),
+        (override)
+    );
+    MOCK_METHOD(
+        SubscriptionToken,
+        Psubscribe,
+        (std::vector<std::string> patterns,
+         SubscriptionToken::OnPmessageCb on_pmessage_cb,
+         const CommandControl& command_control),
+        (override)
+    );
     MOCK_METHOD(size_t, ShardsCount, (), (const, override));
     MOCK_METHOD(bool, IsInClusterMode, (), (const, override));
+    MOCK_METHOD(bool, IsReady, (const HealthCheckParams& params), (const, override));
 };
 
 /// @brief Mocked storages::redis::SubscriptionToken.
@@ -47,7 +72,7 @@ public:
 /// Although one can used it by itself,
 /// it mostly for use with MockSubscribeClient. Here is a small example on
 /// how to use this class
-/// @snippet storages/redis/test/subscribe_client_mock_test.cpp SbTknExmpl1
+/// @snippet redis/src/storages/redis/test/subscribe_client_mock_test.cpp SbTknExmpl1
 class MockSubscriptionTokenImpl : public impl::SubscriptionTokenImplBase {
 public:
     ~MockSubscriptionTokenImpl() override = default;

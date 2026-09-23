@@ -202,13 +202,15 @@ constexpr bool AssertHasCompositeFormatters() {
 }  // namespace detail
 
 template <typename T>
-struct Input<T, std::enable_if_t<!detail::CustomParserDefined<T> && kIsRowType<T>>> {
+requires(!detail::CustomParserDefined<T> && kIsRowType<T>)
+struct Input<T> {
     static_assert(detail::AssertHasCompositeParsers<T>());
     using type = io::detail::CompositeBinaryParser<T>;
 };
 
 template <typename T>
-struct Output<T, std::enable_if_t<!detail::CustomFormatterDefined<T> && IsMappedToUserType<T> && kIsRowType<T>>> {
+requires(!detail::CustomFormatterDefined<T> && IsMappedToUserType<T> && kIsRowType<T>)
+struct Output<T> {
     static_assert(detail::AssertHasCompositeFormatters<T>());
     using type = io::detail::CompositeBinaryFormatter<T>;
 };

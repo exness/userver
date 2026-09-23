@@ -27,14 +27,12 @@ if(CMAKE_VERSION GREATER_EQUAL 3.31)
     cmake_policy(SET CMP0177 NEW)
 endif()
 
-set(USERVER_AVAILABLE_COMPONENTS universal)
-
 # @ingroup libraries
 option(USERVER_FEATURE_CORE "Provide a core library with coroutines, otherwise build only userver-universal" ON)
 # @ingroup libraries
 option(USERVER_FEATURE_CHAOTIC "Provide chaotic-codegen for jsonschema" ON)
 # @ingroup libraries
-option(USERVER_FEATURE_CHAOTIC_EXPERIMENTAL "Provide chaotic-codegen for openapi" OFF)
+option(USERVER_FEATURE_CHAOTIC_OPENAPI "Provide chaotic-codegen for openapi" ON)
 
 set(USERVER_BUILD_PLATFORM_X86 OFF)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^x86")
@@ -60,12 +58,6 @@ option(USERVER_BUILD_SAMPLES "Build userver samples" OFF)
 
 if(USERVER_BUILD_TESTS AND NOT USERVER_FEATURE_UTEST)
     message(FATAL_ERROR "Running unit tests for userver requires utest, disabling it is meaningless")
-endif()
-
-if(USERVER_INSTALL AND USERVER_BUILD_TESTS)
-    message(FATAL_ERROR "For USERVER_INSTALL, please turn off USERVER_BUILD_TESTS "
-                        "to avoid accidentally installing them"
-    )
 endif()
 
 # @ingroup everything
@@ -127,8 +119,13 @@ endif()
 # @ingroup some_platforms
 option(USERVER_FEATURE_JEMALLOC "Enable linkage with jemalloc memory allocator" ${JEMALLOC_DEFAULT})
 
+include("${USERVER_ROOT_DIR}/cmake/DetectPhdrCacheDefault.cmake")
+_userver_detect_phdr_cache_default()
 # @ingroup some_platforms
-option(USERVER_DISABLE_PHDR_CACHE "Disable caching of dl_phdr_info items, which interferes with dlopen" OFF)
+option(USERVER_DISABLE_PHDR_CACHE "Disable caching of dl_phdr_info items, which interferes with dlopen. \
+Default ON with sanitizers, or when GCC >= 12 (or Clang >= 15) and the runtime \
+unwinder supports _dl_find_object (mlock of the main binary is kept regardless)." ${USERVER_DISABLE_PHDR_CACHE_DEFAULT}
+)
 # @ingroup some_platforms
 option(USERVER_FEATURE_STACK_USAGE_MONITOR "Enable coroutine stack usage monitor if available" ON)
 
@@ -240,7 +237,7 @@ if(USERVER_FEATURE_GRPC)
     include(SetupProtobuf)
 endif()
 
-include(UserverTestsuite)  # Uses protobuf version.
+include(UserverTestsuite) # Uses protobuf version.
 if(USERVER_BUILD_TESTS)
     include(testsuite/SetupUserverTestsuiteEnv.cmake)
     add_subdirectory(testsuite)
@@ -250,12 +247,10 @@ add_subdirectory(universal)
 
 if(USERVER_FEATURE_CHAOTIC)
     add_subdirectory(chaotic)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS chaotic)
 
-    if(USERVER_FEATURE_CHAOTIC_EXPERIMENTAL)
-        _require_userver_core(USERVER_FEATURE_CHAOTIC_EXPERIMENTAL)
+    if(USERVER_FEATURE_CHAOTIC_OPENAPI)
+        _require_userver_core(USERVER_FEATURE_CHAOTIC_OPENAPI)
         add_subdirectory(chaotic-openapi)
-        list(APPEND USERVER_AVAILABLE_COMPONENTS chaotic-openapi)
     endif()
 endif()
 
@@ -264,31 +259,32 @@ if(USERVER_FEATURE_CORE)
         message(FATAL_ERROR "'USERVER_FEATURE_CORE' requires 'USERVER_FEATURE_CHAOTIC=ON'")
     endif()
     add_subdirectory(core)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS core)
 endif()
 
 if(USERVER_FEATURE_MONGODB)
     _require_userver_core("USERVER_FEATURE_MONGODB")
     add_subdirectory(mongo)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS mongo)
 endif()
 
 if(USERVER_FEATURE_POSTGRESQL)
     _require_userver_core("USERVER_FEATURE_POSTGRESQL")
     add_subdirectory(postgresql)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS postgresql)
 endif()
 
 if(USERVER_FEATURE_REDIS)
     _require_userver_core("USERVER_FEATURE_REDIS")
     add_subdirectory(redis)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS redis)
 endif()
 
 if(USERVER_FEATURE_GRPC)
     _require_userver_core("USERVER_FEATURE_GRPC")
+    add_subdirectory(libraries/protobuf)
     add_subdirectory(grpc)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS grpc)
+endif()
+
+if(USERVER_FEATURE_SCYLLADB)
+    _require_userver_core("USERVER_FEATURE_SCYLLADB")
+    add_subdirectory(scylla)
 endif()
 
 if(USERVER_FEATURE_OTLP)
@@ -297,31 +293,26 @@ if(USERVER_FEATURE_OTLP)
     endif()
     _require_userver_core("USERVER_FEATURE_OTLP")
     add_subdirectory(otlp)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS otlp)
 endif()
 
 if(USERVER_FEATURE_CLICKHOUSE)
     _require_userver_core("USERVER_FEATURE_CLICKHOUSE")
     add_subdirectory(clickhouse)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS clickhouse)
 endif()
 
 if(USERVER_FEATURE_KAFKA)
     _require_userver_core("USERVER_FEATURE_KAFKA")
     add_subdirectory(kafka)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS kafka)
 endif()
 
 if(USERVER_FEATURE_RABBITMQ)
     _require_userver_core("USERVER_FEATURE_RABBITMQ")
     add_subdirectory(rabbitmq)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS rabbitmq)
 endif()
 
 if(USERVER_FEATURE_MYSQL)
     _require_userver_core("USERVER_FEATURE_MYSQL")
     add_subdirectory(mysql)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS mysql)
 endif()
 
 if(USERVER_FEATURE_ROCKS)
@@ -332,19 +323,16 @@ endif()
 if(USERVER_FEATURE_YDB)
     _require_userver_core("USERVER_FEATURE_YDB")
     add_subdirectory(ydb)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS ydb)
 endif()
 
 if(USERVER_FEATURE_SQLITE)
     _require_userver_core("USERVER_FEATURE_SQLITE")
     add_subdirectory(sqlite)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS sqlite)
 endif()
 
 if(USERVER_FEATURE_ODBC)
     _require_userver_core("USERVER_FEATURE_ODBC")
     add_subdirectory(odbc)
-    list(APPEND USERVER_AVAILABLE_COMPONENTS odbc)
 endif()
 
 add_subdirectory(libraries)
@@ -353,49 +341,49 @@ if(USERVER_BUILD_TESTS)
     add_subdirectory(scripts/gdb/tests)
 endif()
 
+if(USERVER_FEATURE_POSTGRESQL)
+    add_subdirectory(scripts/sqldto)
+endif()
+
 _userver_export_targets()
 _userver_make_install_config()
 
 if(USERVER_BUILD_SAMPLES AND USERVER_FEATURE_CORE)
-    add_subdirectory(samples)
+    if(USERVER_BUILD_TESTS)
+        add_subdirectory(samples)
+    endif()
+
+    # Install the whole samples tree, but drop the master samples/CMakeLists.txt: it writes
+    # a fake userverConfig.cmake stub and would shadow the real installed userver. The leaf
+    # samples' own CMakeLists.txt files live in subdirectories and are kept, so the anchored
+    # "samples/CMakeLists.txt" pattern only matches the top-level file.
+    _userver_directory_install(
+        COMPONENT examples
+        DIRECTORY "${USERVER_ROOT_DIR}/samples"
+        DESTINATION share/userver
+        EXCLUDE_PATTERNS "samples/CMakeLists.txt"
+    )
+    # NON_FINDABLE: the 'examples' install/CPack component only ships sample sources.
+    _userver_install_component(COMPONENT examples NON_FINDABLE)
+    # libuserver-samples, not libuserver-samples-dev
+    set(CPACK_DEBIAN_SAMPLES_PACKAGE_NAME libuserver-examples)
 endif()
 
 if(USERVER_FEATURE_CORE)
     _userver_directory_install(
         COMPONENT core
         PROGRAMS "${USERVER_ROOT_DIR}/scripts/userver-create-service.py"
-        DESTINATION ${CMAKE_INSTALL_BINDIR}/
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
         RENAME userver-create-service
     )
     _userver_directory_install(
         COMPONENT core
         DIRECTORY "${USERVER_ROOT_DIR}/service_template"
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/userver/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/userver
     )
 endif()
 
 if(USERVER_BUILD_TESTS)
-    function(_add_create_service_test FEATURE CMAKE_OPTS)
-        add_test(NAME create-service${FEATURE}
-                 COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/create-service-test-helper" "${CMAKE_CURRENT_SOURCE_DIR}"
-                         "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_OPTS}" ${FEATURE}
-        )
-    endfunction()
-
-    _add_create_service_test("" "")
-    if(USERVER_FEATURE_MONGODB)
-        _add_create_service_test("--mongo" "")
-    endif()
-    if(USERVER_FEATURE_POSTGRESQL)
-        _add_create_service_test("--postgresql" "")
-    endif()
-    if(USERVER_FEATURE_GRPC)
-        _add_create_service_test(
-            "--grpc"
-            "-DUSERVER_GOOGLE_COMMON_PROTOS=${USERVER_GOOGLE_COMMON_PROTOS} -DUSERVER_DOWNLOAD_PACKAGES=${USERVER_DOWNLOAD_PACKAGES}"
-        )
-    endif()
-
     include(UserverVenv)
     userver_venv_setup(
         NAME sleep_in_tests
@@ -404,8 +392,8 @@ if(USERVER_BUILD_TESTS)
         UNIQUE
     )
     add_test(NAME sleep-in-tests
-        COMMAND
-	    env PYTHON_BINARY=${PYTHON_BINARY} PYTHONPATH="${USERVER_ROOT_DIR}" "${USERVER_ROOT_DIR}/scripts/pylint/pylint_all.sh"
+             COMMAND ${CMAKE_COMMAND} -E env PYTHON_BINARY=${PYTHON_BINARY} PYTHONPATH="${USERVER_ROOT_DIR}"
+                     "${USERVER_ROOT_DIR}/scripts/pylint/pylint_all.sh"
     )
 endif()
 

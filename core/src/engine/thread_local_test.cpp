@@ -43,7 +43,7 @@ UTEST_MT(ThreadLocal, DISABLED_TaskUsesCorrectInstanceAfterSleep, 2) {
 
     const auto thread1_id = pthread_self();
 
-    auto sleep2 = engine::AsyncNoSpan([&] {
+    auto sleep2 = engine::AsyncNoTracing([&] {
         // (1)
         EXPECT_NE(pthread_self(), thread1_id);
         std::this_thread::sleep_for(3s);
@@ -53,7 +53,7 @@ UTEST_MT(ThreadLocal, DISABLED_TaskUsesCorrectInstanceAfterSleep, 2) {
     EXPECT_EQ(pthread_self(), thread1_id);
     std::this_thread::sleep_for(1s);
 
-    auto mutator_task = engine::AsyncNoSpan([&] {
+    auto mutator_task = engine::AsyncNoTracing([&] {
         // (3)
         EXPECT_EQ(pthread_self(), thread1_id);
         std::this_thread::sleep_for(1s);
@@ -70,7 +70,7 @@ UTEST_MT(ThreadLocal, DISABLED_TaskUsesCorrectInstanceAfterSleep, 2) {
         return LoadThreadLocal();
     });
 
-    auto sleep1 = engine::AsyncNoSpan([&] {
+    auto sleep1 = engine::AsyncNoTracing([&] {
         // (5)
         EXPECT_EQ(pthread_self(), thread1_id);
         std::this_thread::sleep_for(3s);
@@ -91,8 +91,6 @@ UTEST_MT(ThreadLocal, DISABLED_TaskUsesCorrectInstanceAfterSleep, 2) {
     UEXPECT_NO_THROW(sleep2.Get());
 }
 
-// Test is not ready to TSan non-migrating scheduler
-#if !USERVER_IMPL_HAS_TSAN
 namespace {
 
 auto& SafeGetThreadLocal() {
@@ -111,9 +109,13 @@ void SafeMultiplyThreadLocal(int new_value) noexcept {
 // This is a copy-paste from TaskUsesCorrectInstanceAfterSleep test.
 // While the test above consistently fails as of now, this test should pass.
 UTEST_MT(ThreadLocal, SafeThreadLocalWorks, 2) {
+#if USERVER_IMPL_HAS_TSAN
+    GTEST_SKIP() << "The test is not ready for the TSan non-migrating scheduler";
+#endif
+
     const auto thread1_id = pthread_self();
 
-    auto sleep2 = engine::AsyncNoSpan([&] {
+    auto sleep2 = engine::AsyncNoTracing([&] {
         // (1)
         EXPECT_NE(pthread_self(), thread1_id);
         std::this_thread::sleep_for(300ms);
@@ -123,7 +125,7 @@ UTEST_MT(ThreadLocal, SafeThreadLocalWorks, 2) {
     EXPECT_EQ(pthread_self(), thread1_id);
     std::this_thread::sleep_for(100ms);
 
-    auto mutator_task = engine::AsyncNoSpan([&] {
+    auto mutator_task = engine::AsyncNoTracing([&] {
         // (3)
         EXPECT_EQ(pthread_self(), thread1_id);
         std::this_thread::sleep_for(100ms);
@@ -140,7 +142,7 @@ UTEST_MT(ThreadLocal, SafeThreadLocalWorks, 2) {
         return SafeLoadThreadLocal();
     });
 
-    auto sleep1 = engine::AsyncNoSpan([&] {
+    auto sleep1 = engine::AsyncNoTracing([&] {
         // (5)
         EXPECT_EQ(pthread_self(), thread1_id);
         std::this_thread::sleep_for(300ms);
@@ -160,7 +162,6 @@ UTEST_MT(ThreadLocal, SafeThreadLocalWorks, 2) {
 
     UEXPECT_NO_THROW(sleep2.Get());
 }
-#endif
 
 namespace {
 
@@ -209,7 +210,7 @@ TYPED_UTEST_MT(ThreadLocalTyped, SmallFunctionUseInnerTL, 4) {
     std::vector<engine::TaskWithResult<void>> tasks;
     tasks.reserve(kNumTasks);
     for (std::size_t i = 0; i < kNumTasks; ++i) {
-        tasks.push_back(engine::AsyncNoSpan([&] {
+        tasks.push_back(engine::AsyncNoTracing([&] {
             for (auto i = 0; i < 1000; ++i) {
                 const auto thread_local_ptr_before = TypeParam::GetLocal();
                 const auto thread_id_before = std::this_thread::get_id();

@@ -163,7 +163,7 @@ Parse(const formats::bson::Value& bson, formats::parse::To<models::Requirements:
             seat.push_back(chair_class.As<short>());
         }
 
-        std::sort(seat.begin(), seat.end());
+        std::ranges::sort(seat);
         seats.push_back(std::move(seat));
     }
 
@@ -219,7 +219,7 @@ void bson_parse_full(benchmark::State& state) {
     for (auto _ : state) {
         auto bson = formats::bson::Document(bench_bson_data[++i % kBenchRows]);
 
-        const auto res = bson.As<models::Profile>();
+        auto res = bson.As<models::Profile>();
         benchmark::DoNotOptimize(res);
     }
 }
@@ -234,7 +234,7 @@ void bson_parse_access(benchmark::State& state) {
         bson[names::kLicense].As<std::string>();
         state.ResumeTiming();
 
-        const auto res = bson.As<models::Profile>();
+        auto res = bson.As<models::Profile>();
         benchmark::DoNotOptimize(res);
     }
 }

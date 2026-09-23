@@ -3,6 +3,7 @@
 /// @file
 /// @brief Valkey/Redis futures for storages::redis::Client and storages::redis::Transaction.
 
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -10,9 +11,14 @@
 #include <unordered_set>
 #include <vector>
 
-#include <userver/engine/impl/context_accessor.hpp>
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
+#include <userver/formats/json/value.hpp>
 #include <userver/storages/redis/exception.hpp>
 #include <userver/storages/redis/fwd.hpp>
+#include <userver/storages/redis/hexpiretime_reply.hpp>
+#include <userver/storages/redis/hpexpiretime_reply.hpp>
+#include <userver/storages/redis/pttl_reply.hpp>
 #include <userver/storages/redis/reply_types.hpp>
 #include <userver/storages/redis/request_data_base.hpp>
 #include <userver/storages/redis/scan_tag.hpp>
@@ -51,10 +57,10 @@ public:
     /// @throws server or request related exceptions
     ReplyType Get(const std::string& request_description = {}) { return impl_->Get(request_description); }
 
-    /// @cond
-    /// Internal helper for WaitAny/WaitAll
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return impl_->TryGetContextAccessor(); }
-    /// @endcond
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+        return impl_->GetAwaitableToken();
+    }
 
     template <typename T1, typename T2>
     friend class RequestEval;
@@ -144,13 +150,11 @@ public:
             return *this;
         }
 
-        reference operator*() { return stream_->Current(); }
+        reference operator*() const { return stream_->Current(); }
 
-        pointer operator->() { return &**this; }
+        pointer operator->() const { return &**this; }
 
         bool operator==(const Iterator& rhs) const { return stream_ == rhs.stream_; }
-
-        bool operator!=(const Iterator& rhs) const { return !(*this == rhs); }
 
     private:
         ScanRequest* stream_;
@@ -196,6 +200,7 @@ using RequestGeopos = Request<std::vector<std::optional<Point>>>;
 using RequestGeoradius = Request<std::vector<GeoPoint>>;
 using RequestGeosearch = Request<std::vector<GeoPoint>>;
 using RequestGet = Request<std::optional<std::string>>;
+using RequestGetdel = Request<std::optional<std::string>>;
 using RequestGetset = Request<std::optional<std::string>>;
 using RequestHdel = Request<size_t>;
 using RequestHexists = Request<size_t>;
@@ -223,6 +228,7 @@ using RequestLrem = Request<size_t>;
 using RequestLtrim = Request<StatusOk, void>;
 using RequestMget = Request<std::vector<std::optional<std::string>>>;
 using RequestMset = Request<StatusOk, void>;
+using RequestMsetex = Request<MsetexReply>;
 using RequestPersist = Request<PersistReply>;
 using RequestPexpire = Request<ExpireReply>;
 using RequestPing = Request<StatusPong, void>;
@@ -241,6 +247,7 @@ using RequestSetIfNotExist = Request<std::optional<StatusOk>, bool>;
 using RequestSetIfNotExistOrGet = Request<std::optional<std::string>>;
 using RequestSetOptions = Request<SetReply>;
 using RequestSetex = Request<StatusOk, void>;
+using RequestSetAndGetPrevious = Request<std::optional<std::string>>;
 using RequestSismember = Request<size_t>;
 using RequestSmembers = Request<std::unordered_set<std::string>>;
 using RequestSrandmember = Request<std::optional<std::string>>;
@@ -265,6 +272,24 @@ using RequestZremrangebyrank = Request<size_t>;
 using RequestZremrangebyscore = Request<size_t>;
 using RequestZscan = ScanRequest<ScanTag::kZscan>;
 using RequestZscore = Request<std::optional<double>>;
+
+// Hash field expiration commands
+using RequestHexpire = Request<std::vector<HexpireReply>>;
+using RequestHexpiretime = Request<std::vector<HexpiretimeReply>>;
+using RequestHpexpiretime = Request<std::vector<HpexpiretimeReply>>;
+using RequestHttl = Request<std::vector<TtlReply>>;
+using RequestHpttl = Request<std::vector<PttlReply>>;
+using RequestHpersist = Request<std::vector<HpersistReply>>;
+using RequestHgetex = Request<std::vector<std::optional<std::string>>>;
+using RequestHsetex = Request<HsetexReply>;
+
+// JSON module commands
+using RequestJsonSet = Request<StatusOk, void>;
+using RequestJsonSetIfExist = Request<std::optional<StatusOk>, bool>;
+using RequestJsonSetIfNotExist = Request<std::optional<StatusOk>, bool>;
+using RequestJsonGet = Request<std::optional<formats::json::Value>>;
+using RequestJsonMget = Request<std::vector<std::optional<formats::json::Value>>>;
+using RequestJsonMset = Request<StatusOk, void>;
 /// @}
 
 }  // namespace storages::redis

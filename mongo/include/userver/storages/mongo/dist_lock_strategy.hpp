@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/storages/mongo/dist_lock_strategy.hpp
+/// @brief @copybrief storages::mongo::DistLockStrategy
+
 #include <chrono>
 #include <string>
 
@@ -10,7 +13,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::mongo {
 
-/// Strategy for mongodb-based distributed locking
+/// @brief Strategy for MongoDB-based distributed locking
 class DistLockStrategy final : public dist_lock::DistLockStrategyBase {
 public:
     /// Targets a distributed lock in a specified collection as a host.
@@ -19,6 +22,8 @@ public:
     DistLockStrategy(Collection collection, std::string lock_name, std::string owner);
 
     void Acquire(std::chrono::milliseconds lock_ttl, const std::string& locker_id) override;
+
+    void Prolong(std::chrono::milliseconds lock_ttl, const std::string& locker_id) override;
 
     void Release(const std::string& locker_id) override;
 

@@ -54,9 +54,12 @@ public:
 
     const TracingManagerBase& GetTracingManager() const;
 
+    bool IsOtelTraceSamplingEnabled() const noexcept;
+
     static yaml_config::Schema GetStaticConfigSchema();
 
 private:
+    const GenericTracingManager::SamplingEnabled otel_sampling_;
     GenericTracingManager default_manager_;
     const TracingManagerBase& tracing_manager_;
 };

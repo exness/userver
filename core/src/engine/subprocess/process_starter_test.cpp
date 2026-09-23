@@ -19,12 +19,13 @@
 #endif
 
 #include <gmock/gmock.h>
-#include <boost/range/adaptors.hpp>
 
 #include <engine/ev/thread_control.hpp>
 #include <engine/ev/thread_pool.hpp>
 #include <userver/engine/subprocess/child_process.hpp>
 #include <userver/engine/subprocess/process_starter.hpp>
+#include <userver/engine/task/cancel.hpp>
+#include <userver/engine/task/current_task.hpp>
 #include <userver/engine/task/task.hpp>
 #include <userver/fs/blocking/file_descriptor.hpp>
 #include <userver/fs/blocking/read.hpp>
@@ -92,8 +93,8 @@ UTEST(Subprocess, ExecvExecvFailure) {
 
 UTEST(Subprocess, ExecvFileNotFound) {
     engine::subprocess::ProcessStarter starter(engine::current_task::GetTaskProcessor());
-    const auto status = starter.Exec("myawesomebinary", {}).Get();
-    ASSERT_FALSE(status.IsExited());
+    // posix_spawn reports ENOENT to the parent instead of creating a child that aborts after a failed exec.
+    UEXPECT_THROW((void)starter.Exec("myawesomebinary", {}), std::system_error);
 }
 
 UTEST(Subprocess, EnvironmentVariablesScope) {
@@ -133,6 +134,49 @@ UTEST(Subprocess, ExecvpSuccess) {
     EXPECT_EQ(0, status.GetExitCode());
 }
 
+UTEST(Subprocess, WaitIgnoresCancel) {
+    engine::subprocess::ProcessStarter starter(engine::current_task::GetTaskProcessor());
+
+    const engine::subprocess::EnvironmentVariablesScope scope{};
+    SetEnvironmentVariable("PATH", kPath, engine::subprocess::Overwrite::kAllowed);
+
+    engine::subprocess::ExecOptions options{};
+    options.use_path = true;
+
+    // `sleep` is available on the same PATH as `test` on supported platforms.
+    auto child = starter.Exec("sleep", {"0.2"}, std::move(options));
+
+    engine::current_task::RequestCancel();
+    EXPECT_TRUE(engine::current_task::IsCancelRequested());
+    EXPECT_TRUE(engine::current_task::ShouldCancel());
+    child.Wait();
+    EXPECT_TRUE(engine::current_task::IsCancelRequested());
+    EXPECT_TRUE(engine::current_task::ShouldCancel());
+    auto status = child.Get();
+    ASSERT_TRUE(status.IsExited());
+    EXPECT_EQ(0, status.GetExitCode());
+}
+
+UTEST(Subprocess, GetIgnoresCancel) {
+    engine::subprocess::ProcessStarter starter(engine::current_task::GetTaskProcessor());
+
+    const engine::subprocess::EnvironmentVariablesScope scope{};
+    SetEnvironmentVariable("PATH", kPath, engine::subprocess::Overwrite::kAllowed);
+
+    engine::subprocess::ExecOptions options{};
+    options.use_path = true;
+
+    auto child = starter.Exec("sleep", {"0.2"}, std::move(options));
+
+    engine::current_task::RequestCancel();
+    EXPECT_TRUE(engine::current_task::IsCancelRequested());
+
+    auto status = child.Get();
+    ASSERT_TRUE(status.IsExited());
+    EXPECT_EQ(0, status.GetExitCode());
+    EXPECT_TRUE(engine::current_task::IsCancelRequested());
+}
+
 UTEST(Subprocess, ExecvpVulnerability) {
     engine::subprocess::ProcessStarter starter(engine::current_task::GetTaskProcessor());
 
@@ -158,11 +202,10 @@ UTEST(Subprocess, CheckLogClosesFds) {
     engine::subprocess::ProcessStarter starter(engine::current_task::GetTaskProcessor());
 
 #if defined(__APPLE__)
-    std::string self;
-    uint32_t self_len = 0;
-    ASSERT_EQ(_NSGetExecutablePath(self.data(), &self_len), -1);
-    self.resize(self_len);
-    ASSERT_EQ(_NSGetExecutablePath(self.data(), &self_len), 0);
+    char path[PATH_MAX];
+    uint32_t path_size = sizeof(path);
+    ASSERT_EQ(_NSGetExecutablePath(path, &path_size), 0);
+    std::string self(path);
 #elif defined(BSD)
     int mib[4];
     mib[0] = CTL_KERN;

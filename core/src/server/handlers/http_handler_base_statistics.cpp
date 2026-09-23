@@ -109,7 +109,7 @@ void HttpHandlerStatisticsScope::SetShardedStats(
     utils::statistics::LabelsSpan labels
 ) {
     UINVARIANT(
-        std::is_sorted(labels.begin(), labels.end(), [](const auto& a, const auto& b) { return a.Name() < b.Name(); }),
+        std::ranges::is_sorted(labels, [](const auto& a, const auto& b) { return a.Name() < b.Name(); }),
         "Labels for sharded metrics should be lexicographically sorted"
     );
     auto [item, inserted] = stats_.GetShardedStatisticsStorage().TryEmplace({sensor_path_part, labels});

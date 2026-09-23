@@ -2,6 +2,7 @@
 
 #include <userver/tracing/in_place_span.hpp>
 
+#include <userver/server/request/task_inherited_data.hpp>
 #include <userver/storages/redis/exception.hpp>
 #include <userver/storages/redis/reply.hpp>
 
@@ -121,10 +122,24 @@ CommandPtr Request::PrepareRequest(CmdArgs&& args, const CommandControl& command
 
 ReplyPtr Request::Get() {
     switch (future_.wait_until(deadline_)) {
-        case engine::FutureStatus::kReady:
-            return future_.get();
+        case engine::FutureStatus::kReady: {
+            auto reply = future_.get();
+            // The reply may carry kTimeoutError if the redis ev-timer fired
+            // (Command timeout) before the future was resolved. If the timeout
+            // was caused by the inherited deadline being capped (recorded by
+            // AdjustDeadline in sentinel_impl), signal it to the middleware.
+            if (reply->deadline_propagation_meta.IsDeadlinePropagationCapped(utils::impl::InternalTag{}) &&
+                reply->status == ReplyStatus::kTimeoutError)
+            {
+                server::request::MarkTaskInheritedDeadlineExpired();
+            }
+            return reply;
+        }
 
         case engine::FutureStatus::kTimeout:
+            if (server::request::GetTaskInheritedDeadline().IsReached()) {
+                server::request::MarkTaskInheritedDeadlineExpired();
+            }
             return std::make_shared<Reply>(std::string(), nullptr, ReplyStatus::kTimeoutError);
 
         case engine::FutureStatus::kCancelled:
@@ -133,7 +148,9 @@ ReplyPtr Request::Get() {
     UINVARIANT(false, "Invalid FutureStatus enum value");
 }
 
-engine::impl::ContextAccessor* Request::TryGetContextAccessor() noexcept { return future_.TryGetContextAccessor(); }
+engine::AwaitableToken Request::GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+    return future_.GetAwaitableToken();
+}
 
 }  // namespace storages::redis::impl
 

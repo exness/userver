@@ -133,8 +133,8 @@ template <typename Fn>
 auto RetryOperation(impl::RequestContext<OperationSettings>& request_context, Fn&& fn) {
     static_assert(std::is_invocable_v<Fn&, NYdb::NTable::TSession> || std::is_invocable_v<Fn&, NYdb::NTable::TTableClient&>);
 
-    auto& client = request_context.table_client.GetNativeTableClient();
-    auto& retry_budget = request_context.table_client.GetRetryBudget();
+    auto& client = request_context.connection.table_client;
+    auto& retry_budget = request_context.connection.driver->GetRetryBudget();
     auto retry_handler = std::make_shared<RetryHandler<NYdb::NTable::TTableClient, Fn>>(
         client,
         retry_budget,
@@ -152,8 +152,8 @@ template <typename Fn>
 auto RetryQuery(impl::RequestContext<OperationSettings>& request_context, Fn&& fn) {
     static_assert(std::is_invocable_v<Fn&, NYdb::NQuery::TSession> || std::is_invocable_v<Fn&, NYdb::NQuery::TQueryClient&>);
 
-    auto& client = request_context.table_client.GetNativeQueryClient();
-    auto& retry_budget = request_context.table_client.GetRetryBudget();
+    auto& client = request_context.connection.query_client;
+    auto& retry_budget = request_context.connection.driver->GetRetryBudget();
     auto retry_handler = std::make_shared<RetryHandler<NYdb::NQuery::TQueryClient, Fn>>(
         client,
         retry_budget,

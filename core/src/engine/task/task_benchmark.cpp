@@ -8,11 +8,10 @@
 #include <string>
 #include <thread>
 
-#include <concurrent/impl/latch.hpp>
 #include <engine/impl/standalone.hpp>
 #include <engine/task/task_processor.hpp>
 #include <engine/task/task_processor_config.hpp>
-#include <engine/task/work_stealing_queue/task_queue.hpp>
+#include <engine/task/work_stealing_queue/queue.hpp>
 #include <userver/engine/async.hpp>
 #include <userver/engine/run_standalone.hpp>
 #include <userver/engine/sleep.hpp>
@@ -28,7 +27,7 @@ void EngineTaskCreate(benchmark::State& state) {
     // otherwise this benchmark OOMs after some time.
     engine::RunStandalone(2, [&] {
         for ([[maybe_unused]] auto _ : state) {
-            engine::DetachUnscopedUnsafe(engine::AsyncNoSpan([]() {}));
+            engine::DetachUnscopedUnsafe(engine::AsyncNoTracing([]() {}));
         }
     });
 }
@@ -57,6 +56,11 @@ void EngineTaskYieldSingleThreadPullPin(benchmark::State& state) {
     EngineTaskYieldSingleThread<engine::TaskQueueType::kPullPinTaskQueue>(state);
 }
 BENCHMARK(EngineTaskYieldSingleThreadPullPin)->RangeMultiplier(2)->Range(1, 128);
+
+void EngineTaskYieldSingleThreadFast(benchmark::State& state) {
+    EngineTaskYieldSingleThread<engine::TaskQueueType::kWorkStealingTaskQueue>(state);
+}
+BENCHMARK(EngineTaskYieldSingleThreadFast)->RangeMultiplier(2)->Range(1, 128);
 
 void EngineTaskYieldSingleThreadTraced(benchmark::State& state) {
     engine::RunStandalone([&] {
@@ -108,6 +112,11 @@ void EngineTaskYieldMultipleThreadsPullPin(benchmark::State& state) {
 }
 BENCHMARK(EngineTaskYieldMultipleThreadsPullPin)->RangeMultiplier(2)->Range(1, 32)->Arg(6)->Arg(12);
 
+void EngineTaskYieldMultipleThreadsFast(benchmark::State& state) {
+    EngineTaskYieldMultipleThreads<engine::TaskQueueType::kWorkStealingTaskQueue>(state);
+}
+BENCHMARK(EngineTaskYieldMultipleThreadsFast)->RangeMultiplier(2)->Range(1, 32)->Arg(6)->Arg(12);
+
 void EngineTaskYieldMultipleTaskProcessors(benchmark::State& state) {
     engine::RunStandalone([&] {
         auto tp_pool = engine::SingleThreadedTaskProcessorsPool::MakeForTests(state.range(0) - 1);
@@ -117,7 +126,7 @@ void EngineTaskYieldMultipleTaskProcessors(benchmark::State& state) {
         tasks.reserve(state.range(0) - 1);
 
         for (int i = 0; i < state.range(0) - 1; i++) {
-            tasks.push_back(engine::AsyncNoSpan(tp_pool.At(i), [&] {
+            tasks.push_back(engine::AsyncNoTracing(tp_pool.At(i), [&] {
                 std::uint64_t yields_performed = 0;
                 while (keep_running) {
                     engine::Yield();
@@ -158,7 +167,7 @@ void EngineMultipleTasksMultipleThreads(benchmark::State& state) {
         RunParallelBenchmark(state, [&](auto& range) {
             std::uint64_t tasks_count = 0;
             for ([[maybe_unused]] auto _ : range) {
-                engine::AsyncNoSpan([] {}).Wait();
+                engine::AsyncNoTracing([] {}).Wait();
                 tasks_count++;
             }
             tasks_count_total += tasks_count;
@@ -188,7 +197,7 @@ void EngineMultipleYieldTwoTaskProcessorNoExtraWakeups(benchmark::State& state) 
         std::atomic<bool> keep_running{true};
         for (int i = 0; i < 2; i++) {
             for (auto j = 0; j < tasks_per_tp[i]; j++) {
-                tasks.push_back(engine::AsyncNoSpan(*processors[i].get(), [&] {
+                tasks.push_back(engine::AsyncNoTracing(*processors[i].get(), [&] {
                     std::uint64_t yields_performed = 0;
                     while (keep_running) {
                         engine::Yield();
@@ -199,7 +208,7 @@ void EngineMultipleYieldTwoTaskProcessorNoExtraWakeups(benchmark::State& state) 
             }
         }
 
-        tasks.push_back(engine::AsyncNoSpan(*processors.back().get(), [&] {
+        tasks.push_back(engine::AsyncNoTracing(*processors.back().get(), [&] {
             std::uint64_t yields_performed = 0;
             for ([[maybe_unused]] auto _ : state) {
                 engine::Yield();
@@ -230,11 +239,11 @@ void EngineTasksFromAnotherTaskProcessor(benchmark::State& state) {
             task_processor(std::move(proc_config), engine::current_task::GetTaskProcessor().GetTaskProcessorPools());
         std::deque<engine::TaskWithResult<void>> tasks;
         for (std::size_t i = 0; i < static_cast<std::size_t>(state.range(0)); i++) {
-            tasks.push_back(engine::AsyncNoSpan(task_processor, []() {}));
+            tasks.push_back(engine::AsyncNoTracing(task_processor, []() {}));
         }
         for ([[maybe_unused]] auto _ : state) {
             tasks.front().Wait();
-            tasks.push_back(engine::AsyncNoSpan(task_processor, []() {}));
+            tasks.push_back(engine::AsyncNoTracing(task_processor, []() {}));
             tasks.pop_front();
         }
     });

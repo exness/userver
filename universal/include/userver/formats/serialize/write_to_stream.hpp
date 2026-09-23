@@ -94,7 +94,7 @@ void WriteToStream(const T& value, StringBuilder& sw) {
             "Include <userver/formats/serialize/boost_uuid.hpp> to serialize 'boost::uuids::uuid"
         );
         static_assert(
-            !meta::kIsRecursiveRange<T>,
+            !meta::IsRecursiveRange<T>,
             "Trying to log a recursive range, which can be dangerous. "
             "(boost::filesystem::path?) Please implement WriteToStream for your type"
         );

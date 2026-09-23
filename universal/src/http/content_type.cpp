@@ -9,11 +9,11 @@
 #include <fmt/ostream.h>
 #include <boost/functional/hash.hpp>
 
+#include <userver/compiler/impl/nodebug.hpp>
 #include <userver/logging/log_helper.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/str_icase.hpp>
 #include <userver/utils/string_literal.hpp>
-#include <userver/utils/text_light.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -50,6 +50,7 @@ std::string_view RtrimOws(std::string_view view) {
 
 int ParseQuality(std::string_view param_value, std::string_view full_string) {
     static constexpr size_t kFullPrecisionLength = 5;  // "1.000"
+    static constexpr std::string_view kFullQuality = "1.000";
 
     if (!param_value.empty() && param_value.size() <= kFullPrecisionLength) {
         if (param_value[0] == '0') {
@@ -74,7 +75,7 @@ int ParseQuality(std::string_view param_value, std::string_view full_string) {
                     return quality;
                 }
             }
-        } else if (utils::text::StartsWith("1.000", param_value)) {
+        } else if (kFullQuality.starts_with(param_value)) {
             // value is a prefix of "1.000"
             return kMaxQuality;
         }
@@ -85,6 +86,9 @@ int ParseQuality(std::string_view param_value, std::string_view full_string) {
 }
 
 }  // namespace
+
+// vtable anchor functions
+USERVER_IMPL_NODEBUG MalformedContentType::~MalformedContentType() = default;
 
 ContentType::ContentType(std::string_view unparsed)
     : quality_(kMaxQuality)
@@ -214,8 +218,6 @@ bool operator==(const ContentType& lhs, const ContentType& rhs) {
     return icase_equal(lhs.TypeToken(), rhs.TypeToken()) && icase_equal(lhs.SubtypeToken(), rhs.SubtypeToken()) &&
            icase_equal(lhs.Charset(), rhs.Charset()) && lhs.Quality() == rhs.Quality();
 }
-
-bool operator!=(const ContentType& lhs, const ContentType& rhs) { return !(lhs == rhs); }
 
 bool operator<(const ContentType& lhs, const ContentType& rhs) {
     const utils::StrIcaseCompareThreeWay icase_cmp{};

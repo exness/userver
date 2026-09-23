@@ -45,7 +45,7 @@ Value Serialize(const T& value, To<Value>) {
 }
 
 /// Mappings serialization
-template <meta::kIsUniqueMap T, typename Value>
+template <meta::IsUniqueMap T, typename Value>
 Value Serialize(const T& value, To<Value>) {
     typename Value::Builder builder(formats::common::Type::kObject);
     for (const auto& [key, value] : value) {

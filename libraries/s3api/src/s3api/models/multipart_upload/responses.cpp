@@ -1,5 +1,7 @@
 #include <userver/s3api/models/multipart_upload/responses.hpp>
 
+#include <concepts>
+
 #include <fmt/format.h>
 #include <pugixml.hpp>
 
@@ -50,11 +52,8 @@ bool ToBoolean(const std::optional<std::string_view>& maybe_str) {
     return true;
 }
 
-template <typename T>
-std::enable_if_t<std::is_integral_v<T>, std::optional<T>> ExtractChildValueAsIntegral(
-    const pugi::xml_node& node,
-    const char* child_name
-) try
+template <std::integral T>
+std::optional<T> ExtractChildValueAsIntegral(const pugi::xml_node& node, const char* child_name) try
 {
     const auto maybe_str = ExtractChildValue(node, child_name, false);
     if (!maybe_str) {
@@ -69,11 +68,8 @@ std::enable_if_t<std::is_integral_v<T>, std::optional<T>> ExtractChildValueAsInt
     );
 }
 
-template <typename T>
-std::enable_if_t<std::is_integral_v<T>, T> ExtractRequiredChildValueAsIntegral(
-    const pugi::xml_node& node,
-    const char* child_name
-) {
+template <std::integral T>
+T ExtractRequiredChildValueAsIntegral(const pugi::xml_node& node, const char* child_name) {
     const auto maybe_value = ExtractChildValueAsIntegral<T>(node, child_name);
     if (!maybe_value) {
         throw ResponseParsingError(

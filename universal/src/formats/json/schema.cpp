@@ -116,11 +116,11 @@ void Schema::ValidationError::Throw() const {
     throw SchemaValidationException(details_string_, cut_path, schema_path_);
 }
 
-std::string_view Schema::ValidationError::GetValuePath() const { return value_path_; }
+std::string_view Schema::ValidationError::GetValuePath() const noexcept { return value_path_; }
 
-std::string_view Schema::ValidationError::GetSchemaPath() const { return schema_path_; }
+std::string_view Schema::ValidationError::GetSchemaPath() const noexcept { return schema_path_; }
 
-std::string_view Schema::ValidationError::GetDetailsString() const { return details_string_; }
+std::string_view Schema::ValidationError::GetDetailsString() const noexcept { return details_string_; }
 
 struct Schema::Impl final {
     impl::SchemaDocument schema_document;

@@ -5,13 +5,15 @@
 
 #include <optional>
 
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/utils/fast_pimpl.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace engine::impl {
-class ContextAccessor;
+class AwaitableBase;
 }
 
 namespace engine::ev {
@@ -82,10 +84,8 @@ public:
     /// Resets "ready" flag.
     std::optional<FdPoller::Kind> GetReady() noexcept;
 
-    /// @cond
-    // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept;
-    /// @endcond
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND;
 
 private:
     friend class impl::Direction;

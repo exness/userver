@@ -89,7 +89,7 @@ TEST(ProjectedSet, OrderedByProjection) {
 
     const std::vector<Pair> expected{{3, "a"}, {2, "b"}, {1, "c"}};
     EXPECT_EQ(as_vector, expected);
-    EXPECT_FALSE(std::is_sorted(as_vector.begin(), as_vector.end()));
+    EXPECT_FALSE(std::ranges::is_sorted(as_vector));
 }
 
 TYPED_TEST(ProjectedSet, ProjectedInsertOrAssign) {

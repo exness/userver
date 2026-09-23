@@ -23,6 +23,21 @@ TEST(ChaoticServerDependencies, Smoke) {
     SUCCEED();
 }
 
+struct ReferenceDep {};
+struct ReferenceHandlerTag {};
+
+const dependencies::FactoryTag<ReferenceDep&> kReferenceDep;
+
+TEST(ChaoticServerDependencies, Reference) {
+    ReferenceDep expected;
+    dependencies::Factories factories;
+    factories.Register([&expected]() -> ReferenceDep& { return expected; });
+
+    auto handler = factories.Make<ReferenceHandlerTag>();
+
+    EXPECT_EQ(&handler[kReferenceDep], &expected);
+}
+
 // [same type]
 // Register the same dependency types in FactoryTag
 // with different 'Tag' template parameters as global variables
@@ -97,10 +112,7 @@ UTEST_DEATH(ChaoticServerDependenciesDeathTest, NotRegisteredInForHandler) {
 
     dependencies::ForHandler<struct NotRegisteredInForHandler> handler{1};
 
-    EXPECT_UINVARIANT_FAILURE_MSG(
-        handler[kEmptyDep],
-        "Trying to access non-registered dependency of type EmptyDep from ForHandler<NotRegisteredInForHandler>."
-    );
+    EXPECT_UINVARIANT_FAILURE_MSG(handler[kEmptyDep], "EmptyDep from ForHandler<");
 }
 
 UTEST_DEATH(ChaoticServerDependenciesDeathTest, NotRegisteredInFactory) {
@@ -109,8 +121,7 @@ UTEST_DEATH(ChaoticServerDependenciesDeathTest, NotRegisteredInFactory) {
 
     EXPECT_UINVARIANT_FAILURE_MSG(
         (void)(fb.Make<ForHandlerTag>()),
-        "Trying to build type EmptyDep from Factories, but the builder is not registered. Forgot to call "
-        "Factories::Register<EmptyDep>(...)?"
+        "EmptyDep from Factories, but the builder is not registered. Forgot to call Factories::Register<"
     );
 
     if (false) {

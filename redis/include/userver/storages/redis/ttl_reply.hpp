@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/storages/redis/ttl_reply.hpp
+/// @brief Redis TTL reply value and exception for invalid TTL queries
+
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -11,6 +14,14 @@ USERVER_NAMESPACE_BEGIN
 
 namespace storages::redis {
 
+/// @brief Parsed TTL / HTTL reply (seconds precision).
+///
+/// Also used for HTTL replies — in which case the value semantics mirror
+/// "field" instead of "key" (kKeyDoesNotExist=-2 means the field does not exist
+/// or the parent hash does not exist; kKeyHasNoExpiration=-1 means the field has
+/// no associated TTL).
+///
+/// For millisecond-precision commands (PTTL / HPTTL) use @c PttlReply.
 class TtlReply final {
 public:
     enum class TtlReplyValue { kKeyDoesNotExist = -2, kKeyHasNoExpiration = -1 };
@@ -26,13 +37,16 @@ public:
     bool KeyExists() const;
     bool KeyHasExpiration() const;
     [[deprecated("Use GetExpire() instead")]] size_t GetExpireSeconds() const { return GetExpire().count(); }
+
+    /// @brief Returns the expiration as `std::chrono::seconds`. Throws
+    /// `KeyHasNoExpirationException` if the key/field has no expiration.
     std::chrono::seconds GetExpire() const;
 
 private:
     int64_t value_;
 };
 
-/// Trying to get expiration from a nonexistent or a persistent key
+/// @brief Thrown when reading TTL for a missing or persistent key
 class KeyHasNoExpirationException : public Exception {
 public:
     using Exception::Exception;

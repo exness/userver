@@ -89,7 +89,6 @@ uint32_t Value::GetSize() const { return impl_->GetSize(); }
 std::string Value::GetPath() const { return impl_->GetPath(); }
 
 bool Value::operator==(const Value& rhs) const { return *impl_ == *rhs.impl_; }
-bool Value::operator!=(const Value& rhs) const { return *impl_ != *rhs.impl_; }
 
 bool Value::IsMissing() const { return impl_->IsMissing(); }
 bool Value::IsArray() const { return impl_->IsArray(); }

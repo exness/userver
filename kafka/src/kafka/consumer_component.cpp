@@ -61,14 +61,12 @@ ConsumerComponent::ConsumerComponent(
           }()
       )
 {
-    auto& storage = context.FindComponent<components::StatisticsStorage>().GetStorage();
-
-    statistics_holder_ = storage.RegisterWriter("kafka_consumer", [this](utils::statistics::Writer& writer) {
+    utils::statistics::RegisterWriterScope(context, "kafka_consumer", [this](utils::statistics::Writer& writer) {
         consumer_->DumpMetric(writer);
     });
 }
 
-ConsumerComponent::~ConsumerComponent() { statistics_holder_.Unregister(); }
+ConsumerComponent::~ConsumerComponent() = default;
 
 ConsumerScope ConsumerComponent::GetConsumer() { return consumer_->MakeConsumerScope(); }
 

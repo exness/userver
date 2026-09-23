@@ -1,7 +1,9 @@
 #include <ugrpc/server/impl/parse_config.hpp>
 
 #include <boost/container/flat_map.hpp>
-#include <boost/range/adaptor/transformed.hpp>
+
+#include <userver/dynamic_config/storage/component.hpp>
+#include <userver/tracing/manager_component.hpp>
 
 #include <userver/formats/parse/common_containers.hpp>
 #include <userver/fs/blocking/read.hpp>
@@ -80,10 +82,11 @@ server::ServiceConfig ParseServiceConfig(
         .middlewares = {},
         .status_codes_log_level =
             value[kStatusCodesLogLevelKey].As<boost::container::flat_map<grpc::StatusCode, logging::Level>>({}),
+        .config_source = context.FindComponent<components::DynamicConfig>().GetSource(),
     };
 }
 
-ServerConfig ParseServerConfig(const yaml_config::YamlConfig& value) {
+ServerConfig ParseServerConfig(const yaml_config::YamlConfig& value, const components::ComponentContext& context) {
     ServerConfig config;
     config.unix_socket_path = value["unix-socket-path"].As<std::optional<std::string>>();
     config.port = value["port"].As<std::optional<int>>();
@@ -108,6 +111,9 @@ ServerConfig ParseServerConfig(const yaml_config::YamlConfig& value) {
     if (config.tls.key && !config.tls.cert) {
         throw std::runtime_error("'tls.cert' cannot be missing if 'tls.key' is set");
     }
+
+    const auto* tm = context.FindComponentOptional<tracing::DefaultTracingManagerLocator>();
+    config.otel_trace_sampling_enabled = tm && tm->IsOtelTraceSamplingEnabled();
 
     return config;
 }

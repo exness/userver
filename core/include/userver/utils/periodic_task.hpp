@@ -101,7 +101,6 @@ public:
         {}
 
         bool operator==(const Settings& other) const noexcept;
-        bool operator!=(const Settings& other) const noexcept;
 
         // Note: Tidy requires us to explicitly initialize these fields, although
         // the initializers are never used.

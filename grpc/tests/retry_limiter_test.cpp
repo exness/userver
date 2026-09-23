@@ -395,7 +395,7 @@ UTEST_F(RetryLimiterTimeoutTest, CancelledRequestAccountedCorrectly) {
     sample::ugrpc::GreetingRequest request;
     request.set_name("test");
 
-    auto task = engine::AsyncNoSpan([&client, &request] {
+    auto task = engine::AsyncNoTracing([&client, &request] {
         ugrpc::client::CallOptions call_options;
         call_options.SetTimeout(tests::kLongTimeout);
 

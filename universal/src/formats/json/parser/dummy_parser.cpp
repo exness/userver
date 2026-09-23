@@ -44,7 +44,7 @@ void DummyParser::EndArray() {
 
 std::string DummyParser::Expected() const { return "data"; }
 
-void DummyParser::Reset() { level_ = 0; }
+void DummyParser::Reset() noexcept { level_ = 0; }
 
 DummyParser& DummyParser::GetParser() { return *this; }
 

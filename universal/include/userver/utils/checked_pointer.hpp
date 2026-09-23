@@ -25,9 +25,9 @@ template <typename T>
 class CheckedPtr {
 public:
     /* implicit */ constexpr CheckedPtr(std::nullptr_t) noexcept : ptr_{nullptr} {}
-    explicit constexpr CheckedPtr(T* ptr) noexcept : ptr_{ptr} {}
+    constexpr explicit CheckedPtr(T* ptr) noexcept : ptr_{ptr} {}
 
-    explicit constexpr operator bool() const noexcept {
+    constexpr explicit operator bool() const noexcept {
 #ifndef NDEBUG
         checked_ = true;
 #endif

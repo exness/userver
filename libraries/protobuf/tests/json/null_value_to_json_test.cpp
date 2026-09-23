@@ -15,6 +15,9 @@ struct NullValueToJsonSuccessTestParam {
     NullValueMessageData input = {};
     std::string expected_json = {};
     PrintOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 class NullValueToJsonSuccessTest : public ::testing::TestWithParam<NullValueToJsonSuccessTestParam> {};
@@ -27,7 +30,9 @@ INSTANTIATE_TEST_SUITE_P(
         NullValueToJsonSuccessTestParam{
             NullValueMessageData{},
             R"({"field1":null,"field3":[],"field4":{}})",
-            {.always_print_fields_with_no_presence = true}
+            {.always_print_fields_with_no_presence = true},
+            // Old protobuf version use NULL_VALUE for 'null'.
+            !kIsModernProtoJson
         },
         NullValueToJsonSuccessTestParam{NullValueMessageData{.field2 = kNullConst}, R"({"field2":null})"},
         NullValueToJsonSuccessTestParam{
@@ -51,10 +56,13 @@ TEST_P(NullValueToJsonSuccessTest, Test) {
 
     UASSERT_NO_THROW((json = MessageToJson(input, param.options)));
     UASSERT_NO_THROW((expected_json = PrepareJsonTestData(param.expected_json)));
-    UASSERT_NO_THROW((sample_json = CreateSampleJson(input, param.options)));
+
+    if (!param.skip_native_check) {
+        UASSERT_NO_THROW((sample_json = CreateSampleJson(input, param.options)));
+        EXPECT_EQ(json, sample_json);
+    }
 
     EXPECT_EQ(json, expected_json);
-    EXPECT_EQ(expected_json, sample_json);
 }
 
 }  // namespace protobuf::json::tests

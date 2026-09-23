@@ -11,6 +11,7 @@
 #include <userver/storages/redis/base.hpp>
 #include <userver/storages/redis/exception.hpp>
 #include <userver/storages/redis/reply.hpp>
+#include <userver/storages/redis/topology_update_method.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/impl/userver_experiments.hpp>
@@ -31,6 +32,26 @@ void ThrowIfCancelled() {
     if (engine::current_task::IsTaskProcessorThread() && engine::current_task::ShouldCancel()) {
         throw RequestCancelledException("Failed to make redis request due to task cancellation");
     }
+}
+
+std::vector<ConnectionInfo> BuildConnectionInfos(const secdist::RedisSettings& settings, bool is_cluster_mode) {
+    std::vector<ConnectionInfo> conns;
+    conns.reserve(settings.sentinels.size());
+    for (const auto& sentinel : settings.sentinels) {
+        LOG_DEBUG() << "sentinel:  host = " << sentinel.host << "  port = " << sentinel.port;
+        // CLUSTER SLOTS works after auth only. Masters and slaves used instead of
+        // sentinels in cluster mode.
+        conns.emplace_back(
+            sentinel.host,
+            sentinel.port,
+            (is_cluster_mode
+                 ? Credentials{settings.username, settings.password}
+                 : Credentials{settings.sentinel_username, settings.sentinel_password}),
+            false,
+            settings.secure_connection
+        );
+    }
+    return conns;
 }
 
 void OnSubscribeImpl(
@@ -65,20 +86,18 @@ Sentinel::Sentinel(
     const std::vector<std::string>& shards,
     const std::vector<ConnectionInfo>& conns,
     std::string shard_group_name,
-    const std::string& client_name,
-    const Password& password,
+    const Credentials& credentials,
     ConnectionSecurity connection_security,
     dynamic_config::Source dynamic_config_source,
-    KeyShardFactory key_shard_factory,
-    CommandControl command_control,
+    SentinelStaticConfig creation_config,
     const testsuite::RedisControl& testsuite_redis_control,
     std::size_t database_index
 )
     : shard_group_name_(shard_group_name),
       thread_pools_(thread_pools),
-      secdist_default_command_control_(command_control),
+      secdist_default_command_control_(creation_config.command_control),
       testsuite_redis_control_(testsuite_redis_control),
-      is_in_cluster_mode_(key_shard_factory.IsClusterStrategy())
+      is_in_cluster_mode_(creation_config.key_shard_factory.IsClusterStrategy())
 {
     config_default_command_control_.Set(std::make_shared<CommandControl>(secdist_default_command_control_));
 
@@ -89,7 +108,7 @@ Sentinel::Sentinel(
         engine::ev::ThreadControl>(thread_pools_->GetSentinelThreadPool().NextThread());
 
     UINVARIANT(
-        !key_shard_factory.IsClusterStrategy() || database_index == 0,
+        !creation_config.key_shard_factory.IsClusterStrategy() || database_index == 0,
         "Database index other than 0 now supported in cluster and standalone modes"
     );
     sentinel_thread_control_->RunInEvLoopBlocking([&]() {
@@ -100,10 +119,9 @@ Sentinel::Sentinel(
             shards,
             conns,
             std::move(shard_group_name),
-            client_name,
-            password,
+            credentials,
             connection_security,
-            std::move(key_shard_factory),
+            std::move(creation_config),
             dynamic_config_source,
             database_index
         );
@@ -122,6 +140,8 @@ void Sentinel::WaitConnectedOnce(RedisWaitConnected wait_connected) {
     impl_->WaitConnectedOnce(wait_connected.MergeWith(testsuite_redis_control_));
 }
 
+bool Sentinel::IsReady(const HealthCheckParams& params) const { return impl_->IsReady(params); }
+
 void Sentinel::ForceUpdateHosts() { impl_->ForceUpdateHosts(); }
 
 std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
@@ -129,37 +149,20 @@ std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
     const secdist::RedisSettings& settings,
     std::string shard_group_name,
     dynamic_config::Source dynamic_config_source,
-    const std::string& client_name,
-    KeyShardFactory key_shard_factory,
-    const CommandControl& command_control,
+    const SentinelStaticConfig& creation_config,
     const testsuite::RedisControl& testsuite_redis_control
 ) {
-    const auto& password = settings.password;
-    const auto& sentinel_password = settings.sentinel_password;
-
     const std::vector<std::string>& shards = settings.shards;
     LOG_DEBUG() << "shards.size() = " << shards.size();
     for (const std::string& shard : shards) {
         LOG_DEBUG() << "shard:  name = " << shard;
     }
 
-    std::vector<redis::ConnectionInfo> conns;
-    conns.reserve(settings.sentinels.size());
+    const bool is_cluster_mode = creation_config.key_shard_factory.IsClusterStrategy();
     LOG_DEBUG() << "sentinels.size() = " << settings.sentinels.size();
-    for (const auto& sentinel : settings.sentinels) {
-        LOG_DEBUG() << "sentinel:  host = " << sentinel.host << "  port = " << sentinel.port;
-        // CLUSTER SLOTS works after auth only. Masters and slaves used instead of
-        // sentinels in cluster mode.
-        conns.emplace_back(
-            sentinel.host,
-            sentinel.port,
-            (key_shard_factory.IsClusterStrategy() ? password : sentinel_password),
-            false,
-            settings.secure_connection
-        );
-    }
+    const auto conns = BuildConnectionInfos(settings, is_cluster_mode);
 
-    LOG_DEBUG() << "redis command_control:" << command_control.ToString();
+    LOG_DEBUG() << "redis command_control:" << creation_config.command_control.ToString();
     std::shared_ptr<storages::redis::impl::Sentinel> client;
     if (!shards.empty() && !conns.empty()) {
         client = std::make_shared<storages::redis::impl::Sentinel>(
@@ -167,12 +170,10 @@ std::shared_ptr<Sentinel> Sentinel::CreateSentinel(
             shards,
             conns,
             std::move(shard_group_name),
-            client_name,
-            password,
+            Credentials{settings.username, settings.password},
             settings.secure_connection,
             dynamic_config_source,
-            std::move(key_shard_factory),
-            command_control,
+            creation_config,
             testsuite_redis_control,
             settings.database_index
         );
@@ -354,7 +355,7 @@ void Sentinel::OnPsubscribeReply(
         return;
     }
     const auto& reply_array = reply->data.GetArray();
-    if (!reply_array[0].IsString()) {
+    if (reply_array.empty() || !reply_array[0].IsString()) {
         return;
     }
     if (!strcasecmp(reply_array[0].GetString().c_str(), "PSUBSCRIBE")) {
@@ -391,16 +392,21 @@ void Sentinel::SetConfigDefaultCommandControl(const std::shared_ptr<CommandContr
 
 const std::string& Sentinel::ShardGroupName() const { return shard_group_name_; }
 
-void Sentinel::UpdatePassword(const Password& password) { impl_->UpdatePassword(password); }
+void Sentinel::UpdateSettings(const secdist::RedisSettings& settings) {
+    LOG_INFO()
+        << "UpdateSettings: updating " << settings.sentinels.size() << " sentinels for shard group "
+        << shard_group_name_;
 
-void Sentinel::SetConnectionInfo(std::vector<ConnectionInfo> info_array) {
+    const auto conns = BuildConnectionInfos(settings, is_in_cluster_mode_);
+
     std::vector<ConnectionInfoInt> cii;
-    cii.reserve(info_array.size());
-    for (const auto& ci : info_array) {
-        cii.emplace_back(ci);
+    cii.reserve(conns.size());
+    for (const auto& conn : conns) {
+        cii.emplace_back(conn);
     }
 
     impl_->SetConnectionInfo(cii);
+    impl_->UpdateCredentials(Credentials{settings.username, settings.password});
 }
 
 }  // namespace storages::redis::impl

@@ -11,7 +11,7 @@
 #include <userver/storages/redis/base.hpp>
 
 #include <storages/redis/impl/cluster_shard.hpp>
-#include <storages/redis/impl/sentinel_query.hpp>
+#include <storages/redis/impl/cluster_slots_query.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -68,7 +68,7 @@ public:
         return cluster_shards_.at(index);
     }
 
-    bool IsReady(WaitConnectedMode mode) const;
+    bool IsReady(const HealthCheckParams& params) const;
     std::string GetReadinessInfo() const;
 
     bool HasSameInfos(const ClusterShardHostInfos& infos) const;

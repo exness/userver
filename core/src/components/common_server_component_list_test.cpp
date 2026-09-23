@@ -182,27 +182,27 @@ components_manager:
         method: GET
         task_processor: monitor-task-processor
 # /// [Sample handler inspect requests component config]
-# /// [Sample handler implicit http options component config]
+# /// [implicit-options config]
 # yaml
     handler-implicit-http-options:
         as_fallback: implicit-http-options
         method: OPTIONS
         task_processor: main-task-processor
-# /// [Sample handler implicit http options component config]
+# /// [implicit-options config]
 # /// [Sample handler jemalloc component config]
 # yaml
     handler-jemalloc:
-        path: /service/jemalloc/prof/{command}
-        method: POST
+        path: /service/jemalloc/pprof/{command}
+        method: GET,POST
         task_processor: monitor-task-processor
 # /// [Sample handler jemalloc component config]
-# /// [Sample handler dns client control component config]
+# /// [dns-client-control config]
 # yaml
     handler-dns-client-control:
         path: /service/dnsclient/{command}
         method: POST
         task_processor: monitor-task-processor
-# /// [Sample handler dns client control component config]
+# /// [dns-client-control config]
 # /// [Sample handler server monitor component config]
 # yaml
     handler-server-monitor:
@@ -214,12 +214,12 @@ components_manager:
             zone: some
         format: json
 # /// [Sample handler server monitor component config]
-# /// [Sample handler dynamic debug log component config]
+# /// [dynamic-debug-log config]
     handler-dynamic-debug-log:
         path: /service/log/dynamic-debug
         method: GET,PUT,DELETE
         task_processor: monitor-task-processor
-# /// [Sample handler dynamic debug log component config]
+# /// [dynamic-debug-log config]
 config_vars: )";
 
 struct ServicePorts final {
@@ -286,8 +286,11 @@ TEST_F(CommonServerComponentList, Smoke) {
     );
 }
 
-#if !USERVER_IMPL_HAS_TSAN
 TEST_F(CommonServerComponentList, Logger) {
+#if USERVER_IMPL_HAS_TSAN
+    GTEST_SKIP() << "MemLogger default logger replacement is unstable under TSan";
+#endif
+
     auto& old_logger = logging::GetDefaultLogger();
     logging::impl::SetDefaultLoggerRef(logging::impl::MemLogger::GetMemLogger());
 
@@ -321,7 +324,6 @@ TEST_F(CommonServerComponentList, Logger) {
     logging::impl::MemLogger::GetMemLogger().ForwardTo(&old_logger);
     logging::impl::MemLogger::GetMemLogger().ForwardTo(nullptr);
 }
-#endif
 
 TEST_F(CommonServerComponentList, TraceLogging) {
     fs::blocking::RewriteFileContents(

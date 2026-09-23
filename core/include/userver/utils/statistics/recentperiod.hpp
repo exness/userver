@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/utils/statistics/recentperiod.hpp
+/// @brief @copybrief utils::statistics::RecentPeriod
+
 #include <atomic>
 #include <chrono>
 #include <type_traits>

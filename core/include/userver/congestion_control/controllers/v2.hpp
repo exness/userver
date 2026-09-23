@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/congestion_control/controllers/v2.hpp
+/// @brief Congestion control controller base class and statistics (v2)
+
 #include <atomic>
 #include <optional>
 
@@ -7,6 +10,7 @@
 #include <userver/congestion_control/sensor.hpp>
 #include <userver/utils/periodic_task.hpp>
 #include <userver/utils/statistics/fwd.hpp>
+#include <userver/utils/statistics/rate_counter.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -16,7 +20,7 @@ struct Stats {
     std::atomic<bool> is_enabled{false};
     std::atomic<bool> is_fake_mode{false};
     std::atomic<int64_t> current_limit{0};
-    std::atomic<int64_t> enabled_epochs{0};
+    utils::statistics::RateCounter enabled_epochs{};
 };
 
 void DumpMetric(utils::statistics::Writer& writer, const Stats& stats);

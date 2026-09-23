@@ -1,6 +1,7 @@
 #include <userver/crypto/ssl_ctx.hpp>
 
-#include <fmt/core.h>
+#include <string>
+
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
@@ -8,8 +9,10 @@
 #include <userver/crypto/openssl.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
+#include <userver/utils/ip.hpp>
 
 USERVER_NAMESPACE_BEGIN
+
 namespace crypto {
 
 class SslCtx::Impl {
@@ -64,6 +67,66 @@ std::unique_ptr<SslCtx::Impl> SslCtx::Impl::MakeSslCtx() {
 
 void* SslCtx::GetRawSslCtx() const noexcept { return static_cast<void*>(impl_->Get()); }
 
+// https://www.rfc-editor.org/rfc/rfc7540#section-3.1
+static constexpr unsigned char kAlpnHttp1Only[] = "\x08http/1.1";
+// https://www.rfc-editor.org/rfc/rfc9112.html#section-12.4
+static constexpr unsigned char kAlpnHttp2Only[] = "\x02h2";
+static constexpr unsigned char kAlpnHttp2FallbackHttp1[] = "\x02h2\x08http/1.1";
+
+static int AlpnSelectCallback(
+    SSL*,
+    const unsigned char** out,
+    unsigned char* outlen,
+    const unsigned char* in,
+    unsigned int inlen,
+    void* arg
+) {
+    auto& context = *static_cast<SslCtx*>(arg);
+
+    if (SSL_select_next_proto(
+            const_cast<unsigned char**>(out),  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+            outlen,
+            context.GetAlpn().data(),
+            context.GetAlpn().size(),
+            in,
+            inlen
+        ) != OPENSSL_NPN_NEGOTIATED)
+    {
+        LOG_ERROR() << crypto::FormatSslError("SSL_select_next_proto failed");
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
+
+    LOG_DEBUG() << "successfully negotiated ALPN";
+
+    return SSL_TLSEXT_ERR_OK;
+}
+
+void SslCtx::SetHttpVersion(http::HttpVersion http_version) {
+    switch (http_version) {
+        case http::HttpVersion::k10:
+        case http::HttpVersion::k11:
+            alpn_ = kAlpnHttp1Only;
+            LOG_INFO() << "set ALPN for HTTP/1.1 only";
+            break;
+        case http::HttpVersion::k2:
+            alpn_ = kAlpnHttp2FallbackHttp1;
+            LOG_INFO() << "set ALPN for HTTP/2 with fallback to HTTP/1.1";
+            break;
+        case http::HttpVersion::k2Tls:
+        case http::HttpVersion::k2PriorKnowledge:
+            LOG_INFO() << "set ALPN for HTTP/2 only";
+            alpn_ = kAlpnHttp2Only;
+            break;
+        default:
+            LOG_INFO() << "skip setting ALPN";
+            return;
+    }
+
+    SSL_CTX_set_alpn_select_cb(impl_->Get(), AlpnSelectCallback, this);
+}
+
+std::span<const unsigned char> SslCtx::GetAlpn() const noexcept { return alpn_; }
+
 SslCtx::SslCtx(std::unique_ptr<Impl>&& impl)
     : impl_(std::move(impl))
 {}
@@ -96,9 +159,18 @@ void SslCtx::SetServerName(std::string_view server_name) {
     if (!verify_param) {
         throw CryptoException("SSL_CTX_get0_param failed");
     }
-    if (1 != X509_VERIFY_PARAM_set1_host(verify_param, server_name.data(), server_name.size())) {
-        throw CryptoException(crypto::FormatSslError("X509_VERIFY_PARAM_set1_host failed"));
+
+    if (utils::ip::IsIpAddress(server_name)) {
+        const std::string host{server_name};
+        if (1 != X509_VERIFY_PARAM_set1_ip_asc(verify_param, host.c_str())) {
+            throw CryptoException(crypto::FormatSslError("X509_VERIFY_PARAM_set1_ip_asc failed"));
+        }
+    } else {
+        if (1 != X509_VERIFY_PARAM_set1_host(verify_param, server_name.data(), server_name.size())) {
+            throw CryptoException(crypto::FormatSslError("X509_VERIFY_PARAM_set1_host failed"));
+        }
     }
+
     SSL_CTX_set_verify(impl_->Get(), SSL_VERIFY_PEER, nullptr);
 }
 
@@ -112,7 +184,7 @@ void SslCtx::SetCertificate(const crypto::Certificate& cert) {
 
 void SslCtx::SetCertificates(const crypto::CertificatesChain& cert_chain) {
     if (cert_chain.empty()) {
-        throw CryptoException(crypto::FormatSslError("Empty certificate chain provided"));
+        throw CryptoException("Empty certificate chain provided");
     }
 
     SetCertificate(*cert_chain.begin());
@@ -143,7 +215,7 @@ void SslCtx::SetPrivateKey(const crypto::PrivateKey& key) {
     LOG_INFO() << "Loaded server private key";
 
     if (1 != SSL_CTX_check_private_key(impl_->Get())) {
-        throw CryptoException("Private key does not match the certificate public key");
+        throw CryptoException(crypto::FormatSslError("Private key does not match the certificate public key"));
     }
 }
 

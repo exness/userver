@@ -26,8 +26,8 @@ void ThrowFromStringException(FromStringErrorCode code, std::string_view input, 
 
 }  // namespace impl
 
-FromStringException::FromStringException(FromStringErrorCode code, const std::string& what)
-    : std::runtime_error(what),
+FromStringException::FromStringException(FromStringErrorCode code, utils::zstring_view what)
+    : std::runtime_error(what.c_str()),
       code_(code)
 {}
 

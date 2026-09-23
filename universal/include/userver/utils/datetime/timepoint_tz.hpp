@@ -36,10 +36,10 @@ public:
     operator TimePoint() const;
 
     /// Get timezone in seconds (may be negative)
-    std::chrono::seconds GetTzOffset() const;
+    std::chrono::seconds GetTzOffset() const noexcept;
 
     /// Get std's time_point
-    TimePoint GetTimePoint() const;
+    TimePoint GetTimePoint() const noexcept;
 
     bool operator==(const TimePointTzBase& other) const;
 

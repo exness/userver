@@ -13,8 +13,6 @@ class Resolver;
 
 namespace server::handlers {
 
-// clang-format off
-
 /// @ingroup userver_components userver_http_handlers
 ///
 /// @brief Handlers that controls the DNS client.
@@ -24,16 +22,13 @@ namespace server::handlers {
 ///
 /// ## Static configuration example:
 ///
-/// @snippet components/common_server_component_list_test.cpp Sample handler dns client control component config
+/// @snippet core/src/components/common_server_component_list_test.cpp dns-client-control config
 ///
 /// ## Schema
 /// Set an URL path argument `command` to one of the following values:
 /// * `reload_hosts` - to reload hosts file cache
 /// * `flush_cache` - to remove network cache records for `name` specified as a query parameter
 /// * `flush_cache_full` - to completely wipe network cache
-
-// clang-format on
-
 class DnsClientControl final : public HttpHandlerBase {
 public:
     /// @ingroup userver_component_names

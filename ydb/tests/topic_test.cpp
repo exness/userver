@@ -1,7 +1,18 @@
 #include <userver/utest/utest.hpp>
 
+#include <atomic>
+#include <chrono>
+#include <functional>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <variant>
+#include <vector>
+
 #include <userver/engine/async.hpp>
+#include <userver/engine/deadline.hpp>
 #include <userver/utils/overloaded.hpp>
+#include <userver/ydb/exceptions.hpp>
 #include <userver/ydb/impl/cast.hpp>
 
 #include "test_utils.hpp"
@@ -14,6 +25,125 @@ constexpr std::string_view kTable = "test_table";
 constexpr std::string_view kChangefeed = "test_changefeed";
 const std::string kTopicPath = fmt::format("{}/{}", kTable, kChangefeed);
 constexpr std::string_view kConsumerName = "test_consumer";
+
+constexpr std::string_view kWriteTopic = "write_test_topic";
+constexpr std::string_view kWriteProducerId = "test-producer";
+constexpr std::string_view kWriteConsumerName = "write_test_consumer";
+
+constexpr std::string_view kProducerTopic = "producer_test_topic";
+constexpr std::string_view kProducerIdPrefix = "test-producer-prefix";
+constexpr std::string_view kProducerConsumerName = "producer_test_consumer";
+
+class TopicWriter {
+public:
+    explicit TopicWriter(ydb::TopicWriteSession& session)
+        : session_{session}
+    {}
+
+    NYdb::NTopic::TWriteSessionEvent::TReadyToAcceptEvent AwaitReadyToAcceptEvent() {
+        using MaybeReadyToAcceptEvent = std::optional<NYdb::NTopic::TWriteSessionEvent::TReadyToAcceptEvent>;
+
+        if (buffered_ready_.has_value()) {
+            auto ready = std::move(buffered_ready_.value());
+            buffered_ready_.reset();
+            return ready;
+        }
+
+        while (true) {
+            auto event = session_.GetEvent();
+            auto maybe_ready = utils::Visit(
+                event,
+                [](NYdb::NTopic::TWriteSessionEvent::TReadyToAcceptEvent& e) -> MaybeReadyToAcceptEvent {
+                    return std::move(e);
+                },
+                []([[maybe_unused]] NYdb::NTopic::TWriteSessionEvent::TAcksEvent& e) -> MaybeReadyToAcceptEvent {
+                    return std::nullopt;
+                },
+                [](NYdb::NTopic::TSessionClosedEvent& e) -> MaybeReadyToAcceptEvent {
+                    ADD_FAILURE() << "Session closed unexpectedly: " << e.GetIssues().ToString();
+                    throw std::runtime_error("Session closed unexpectedly");
+                },
+                []([[maybe_unused]] auto& e) -> MaybeReadyToAcceptEvent { return std::nullopt; }
+            );
+            if (maybe_ready.has_value()) {
+                return std::move(maybe_ready.value());
+            }
+        }
+    }
+
+    NYdb::NTopic::TWriteSessionEvent::TAcksEvent AwaitAcksEvent() {
+        using MaybeAcksEvent = std::optional<NYdb::NTopic::TWriteSessionEvent::TAcksEvent>;
+
+        while (true) {
+            auto event = session_.GetEvent();
+            auto maybe_acks = utils::Visit(
+                event,
+                [this](NYdb::NTopic::TWriteSessionEvent::TReadyToAcceptEvent& e) -> MaybeAcksEvent {
+                    buffered_ready_ = std::move(e);
+                    return std::nullopt;
+                },
+                [](NYdb::NTopic::TWriteSessionEvent::TAcksEvent& e) -> MaybeAcksEvent { return std::move(e); },
+                [](NYdb::NTopic::TSessionClosedEvent& e) -> MaybeAcksEvent {
+                    ADD_FAILURE() << "Session closed unexpectedly: " << e.GetIssues().ToString();
+                    throw std::runtime_error("Session closed unexpectedly");
+                },
+                []([[maybe_unused]] auto& e) -> MaybeAcksEvent { return std::nullopt; }
+            );
+            if (maybe_acks.has_value()) {
+                return std::move(maybe_acks.value());
+            }
+        }
+    }
+
+    void WriteAndAck(std::string_view payload) {
+        auto ready = AwaitReadyToAcceptEvent();
+        session_.Write(std::move(ready.ContinuationToken), NYdb::NTopic::TWriteMessage{std::string{payload}});
+
+        const auto acks = AwaitAcksEvent();
+        for (const auto& ack : acks.Acks) {
+            EXPECT_EQ(ack.State, NYdb::NTopic::TWriteSessionEvent::TWriteAck::EEventState::EES_WRITTEN);
+        }
+    }
+
+private:
+    ydb::TopicWriteSession& session_;
+    std::optional<NYdb::NTopic::TWriteSessionEvent::TReadyToAcceptEvent> buffered_ready_;
+};
+
+std::optional<std::string> ReadFirstMessage(ydb::TopicReadSession& session) {
+    const auto deadline = engine::Deadline::FromDuration(utest::kMaxTestWaitTime);
+
+    while (!deadline.IsReached()) {
+        if (!session.GetNativeTopicReadSession().WaitEvent().Wait(std::chrono::milliseconds{500})) {
+            continue;
+        }
+
+        for (auto& event : session.GetNativeTopicReadSession().GetEvents(/*block=*/false, std::nullopt)) {
+            std::optional<std::string> result;
+            std::visit(
+                utils::Overloaded{
+                    [&result](NYdb::NTopic::TReadSessionEvent::TDataReceivedEvent& e) {
+                        for (auto& message : e.GetMessages()) {
+                            result = message.GetData();
+                            break;
+                        }
+                        e.Commit();
+                    },
+                    [](NYdb::NTopic::TReadSessionEvent::TStartPartitionSessionEvent& e) { e.Confirm(); },
+                    [](NYdb::NTopic::TReadSessionEvent::TStopPartitionSessionEvent& e) { e.Confirm(); },
+                    []([[maybe_unused]] auto& e) {}
+                },
+                event
+            );
+
+            if (result.has_value()) {
+                return result;
+            }
+        }
+    }
+
+    return std::nullopt;
+}
 
 class YdbTopicFixture : public ydb::ClientFixtureBase {
 protected:
@@ -72,6 +202,70 @@ protected:
         read_session_settings.AppendTopics(ydb::impl::ToString(topic_path));
         read_session_settings.ConsumerName(ydb::impl::ToString(consumer_name));
         return GetTopicClient().CreateReadSession(read_session_settings);
+    }
+
+    ydb::TopicWriteSession CreateWriteSession(std::string_view topic_path, std::string_view producer_id) {
+        const auto producer = ydb::impl::ToString(producer_id);
+        NYdb::NTopic::TWriteSessionSettings write_session_settings;
+        write_session_settings.Path(ydb::impl::ToString(topic_path)).ProducerId(producer).MessageGroupId(producer);
+        return GetTopicClient().CreateWriteSession(write_session_settings);
+    }
+};
+
+class YdbTopicWriteSessionFixture : public YdbTopicFixture {
+protected:
+    YdbTopicWriteSessionFixture() {
+        NYdb::NTopic::TCreateTopicSettings topic_settings;
+        topic_settings
+            .AppendConsumers(NYdb::NTopic::TConsumerSettings(topic_settings, ydb::impl::ToString(kWriteConsumerName)));
+        const auto status =
+            GetNativeTopicClient().CreateTopic(ydb::impl::ToString(kWriteTopic), topic_settings).GetValueSync();
+        EXPECT_TRUE(status.IsSuccess()) << status.GetIssues().ToString();
+    }
+
+    ~YdbTopicWriteSessionFixture() override {
+        const auto status = GetNativeTopicClient().DropTopic(ydb::impl::ToString(kWriteTopic)).GetValueSync();
+        EXPECT_TRUE(status.IsSuccess()) << status.GetIssues().ToString();
+    }
+
+    ydb::TopicWriteSession CreateWriteSession() {
+        return YdbTopicFixture::CreateWriteSession(kWriteTopic, kWriteProducerId);
+    }
+
+    ydb::TopicSimpleWriteSession CreateSimpleWriteSession() {
+        const auto producer = ydb::impl::ToString(kWriteProducerId);
+        NYdb::NTopic::TWriteSessionSettings write_session_settings;
+        write_session_settings.Path(ydb::impl::ToString(kWriteTopic)).ProducerId(producer).MessageGroupId(producer);
+        return GetTopicClient().CreateSimpleWriteSession(write_session_settings);
+    }
+
+    ydb::TopicReadSession CreateReadSession() {
+        return YdbTopicFixture::CreateReadSession(kWriteTopic, kWriteConsumerName);
+    }
+};
+
+class YdbTopicProducerFixture : public YdbTopicFixture {
+protected:
+    YdbTopicProducerFixture() {
+        NYdb::NTopic::TCreateTopicSettings topic_settings;
+        topic_settings
+            .AppendConsumers(NYdb::NTopic::TConsumerSettings(topic_settings, ydb::impl::ToString(kProducerConsumerName))
+            );
+        const auto status =
+            GetNativeTopicClient().CreateTopic(ydb::impl::ToString(kProducerTopic), topic_settings).GetValueSync();
+        EXPECT_TRUE(status.IsSuccess()) << status.GetIssues().ToString();
+    }
+
+    ~YdbTopicProducerFixture() override {
+        const auto status = GetNativeTopicClient().DropTopic(ydb::impl::ToString(kProducerTopic)).GetValueSync();
+        EXPECT_TRUE(status.IsSuccess()) << status.GetIssues().ToString();
+    }
+
+    ydb::TopicProducer CreateProducer() {
+        ydb::TopicProducerSettings producer_settings;
+        producer_settings.Path(ydb::impl::ToString(kProducerTopic));
+        producer_settings.ProducerIdPrefix(ydb::impl::ToString(kProducerIdPrefix));
+        return GetTopicClient().CreateProducer(producer_settings);
     }
 };
 
@@ -152,8 +346,8 @@ TYPED_UTEST(YdbTopicReadSessionWithDataHandler, CommitDataEventsPersistence) {
             commit_data_event
         );
 
-        auto task = engine::AsyncNoSpan([&session] {
-            UASSERT_NO_THROW(session.GetNativeTopicReadSession()->WaitEvent().Wait(std::chrono::milliseconds{1000}));
+        auto task = engine::AsyncNoTracing([&session] {
+            UASSERT_NO_THROW(session.GetNativeTopicReadSession().WaitEvent().Wait(std::chrono::milliseconds{1000}));
         });
         task.WaitFor(std::chrono::milliseconds{1000});
         Y_ENSURE(task.IsFinished());
@@ -186,7 +380,7 @@ UTEST_F(YdbTopicFixture, TopicReadSessionGetEvents) {
 
     const auto get_and_handle_events = [&] {
         std::vector<NYdb::NTopic::TReadSessionEvent::TEvent> events;
-        auto task = engine::AsyncNoSpan([&events, &session] { UASSERT_NO_THROW(events = session.GetEvents()); });
+        auto task = engine::AsyncNoTracing([&events, &session] { UASSERT_NO_THROW(events = session.GetEvents()); });
         task.WaitFor(utest::kMaxTestWaitTime);
         ASSERT_TRUE(task.IsFinished());
 
@@ -262,6 +456,148 @@ UTEST_F(YdbTopicFixture, DescribeTopic) {
     ASSERT_EQ(kConsumerName, consumers[0].GetConsumerName());
 
     DropConsumer(kTopicPath, kConsumerName);
+}
+
+UTEST_F(YdbTopicWriteSessionFixture, TopicWriteSessionCreateClose) {
+    auto session = CreateWriteSession();
+    UASSERT_NO_THROW(session.Close(std::chrono::milliseconds{1000}));
+}
+
+UTEST_F(YdbTopicWriteSessionFixture, TopicWriteSessionGetNative) {
+    auto session = CreateWriteSession();
+    EXPECT_TRUE(session.GetNativeTopicWriteSession().GetInitSeqNo().Initialized());
+    session.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicWriteSessionFixture, TopicWriteSessionWriteSingle) {
+    auto session = CreateWriteSession();
+    TopicWriter events{session};
+
+    auto task = engine::AsyncNoTracing([&] { UASSERT_NO_THROW(events.WriteAndAck("hello")); });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    session.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicWriteSessionFixture, TopicWriteSessionWriteMultiple) {
+    auto session = CreateWriteSession();
+    TopicWriter events{session};
+
+    auto task = engine::AsyncNoTracing([&] {
+        for (const std::string_view msg : {"msg-1", "msg-2", "msg-3"}) {
+            UASSERT_NO_THROW(events.WriteAndAck(msg));
+        }
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    session.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicWriteSessionFixture, TopicWriteSessionTryGetEventEmpty) {
+    auto session = CreateWriteSession();
+
+    auto task = engine::AsyncNoTracing([&] {
+        // Drain TReadyToAcceptEvent so the session is established
+        // and the event queue is empty.
+        auto event = session.GetEvent();
+        ASSERT_TRUE(std::holds_alternative<NYdb::NTopic::TWriteSessionEvent::TReadyToAcceptEvent>(event));
+
+        // Queue is now drained — TryGetEvent must return nullopt immediately.
+        EXPECT_FALSE(session.TryGetEvent().has_value());
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    session.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicWriteSessionFixture, TopicSimpleWriteSessionWriteSingle) {
+    constexpr std::string_view kPayload = "simple-writer-message";
+
+    auto read_session = CreateReadSession();
+    auto writer = CreateSimpleWriteSession();
+
+    auto task = engine::AsyncNoTracing([&] {
+        EXPECT_TRUE(
+            writer.Write(kPayload, std::nullopt, std::nullopt, engine::Deadline::FromDuration(utest::kMaxTestWaitTime))
+        );
+        EXPECT_TRUE(writer.Close(std::chrono::milliseconds{1000}));
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    const auto message = ReadFirstMessage(read_session);
+    ASSERT_TRUE(message.has_value());
+    EXPECT_EQ(*message, kPayload);
+
+    read_session.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicProducerFixture, TopicProducerCreateClose) {
+    auto producer = CreateProducer();
+    UASSERT_NO_THROW(producer.Close(std::chrono::milliseconds{1000}));
+}
+
+UTEST_F(YdbTopicProducerFixture, TopicProducerGetNative) {
+    auto producer = CreateProducer();
+    EXPECT_NO_THROW(producer.GetNativeTopicProducer());
+    producer.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicProducerFixture, TopicProducerWriteSingle) {
+    auto producer = CreateProducer();
+
+    auto task = engine::AsyncNoTracing([&] {
+        EXPECT_TRUE(producer.Write(NYdb::NTopic::TWriteMessage{std::string{"hello"}}).IsQueued());
+        EXPECT_TRUE(producer.Flush().IsSuccess());
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    producer.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicProducerFixture, TopicProducerWriteMultiple) {
+    auto producer = CreateProducer();
+
+    auto task = engine::AsyncNoTracing([&] {
+        for (const std::string_view msg : {"msg-1", "msg-2", "msg-3"}) {
+            EXPECT_TRUE(producer.Write(NYdb::NTopic::TWriteMessage{std::string{msg}}).IsQueued());
+        }
+        EXPECT_TRUE(producer.Flush().IsSuccess());
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    producer.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicProducerFixture, TopicProducerFlushWithDeadline) {
+    auto producer = CreateProducer();
+
+    auto task = engine::AsyncNoTracing([&] {
+        EXPECT_TRUE(producer.Write(NYdb::NTopic::TWriteMessage{std::string{"hello"}}).IsQueued());
+        EXPECT_TRUE(producer.Flush(engine::Deadline::FromDuration(utest::kMaxTestWaitTime)).IsSuccess());
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    producer.Close(std::chrono::milliseconds{1000});
+}
+
+UTEST_F(YdbTopicProducerFixture, TopicProducerFlushDeadlinePassed) {
+    auto producer = CreateProducer();
+
+    auto task = engine::AsyncNoTracing([&] {
+        EXPECT_TRUE(producer.Write(NYdb::NTopic::TWriteMessage{std::string{"hello"}}).IsQueued());
+        UEXPECT_THROW(producer.Flush(engine::Deadline::Passed()), ydb::DeadlineExceededError);
+    });
+    task.WaitFor(utest::kMaxTestWaitTime);
+    ASSERT_TRUE(task.IsFinished());
+
+    producer.Close(std::chrono::milliseconds{1000});
 }
 
 USERVER_NAMESPACE_END

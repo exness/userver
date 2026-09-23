@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include <userver/utils/retry_budget.hpp>
 #include <userver/utils/statistics/fwd.hpp>

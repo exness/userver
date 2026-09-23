@@ -140,11 +140,12 @@ Span::Impl::Impl(
     if (parent) {
         log_extra_inheritable_ = parent->log_extra_inheritable_;
         local_log_level_ = parent->local_log_level_;
+        is_sampled_ = parent->is_sampled_;
     }
 }
 
 Span::Impl::~Impl() {
-    if (!ShouldLog()) {
+    if (!ShouldLog() || !is_sampled_) {
         return;
     }
 
@@ -206,7 +207,7 @@ void Span::Impl::LogTo(logging::impl::TagWriter writer) const {
     }
 }
 
-void Span::Impl::DetachFromCoroStack() { unlink(); }
+void Span::Impl::DetachFromCoroStack() noexcept { unlink(); }
 
 void Span::Impl::AttachToCoroStack() {
     UASSERT(!is_linked());
@@ -223,12 +224,23 @@ std::string_view Span::Impl::GetParentIdForLogging(const Span::Impl* parent) {
 bool Span::Impl::ShouldLog() const {
     /* We must honour default log level, but use span's level from ourselves,
      * not the previous spans.
+     * If local_log_level is set, it overrides the global level in both
+     * directions (can enable logging below global level).
      */
-    return logging::impl::ShouldLogNoSpan(logging::GetDefaultLogger(), log_level_) &&
-           local_log_level_.value_or(logging::Level::kTrace) <= log_level_;
+    if (log_level_ == logging::Level::kNone) {
+        return false;
+    }
+    const auto effective_local = local_log_level_.value_or(logging::Level::kTrace);
+    if (effective_local > log_level_) {
+        return false;
+    }
+    if (local_log_level_.has_value()) {
+        return true;
+    }
+    return logging::impl::ShouldLogNoSpan(logging::GetDefaultLogger(), log_level_);
 }
 
-std::optional<std::string_view> Span::Impl::GetSpanIdForChildLogs() const {
+std::optional<std::string_view> Span::Impl::GetSpanIdForChildLogs() const noexcept {
     if (ShouldLog()) {
         // It's still possible for chaining to break and logs to become orphaned if ShouldLog() becomes false later.
         // TODO set a flag on the current span to force it to be logged in that case?
@@ -382,11 +394,11 @@ void Span::SetLogLevel(logging::Level log_level) {
     pimpl_->log_level_ = log_level;
 }
 
-logging::Level Span::GetLogLevel() const { return pimpl_->log_level_; }
+logging::Level Span::GetLogLevel() const noexcept { return pimpl_->log_level_; }
 
-void Span::SetLocalLogLevel(std::optional<logging::Level> log_level) { pimpl_->local_log_level_ = log_level; }
+void Span::SetLocalLogLevel(std::optional<logging::Level> log_level) noexcept { pimpl_->local_log_level_ = log_level; }
 
-std::optional<logging::Level> Span::GetLocalLogLevel() const { return pimpl_->local_log_level_; }
+std::optional<logging::Level> Span::GetLocalLogLevel() const noexcept { return pimpl_->local_log_level_; }
 
 void Span::AddTag(std::string key, logging::LogExtra::Value value) {
     pimpl_->log_extra_inheritable_.Extend(std::move(key), std::move(value));
@@ -396,7 +408,7 @@ void Span::AddTags(const logging::LogExtra& log_extra, utils::impl::InternalTag)
     pimpl_->log_extra_inheritable_.Extend(log_extra);
 }
 
-impl::TimeStorage& Span::GetTimeStorage(utils::impl::InternalTag) { return pimpl_->GetTimeStorage(); }
+impl::TimeStorage& Span::GetTimeStorage(utils::impl::InternalTag) noexcept { return pimpl_->GetTimeStorage(); }
 
 void Span::LogTo(utils::impl::InternalTag, logging::impl::TagWriter writer) const { pimpl_->LogTo(writer); }
 
@@ -424,7 +436,11 @@ void Span::SetParentLink(std::string_view parent_link) { pimpl_->SetParentLink(p
 
 bool Span::ShouldLogDefault() const noexcept { return pimpl_->ShouldLog(); }
 
-void Span::DetachFromCoroStack() {
+bool Span::IsSampled() const noexcept { return pimpl_->is_sampled_; }
+
+void Span::SetSampled(const bool sampled) noexcept { pimpl_->is_sampled_ = sampled; }
+
+void Span::DetachFromCoroStack() noexcept {
     if (pimpl_) {
         pimpl_->DetachFromCoroStack();
     }
@@ -432,29 +448,29 @@ void Span::DetachFromCoroStack() {
 
 void Span::AttachToCoroStack() { pimpl_->AttachToCoroStack(); }
 
-std::chrono::system_clock::time_point Span::GetStartSystemTime() const { return pimpl_->start_system_time_; }
+std::chrono::system_clock::time_point Span::GetStartSystemTime() const noexcept { return pimpl_->start_system_time_; }
 
-std::chrono::steady_clock::time_point Span::GetStartSteadyTime() const { return pimpl_->start_steady_time_; }
+std::chrono::steady_clock::time_point Span::GetStartSteadyTime() const noexcept { return pimpl_->start_steady_time_; }
 
-std::string_view Span::GetTraceId() const { return pimpl_->GetTraceId(); }
+std::string_view Span::GetTraceId() const noexcept { return pimpl_->GetTraceId(); }
 
-std::string_view Span::GetSpanId() const { return pimpl_->GetSpanId(); }
+std::string_view Span::GetSpanId() const noexcept { return pimpl_->GetSpanId(); }
 
-std::string_view Span::GetParentId() const { return pimpl_->GetParentId(); }
+std::string_view Span::GetParentId() const noexcept { return pimpl_->GetParentId(); }
 
-std::string_view Span::GetLink() const { return pimpl_->GetLink(); }
+std::string_view Span::GetLink() const noexcept { return pimpl_->GetLink(); }
 
-std::string_view Span::GetParentLink() const { return pimpl_->GetParentLink(); }
+std::string_view Span::GetParentLink() const noexcept { return pimpl_->GetParentLink(); }
 
-std::optional<std::string_view> Span::GetSpanIdForChildLogs() const { return pimpl_->GetSpanIdForChildLogs(); }
+std::optional<std::string_view> Span::GetSpanIdForChildLogs() const noexcept { return pimpl_->GetSpanIdForChildLogs(); }
 
-std::string_view Span::GetName() const { return pimpl_->GetName(); }
+std::string_view Span::GetName() const noexcept { return pimpl_->GetName(); }
 
-ScopeTime::Duration Span::GetTotalDuration(const std::string& scope_name) const {
+ScopeTime::Duration Span::GetTotalDuration(std::string_view scope_name) const {
     return pimpl_->GetTimeStorage().DurationTotal(scope_name);
 }
 
-ScopeTime::DurationMillis Span::GetTotalElapsedTime(const std::string& scope_name) const {
+ScopeTime::DurationMillis Span::GetTotalElapsedTime(std::string_view scope_name) const {
     return std::chrono::duration_cast<ScopeTime::DurationMillis>(GetTotalDuration(scope_name));
 }
 

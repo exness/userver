@@ -1,6 +1,7 @@
 #include <userver/utils/distances.hpp>
 
 #include <iterator>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -12,7 +13,6 @@
 
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
-#include <boost/range/adaptors.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -97,12 +97,12 @@ TEST_P(NearestNameFixture, NearestName) {
 
     EXPECT_EQ(utils::GetNearestString(set_data, data.key, data.max_distance).value_or(""), data.result);
     EXPECT_EQ(
-        utils::GetNearestString(map_data | boost::adaptors::map_keys, data.key, data.max_distance).value_or(""),
+        utils::GetNearestString(map_data | std::views::keys, data.key, data.max_distance).value_or(""),
         data.result
     );
     EXPECT_EQ(utils::GetNearestString(un_set_data, data.key, data.max_distance).value_or(""), data.result);
     EXPECT_EQ(
-        utils::GetNearestString(un_map_data | boost::adaptors::map_keys, data.key, data.max_distance).value_or(""),
+        utils::GetNearestString(un_map_data | std::views::keys, data.key, data.max_distance).value_or(""),
         data.result
     );
 }

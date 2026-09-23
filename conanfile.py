@@ -48,6 +48,7 @@ class UserverConan(ConanFile):
         'with_sqlite': [True, False],
         'with_easy': [True, False],
         'with_s3api': [True, False],
+        'with_sqs': [True, False],
         'with_grpc_reflection': [True, False],
         'with_grpc_protovalidate': [True, False],
         'with_phdr_cache': [True, False],
@@ -63,7 +64,7 @@ class UserverConan(ConanFile):
         'with_redis': True,
         'with_redis_tls': True,
         'with_grpc': True,
-        'with_clickhouse': False,  # TODO: set to True after clickhouse-cpp >= 2.6 appears in Conan Center
+        'with_clickhouse': True,
         'with_rabbitmq': True,
         'with_utest': True,
         'with_kafka': True,
@@ -71,6 +72,7 @@ class UserverConan(ConanFile):
         'with_sqlite': True,
         'with_easy': True,
         'with_s3api': True,
+        'with_sqs': False,
         'with_grpc_reflection': True,
         'with_grpc_protovalidate': False,
         'with_phdr_cache': True,
@@ -89,7 +91,7 @@ class UserverConan(ConanFile):
                 'version.txt',
             ),
         )
-        hotfix_version = '4'
+        hotfix_version = '0'
         self.version = content.strip() + f".{hotfix_version}"  # pylint: disable=attribute-defined-outside-init
 
     def source(self):
@@ -120,6 +122,21 @@ class UserverConan(ConanFile):
         # Control dependencies of our dependencies based on current options
         if self.options.with_jemalloc:
             self.options['jemalloc'].enable_prof = True
+        if self.options.with_sqs:
+            aws_options = self.options['aws-sdk-cpp']
+            # The aws-sdk-cpp recipe enables these umbrella modules by default.
+            # Keep the SQS component opt-in narrow and avoid building unrelated SDKs.
+            for module in (
+                'access-management',
+                'identity-management',
+                'monitoring',
+                'queues',
+                's3-encryption',
+                'text-to-speech',
+                'transfer',
+            ):
+                setattr(aws_options, module, False)
+            aws_options.sqs = True
 
     def requirements(self):
         self.requires('boost/1.90.0', transitive_headers=True, options={
@@ -136,6 +153,8 @@ class UserverConan(ConanFile):
         self.requires('libnghttp2/[^1.61]')
         self.requires('libcurl/8.12.1')
         self.requires('libev/[^4.33]')
+        if self.settings.os == 'Linux':
+            self.requires('liburing/[^2.4]')
         self.requires('openssl/[>=3.6.2 <4]')
         self.requires('rapidjson/[>=cci.20230929 <cci.20230930]', transitive_headers=True)
         self.requires('yaml-cpp/[>=0.8.0 <=0.9.0]')
@@ -147,10 +166,10 @@ class UserverConan(ConanFile):
         if self.options.with_jemalloc:
             self.requires('jemalloc/[^5.3]')
         if self.options.with_grpc or self.options.with_clickhouse:
-            self.requires('abseil/20260107.1', transitive_headers=True, transitive_libs=True, force=True)
+            self.requires('abseil/20260526.0', transitive_headers=True, transitive_libs=True, force=True)
         if self.options.with_grpc:
             self.requires(
-                'grpc/[^1.69.0]',
+                'grpc/[^1.83.0]',
                 transitive_headers=True,
                 transitive_libs=True,
             )
@@ -180,10 +199,8 @@ class UserverConan(ConanFile):
         if self.options.with_rabbitmq:
             self.requires('amqp-cpp/[^4.3]')
         if self.options.with_clickhouse:
-            # Some C++ Standard libraries require the following fix
-            # https://github.com/ClickHouse/clickhouse-cpp/commit/2ac94d0d5d425cd70a0a8f4f91c4ed57369b72b9
-            # self.requires('clickhouse-cpp/[>=2.6.0 <3]')
-            self.requires('clickhouse-cpp/[>=2.5.1 <3]')
+            self.requires('clickhouse-cpp/[>=2.6.0 <3]')
+            self.requires('lz4/[^1.10.0]', force=True)
         if self.options.with_utest:
             self.requires(
                 'gtest/[>=1.15 <3]',
@@ -201,6 +218,12 @@ class UserverConan(ConanFile):
             self.requires('sqlite3/[>=3.46.1 <5]')
         if self.options.with_s3api:
             self.requires('pugixml/[^1.14]')
+        if self.options.with_sqs:
+            self.requires(
+                'aws-sdk-cpp/1.11.692',
+                transitive_headers=True,
+                transitive_libs=True,
+            )
         if self.options.with_otlp:
             self.requires('opentelemetry-proto/[^1.3]')
 
@@ -246,6 +269,7 @@ class UserverConan(ConanFile):
         tool_ch.cache_variables['USERVER_FEATURE_SQLITE'] = self.options.with_sqlite
         tool_ch.cache_variables['USERVER_FEATURE_EASY'] = self.options.with_easy
         tool_ch.cache_variables['USERVER_FEATURE_S3API'] = self.options.with_s3api
+        tool_ch.cache_variables['USERVER_FEATURE_SQS'] = self.options.with_sqs
         tool_ch.cache_variables['USERVER_FEATURE_GRPC_REFLECTION'] = self.options.with_grpc_reflection
         tool_ch.cache_variables['USERVER_FEATURE_GRPC_PROTOVALIDATE'] = self.options.with_grpc_protovalidate
         tool_ch.cache_variables['USERVER_DISABLE_PHDR_CACHE'] = not self.options.with_phdr_cache

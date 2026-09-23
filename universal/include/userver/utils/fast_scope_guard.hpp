@@ -60,7 +60,7 @@ public:
     constexpr void Release() noexcept { is_active_ = false; }
 
 private:
-    Callback callback_;
+    [[no_unique_address]] Callback callback_;
 
     // should be optimized out if 'Release' is not called
     bool is_active_{true};

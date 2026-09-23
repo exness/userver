@@ -1,3 +1,5 @@
+#include "delaying_handler.hpp"
+
 #include <userver/clients/dns/component.hpp>
 #include <userver/clients/http/component_list.hpp>
 #include <userver/components/minimal_server_component_list.hpp>
@@ -18,6 +20,6 @@ int main(int argc, char* argv[]) {
             .Append<server::handlers::TestsControl>()
             .Append<components::TestsuiteSupport>()
             .Append<server::handlers::Ping>()
-            .Append<server::handlers::LogLevel>();
+            .Append<server::handlers::testing::DelayingServerHandler>();
     return utils::DaemonMain(argc, argv, component_list);
 }

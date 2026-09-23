@@ -85,7 +85,7 @@ digraph Pipeline {
   ReceiveMessages -> SecondMiddlewarePostFinish;
   SecondMiddlewarePostFinish -> FirstMiddlewarePostFinish;
 
-  Pipeline[label = "PreStartCall/PostFinish middlewares hooks order", shape=plaintext, rank="main"];
+  Pipeline[label = "PreStartCall/PostFinish middleware hooks order", shape=plaintext, rank="main"];
 }
 @enddot
 
@@ -106,7 +106,7 @@ This means the completion can be one of:
 #### Per-call (RPC) hooks implementation example
 
 @snippet samples/grpc_middleware_service/src/middlewares/client/auth.hpp Middleware declaration
-@snippet samples/grpc_middleware_service/src/middlewares/client/auth.cpp gRPC middleware sample - Middleware implementation
+@snippet samples/grpc_middleware_service/src/middlewares/client/auth.cpp grpc client auth middleware
 
 Register the Middleware component in the component system.
 
@@ -166,7 +166,7 @@ digraph Pipeline {
   CreateMessage -> FirstMiddlewareCallRequestHook -> SecondMiddlewareCallRequestHook -> SendMessageToNetwork
   ReceiveMessageFromNetwork -> SecondMiddlewareCallResponseHook -> FirstMiddlewareCallResponseHook -> RecvMessage
 
-  Pipeline[label = "PreSendMessage/PostRecvMessage middlewares hooks order", shape=plaintext, rank="main"];
+  Pipeline[label = "PreSendMessage/PostRecvMessage middleware hooks order", shape=plaintext, rank="main"];
 }
 @enddot
 
@@ -197,16 +197,16 @@ To declare static config options of your middleware see @ref scripts/docs/en/use
 
 ## Exceptions and errors in middlewares
 
-To fully understand what happens when middlewares hooks are failed, you should understand the middlewares order:
+To fully understand what happens when middleware hooks fail, you should understand the middlewares order:
 @see @ref grpc_client_middlewares_order.
 
 All exceptions are rethrown to the user code from client's RPC creating methods, `Read` / `Write` (for streaming), and from methods that return the RPC status.
 
-Note that in case of exception middleware pipeline is stopped and subsequent middlewares hooks are not called.
+Note that if an exception occurs, the middleware pipeline is stopped and subsequent middleware hooks are not called.
 
 ## Using static config options in middlewares
 
-There are two ways to implement a middleware component. You can see above @ref ugrpc::client::SimpleMiddlewareFactoryComponent. This component is need
+There are two ways to implement a middleware component. You can see above @ref ugrpc::client::SimpleMiddlewareFactoryComponent. This component is needed
 for simple cases without static config options of a middleware.
 
 @note In that case, `kName` and `kDependency` (@ref middlewares::MiddlewareDependencyBuilder) must be in a middleware class (as shown above).
@@ -215,6 +215,30 @@ If you want to use static config options for your middleware, use @ref ugrpc::cl
 @see @ref scripts/docs/en/userver/grpc/middlewares_configuration.md.
 
 To override static config options of a middleware per a client see @ref grpc_middlewares_config_override.
+
+## Using dynamic config values in middlewares
+
+If your middleware needs a dynamic config value, do NOT do your own
+`FindComponent<components::DynamicConfig>()` in your middleware factory component,
+and do NOT depend, even transitively, on a component that does so itself
+(e.g. do not add `components::DynamicConfig`, or a component that depends on it,
+as a dependency of your middleware factory component).
+Instead, store @ref ugrpc::client::ClientInfo::config_source, passed to
+`CreateMiddleware`, as a field of your middleware object, and read the config
+through it (`.GetSnapshot()[key]`) inside the middleware hooks
+(`PreStartCall`/`PreSendMessage`/`PostRecvMessage`/`PostFinish`).
+
+`CreateMiddleware` is called once per client, so the resulting `config_source`
+is the same one that the rest of the client uses. This is important because a
+client's `ClientFactoryComponent` may be configured with
+`use-constant-dynamic-configs: true` (a "light" gRPC client without a blocking
+dependency on `components::DynamicConfig`, see
+@ref ugrpc::client::ClientFactoryComponent) — in that case `config_source` is
+constant and does not go through `components::DynamicConfig` at all. A
+middleware that bypasses `ClientInfo::config_source` and does its own
+`FindComponent<components::DynamicConfig>()` (directly or transitively, through
+some other component it depends on) would silently reintroduce a blocking
+dependency for such a client.
 
 
 @anchor grpc_client_middlewares_order

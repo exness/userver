@@ -10,6 +10,7 @@
 #include <userver/server/request/task_inherited_data.hpp>
 #include <userver/utils/impl/internal_tag.hpp>
 
+#include <ugrpc/impl/rpc_metadata.hpp>
 #include <userver/ugrpc/impl/statistics_scope.hpp>
 #include <userver/ugrpc/impl/to_string.hpp>
 #include <userver/ugrpc/status_codes.hpp>
@@ -28,7 +29,7 @@ const utils::AnyStorageDataTag<ugrpc::server::StorageContext, engine::Deadline::
 
 bool CheckAndSetupDeadline(
     tracing::Span& span,
-    grpc::ServerContext& server_context,
+    grpc::ServerContextBase& server_context,
     std::string_view service_name,
     std::string_view method_name,
     ugrpc::impl::RpcStatisticsScope& statistics_scope,
@@ -42,7 +43,7 @@ bool CheckAndSetupDeadline(
 
     std::optional<USERVER_NAMESPACE::server::request::TaskInheritedOriginalDeadline> absolute_original_deadline;
     const auto& client_metadata = server_context.client_metadata();
-    const auto absolute_deadline_it = client_metadata.find("x-request-deadline");
+    const auto absolute_deadline_it = client_metadata.find(ugrpc::impl::kXRequestDeadline);
     if (absolute_deadline_it != client_metadata.end()) {
         absolute_original_deadline = USERVER_NAMESPACE::server::request::impl::ParseXRequestDeadlineString(
             ugrpc::impl::ToString(absolute_deadline_it->second)
@@ -154,7 +155,7 @@ void Middleware::PreSendStatus(MiddlewareCallContext& context, grpc::Status& sta
             "replaced "
             "with DEADLINE_EXCEEDED by `grpc-server-deadline-propagation` middleware. Original status: {}, msg: '{}'",
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline).count(),
-            ugrpc::ToString(status.error_code()),
+            ugrpc::ToStringView(status.error_code()),
             status.error_message()
         );
         context.SetError(grpc::Status{

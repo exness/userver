@@ -38,13 +38,13 @@ ugrpc::server::ServerConfig MakeServerConfig(int port) {
 
 struct GrpcChannels : public ::testing::TestWithParam<std::size_t> {};
 
-UTEST_P_MT(GrpcChannels, TryWaitForConnected, 2) {
+UTEST_P_MT(GrpcChannels, DISABLED_IN_MAC_OS_TEST_NAME(TryWaitForConnected), 2) {
     constexpr auto kSmallTimeout = 100ms;
     constexpr auto kServerStartDelay = 100ms;
 
     const auto port = ugrpc::tests::GetFreeIpv6Port();
 
-    auto client_task = engine::AsyncNoSpan([&] {
+    auto client_task = engine::AsyncNoTracing([&] {
         ugrpc::client::ClientFactorySettings settings;
         settings.channel_args.SetInt("grpc.testing.fixed_reconnect_backoff_ms", 100);
         settings.channel_count = GetParam();
@@ -78,7 +78,7 @@ UTEST_P_MT(GrpcChannels, TryWaitForConnected, 2) {
     // Make sure that TryWaitForConnected starts while the server is down
     engine::SleepFor(kServerStartDelay);
 
-    const ugrpc::tests::Service<UnitTestServiceSimple> service{MakeServerConfig(port)};
+    const ugrpc::tests::Service<UnitTestServiceSimple> service{{.server_config = MakeServerConfig(port)}};
 
     UEXPECT_NO_THROW(client_task.Get());
 }

@@ -45,7 +45,7 @@ public:
     explicit MaybeOwnedKey(const PredefinedHeader& key);
     explicit MaybeOwnedKey(std::string_view key);
 
-    std::string_view GetValue() const;
+    std::string_view GetValue() const noexcept;
 
     std::string ExtractValue() &&;
 

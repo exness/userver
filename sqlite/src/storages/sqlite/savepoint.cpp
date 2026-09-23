@@ -1,6 +1,7 @@
 #include <userver/storages/sqlite/savepoint.hpp>
 
 #include <userver/logging/log.hpp>
+#include <userver/utils/string_literal.hpp>
 
 #include <userver/storages/sqlite/impl/connection.hpp>
 #include <userver/storages/sqlite/infra/connection_ptr.hpp>
@@ -11,12 +12,12 @@ namespace storages::sqlite {
 
 namespace {
 
-constexpr std::string_view kStatementPrepeareString = "SELECT quote(?)";
+constexpr utils::StringLiteral kStatementPrepeareString = "SELECT quote(?)";
 
 }  // namespace
 
 std::string Savepoint::PrepareString(const std::string& str) {
-    auto params_binder = impl::BindHelper::UpdateParamsBindings(kStatementPrepeareString.data(), *connection_, str);
+    auto params_binder = impl::BindHelper::UpdateParamsBindings(kStatementPrepeareString.c_str(), *connection_, str);
     return DoExecute(params_binder).AsSingleField<std::string>();
 }
 

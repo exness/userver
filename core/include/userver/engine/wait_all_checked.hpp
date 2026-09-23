@@ -6,6 +6,7 @@
 #include <chrono>
 #include <vector>
 
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/future_status.hpp>
 #include <userver/utils/meta.hpp>
@@ -62,17 +63,16 @@ template <typename... Tasks>
 
 namespace impl {
 
-class ContextAccessor;
-
-FutureStatus DoWaitAllChecked(std::vector<ContextAccessor*>&& targets, Deadline deadline);
+FutureStatus DoWaitAllChecked(std::vector<AwaitableToken>&& targets, Deadline deadline);
 
 template <typename Container>
 FutureStatus WaitAllCheckedFromContainer(Deadline deadline, Container& tasks) {
-    std::vector<ContextAccessor*> targets;
+    std::vector<AwaitableToken> targets;
     targets.reserve(std::size(tasks));
 
     for (auto& task : tasks) {
-        targets.push_back(task.TryGetContextAccessor());
+        static_assert(engine::Awaitable<decltype(task)>, "Tasks must be awaitable");
+        targets.push_back(task.GetAwaitableToken());
     }
 
     return impl::DoWaitAllChecked(std::move(targets), deadline);
@@ -80,7 +80,8 @@ FutureStatus WaitAllCheckedFromContainer(Deadline deadline, Container& tasks) {
 
 template <typename... Tasks>
 FutureStatus WaitAllCheckedFromTasks(Deadline deadline, Tasks&... tasks) {
-    return impl::DoWaitAllChecked({tasks.TryGetContextAccessor()...}, deadline);
+    static_assert((true && ... && engine::Awaitable<Tasks>), "Tasks must be awaitable");
+    return impl::DoWaitAllChecked({tasks.GetAwaitableToken()...}, deadline);
 }
 
 inline FutureStatus WaitAllCheckedFromTasks(Deadline /*deadline*/) { return FutureStatus::kReady; }
@@ -106,7 +107,7 @@ template <typename... Tasks, typename Clock, typename Duration>
 
 template <typename... Tasks>
 [[nodiscard]] FutureStatus WaitAllCheckedUntil(Deadline deadline, Tasks&... tasks) {
-    if constexpr (meta::impl::IsSingleRange<Tasks...>()) {
+    if constexpr (meta::impl::IsSingleRange<Tasks...>) {
         return impl::WaitAllCheckedFromContainer(deadline, tasks...);
     } else {
         return impl::WaitAllCheckedFromTasks(deadline, tasks...);

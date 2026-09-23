@@ -114,8 +114,6 @@ public:
 
     bool operator==(const SharedReadablePtr<T>& other) const { return base_ == other.base_; }
 
-    bool operator!=(const SharedReadablePtr<T>& other) const { return !(*this == other); }
-
     void Reset() noexcept { base_.reset(); }
 
 private:

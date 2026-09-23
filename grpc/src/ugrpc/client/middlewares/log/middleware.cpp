@@ -1,8 +1,11 @@
 #include <ugrpc/client/middlewares/log/middleware.hpp>
 
+#include <utility>
+
 #include <fmt/format.h>
 
 #include <userver/logging/level.hpp>
+#include <userver/logging/log.hpp>
 #include <userver/logging/log_extra.hpp>
 #include <userver/tracing/tags.hpp>
 #include <userver/ugrpc/client/impl/call_state.hpp>
@@ -21,7 +24,7 @@ std::string GetMessageForLogging(const google::protobuf::Message& message, const
     if (settings.msg_log_level < settings.log_level || !logging::ShouldLog(settings.msg_log_level)) {
         return "";
     }
-    return ugrpc::ToLimitedDebugString(message, settings.max_msg_size);
+    return ugrpc::ToLimitedLoggingString(message, settings.max_msg_size);
 }
 
 class SpanLogger {
@@ -37,6 +40,15 @@ public:
         }
         const tracing::impl::DetachLocalSpansScope ignore_local_span;
         LOG(level) << message << std::move(extra) << tracing::impl::LogSpanAsLastNoCurrent{span_};
+    }
+
+    template <typename LogBuilder>
+    void Log(logging::Level level, LogBuilder&& log_builder) const {
+        if (level < log_level_threshold_) {
+            return;
+        }
+        const tracing::impl::DetachLocalSpansScope ignore_local_span;
+        LOG(level) << std::forward<LogBuilder>(log_builder) << tracing::impl::LogSpanAsLastNoCurrent{span_};
     }
 
 private:
@@ -69,30 +81,30 @@ void Middleware::PreSendMessage(MiddlewareCallContext& context, const google::pr
     auto& span = context.GetSpan();
 
     const SpanLogger logger{span, settings_.log_level};
-    logging::LogExtra extra{
-        {ugrpc::impl::kTypeTag, "request"},
-        {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
-        {ugrpc::impl::kMessageMarshalledLenTag, message.ByteSizeLong()},
-    };
-    if (IsSingleRequestMethod(context.GetRpcType())) {
-        logger.Log(settings_.msg_log_level, "gRPC request", std::move(extra));
-    } else {
-        logger.Log(settings_.msg_log_level, "gRPC request stream message", std::move(extra));
-    }
+    logger.Log(settings_.msg_log_level, [&](auto& log_helper) {
+        logging::LogExtra extra{
+            {ugrpc::impl::kTypeTag, "request"},
+            {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
+            {ugrpc::impl::kMessageMarshalledLenTag, message.ByteSizeLong()},
+        };
+        log_helper
+            << (IsSingleRequestMethod(context.GetRpcType()) ? "gRPC request" : "gRPC request stream message")
+            << std::move(extra);
+    });
 }
 
 void Middleware::PostRecvMessage(MiddlewareCallContext& context, const google::protobuf::Message& message) const {
     const SpanLogger logger{context.GetSpan(), settings_.log_level};
-    logging::LogExtra extra{
-        {ugrpc::impl::kTypeTag, "response"},
-        {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
-        {ugrpc::impl::kMessageMarshalledLenTag, message.ByteSizeLong()},
-    };
-    if (IsSingleResponseMethod(context.GetRpcType())) {
-        logger.Log(settings_.msg_log_level, "gRPC response", std::move(extra));
-    } else {
-        logger.Log(settings_.msg_log_level, "gRPC response stream message", std::move(extra));
-    }
+    logger.Log(settings_.msg_log_level, [&](auto& log_helper) {
+        logging::LogExtra extra{
+            {ugrpc::impl::kTypeTag, "response"},
+            {ugrpc::impl::kBodyTag, GetMessageForLogging(message, settings_)},
+            {ugrpc::impl::kMessageMarshalledLenTag, message.ByteSizeLong()},
+        };
+        log_helper
+            << (IsSingleResponseMethod(context.GetRpcType()) ? "gRPC response" : "gRPC response stream message")
+            << std::move(extra);
+    });
 }
 /// [MiddlewareBase Message methods example]
 
@@ -107,10 +119,10 @@ void Middleware::PostFinish(MiddlewareCallContext& context, const CompletionStat
                 logger.Log(settings_.msg_log_level, "gRPC response stream finished", logging::LogExtra{});
             }
         } else {
-            auto error_details = ugrpc::ToUnlimitedDebugString(status);
+            auto error_details = ugrpc::ToUnlimitedLoggingString(status);
             logging::LogExtra extra{
                 {ugrpc::impl::kTypeTag, "error_status"},
-                {ugrpc::impl::kCodeTag, ugrpc::ToString(status.error_code())},
+                {ugrpc::impl::kCodeTag, ugrpc::ToStringView(status.error_code())},
                 {tracing::kErrorMessage, std::move(error_details)}
             };
             logger.Log(logging::Level::kWarning, "gRPC error", std::move(extra));

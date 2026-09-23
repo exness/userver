@@ -1,32 +1,42 @@
 #pragma once
 
-#include <userver/chaotic/object.hpp>
+#include "string.hpp"
+
+#include <userver/chaotic/additional_properties.hpp>
 #include <userver/chaotic/primitive.hpp>
 #include <userver/chaotic/validators.hpp>
 #include <userver/chaotic/with_type.hpp>
 #include <userver/formats/parse/common_containers.hpp>
 #include <userver/formats/serialize/common_containers.hpp>
-
-#include "string.hpp"
+#include <userver/utils/trivial_map.hpp>
 
 namespace ns {
 
-static constexpr USERVER_NAMESPACE::utils::TrivialSet k__ns__String_PropertiesNames = [](auto selector) {
-  return selector().template Type<std::string_view>().Case("foo");
+constexpr USERVER_NAMESPACE::utils::TrivialSet k__ns__String_PropertiesNames = [](auto selector) {
+    return selector().template Type<std::string_view>()
+        .Case("foo")
+    ;
 };
 
-template <typename Value, typename = std::enable_if_t<USERVER_NAMESPACE::formats::common::kIsFormatValue<Value>>>
-String Parse(Value value, USERVER_NAMESPACE::formats::parse::To<String>) {
-  value.CheckNotMissing();
-  value.CheckObjectOrNull();
+template <USERVER_NAMESPACE::formats::common::IsFormatValue Value>
+String Parse(
+    Value value,
+    USERVER_NAMESPACE::formats::parse::To<String>)
+{
+    value.CheckNotMissing();
+    value.CheckObjectOrNull();
 
-  String res;
+    String res{
+        .foo = value["foo"].template As<
+            std::optional<USERVER_NAMESPACE::chaotic::Primitive<std::string>>
+        >(),
+    };
 
-  res.foo = value["foo"].template As<std::optional<USERVER_NAMESPACE::chaotic::Primitive<std::string>>>();
+    USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(
+        value, k__ns__String_PropertiesNames
+    );
 
-  USERVER_NAMESPACE::chaotic::ValidateNoAdditionalProperties(value, k__ns__String_PropertiesNames);
-
-  return res;
+    return res;
 }
 
 }  // namespace ns

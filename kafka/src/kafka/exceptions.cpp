@@ -57,6 +57,9 @@ GetMetadataTimeoutException::GetMetadataTimeoutException(std::string_view topic)
 ParseHeadersException::ParseHeadersException(std::string_view error)
     : std::runtime_error(fmt::format("{}: {}", kWhat, error)) {}
 
+ConsumerRestartRequiredException::ConsumerRestartRequiredException(const std::string& message)
+    : std::runtime_error(message) {}
+
 }  // namespace kafka
 
 USERVER_NAMESPACE_END

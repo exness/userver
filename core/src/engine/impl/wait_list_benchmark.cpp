@@ -22,10 +22,7 @@ constexpr std::size_t kIterationsCount = 1024 * 16;
 
 boost::intrusive_ptr<TaskContext> MakeContext() {
     return engine::impl::MakeTask(
-               {engine::current_task::GetTaskProcessor(),
-                engine::Task::Importance::kNormal,
-                engine::Task::WaitMode::kSingleAwaiter,
-                {}},
+               {nullptr, engine::Task::Importance::kNormal, engine::Task::WaitMode::kSingleAwaiter, {}},
                [] {}
     ).Extract();
 }
@@ -42,7 +39,7 @@ auto MakeContexts() {
 
 }  // namespace
 
-void WaitListInsertion(benchmark::State& state) {
+static void WaitListInsertion(benchmark::State& state) {
     engine::RunStandalone([&] {
         std::size_t i = 0;
         WaitList wl;
@@ -51,7 +48,7 @@ void WaitListInsertion(benchmark::State& state) {
         {
             WaitList::Lock guard{wl};
             for ([[maybe_unused]] auto _ : state) {
-                wl.Append(guard, contexts[i], contexts[i]->GetAwaiterContext());
+                wl.Append(guard, contexts[i]->AsAwaiterPtr(), contexts[i]->GetAwaiterContext());
 
                 if (++i == kTasksCount) {
                     state.PauseTiming();
@@ -71,7 +68,7 @@ void WaitListInsertion(benchmark::State& state) {
 }
 BENCHMARK(WaitListInsertion)->Iterations(kIterationsCount);
 
-void WaitListRemoval(benchmark::State& state) {
+static void WaitListRemoval(benchmark::State& state) {
     engine::RunStandalone([&] {
         WaitList wl;
 
@@ -79,7 +76,7 @@ void WaitListRemoval(benchmark::State& state) {
 
         WaitList::Lock guard{wl};
         for (const auto& c : contexts) {
-            wl.Append(guard, c, c->GetAwaiterContext());
+            wl.Append(guard, c->AsAwaiterPtr(), c->GetAwaiterContext());
         }
 
         std::size_t i = 0;
@@ -91,7 +88,7 @@ void WaitListRemoval(benchmark::State& state) {
                 i = 0;
                 {
                     for (const auto& c : contexts) {
-                        wl.Append(guard, c, c->GetAwaiterContext());
+                        wl.Append(guard, c->AsAwaiterPtr(), c->GetAwaiterContext());
                     }
                 }
                 state.ResumeTiming();
@@ -106,7 +103,7 @@ void WaitListRemoval(benchmark::State& state) {
 }
 BENCHMARK(WaitListRemoval)->Iterations(kIterationsCount);
 
-void WaitListAddRemoveContention(benchmark::State& state) {
+static void WaitListAddRemoveContention(benchmark::State& state) {
     engine::RunStandalone(state.range(0), [&] {
         std::atomic<bool> run{true};
         WaitList wl;
@@ -114,12 +111,12 @@ void WaitListAddRemoveContention(benchmark::State& state) {
         std::vector<engine::TaskWithResult<void>> tasks;
         tasks.reserve(state.range(0) - 1);
         for (int i = 0; i < state.range(0) - 1; i++) {
-            tasks.push_back(engine::AsyncNoSpan([&]() {
+            tasks.push_back(engine::AsyncNoTracing([&]() {
                 const boost::intrusive_ptr<TaskContext> ctx = MakeContext();
                 while (run) {
                     {
                         WaitList::Lock guard{wl};
-                        wl.Append(guard, ctx, ctx->GetAwaiterContext());
+                        wl.Append(guard, ctx->AsAwaiterPtr(), ctx->GetAwaiterContext());
                     }
                     WaitList::Lock guard{wl};
                     wl.Remove(guard, *ctx, ctx->GetAwaiterContext());
@@ -131,7 +128,7 @@ void WaitListAddRemoveContention(benchmark::State& state) {
         for ([[maybe_unused]] auto _ : state) {
             {
                 WaitList::Lock guard{wl};
-                wl.Append(guard, ctx, ctx->GetAwaiterContext());
+                wl.Append(guard, ctx->AsAwaiterPtr(), ctx->GetAwaiterContext());
             }
             WaitList::Lock guard{wl};
             wl.Remove(guard, *ctx, ctx->GetAwaiterContext());
@@ -142,7 +139,7 @@ void WaitListAddRemoveContention(benchmark::State& state) {
 }
 BENCHMARK(WaitListAddRemoveContention)->RangeMultiplier(2)->Range(1, 2)->UseRealTime();
 
-void WaitListAddRemoveContentionUnbalanced(benchmark::State& state) {
+static void WaitListAddRemoveContentionUnbalanced(benchmark::State& state) {
     engine::RunStandalone(state.range(0), [&] {
         std::atomic<bool> run{true};
         WaitList wl;
@@ -150,12 +147,12 @@ void WaitListAddRemoveContentionUnbalanced(benchmark::State& state) {
         std::vector<engine::TaskWithResult<void>> tasks;
         tasks.reserve(state.range(0) - 1);
         for (int i = 0; i < state.range(0) - 1; i++) {
-            tasks.push_back(engine::AsyncNoSpan([&]() {
+            tasks.push_back(engine::AsyncNoTracing([&]() {
                 auto contexts = MakeContexts();
                 while (run) {
                     for (auto& ctx : contexts) {
                         WaitList::Lock guard{wl};
-                        wl.Append(guard, ctx, ctx->GetAwaiterContext());
+                        wl.Append(guard, ctx->AsAwaiterPtr(), ctx->GetAwaiterContext());
                     }
                     for (auto& ctx : contexts) {
                         WaitList::Lock guard{wl};
@@ -169,7 +166,7 @@ void WaitListAddRemoveContentionUnbalanced(benchmark::State& state) {
         for ([[maybe_unused]] auto _ : state) {
             for (auto& ctx : contexts) {
                 WaitList::Lock guard{wl};
-                wl.Append(guard, ctx, ctx->GetAwaiterContext());
+                wl.Append(guard, ctx->AsAwaiterPtr(), ctx->GetAwaiterContext());
             }
             for (auto& ctx : contexts) {
                 WaitList::Lock guard{wl};

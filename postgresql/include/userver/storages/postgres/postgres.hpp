@@ -15,7 +15,7 @@ USERVER_NAMESPACE_BEGIN
 namespace storages {
 /// @brief Top namespace for uPg driver
 ///
-/// For more information see @ref pg_driver
+/// For more information see @ref scripts/docs/en/userver/pg/driver.md
 namespace postgres {
 /// @brief uPg input-output.
 ///

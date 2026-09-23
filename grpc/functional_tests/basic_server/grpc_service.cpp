@@ -11,6 +11,7 @@
 #include <userver/components/component.hpp>
 #include <userver/components/minimal_server_component_list.hpp>
 #include <userver/congestion_control/component.hpp>
+#include <userver/server/handlers/tests_control.hpp>
 #include <userver/server/middlewares/headers_propagator.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/utils/daemon_run.hpp>
@@ -87,6 +88,7 @@ int main(int argc, char* argv[]) {
         components::MinimalServerComponentList()
             .Append<congestion_control::Component>()
             .Append<components::TestsuiteSupport>()
+            .Append<server::handlers::TestsControl>()
             .AppendComponentList(ugrpc::server::DefaultComponentList())
             .AppendComponentList(ugrpc::client::MinimalComponentList())
             .Append<ugrpc::client::ClientFactoryComponent>()

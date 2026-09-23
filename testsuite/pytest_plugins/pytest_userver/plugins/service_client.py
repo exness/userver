@@ -10,7 +10,7 @@ import warnings
 
 import aiohttp.client_exceptions
 import pytest
-import websockets.legacy.client as websockets
+import websockets
 
 from testsuite.daemons import service_client as base_service_client
 

@@ -3,6 +3,8 @@ Start the service in testsuite.
 """
 
 # pylint: disable=redefined-outer-name
+from collections.abc import Awaitable
+from collections.abc import Callable
 from collections.abc import Iterable
 import logging
 import pathlib
@@ -127,23 +129,21 @@ async def service_binary_launcher():
 
 
 @pytest.fixture(scope='session')
-async def service_daemon_scope(
-    create_daemon_scope,
-    daemon_scoped_mark,
-    service_env,
+def service_health_check(
     service_http_ping_url,
-    service_config_path_temp,
-    service_binary,
-    service_binary_launcher,
     service_non_http_health_checks,
-    service_start_timeout,
-):
+) -> Callable[..., Awaitable[bool]] | None:
     """
-    Prepares the start of the service daemon.
-    Configures the health checking to use service_http_ping_url fixture value
-    if it is not None; otherwise uses the service_non_http_health_checks info.
+    Returns the health check function used by
+    @ref pytest_userver.plugins.service.service_daemon_scope "service_daemon_scope"
+    to detect that the service has started and is ready to accept requests.
 
-    @see @ref pytest_userver.plugins.service.service_daemon_instance "service_daemon_instance"
+    Returns None when service_http_ping_url is set, in which case
+    create_daemon_scope uses the ping URL directly. Otherwise returns a checker
+    based on the service_non_http_health_checks info.
+
+    Override this fixture to change the way the service readiness is detected.
+
     @ingroup userver_testsuite_fixtures
     """
     assert service_http_ping_url or service_non_http_health_checks.tcp, (
@@ -152,8 +152,11 @@ async def service_daemon_scope(
         'to accept requests.',
     )
 
+    if service_http_ping_url:
+        return None
+
     logger.debug(
-        'userver fixture "service_daemon_scope" would check for "%s"',
+        'userver fixture "service_health_check" would check for "%s"',
         service_non_http_health_checks,
     )
 
@@ -167,24 +170,42 @@ async def service_daemon_scope(
         if new_log_time - LocalCounters.last_log_time > 1.0:
             LocalCounters.last_log_time = new_log_time
             logger.debug(
-                'userver fixture "service_daemon_scope" checking "%s", attempt %s',
+                'userver fixture "service_health_check" checking "%s", attempt %s',
                 service_non_http_health_checks,
                 LocalCounters.attempts,
             )
 
         return await net.check_availability(service_non_http_health_checks)
 
-    health_check = _checker
-    if service_http_ping_url:
-        health_check = None
+    return _checker
 
+
+@pytest.fixture(scope='session')
+async def service_daemon_scope(
+    create_daemon_scope,
+    daemon_scoped_mark,
+    service_env,
+    service_http_ping_url,
+    service_config_path_temp,
+    service_binary,
+    service_binary_launcher,
+    service_health_check,
+    service_start_timeout,
+):
+    """
+    Prepares the start of the service daemon.
+    Configures the health checking via the service_health_check fixture.
+
+    @see @ref pytest_userver.plugins.service.service_daemon_instance "service_daemon_instance"
+    @ingroup userver_testsuite_fixtures
+    """
     # In yandex-taxi-testsuite, each poll retry duration is 0.05 seconds.
     poll_retries = int(service_start_timeout / 0.05)
 
     async with create_daemon_scope(
         args=service_binary_launcher + [str(service_binary), '--config', str(service_config_path_temp)],
         ping_url=service_http_ping_url,
-        health_check=health_check,
+        health_check=service_health_check,
         env=service_env,
         poll_retries=poll_retries,
     ) as scope:
@@ -219,6 +240,7 @@ def auto_client_deps(request) -> None:
     * `redis_store`
     * `mysql`
     * @ref pytest_userver.plugins.ydb.ydbsupport.ydb "ydb"
+    * @ref pytest_userver.plugins.scylla.scylla "scylla"
     * @ref pytest_userver.plugins.grpc.mockserver.grpc_mockserver "grpc_mockserver"
 
     To add other dependencies prefer overriding the
@@ -237,6 +259,7 @@ def auto_client_deps(request) -> None:
         'redis_store',
         'mysql',
         'ydb',
+        'scylla',
         'grpc_mockserver',
     }
 

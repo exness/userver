@@ -54,7 +54,7 @@ void MonotonicSetConcurrentInsert(benchmark::State& state) {
             tasks.reserve(num_tasks - 1);
 
             for (std::size_t thread_id = 1; thread_id < num_tasks; ++thread_id) {
-                tasks.push_back(engine::AsyncNoSpan([&, thread_id]() {
+                tasks.push_back(engine::AsyncNoTracing([&, thread_id]() {
                     for (std::size_t i = 0; i < items_per_task; ++i) {
                         int key = static_cast<int>((thread_id * items_per_task) + i);
                         set.TryEmplace(key, key, fmt::format("value_{}", key));
@@ -104,7 +104,7 @@ void RcuMapConcurrentInsert(benchmark::State& state) {
             tasks.reserve(num_tasks - 1);
 
             for (std::size_t task_id = 1; task_id < num_tasks; ++task_id) {
-                tasks.push_back(engine::AsyncNoSpan([&, task_id] {
+                tasks.push_back(engine::AsyncNoTracing([&, task_id] {
                     for (std::size_t i = 0; i < items_per_task; ++i) {
                         int key = static_cast<int>((task_id * items_per_task) + i);
                         map.Emplace(key, key, fmt::format("value_{}", key));

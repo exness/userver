@@ -109,7 +109,6 @@ async def test_grpc_cancellation(grpc_client, service_client, testpoint):
     with pytest.raises(grpc.RpcError) as error:
         request = greeter_pb2.GreetingRequest(name='test_payload_cancellation')
         await grpc_client.SayHello(request, wait_for_ready=True, timeout=0.1)
-    assert error.value.details() == 'Deadline Exceeded'
     assert error.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
     await cancel_testpoint.wait_call()

@@ -6,7 +6,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
 
-void AddRatelimitMetadata(grpc::ServerContext& server_context);
+void AddRatelimitMetadata(grpc::ServerContextBase& server_context);
 
 }  // namespace ugrpc::server::impl
 

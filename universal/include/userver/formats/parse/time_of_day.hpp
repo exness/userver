@@ -14,7 +14,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace formats::parse {
 
-template <common::kIsFormatValue Value, typename Duration>
+template <common::IsFormatValue Value, typename Duration>
 utils::datetime::TimeOfDay<Duration> Parse(const Value& value, To<utils::datetime::TimeOfDay<Duration>>) {
     std::optional<std::string> str;
     try {

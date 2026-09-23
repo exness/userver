@@ -5,10 +5,11 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <string>
+#include <span>
 #include <string_view>
 
 #include <userver/utils/boost_filesystem_file_status.hpp>
+#include <userver/utils/zstring_view.hpp>
 
 #include <userver/fs/blocking/open_mode.hpp>
 #include <userver/utils/fast_pimpl.hpp>
@@ -34,7 +35,7 @@ public:
     /// @brief Opens the file
     /// @throws std::runtime_error
     CFile(
-        const std::string& path,
+        utils::zstring_view path,
         OpenMode flags,
         boost::filesystem::perms perms = boost::filesystem::perms::owner_read | boost::filesystem::perms::owner_write
     );
@@ -43,7 +44,7 @@ public:
     explicit CFile(std::FILE* file) noexcept;
 
     /// Checks if the file is open
-    bool IsOpen() const;
+    bool IsOpen() const noexcept;
 
     /// Returns the underlying file handle
     std::FILE* GetNative() &;
@@ -59,7 +60,7 @@ public:
     /// @returns The amount of bytes actually acquired, which can be equal
     /// to `max_size`, or less on end-of-file
     /// @throws std::runtime_error
-    std::size_t Read(char* buffer, std::size_t max_size);
+    std::size_t Read(std::span<char> buffer);
 
     /// @brief Writes data to the file
     /// @warning Unless `Flush` is called, there is no guarantee the file on disk

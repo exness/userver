@@ -42,9 +42,7 @@ public:
     void reserve(std::size_t capacity) { values_.reserve(capacity); }
 
     auto find(std::string_view key) {
-        return std::find_if(values_.begin(), values_.end(), [this, key](const auto& kvp) {
-            return cmp_(key, kvp.first);
-        });
+        return std::ranges::find_if(values_, [this, key](const auto& kvp) { return cmp_(key, kvp.first); });
     }
 
     auto try_emplace(std::string key, std::string value) {
@@ -78,7 +76,7 @@ public:
     }
 
 private:
-    KeyEq cmp_{};
+    [[no_unique_address]] KeyEq cmp_{};
     std::vector<std::pair<std::string, std::string>> values_;
 };
 

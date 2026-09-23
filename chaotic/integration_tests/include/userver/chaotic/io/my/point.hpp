@@ -28,11 +28,10 @@ Point Convert(const T& obj, USERVER_NAMESPACE::chaotic::convert::To<Point>) {
 
 template <typename T>
 T Convert(const Point& p, USERVER_NAMESPACE::chaotic::convert::To<T>) {
-    T result;
-    // designated initializers are not available in C++17 :(
-    result.lon = p.lon;
-    result.lat = p.lat;
-    return result;
+    return T{
+        .lon = p.lon,
+        .lat = p.lat,
+    };
 }
 
 }  // namespace my

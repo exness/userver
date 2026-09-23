@@ -54,7 +54,7 @@ UserAuthInfo::UserAuthInfo(
       user_provider_(provider)
 {}
 
-UserId UserAuthInfo::GetDefaultUserId() const { return default_id_; }
+UserId UserAuthInfo::GetDefaultUserId() const noexcept { return default_id_; }
 
 const UserIds& UserAuthInfo::GetUserIds() const { return ids_; }
 

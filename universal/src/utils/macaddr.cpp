@@ -15,7 +15,7 @@ namespace utils {
 namespace {
 
 template <size_t N>
-auto MacaddrOctetsFromString(const std::string& str) {
+auto MacaddrOctetsFromString(std::string_view str) {
     std::array<unsigned char, N> octets = {0};
     size_t octets_counter = 0;
     size_t index = 0;
@@ -25,11 +25,12 @@ auto MacaddrOctetsFromString(const std::string& str) {
         throw std::invalid_argument("Error while converting MAC-address from string");
     };
 
-    const auto hex2_to_uchar = [&str, &octets, throw_exception](size_t index, size_t octets_counter) {
+    const auto hex2_to_uchar = [str, &octets](size_t index, size_t octets_counter) {
         std::string out;
-        auto result = USERVER_NAMESPACE::utils::encoding::FromHex(str.substr(index, 2), out);
+        const auto substr = str.substr(index, 2);
+        auto result = USERVER_NAMESPACE::utils::encoding::FromHex(substr, out);
         if (result < 2) {
-            throw_exception();
+            throw std::invalid_argument("Error while converting MAC-address from string: not a HEX");
         }
         octets[octets_counter - 1] = out.at(0);
     };
@@ -41,7 +42,12 @@ auto MacaddrOctetsFromString(const std::string& str) {
         } else {
             throw_exception();
         }
+
         index += 2;
+        if (index == str.size()) {
+            break;
+        }
+
         const char symbol = str[index];
         if (symbol == ':' || symbol == '-' || symbol == '.') {
             if (spacer == '\0') {
@@ -49,7 +55,7 @@ auto MacaddrOctetsFromString(const std::string& str) {
             } else if (spacer != symbol) {
                 throw_exception();
             }
-            index++;
+            ++index;
         }
     }
     return std::make_pair(octets, octets_counter);
@@ -57,7 +63,7 @@ auto MacaddrOctetsFromString(const std::string& str) {
 
 }  // namespace
 
-Macaddr MacaddrFromString(const std::string& str) {
+Macaddr MacaddrFromString(std::string_view str) {
     const auto [octets, octets_counter] = MacaddrOctetsFromString<Macaddr::OctetsType().size()>(str);
     if (octets_counter != octets.size()) {
         throw std::invalid_argument(std::to_string(octets_counter));
@@ -78,7 +84,7 @@ std::string MacaddrToString(Macaddr macaddr) {
     );
 }
 
-Macaddr8 Macaddr8FromString(const std::string& str) {
+Macaddr8 Macaddr8FromString(std::string_view str) {
     auto [octets, octets_counter] = MacaddrOctetsFromString<Macaddr8::OctetsType().size()>(str);
     if (octets_counter == 6) {
         octets[7] = octets[5];

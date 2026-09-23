@@ -1,7 +1,5 @@
 #include <storages/postgres/tests/util_pgtest.hpp>
 
-#include <userver/concurrent/background_task_storage.hpp>
-
 #include <storages/postgres/detail/connection.hpp>
 #include <userver/storages/postgres/dsn.hpp>
 #include <userver/storages/postgres/exceptions.hpp>
@@ -190,6 +188,22 @@ UTEST_P(PostgreConnection, QueryErrors) {
     UEXPECT_THROW(GetConn()->Execute("delete from pgtest where id = 1"), pg::ForeignKeyViolation);
 }
 
+UTEST_P(PostgreConnection, DuplicatePreparedStatement) {
+    CheckConnection(GetConn());
+
+    UEXPECT_NO_THROW(GetConn()->Execute("prepare pgtest_stmt as select 1"));
+    UEXPECT_THROW(GetConn()->Execute("prepare pgtest_stmt as select 1"), pg::DuplicatePreparedStatement);
+    EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState()) << "Connection is not broken";
+    UEXPECT_NO_THROW(GetConn()->Execute("select 1")) << "Connection is still usable";
+
+    UEXPECT_NO_THROW(GetConn()->Begin({}, {}));
+    UEXPECT_NO_THROW(GetConn()->Execute("prepare pgtest_stmt_trx as select 1"));
+    UEXPECT_THROW(GetConn()->Execute("prepare pgtest_stmt_trx as select 1"), pg::DuplicatePreparedStatement);
+    EXPECT_EQ(pg::ConnectionState::kTranError, GetConn()->GetState());
+    UEXPECT_NO_THROW(GetConn()->Rollback());
+    EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState());
+}
+
 UTEST_P(PostgreConnection, InvalidParameter) {
     CheckConnection(GetConn());
     UEXPECT_THROW(
@@ -288,10 +302,10 @@ UTEST_P(PostgreConnection, RollbackOnBusyOeErroredConnection) {
     CheckConnection(GetConn());
 
     EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState());
+    UEXPECT_NO_THROW(GetConn()->Begin({}, {}));
     // Network timeout
     const DefaultCommandControlScope
         scope(pg::CommandControl{std::chrono::milliseconds{10}, std::chrono::milliseconds{0}});
-    GetConn()->Begin({}, {});
     UEXPECT_THROW(GetConn()->Execute("select pg_sleep(1)"), pg::ConnectionTimeoutError);
     EXPECT_EQ(pg::ConnectionState::kTranActive, GetConn()->GetState());
     UEXPECT_NO_THROW(GetConn()->Rollback());
@@ -301,7 +315,7 @@ UTEST_P(PostgreConnection, RollbackOnBusyOeErroredConnection) {
     // Query cancelled
     const DefaultCommandControlScope scope2(pg::CommandControl{std::chrono::seconds{2}, std::chrono::milliseconds{200}}
     );
-    GetConn()->Begin({}, {});
+    UEXPECT_NO_THROW(GetConn()->Begin({}, {}));
     UEXPECT_THROW(GetConn()->Execute("select pg_sleep(1.5)"), pg::QueryCancelled);
     EXPECT_EQ(pg::ConnectionState::kTranError, GetConn()->GetState());
     UEXPECT_NO_THROW(GetConn()->Rollback());
@@ -314,10 +328,10 @@ UTEST_P(PostgreConnection, CommitOnBusyOeErroredConnection) {
     CheckConnection(GetConn());
 
     EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState());
+    UEXPECT_NO_THROW(GetConn()->Begin({}, {}));
     // Network timeout
     const DefaultCommandControlScope
         scope(pg::CommandControl{std::chrono::milliseconds{10}, std::chrono::milliseconds{0}});
-    GetConn()->Begin({}, {});
     UEXPECT_THROW(GetConn()->Execute("select pg_sleep(1)"), pg::ConnectionTimeoutError);
     EXPECT_EQ(pg::ConnectionState::kTranActive, GetConn()->GetState());
     UEXPECT_THROW(GetConn()->Commit(), std::exception);
@@ -327,7 +341,7 @@ UTEST_P(PostgreConnection, CommitOnBusyOeErroredConnection) {
     // Query cancelled
     const DefaultCommandControlScope scope2(pg::CommandControl{std::chrono::seconds{2}, std::chrono::milliseconds{200}}
     );
-    GetConn()->Begin({}, {});
+    UEXPECT_NO_THROW(GetConn()->Begin({}, {}));
     UEXPECT_THROW(GetConn()->Execute("select pg_sleep(1.5)"), pg::QueryCancelled);
     EXPECT_EQ(pg::ConnectionState::kTranError, GetConn()->GetState());
 
@@ -360,15 +374,45 @@ UTEST_P(PostgreConnection, StatementTimeout) {
     EXPECT_FALSE(GetConn()->IsBroken());
 }
 
+UTEST_P(PostgreConnection, StatementTimeoutCappedToNetworkTimeout) {
+    CheckConnection(GetConn());
+
+    EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState());
+
+    const DefaultCommandControlScope scope(pg::CommandControl{std::chrono::milliseconds{500}, std::chrono::seconds{2}});
+    UEXPECT_NO_THROW(GetConn()->Execute("SELECT 1"));
+    EXPECT_EQ(std::chrono::milliseconds{495}, GetConn()->GetStatementTimeout());
+    EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState());
+    EXPECT_FALSE(GetConn()->IsBroken());
+}
+
 UTEST_P(PostgreConnection, CachedPlanChange) {
     // this only works with english messages, better than nothing
     GetConn()->Execute("SET lc_messages = 'en_US.UTF-8'");
     GetConn()->Execute("CREATE TEMPORARY TABLE plan_change_test ( a integer )");
     UEXPECT_NO_THROW(GetConn()->Execute("SELECT * FROM plan_change_test"));
     GetConn()->Execute("ALTER TABLE plan_change_test ALTER a TYPE bigint");
-    UEXPECT_THROW(GetConn()->Execute("SELECT * FROM plan_change_test"), pg::FeatureNotSupported);
-    // broken plan should not be reused anymore
+
     UEXPECT_NO_THROW(GetConn()->Execute("SELECT * FROM plan_change_test"));
+}
+
+UTEST_P(PostgreConnection, CachedPlanChangeInTransactionThrows) {
+    GetConn()->Execute("SET lc_messages = 'en_US.UTF-8'");
+    GetConn()->Execute("CREATE TEMPORARY TABLE plan_change_trx_test ( a integer )");
+    UEXPECT_NO_THROW(GetConn()->Execute("SELECT * FROM plan_change_trx_test"));
+    GetConn()->Execute("ALTER TABLE plan_change_trx_test ALTER a TYPE bigint");
+
+    UEXPECT_NO_THROW(GetConn()->Begin({}, {}));
+    UEXPECT_THROW_MSG(
+        GetConn()->Execute("SELECT * FROM plan_change_trx_test"),
+        pg::FeatureNotSupported,
+        "cached plan must not change result type"
+    );
+    EXPECT_EQ(pg::ConnectionState::kTranError, GetConn()->GetState());
+    UEXPECT_NO_THROW(GetConn()->Rollback());
+    EXPECT_EQ(pg::ConnectionState::kIdle, GetConn()->GetState());
+
+    UEXPECT_NO_THROW(GetConn()->Execute("SELECT * FROM plan_change_trx_test"));
 }
 
 }  // namespace
@@ -430,6 +474,133 @@ UTEST_F(PostgreCustomConnection, PreparedStatementsOverrideDisabled) {
     EXPECT_EQ(stats.prepared_statements_current, old_stats.prepared_statements_current);
 }
 
+UTEST_F(PostgreCustomConnection, NamedPreparedStatementEvictionWithSpecialChars) {
+    storages::postgres::ConnectionSettings settings = kCachePreparedStatements;
+    settings.max_prepared_cache_size = storages::postgres::kMinPreparedStatementsCacheSize;
+
+    pg::detail::ConnectionPtr conn{nullptr};
+    UASSERT_NO_THROW(conn = MakeConnection(GetDsnFromEnv(), GetTaskProcessor(), settings));
+    CheckConnection(conn);
+
+    if (!conn->ArePreparedStatementsEnabled()) {
+        return;
+    }
+
+    const pg::Query queries_list[] = {
+        pg::Query{"SELECT 0", pg::Query::Name{"query-name-0"}},
+        pg::Query{"SELECT 1", pg::Query::Name{"query-name-1"}},
+        pg::Query{"SELECT 2", pg::Query::Name{"query-name-2"}},
+        pg::Query{"SELECT 3", pg::Query::Name{"query-name-3"}},
+        pg::Query{"SELECT 4", pg::Query::Name{"query-name-4"}},
+    };
+    static_assert(std::size(queries_list) > storages::postgres::kMinPreparedStatementsCacheSize);
+    for (const auto& query : queries_list) {
+        UEXPECT_NO_THROW(conn->Execute(query));
+    }
+}
+
+UTEST_F(PostgreCustomConnection, NamedPreparedStatementEvictionWithSpecialCharsAndSameName) {
+    storages::postgres::ConnectionSettings settings = kCachePreparedStatements;
+    settings.max_prepared_cache_size = storages::postgres::kMinPreparedStatementsCacheSize;
+
+    pg::detail::ConnectionPtr conn{nullptr};
+    UASSERT_NO_THROW(conn = MakeConnection(GetDsnFromEnv(), GetTaskProcessor(), settings));
+    CheckConnection(conn);
+
+    if (!conn->ArePreparedStatementsEnabled()) {
+        return;
+    }
+
+    const pg::Query::Name query_name{"query/name-;\"0\n!!!!"};
+
+    // Same `query_name` is intentional!
+    const std::pair<int, pg::Query> queries_list[] = {
+        {0, pg::Query{"SELECT 0", query_name}},
+        {1, pg::Query{"SELECT 1", query_name}},
+        {2, pg::Query{"SELECT 2", query_name}},
+        {3, pg::Query{"SELECT 3", query_name}},
+        {4, pg::Query{"SELECT 4", query_name}},
+    };
+    static_assert(std::size(queries_list) > storages::postgres::kMinPreparedStatementsCacheSize);
+
+    auto check_loop = [&](std::string_view test_description) {
+        for (const auto& [index, query] : queries_list) {
+            auto result = conn->Execute(query);
+            EXPECT_EQ(result[0][0].As<int>(), index)
+                << "Same Query::Name must still produce different IDs for prepared statements. Noted at: "
+                << test_description;
+
+            result = conn->Execute(
+                // Takes up 1 place in prepared statements cache before actual execution
+                "SELECT COUNT(name) FROM pg_prepared_statements "
+                "WHERE name LIKE 'q_%query/name-;\"0\n!!!!'"
+            );
+            EXPECT_GE(result[0][0].As<int>(), 1) << test_description;
+            EXPECT_LT(result[0][0].As<int>(), storages::postgres::kMinPreparedStatementsCacheSize) << test_description;
+        }
+
+        for (std::size_t i = 0; i < storages::postgres::kMinPreparedStatementsCacheSize; ++i) {
+            UEXPECT_NO_THROW(conn->Execute("SELECT 999" + std::to_string(i)));
+        }
+        auto result = conn->Execute("SELECT COUNT(name) FROM pg_prepared_statements WHERE name LIKE 'q_%query/name-%'");
+        EXPECT_EQ(result[0][0].As<int>(), 0) << "Not deallocated the prepared statement at: " << test_description;
+    };
+
+    check_loop("checking prepared statements not in transaction");
+
+    conn->Begin({}, {});
+    check_loop("checking prepared statements in transaction");
+    conn->Rollback();
+
+    conn->Begin({}, {});
+    check_loop("checking prepared in transaction after rollback");
+    conn->Rollback();
+
+    check_loop("checking prepared statements not in transaction after rollback");
+
+    conn->Begin({}, {});
+    check_loop("checking prepared statements in transaction again");
+    conn->Commit();
+
+    check_loop("checking prepared statements not in transaction after commit");
+}
+
+UTEST_F(PostgreCustomConnection, NamedPreparedStatementEvictionWithMixedCase) {
+    storages::postgres::ConnectionSettings settings = kCachePreparedStatements;
+    settings.max_prepared_cache_size = storages::postgres::kMinPreparedStatementsCacheSize;
+
+    pg::detail::ConnectionPtr conn{nullptr};
+    UASSERT_NO_THROW(conn = MakeConnection(GetDsnFromEnv(), GetTaskProcessor(), settings));
+    CheckConnection(conn);
+
+    if (!conn->ArePreparedStatementsEnabled()) {
+        return;
+    }
+
+    const pg::Query queries_list[] = {
+        pg::Query{"SELECT 0", pg::Query::Name{"SelectValueV0"}},
+        pg::Query{"SELECT 1", pg::Query::Name{"SelectValueV1"}},
+        pg::Query{"SELECT 2", pg::Query::Name{"SelectValueV2"}},
+        pg::Query{"SELECT 3", pg::Query::Name{"SelectValueV3"}},
+        pg::Query{"SELECT 4", pg::Query::Name{"SelectValueV4"}},
+    };
+    static_assert(std::size(queries_list) > storages::postgres::kMinPreparedStatementsCacheSize);
+    for (const auto& query : queries_list) {
+        UEXPECT_NO_THROW(conn->Execute(query));
+    }
+}
+
+UTEST_F(PostgreCustomConnection, MaxPreparedCacheSize3) {
+    pg::detail::ConnectionPtr conn{nullptr};
+    UEXPECT_NO_THROW(conn = MakeConnection(GetDsnFromEnv(), GetTaskProcessor(), kMaxPreparedCacheSize3));
+    ASSERT_TRUE(conn);
+
+    UEXPECT_NO_THROW(conn->Execute("select 1"));
+    UEXPECT_NO_THROW(conn->Execute("create type user_type as enum ('test')"));
+    UEXPECT_THROW(conn->Execute("select 'test'::user_type"), pg::NoBinaryParser);
+    UEXPECT_NO_THROW(conn->Execute("drop type user_type"));
+}
+
 UTEST_F(PostgreCustomConnection, NoUserTypes) {
     pg::detail::ConnectionPtr conn{nullptr};
     UASSERT_NO_THROW(conn = MakeConnection(GetDsnFromEnv(), GetTaskProcessor(), kNoUserTypes));
@@ -439,6 +610,22 @@ UTEST_F(PostgreCustomConnection, NoUserTypes) {
     UEXPECT_NO_THROW(conn->Execute("create type user_type as enum ('test')"));
     UEXPECT_THROW(conn->Execute("select 'test'::user_type"), pg::UnknownBufferCategory);
     UEXPECT_NO_THROW(conn->Execute("drop type user_type"));
+}
+
+UTEST_F(PostgreCustomConnection, SessionModeSetsStatementTimeoutOnConnect) {
+    pg::detail::ConnectionPtr conn{nullptr};
+    UASSERT_NO_THROW(conn = MakeConnection(GetDsnFromEnv(), GetTaskProcessor(), kCachePreparedStatements));
+    ASSERT_TRUE(conn);
+
+    EXPECT_EQ(kTestCmdCtl.statement_timeout_ms, conn->GetStatementTimeout());
+}
+
+UTEST_P(PostgreConnection, VacuumKeepsPipelineActive) {
+    CheckConnection(GetConn());
+
+    UEXPECT_NO_THROW(GetConn()->Execute("CREATE TEMP TABLE vacuum_pipeline_test(id INT)"));
+    UEXPECT_NO_THROW(GetConn()->Execute("VACUUM vacuum_pipeline_test"));
+    GetConn()->AssertPipelineActive();
 }
 
 USERVER_NAMESPACE_END

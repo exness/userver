@@ -3,20 +3,20 @@
 #include <atomic>
 #include <exception>
 
+#include <userver/compiler/impl/lifetime.hpp>
+#include <userver/engine/awaitable.hpp>
 #include <userver/engine/deadline.hpp>
 #include <userver/engine/future_status.hpp>
 #include <userver/engine/impl/context_accessor.hpp>
 #include <userver/engine/impl/wait_list_fwd.hpp>
+#include <userver/utils/impl/internal_tag.hpp>
 #include <userver/utils/result_store.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace engine::impl {
 
-template <typename T>
-class FutureWaitStrategy;
-
-class FutureStateBase : private ContextAccessor {
+class FutureStateBase : private AwaitableBase {
 public:
     bool IsReady() const noexcept final;
 
@@ -25,8 +25,9 @@ public:
     void OnFutureCreated();
     bool IsFutureCreated() const noexcept;
 
-    // Internal helper for WaitAny/WaitAll
-    ContextAccessor* TryGetContextAccessor() noexcept { return this; }
+    AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+        return AwaitableToken{utils::impl::InternalTag{}, this};
+    }
 
 protected:
     FutureStateBase() noexcept;
@@ -37,10 +38,8 @@ protected:
     void WaitForResult();
 
 private:
-    friend class FutureWaitStrategy<FutureStateBase>;
-
-    void TryAppendAwaiter(boost::intrusive_ptr<Awaiter>& awaiter, std::uintptr_t context) final;
-    void RemoveAwaiter(Awaiter& awaiter, std::uintptr_t context) noexcept final;
+    void TryAppendAwaiter(AwaiterPtr& awaiter, std::uintptr_t context) final;
+    AwaiterPtr RemoveAwaiter(Awaiter& awaiter, std::uintptr_t context) noexcept final;
 
     FastPimplWaitListLight finish_awaiters_;
     std::atomic<bool> is_result_store_locked_;

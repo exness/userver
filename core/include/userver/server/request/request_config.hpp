@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/server/request/request_config.hpp
+/// @brief @copybrief server::request::HttpRequestConfig
+
 #include <cstdint>
 
 #include <userver/http/http_version.hpp>
@@ -10,6 +13,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace server::request {
 
+/// @brief HTTP request parsing and handling limits
 struct HttpRequestConfig {
     std::size_t max_url_size = 8192;
     std::size_t max_request_size = 1024 * 1024;

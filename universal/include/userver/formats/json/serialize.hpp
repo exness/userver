@@ -4,6 +4,7 @@
 /// @brief Parsers and serializers to/from string and stream
 
 #include <iosfwd>
+#include <string>
 #include <string_view>
 
 #include <fmt/format.h>
@@ -43,6 +44,14 @@ std::string ToStableString(const formats::json::Value& doc);
 /// @overload
 std::string ToStableString(formats::json::Value&& doc);
 
+/// Stably serialize JSON to string using the same representation as Python's
+/// `json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`.
+/// The input must contain valid UTF-8 strings and finite numbers.
+std::string ToPythonCompatibleStableString(const formats::json::Value& doc);
+
+/// @overload
+std::string ToPythonCompatibleStableString(formats::json::Value&& doc);
+
 /// @see formats::json::ToPrettyString
 struct PrettyFormat final {
     char indent_char{' '};
@@ -55,8 +64,7 @@ std::string ToPrettyString(const formats::json::Value& doc, PrettyFormat format 
 /// Log JSON
 logging::LogHelper& operator<<(logging::LogHelper&, const formats::json::Value&);
 
-/// Blocking operations that should not be used on main task processor after
-/// startup
+/// @brief Blocking operations that should not be used on main task processor after startup
 namespace blocking {
 /// Read JSON from file
 formats::json::Value FromFile(const std::string& path);

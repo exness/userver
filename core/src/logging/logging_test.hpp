@@ -20,9 +20,11 @@ class StringSink final : public logging::impl::BaseSink {
 public:
     StringSink() = default;
 
-    void Write(std::string_view log) final { ostream_.write(log.data(), log.size()); }
-
-    void Flush() final { ostream_.flush(); }
+    void Write(std::span<const struct iovec> logs) final {
+        for (const auto& log : logs) {
+            ostream_.write(static_cast<const char*>(log.iov_base), log.iov_len);
+        }
+    }
 
     std::ostringstream& GetStream() { return ostream_; }
 
@@ -106,7 +108,7 @@ protected:
 
     std::size_t GetRecordsCount() const {
         auto str = GetStreamString();
-        return std::count(str.begin(), str.end(), '\n');
+        return std::ranges::count(str, '\n');
     }
 
     std::shared_ptr<logging::impl::TpLogger> GetStreamLogger() const { return stream_logger_.logger; }

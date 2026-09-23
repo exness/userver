@@ -21,6 +21,13 @@
 
 #include "proto_json/messages.pb.h"
 
+// True if tests are built with protobuf library with version newer than
+// the one used as a reference for ProtoJSON implementation.
+// We use non-constexpr variable to avoid stripping checks from compilation
+// when building for older protobuf versions (checks must still compile).
+inline const /*deliberately non-constexpr*/ bool
+    kIsModernProtoJson = (GOOGLE_PROTOBUF_VERSION >= 4022005);  // NOLINT(misc-redundant-expression)
+
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define EXPECT_PRINT_ERROR(EXPR, CODE, PATH)                             \
     try {                                                                \
@@ -47,53 +54,42 @@
 
 template <>
 struct fmt::formatter<USERVER_NAMESPACE::protobuf::json::PrintOptions> {
-    auto parse(fmt::format_parse_context& ctx) {
-        auto it = ctx.begin();
-        if (it != ctx.end() && *it != '}') {
-            throw fmt::format_error("invalid format");
-        }
-        return it;
-    }
+    constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
 
     template <typename FormatContext>
     auto format(const USERVER_NAMESPACE::protobuf::json::PrintOptions& options, FormatContext& ctx) const
         -> decltype(ctx.out()) {
         return fmt::format_to(
             ctx.out(),
-            "{{always_print_fields_with_no_presence={}, always_print_enums_as_ints={}, preserve_proto_field_names={}}}",
+            "{{always_print_fields_with_no_presence={}, always_print_enums_as_ints={}, preserve_proto_field_names={}, "
+            "nonportable_raw_any={}}}",
             options.always_print_fields_with_no_presence,
             options.always_print_enums_as_ints,
-            options.preserve_proto_field_names
+            options.preserve_proto_field_names,
+            options.nonportable_raw_any
         );
     }
 };
 
 template <>
 struct fmt::formatter<USERVER_NAMESPACE::protobuf::json::ParseOptions> {
-    auto parse(fmt::format_parse_context& ctx) {
-        auto it = ctx.begin();
-        if (it != ctx.end() && *it != '}') {
-            throw fmt::format_error("invalid format");
-        }
-        return it;
-    }
+    constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
 
     template <typename FormatContext>
     auto format(const USERVER_NAMESPACE::protobuf::json::ParseOptions& options, FormatContext& ctx) const
         -> decltype(ctx.out()) {
-        return fmt::format_to(ctx.out(), "{{ignore_unknown_fields={}}}", options.ignore_unknown_fields);
+        return fmt::format_to(
+            ctx.out(),
+            "{{ignore_unknown_fields={}, nonportable_raw_any={}}}",
+            options.ignore_unknown_fields,
+            options.nonportable_raw_any
+        );
     }
 };
 
 template <>
 struct fmt::formatter<USERVER_NAMESPACE::protobuf::json::PrintErrorCode> {
-    auto parse(fmt::format_parse_context& ctx) {
-        auto it = ctx.begin();
-        if (it != ctx.end() && *it != '}') {
-            throw fmt::format_error("invalid format");
-        }
-        return it;
-    }
+    constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
 
     template <typename FormatContext>
     auto format(const USERVER_NAMESPACE::protobuf::json::PrintErrorCode& code, FormatContext& ctx) const
@@ -109,13 +105,7 @@ struct fmt::formatter<USERVER_NAMESPACE::protobuf::json::PrintErrorCode> {
 
 template <>
 struct fmt::formatter<USERVER_NAMESPACE::protobuf::json::ParseErrorCode> {
-    auto parse(fmt::format_parse_context& ctx) {
-        auto it = ctx.begin();
-        if (it != ctx.end() && *it != '}') {
-            throw fmt::format_error("invalid format");
-        }
-        return it;
-    }
+    constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
 
     template <typename FormatContext>
     auto format(const USERVER_NAMESPACE::protobuf::json::ParseErrorCode& code, FormatContext& ctx) const

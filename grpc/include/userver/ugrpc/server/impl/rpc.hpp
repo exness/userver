@@ -1,6 +1,9 @@
 #pragma once
 
+#include <type_traits>
+
 #include <google/protobuf/message.h>
+#include <grpcpp/support/byte_buffer.h>
 
 #include <userver/engine/single_waiting_task_mutex.hpp>
 #include <userver/engine/task/cancel.hpp>
@@ -14,6 +17,35 @@
 USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
+
+grpc::Status MakeUninitializedResponseStatus(const google::protobuf::Message& response);
+
+void ValidateResponseIsInitialized(const google::protobuf::Message& response);
+
+template <typename Message>
+grpc::Status DeserializeMessage(grpc::ByteBuffer&& buffer, Message& message) {
+    if constexpr (std::is_same_v<Message, grpc::ByteBuffer>) {
+        message.Swap(&buffer);
+        return grpc::Status::OK;
+    } else {
+        const auto status = grpc::SerializationTraits<Message>::Deserialize(&buffer, &message);
+        if (!status.ok()) {
+            return {grpc::StatusCode::INTERNAL, "Unable to parse request"};
+        }
+        return grpc::Status::OK;
+    }
+}
+
+template <typename Message>
+grpc::Status SerializeMessage(const Message& message, grpc::ByteBuffer& buffer) {
+    if constexpr (std::is_same_v<Message, grpc::ByteBuffer>) {
+        buffer = message;
+        return grpc::Status::OK;
+    } else {
+        bool own_buffer = false;
+        return grpc::SerializationTraits<Message>::Serialize(message, &buffer, &own_buffer);
+    }
+}
 
 /// @brief A non-typed base class for any gRPC call.
 class ResponderBase {
@@ -132,15 +164,22 @@ bool Responder<CallTraits>::DoRead(Request& request) {
     static_assert(!IsSingleRequestMethod(CallTraits::kRpcType));
     UINVARIANT(!are_reads_done_, "'Read' called while the stream is half-closed for reads");
 
-    if (impl::Read(raw_responder_, request)) {
-        if constexpr (std::is_base_of_v<google::protobuf::Message, Request>) {
-            ApplyRequestHook(request);
-        }
-        return true;
-    } else {
+    grpc::ByteBuffer buffer;
+    if (!impl::Read(raw_responder_, buffer)) {
         are_reads_done_ = true;
         return false;
     }
+
+    const auto parse_status = impl::DeserializeMessage(std::move(buffer), request);
+    if (!parse_status.ok()) {
+        are_reads_done_ = true;
+        return false;
+    }
+
+    if constexpr (std::is_base_of_v<google::protobuf::Message, Request>) {
+        ApplyRequestHook(request);
+    }
+    return true;
 }
 
 template <typename CallTraits>
@@ -149,6 +188,7 @@ void Responder<CallTraits>::DoWrite(Response& response, const grpc::WriteOptions
     UINVARIANT(!is_interrupted_, "'Write' called on an interrupted stream");
 
     if constexpr (std::is_base_of_v<google::protobuf::Message, Response>) {
+        impl::ValidateResponseIsInitialized(response);
         ApplyResponseHook(response);
     }
 
@@ -163,7 +203,14 @@ void Responder<CallTraits>::DoWrite(Response& response, const grpc::WriteOptions
         }
     }
 
-    if (!impl::Write(raw_responder_, response, options)) {
+    grpc::ByteBuffer buffer;
+    const auto serialization_status = impl::SerializeMessage(response, buffer);
+    if (!serialization_status.ok()) {
+        is_interrupted_ = true;
+        throw ErrorWithStatus(serialization_status);
+    }
+
+    if (!impl::Write(raw_responder_, buffer, options)) {
         is_interrupted_ = true;
         throw RpcInterruptedError(GetCallName(), "Write");
     }
@@ -191,15 +238,28 @@ template <typename CallTraits>
 template <typename CallTraits>
 [[nodiscard]] bool Responder<CallTraits>::Finish(const Response& response) {
     UINVARIANT(!is_finished_, "'Finish' called on a finished stream");
+
+    if constexpr (std::is_base_of_v<google::protobuf::Message, Response>) {
+        // Final responses from handlers are validated and converted to an error status in
+        // CallProcessor before running server middlewares.
+        UASSERT(response.IsInitialized());
+    }
+
+    grpc::ByteBuffer buffer;
+    auto serialization_status = impl::SerializeMessage(response, buffer);
+    if (!serialization_status.ok()) {
+        return FinishWithError(serialization_status);
+    }
+
     is_finished_ = true;
 
     if constexpr (IsSingleResponseMethod(CallTraits::kRpcType)) {
-        return impl::Finish(raw_responder_, response, grpc::Status::OK);
+        return impl::Finish(raw_responder_, buffer, grpc::Status::OK);
     } else {
         // Don't buffer writes, optimize for ping-pong-style interaction.
         const grpc::WriteOptions write_options{};
 
-        return impl::WriteAndFinish(raw_responder_, response, write_options, grpc::Status::OK);
+        return impl::WriteAndFinish(raw_responder_, buffer, write_options, grpc::Status::OK);
     }
 }
 

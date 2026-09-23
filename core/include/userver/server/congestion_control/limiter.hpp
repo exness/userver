@@ -1,5 +1,8 @@
 #pragma once
 
+/// @file userver/server/congestion_control/limiter.hpp
+/// @brief @copybrief server::congestion_control::Limiter
+
 #include <optional>
 #include <vector>
 
@@ -18,6 +21,7 @@ public:
     virtual std::size_t GetLimitableHandlersCount() const = 0;
 };
 
+/// @brief HTTP server congestion control limiter
 class Limiter final : public USERVER_NAMESPACE::congestion_control::Limiter {
 public:
     void SetLimit(const USERVER_NAMESPACE::congestion_control::Limit& new_limit) override;

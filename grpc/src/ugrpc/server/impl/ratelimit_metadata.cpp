@@ -6,7 +6,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace ugrpc::server::impl {
 
-void AddRatelimitMetadata(grpc::ServerContext& server_context) {
+void AddRatelimitMetadata(grpc::ServerContextBase& server_context) {
     server_context.AddTrailingMetadata(ugrpc::impl::kXYaTaxiRatelimitedBy, ugrpc::impl::kHostname);
     server_context
         .AddTrailingMetadata(ugrpc::impl::kXYaTaxiRatelimitReason, ugrpc::impl::kCongestionControlRatelimitReason);

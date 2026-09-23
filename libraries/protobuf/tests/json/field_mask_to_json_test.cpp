@@ -7,7 +7,6 @@
 #include <vector>
 
 #include <fmt/format.h>
-#include <fmt/ranges.h>
 #include <google/protobuf/dynamic_message.h>
 
 #include <userver/protobuf/json/convert.hpp>
@@ -23,6 +22,9 @@ struct FieldMaskToJsonSuccessTestParam {
     FieldMaskMessageData input = {};
     std::string expected_json = {};
     PrintOptions options = {};
+
+    // This variable is used to disable some checks that fail in the native protobuf implementation.
+    bool skip_native_check = false;
 };
 
 struct FieldMaskToJsonFailureTestParam {
@@ -51,20 +53,38 @@ std::vector<std::string> ParseFieldMaskStr(std::string_view paths) {
     return result;
 }
 
-void PrintTo(const FieldMaskToJsonSuccessTestParam& param, std::ostream* os) {
-    if (param.input.field1) {
-        *os << fmt::format("{{ input = {{.field1='{}'}} }}", param.input.field1.value());
-    } else {
-        *os << fmt::format("{{ input = {{.field1=nullopt}} }}");
+namespace {
+// fmt::format with fmt/ranges.h cannot be used here: on fmt 8.x (CI sandbox,
+// Ubuntu 22.04) fmt/ranges.h calls format_to unqualified inside fmt::detail,
+// which causes an ADL ambiguity with std::format_to from libstdc++13 that
+// clang-16 rejects as a hard error. Fixed in fmt 9.x (devcontainer), but CI
+// still runs 8.1.1.
+std::string FmtFormatCrutch(const std::optional<std::vector<std::string>>& items) {
+    if (!items) {
+        return "nullopt";
     }
+    constexpr std::string_view sep = ", ";
+    std::string result = "[";
+    for (const auto& s : *items) {
+        result += '"';
+        result += s;
+        result += '"';
+        result += sep;
+    }
+    if (!items->empty()) {
+        result.resize(result.size() - sep.size());
+    }
+    result += ']';
+    return result;
+}
+}  // namespace
+
+void PrintTo(const FieldMaskToJsonSuccessTestParam& param, std::ostream* os) {
+    *os << "{ input = {.field1=" << FmtFormatCrutch(param.input.field1) << "} }";
 }
 
 void PrintTo(const FieldMaskToJsonFailureTestParam& param, std::ostream* os) {
-    if (param.input.field1) {
-        *os << fmt::format("{{ input = {{.field1='{}'}} }}", param.input.field1.value());
-    } else {
-        *os << fmt::format("{{ input = {{.field1=nullopt}} }}");
-    }
+    *os << "{ input = {.field1=" << FmtFormatCrutch(param.input.field1) << "} }";
 }
 
 class FieldMaskToJsonSuccessTest : public ::testing::TestWithParam<FieldMaskToJsonSuccessTestParam> {};
@@ -79,16 +99,21 @@ INSTANTIATE_TEST_SUITE_P(
         FieldMaskToJsonSuccessTestParam{FieldMaskMessageData{std::vector<std::string>{""}}, R"({"field1":""})"},
         FieldMaskToJsonSuccessTestParam{
             FieldMaskMessageData{std::vector<std::string>{"", "", "", "aaa", ""}},
-            R"({"field1":",,,aaa,"})"
+            R"({"field1":",,,aaa,"})",
+            {},
+            !kIsModernProtoJson
         },
         FieldMaskToJsonSuccessTestParam{
             FieldMaskMessageData{std::vector<std::string>{"some_field"}},
             R"({"field1":"someField"})",
-            {.preserve_proto_field_names = true}  // does not affect field mask serialization!
+            // Does not affect field mask serialization!
+            {.preserve_proto_field_names = true}
         },
         FieldMaskToJsonSuccessTestParam{
             FieldMaskMessageData{std::vector<std::string>{"some_field.another_field..one_more", "_a_b0_c"}},
-            R"({"field1":"someField.anotherField..oneMore,AB0C"})"
+            R"({"field1":"someField.anotherField..oneMore,AB0C"})",
+            {},
+            !kIsModernProtoJson
         }
     )
 );
@@ -150,32 +175,43 @@ TEST_P(FieldMaskToJsonSuccessTest, Test) {
     auto input = PrepareTestData(param.input);
     formats::json::Value json;
     formats::json::Value expected_json;
-    formats::json::Value sample_json;
 
     UASSERT_NO_THROW((json = MessageToJson(input, param.options)));
     UASSERT_NO_THROW((expected_json = PrepareJsonTestData(param.expected_json)));
-    UASSERT_NO_THROW((sample_json = CreateSampleJson(input, param.options)));
 
     if (!json.HasMember("field1")) {
         EXPECT_FALSE(expected_json.HasMember("field1"));
-        EXPECT_FALSE(sample_json.HasMember("field1"));
         return;
     }
 
     ASSERT_TRUE(json["field1"].IsString());
     ASSERT_TRUE(expected_json["field1"].IsString());
-    ASSERT_TRUE(sample_json["field1"].IsString());
 
     auto json_paths = ParseFieldMaskStr(json["field1"].As<std::string>());
     auto expected_json_paths = ParseFieldMaskStr(expected_json["field1"].As<std::string>());
-    auto sample_json_paths = ParseFieldMaskStr(sample_json["field1"].As<std::string>());
 
-    std::sort(json_paths.begin(), json_paths.end());
-    std::sort(expected_json_paths.begin(), expected_json_paths.end());
-    std::sort(sample_json_paths.begin(), sample_json_paths.end());
+    std::ranges::sort(json_paths);
+    std::ranges::sort(expected_json_paths);
 
     EXPECT_EQ(json_paths, expected_json_paths);
-    EXPECT_EQ(expected_json_paths, sample_json_paths);
+
+    if (!param.skip_native_check) {
+        formats::json::Value sample_json;
+
+        UASSERT_NO_THROW((sample_json = CreateSampleJson(input, param.options)));
+
+        if (!json.HasMember("field1")) {
+            EXPECT_FALSE(sample_json.HasMember("field1"));
+            return;
+        }
+
+        ASSERT_TRUE(sample_json["field1"].IsString());
+
+        auto sample_json_paths = ParseFieldMaskStr(sample_json["field1"].As<std::string>());
+        std::ranges::sort(sample_json_paths);
+
+        EXPECT_EQ(expected_json_paths, sample_json_paths);
+    }
 }
 
 TEST_P(FieldMaskToJsonFailureTest, Test) {
@@ -199,8 +235,8 @@ TEST(FieldMaskToJsonAdditionalTest, InlinedNonNull) {
     auto paths = ParseFieldMaskStr(json.As<std::string>());
     auto sample_paths = ParseFieldMaskStr(sample.As<std::string>());
 
-    std::sort(paths.begin(), paths.end());
-    std::sort(sample_paths.begin(), sample_paths.end());
+    std::ranges::sort(paths);
+    std::ranges::sort(sample_paths);
 
     EXPECT_EQ(paths, sample_paths);
     EXPECT_EQ(paths, std::vector<std::string>{"someField.nestedField"});
@@ -238,7 +274,7 @@ TEST(FieldMaskToJsonAdditionalTest, DynamicMessage) {
         ASSERT_TRUE(json.IsString());
 
         auto paths = ParseFieldMaskStr(json.As<std::string>());
-        std::sort(paths.begin(), paths.end());
+        std::ranges::sort(paths);
 
         ASSERT_EQ(paths.size(), std::size_t{2});
         EXPECT_EQ(paths[0], "oneMore");

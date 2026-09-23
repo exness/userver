@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include <server/request/internal_request_context.hpp>
+#include <userver/utils/algo.hpp>
 #include <userver/utils/impl/transparent_hash.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -14,15 +15,15 @@ class RequestContext::Impl final {
 public:
     utils::AnyMovable& SetUserAnyData(utils::AnyMovable&& data);
     utils::AnyMovable& GetUserAnyData();
-    utils::AnyMovable* GetUserAnyDataOptional();
-    void EraseUserAnyData();
+    utils::AnyMovable* GetUserAnyDataOptional() noexcept;
+    void EraseUserAnyData() noexcept;
 
     utils::AnyMovable& SetAnyData(std::string&& name, utils::AnyMovable&& data);
     utils::AnyMovable& GetAnyData(std::string_view name);
-    utils::AnyMovable* GetAnyDataOptional(std::string_view name);
-    void EraseAnyData(std::string_view name);
+    utils::AnyMovable* GetAnyDataOptional(std::string_view name) noexcept;
+    void EraseAnyData(std::string_view name) noexcept;
 
-    impl::InternalRequestContext& GetInternalContext();
+    impl::InternalRequestContext& GetInternalContext() noexcept;
 
 private:
     utils::AnyMovable user_data_;
@@ -45,14 +46,14 @@ utils::AnyMovable& RequestContext::Impl::GetUserAnyData() {
     return user_data_;
 }
 
-utils::AnyMovable* RequestContext::Impl::GetUserAnyDataOptional() {
+utils::AnyMovable* RequestContext::Impl::GetUserAnyDataOptional() noexcept {
     if (!user_data_.HasValue()) {
         return nullptr;
     }
     return &user_data_;
 }
 
-void RequestContext::Impl::EraseUserAnyData() { user_data_.Reset(); }
+void RequestContext::Impl::EraseUserAnyData() noexcept { user_data_.Reset(); }
 
 utils::AnyMovable& RequestContext::Impl::SetAnyData(std::string&& name, utils::AnyMovable&& data) {
     auto res = named_datum_.emplace(std::move(name), std::move(data));
@@ -70,19 +71,19 @@ utils::AnyMovable& RequestContext::Impl::GetAnyData(std::string_view name) {
     return *ptr;
 }
 
-utils::AnyMovable* RequestContext::Impl::GetAnyDataOptional(std::string_view name) {
-    return utils::impl::FindTransparentOrNullptr(named_datum_, name);
+utils::AnyMovable* RequestContext::Impl::GetAnyDataOptional(std::string_view name) noexcept {
+    return utils::FindOrNullptr(named_datum_, name);
 }
 
-void RequestContext::Impl::EraseAnyData(std::string_view name) {
-    auto it = utils::impl::FindTransparent(named_datum_, name);
+void RequestContext::Impl::EraseAnyData(std::string_view name) noexcept {
+    auto it = named_datum_.find(name);
     if (it == named_datum_.end()) {
         return;
     }
     named_datum_.erase(it);
 }
 
-impl::InternalRequestContext& RequestContext::Impl::GetInternalContext() { return internal_context_; }
+impl::InternalRequestContext& RequestContext::Impl::GetInternalContext() noexcept { return internal_context_; }
 
 RequestContext::RequestContext() = default;
 
@@ -96,9 +97,9 @@ utils::AnyMovable& RequestContext::SetUserAnyData(utils::AnyMovable&& data) {
 
 utils::AnyMovable& RequestContext::GetUserAnyData() { return impl_->GetUserAnyData(); }
 
-utils::AnyMovable* RequestContext::GetUserAnyDataOptional() { return impl_->GetUserAnyDataOptional(); }
+utils::AnyMovable* RequestContext::GetUserAnyDataOptional() noexcept { return impl_->GetUserAnyDataOptional(); }
 
-void RequestContext::EraseUserAnyData() { impl_->EraseUserAnyData(); }
+void RequestContext::EraseUserAnyData() noexcept { impl_->EraseUserAnyData(); }
 
 utils::AnyMovable& RequestContext::SetAnyData(std::string&& name, utils::AnyMovable&& data) {
     return impl_->SetAnyData(std::move(name), std::move(data));
@@ -106,15 +107,17 @@ utils::AnyMovable& RequestContext::SetAnyData(std::string&& name, utils::AnyMova
 
 utils::AnyMovable& RequestContext::GetAnyData(std::string_view name) { return impl_->GetAnyData(name); }
 
-utils::AnyMovable* RequestContext::GetAnyDataOptional(std::string_view name) { return impl_->GetAnyDataOptional(name); }
+utils::AnyMovable* RequestContext::GetAnyDataOptional(std::string_view name) noexcept {
+    return impl_->GetAnyDataOptional(name);
+}
 
-void RequestContext::EraseAnyData(std::string_view name) { impl_->EraseAnyData(name); }
+void RequestContext::EraseAnyData(std::string_view name) noexcept { impl_->EraseAnyData(name); }
 
 void RequestContext::SetHandlerMetricsShard(std::string_view path, utils::statistics::LabelsSpan labels) {
     impl_->GetInternalContext().SetHandlerMetricsShard(path, labels);
 }
 
-impl::InternalRequestContext& RequestContext::GetInternalContext() { return impl_->GetInternalContext(); }
+impl::InternalRequestContext& RequestContext::GetInternalContext() noexcept { return impl_->GetInternalContext(); }
 
 }  // namespace server::request
 

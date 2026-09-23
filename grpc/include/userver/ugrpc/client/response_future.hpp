@@ -5,6 +5,7 @@
 
 #include <memory>
 
+#include <userver/compiler/impl/lifetime.hpp>
 #include <userver/ugrpc/client/impl/async_unary_call_adapter.hpp>
 
 USERVER_NAMESPACE_BEGIN
@@ -58,6 +59,11 @@ public:
     /// @overload
     const CallContext& GetContext() const { return impl_->GetContext(); }
 
+    /// Satisfies @ref engine::Awaitable, for use with @ref engine::WaitAnyContext and friends.
+    engine::AwaitableToken GetAwaitableToken() noexcept USERVER_IMPL_LIFETIME_BOUND {
+        return impl_->GetAwaitableToken();
+    }
+
     /// @cond
     // For internal use only
     template <typename Stub, typename Request>
@@ -71,9 +77,6 @@ public:
               Request,
               Response>>(std::move(params), std::move(prepare_unary_call), request)}
     {}
-
-    // For internal use only.
-    engine::impl::ContextAccessor* TryGetContextAccessor() noexcept { return impl_->TryGetContextAccessor(); }
     /// @endcond
 
 private:

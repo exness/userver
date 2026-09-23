@@ -492,13 +492,14 @@ def userver_config_http_server(service_port, monitor_port) -> ServiceConfigPatch
 
     def _patch_config(config_yaml, config_vars):
         components = config_yaml['components_manager']['components']
-        if 'server' in components:
-            server = components['server']
-            if 'listener' in server:
-                server['listener']['port'] = service_port
-
-            if 'listener-monitor' in server:
-                server['listener-monitor']['port'] = monitor_port
+        if server := components.get('server'):
+            for listener_name, new_port in [('listener', service_port), ('listener-monitor', monitor_port)]:
+                if listener := server.get(listener_name):
+                    ports = listener.get('ports')
+                    if ports and 'port' in ports[0]:
+                        ports[0]['port'] = new_port
+                    else:
+                        listener['port'] = new_port
 
     return _patch_config
 
@@ -518,10 +519,36 @@ def allowed_url_prefixes_extra() -> list[str]:
 
 
 @pytest.fixture(scope='session')
-def userver_config_http_client(
+def allowed_url_prefixes(
     mockserver_info,
     mockserver_ssl_info,
     allowed_url_prefixes_extra,
+) -> list[str]:
+    """
+    Returns final list of allowed urls prefixes when running in testsuite.
+
+    For most of cases you DO NOT want to override this fixture. Use "allowed_url_prefixes_extra" instead.
+
+    @ingroup userver_testsuite_fixtures
+    """
+    allowed_urls: list[str] = [mockserver_info.base_url]
+
+    if mockserver_ssl_info:
+        allowed_urls.append(mockserver_ssl_info.base_url)
+
+    allowed_urls += allowed_url_prefixes_extra
+
+    # Add WebSocket prefixes (ws:// and wss://) alongside HTTP prefixes
+    allowed_urls.append(mockserver_info.ws_url('/'))
+    if mockserver_ssl_info:
+        allowed_urls.append(mockserver_ssl_info.ws_url('/'))
+
+    return allowed_urls
+
+
+@pytest.fixture(scope='session')
+def userver_config_http_client(
+    allowed_url_prefixes,
 ) -> ServiceConfigPatch:
     """
     Returns a function that adjusts the static configuration file for testsuite.
@@ -542,17 +569,7 @@ def userver_config_http_client(
         http_client_core['testsuite-enabled'] = True
         http_client_core['testsuite-timeout'] = '10s'
 
-        allowed_urls = [mockserver_info.base_url]
-        if mockserver_ssl_info:
-            allowed_urls.append(mockserver_ssl_info.base_url)
-        allowed_urls += allowed_url_prefixes_extra
-
-        # Add WebSocket prefixes (ws:// and wss://) alongside HTTP prefixes
-        allowed_urls.append(mockserver_info.ws_url('/'))
-        if mockserver_ssl_info:
-            allowed_urls.append(mockserver_ssl_info.ws_url('/'))
-
-        http_client_core['testsuite-allowed-url-prefixes'] = allowed_urls
+        http_client_core['testsuite-allowed-url-prefixes'] = allowed_url_prefixes
 
     return patch_config
 
@@ -664,6 +681,8 @@ def userver_config_testsuite(pytestconfig, mockserver_info) -> ServiceConfigPatc
     def patch_config(config, config_vars) -> None:
         # Don't delay tests teardown unnecessarily.
         config['components_manager'].pop('graceful_shutdown_interval', None)
+        config['components_manager'].pop('graceful_shutdown_continue_accepting_requests_interval', None)
+        config['components_manager'].pop('graceful_shutdown_pending_requests_completion_interval', None)
         components: dict = config['components_manager']['components']
         if 'testsuite-support' not in components:
             return
@@ -732,10 +751,10 @@ def userver_config_testsuite_middleware(userver_testsuite_middleware_enabled: bo
         if 'server' not in components:
             return
 
-        pipeline_builder = components.setdefault(
-            'default-server-middleware-pipeline-builder',
-            {},
+        pipeline_builder_name = components['server'].get(
+            'middleware-pipeline-builder', 'default-server-middleware-pipeline-builder'
         )
+        pipeline_builder = components.setdefault(pipeline_builder_name, {})
         middlewares = pipeline_builder.setdefault('append', [])
         middlewares.append('testsuite-exceptions-handling-middleware')
 

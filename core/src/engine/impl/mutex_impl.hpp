@@ -40,80 +40,80 @@ public:
     utils::StringLiteral GetActorType() const override { return "Mutex"; }
 
 private:
-    class MutexWaitStrategy;
+    class MutexAwaitable;
 
-    bool LockFastPath(TaskContext&) noexcept;
+    bool LockFastPath(Awaiter&) noexcept;
     bool LockSlowPath(TaskContext&, Deadline);
 
-    std::atomic<TaskContext*> owner_;
+    std::atomic<Awaiter*> owner_;
     Awaiters lock_awaiters_;
 };
 
 template <>
-class MutexImpl<WaitList>::MutexWaitStrategy final : public WaitStrategy {
+class MutexImpl<WaitList>::MutexAwaitable final : public WeakAwaitable {
 public:
-    MutexWaitStrategy(MutexImpl<WaitList>& mutex, TaskContext& current)
+    explicit MutexAwaitable(MutexImpl<WaitList>& mutex)
         : mutex_(mutex),
-          current_(current),
           awaiter_token_(mutex_.lock_awaiters_)
     {}
 
-    EarlyNotify SetupWakeups() override {
+    bool IsReady() const noexcept override { return false; }
+
+    void TryAppendAwaiter(AwaiterPtr& awaiter, std::uintptr_t context) override {
         WaitList::Lock lock(mutex_.lock_awaiters_);
-        if (mutex_.LockFastPath(current_)) {
-            return EarlyNotify{true};
+        if (mutex_.LockFastPath(*awaiter)) {
+            return;
         }
         // A race is not possible here, because check + Append is performed under
         // WaitList::Lock, and notification also takes WaitList::Lock.
-        mutex_.lock_awaiters_.Append(lock, &current_, current_.GetAwaiterContext());
-        return EarlyNotify{false};
+        mutex_.lock_awaiters_.Append(lock, std::move(awaiter), context);
     }
 
-    void DisableWakeups() noexcept override {
+    AwaiterPtr RemoveAwaiter(Awaiter& awaiter, std::uintptr_t context) noexcept override {
         WaitList::Lock lock(mutex_.lock_awaiters_);
-        mutex_.lock_awaiters_.Remove(lock, current_, current_.GetAwaiterContext());
+        return mutex_.lock_awaiters_.Remove(lock, awaiter, context);
     }
 
 private:
     MutexImpl<WaitList>& mutex_;
-    TaskContext& current_;
     const WaitList::AwaitersScopeCounter awaiter_token_;
 };
 
 template <>
-class MutexImpl<WaitListLight>::MutexWaitStrategy final : public WaitStrategy {
+class MutexImpl<WaitListLight>::MutexAwaitable final : public WeakAwaitable {
 public:
-    MutexWaitStrategy(MutexImpl<WaitListLight>& mutex, TaskContext& current)
-        : mutex_(mutex),
-          current_(current)
+    explicit MutexAwaitable(MutexImpl<WaitListLight>& mutex)
+        : mutex_(mutex)
     {}
 
-    EarlyNotify SetupWakeups() override {
-        if (TryLock()) {
-            return EarlyNotify{true};
+    bool IsReady() const noexcept override { return false; }
+
+    void TryAppendAwaiter(AwaiterPtr& awaiter, std::uintptr_t context) override {
+        auto& awaiter_ref = *awaiter;
+        if (TryLock(awaiter_ref)) {
+            return;
         }
-        mutex_.lock_awaiters_.Append(&current_, current_.GetAwaiterContext());
+        mutex_.lock_awaiters_.Append(std::move(awaiter), context);
         if (mutex_.owner_.load() == nullptr) {
-            mutex_.lock_awaiters_.Remove(current_, current_.GetAwaiterContext());
-            return EarlyNotify{true};
+            awaiter = mutex_.lock_awaiters_.Remove(awaiter_ref, context);
         }
-        return EarlyNotify{false};
     }
 
-    void DisableWakeups() noexcept override { mutex_.lock_awaiters_.Remove(current_, current_.GetAwaiterContext()); }
+    AwaiterPtr RemoveAwaiter(Awaiter& awaiter, std::uintptr_t context) noexcept override {
+        return mutex_.lock_awaiters_.Remove(awaiter, context);
+    }
 
 private:
-    bool TryLock() {
-        TaskContext* expected = nullptr;
-        if (mutex_.owner_.compare_exchange_strong(expected, &current_, std::memory_order_relaxed)) {
+    bool TryLock(Awaiter& awaiter) {
+        Awaiter* expected = nullptr;
+        if (mutex_.owner_.compare_exchange_strong(expected, &awaiter, std::memory_order_relaxed)) {
             return true;
         }
-        UINVARIANT(expected != &current_, "MutexImpl is locked twice from the same task");
+        UINVARIANT(expected != &awaiter, "MutexImpl is locked twice from the same task");
         return false;
     }
 
     MutexImpl<WaitListLight>& mutex_;
-    TaskContext& current_;
 };
 
 template <class Awaiters>
@@ -134,17 +134,17 @@ MutexImpl<Awaiters>::~MutexImpl() {
 }
 
 template <class Awaiters>
-bool MutexImpl<Awaiters>::LockFastPath(TaskContext& current) noexcept {
-    TaskContext* expected = nullptr;
+bool MutexImpl<Awaiters>::LockFastPath(Awaiter& current) noexcept {
+    Awaiter* expected = nullptr;
     return owner_.compare_exchange_strong(expected, &current, std::memory_order_acquire);
 }
 
 template <class Awaiters>
 bool MutexImpl<Awaiters>::LockSlowPath(TaskContext& current, Deadline deadline) {
     const engine::TaskCancellationBlocker block_cancels;
-    MutexWaitStrategy wait_manager{*this, current};
+    MutexAwaitable awaitable{*this};
     while (true) {
-        const auto wakeup_source = current.Sleep(wait_manager, deadline);
+        const auto wakeup_source = current.Sleep(awaitable, deadline);
         if (owner_.load() == &current) {
             return true;
         }
@@ -169,7 +169,7 @@ void MutexImpl<Awaiters>::unlock() {
     __tsan_mutex_pre_unlock(this, 0);
 #endif
     auto* old_owner = owner_.exchange(nullptr, std::memory_order_acq_rel);
-    UASSERT(old_owner && old_owner->IsCurrent());
+    UASSERT(old_owner && (old_owner == current_task::GetCurrentTaskContextUnchecked()));
 
     if constexpr (std::is_same_v<Awaiters, WaitList>) {
         if (lock_awaiters_.GetCountOfSleepies()) {

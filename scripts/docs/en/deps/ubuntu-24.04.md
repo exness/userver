@@ -23,6 +23,7 @@ libcrypto++-dev
 libcurl4-openssl-dev
 libdouble-conversion-dev
 libev-dev
+liburing-dev
 libfmt-dev
 libgflags-dev
 libgmock-dev
@@ -49,8 +50,6 @@ libsqlite3-dev
 librdkafka-dev
 libre2-dev
 librocksdb-dev
-libsasl2-dev
-libsnappy-dev
 libssh2-1-dev
 libssl-dev
 libxxhash-dev
@@ -65,10 +64,13 @@ protobuf-compiler-grpc
 python3-dev
 python3-jinja2
 python3-protobuf
+python3-sqlparse
+python3-transliterate
 python3-venv
 python3-voluptuous
 python3-yaml
 ragel
 unixodbc-dev
+unzip
 yasm
 zlib1g-dev

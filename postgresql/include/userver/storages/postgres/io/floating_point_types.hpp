@@ -72,7 +72,7 @@ struct FloatingPointBinaryFormatter {
     static constexpr std::size_t size = sizeof(T);
     T value;
 
-    explicit FloatingPointBinaryFormatter(T val)
+    constexpr explicit FloatingPointBinaryFormatter(T val)
         : value{val}
     {}
 
@@ -96,7 +96,7 @@ struct BufferParser<float> : detail::FloatingPointBinaryParser<float> {
 };
 template <>
 struct BufferFormatter<float> : detail::FloatingPointBinaryFormatter<float> {
-    explicit BufferFormatter(float val)
+    constexpr explicit BufferFormatter(float val)
         : FloatingPointBinaryFormatter(val)
     {}
 };
@@ -112,7 +112,7 @@ struct BufferParser<double> : detail::FloatingPointBinaryParser<double> {
 };
 template <>
 struct BufferFormatter<double> : detail::FloatingPointBinaryFormatter<double> {
-    explicit BufferFormatter(double val)
+    constexpr explicit BufferFormatter(double val)
         : FloatingPointBinaryFormatter(val)
     {}
 };

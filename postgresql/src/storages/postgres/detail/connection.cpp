@@ -81,7 +81,7 @@ bool Connection::IsBroken() const { return pimpl_->IsBroken(); }
 
 bool Connection::IsExpired() const { return pimpl_->IsExpired(); }
 
-bool Connection::IsPipelineActive() const { return pimpl_->IsPipelineActive(); }
+void Connection::AssertPipelineActive() const { pimpl_->AssertPipelineActive(); }
 
 bool Connection::ArePreparedStatementsEnabled() const { return pimpl_->ArePreparedStatementsEnabled(); }
 
@@ -129,7 +129,7 @@ Connection::PreparedStatementMeta Connection::PrepareStatement(
 
 void Connection::AddIntoPipeline(
     CommandControl cc,
-    const std::string& meta_statement_name,
+    USERVER_NAMESPACE::utils::zstring_view meta_statement_name,
     const detail::QueryParameters& params,
     const ResultSet& description,
     tracing::ScopeTime& scope
@@ -151,7 +151,7 @@ ResultSet Connection::Execute(CommandControl statement_cmd_ctl, const Query& que
 
 Connection::StatementId Connection::PortalBind(
     const Query& query,
-    const std::string& portal_name,
+    USERVER_NAMESPACE::utils::zstring_view portal_name,
     const detail::QueryParameters& params,
     OptionalCommandControl statement_cmd_ctl
 ) {
@@ -160,7 +160,7 @@ Connection::StatementId Connection::PortalBind(
 
 ResultSet Connection::PortalExecute(
     StatementId statement_id,
-    const std::string& portal_name,
+    USERVER_NAMESPACE::utils::zstring_view portal_name,
     std::uint32_t n_rows,
     OptionalCommandControl statement_cmd_ctl
 ) {
@@ -171,7 +171,7 @@ void Connection::CancelAndCleanup(TimeoutDuration timeout) { pimpl_->CancelAndCl
 
 bool Connection::Cleanup(TimeoutDuration timeout) { return pimpl_->Cleanup(timeout); }
 
-void Connection::SetParameter(const std::string& param, const std::string& value, ParameterScope scope) {
+void Connection::SetParameter(std::string_view param, std::string_view value, ParameterScope scope) {
     pimpl_->SetParameter(param, value, scope);
 }
 

@@ -14,7 +14,7 @@ USERVER_NAMESPACE_BEGIN
 namespace storages::postgres::io {
 
 /// @brief Detect mapping of a C++ type to Postgres type.
-template <typename T, typename Enable = USERVER_NAMESPACE::utils::void_t<>>
+template <typename T>
 struct CppToPg;
 
 template <PredefinedOids Oid, typename T>
@@ -115,9 +115,8 @@ struct PgToCppPredefined {
 }  // namespace detail
 
 template <typename T>
-struct CppToPg<
-    T,
-    std::enable_if_t<!traits::IsSpecialMapping<T>::value && traits::kIsMappedToPg<T> && !traits::IsMappedToArray<T>>>
+requires(!traits::IsSpecialMapping<T>::value && traits::kIsMappedToPg<T> && !traits::IsMappedToArray<T>)
+struct CppToPg<T>
     : std::conditional_t<traits::IsMappedToSystemType<T>, detail::CppToSystemPgImpl<T>, detail::CppToUserPgImpl<T>> {};
 
 template <typename T>

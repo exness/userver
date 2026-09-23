@@ -17,18 +17,19 @@ userver is split into multiple CMake libraries.
 | `userver::grpc`            | `USERVER_FEATURE_GRPC`                            | `grpc`                | @ref scripts/docs/en/userver/grpc/grpc.md                 |
 | `userver::grpc-utest`      | `USERVER_FEATURE_GRPC` + `USERVER_FEATURE_UTEST`  | `grpc`                | @ref scripts/docs/en/userver/grpc/grpc.md                 |
 | `userver::mongo`           | `USERVER_FEATURE_MONGODB`                         | `mongo`               | @ref scripts/docs/en/userver/mongodb.md                   |
-| `userver::postgresql`      | `USERVER_FEATURE_POSTGRESQL`                      | `postgresql`          | @ref scripts/docs/en/userver/pg_driver.md                 |
+| `userver::postgresql`      | `USERVER_FEATURE_POSTGRESQL`                      | `postgresql`          | @ref scripts/docs/en/userver/pg/driver.md                 |
 | `userver::redis`           | `USERVER_FEATURE_REDIS`                           | `redis`               | @ref scripts/docs/en/userver/redis.md                     |
 | `userver::redis-utest`     | `USERVER_FEATURE_REDIS` + `USERVER_FEATURE_UTEST` | `redis`               | @ref scripts/docs/en/userver/redis.md                     |
-| `userver::clickhouse`      | `USERVER_FEATURE_CLICKHOUSE`                      | `clickhouse`          | @ref clickhouse_driver                                    |
+| `userver::clickhouse`      | `USERVER_FEATURE_CLICKHOUSE`                      | `clickhouse`          | @ref scripts/docs/en/userver/clickhouse/driver.md         |
 | `userver::kafka`           | `USERVER_FEATURE_KAFKA`                           | `kafka`               | @ref scripts/docs/en/userver/kafka.md                     |
 | `userver::kafka-utest`     | `USERVER_FEATURE_KAFKA` + `USERVER_FEATURE_UTEST` | `kafka`               | @ref scripts/docs/en/userver/kafka.md                     |
-| `userver::rabbitmq`        | `USERVER_FEATURE_RABBITMQ`                        | `rabbitmq`            | @ref rabbitmq_driver                                      |
+| `userver::rabbitmq`        | `USERVER_FEATURE_RABBITMQ`                        | `rabbitmq`            | @ref scripts/docs/en/userver/rabbitmq_driver.md           |
 | `userver::mysql`           | `USERVER_FEATURE_MYSQL`                           | `mysql`               | @ref scripts/docs/en/userver/mysql/mysql_driver.md        |
 | `userver::rocks`           | `USERVER_FEATURE_ROCKS`                           | `rocks`               | TODO                                                      |
 | `userver::sqlite`          | `USERVER_FEATURE_SQLITE`                          | `sqlite`              | @ref scripts/docs/en/userver/sqlite/sqlite_driver.md      |
 | `userver::odbc`            | `USERVER_FEATURE_ODBC`                            | `odbc`                | @ref scripts/docs/en/userver/odbc.md                      |
 | `userver::ydb`             | `USERVER_FEATURE_YDB`                             | `ydb`                 | @ref scripts/docs/en/userver/ydb.md                       |
+| `userver::sqs`             | `USERVER_FEATURE_SQS`                             | `sqs`                 | @ref scripts/docs/en/userver/libraries/sqs.md             |
 | `userver::otlp`            | `USERVER_FEATURE_OTLP`                            | `otlp`                | @ref opentelemetry "OpenTelemetry Protocol"               |
 | `userver::s3api`           | `USERVER_FEATURE_S3API`                           | `s3api`               | @ref scripts/docs/en/userver/libraries/s3api.md           |
 | `userver::multi_index_lru` | `USERVER_FEATURE_MULTI_INDEX_LRU`                 | `multi_index_lru`     | @ref scripts/docs/en/userver/libraries/multi_index_lru.md |
@@ -83,6 +84,7 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_FEATURE_SQLITE`          | Provide asynchronous driver for SQLite                                            | `${USERVER_BUILD_ALL_COMPONENTS}`                           |
 | `USERVER_FEATURE_ODBC`            | Provide asynchronous driver for ODBC                                              | `${USERVER_BUILD_ALL_COMPONENTS}`                           |
 | `USERVER_FEATURE_YDB`             | Provide asynchronous driver for YDB                                               | `${USERVER_BUILD_ALL_COMPONENTS}` AND C++ standard >= 20    |
+| `USERVER_FEATURE_SQS`             | Provide SQS JSON client                                                           | `OFF`                                                       |
 | `USERVER_FEATURE_OTLP`            | Provide Logger for OpenTelemetry protocol                                         | `${USERVER_BUILD_ALL_COMPONENTS}`                           |
 | `USERVER_FEATURE_GRPC_REFLECTION` | Provide reflection service for gRPC                                               | `${USERVER_BUILD_ALL_COMPONENTS}`                           |
 | `USERVER_FEATURE_S3API`           | Provide S3 client for gRPC                                                        | `${USERVER_BUILD_ALL_COMPONENTS}`                           |
@@ -98,7 +100,7 @@ The exact format of setting cmake options varies depending on the method of buil
 |--------------------------------|------------------------------------------------------------------------------------------------------|---------|
 | `USERVER_BUILD_ALL_COMPONENTS` | Build all userver libraries compatible with the host except for ones disabled by `USERVER_FEATURE_*` | `OFF`   |
 | `USERVER_BUILD_TESTS`          | Build unit tests, functional tests and benchmarks for userver itself                                 | `OFF`   |
-| `USERVER_BUILD_SAMPLES`        | Build userver samples                                                                                | `OFF`   |
+| `USERVER_BUILD_SAMPLES`        | Install userver samples; also build them when `USERVER_BUILD_TESTS` is `ON`                          | `OFF`   |
 
 ### CMake options for features that are unavailable for some platforms
 
@@ -110,12 +112,12 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_FEATURE_PATCH_LIBPQ`          | Apply patches to the libpq (add portals support), requires `libpq.a`                                              | `ON`                                        |
 | `USERVER_FEATURE_CRYPTOPP_BASE64_URL`  | Provide wrappers for Base64 URL decoding and encoding algorithms of crypto++                                      | `ON`                                        |
 | `USERVER_FEATURE_REDIS_TLS`            | SSL/TLS support for Redis driver. Use with `"secure_connection": true` secdist option for @ref components::Redis  | `OFF`                                       |
-| `USERVER_FEATURE_STACKTRACE`           | Allow capturing stacktraces using `boost::stacktrace`                                                             | `ON` except for macOS, `*BSD` and old Boost |
+| `USERVER_FEATURE_STACKTRACE`           | Allow capturing stacktraces using `boost::stacktrace`                                                             | `ON` except for macOS, `*BSD`, old Boost, or when `Boost::stacktrace_backtrace` is missing |
 | `USERVER_FEATURE_JEMALLOC`             | Use jemalloc memory allocator                                                                                     | `ON`                                        |
 | `USERVER_FEATURE_DWCAS`                | Require double-width compare-and-swap                                                                             | `ON`                                        |
 | `USERVER_FEATURE_GRPC_CHANNELZ`        | Enable Channelz for gRPC                                                                                          | `ON` for "sufficiently new" gRPC versions   |
 | `USERVER_MYSQL_ALLOW_BUGGY_LIBMARIADB` | Allows mysql driver to leak memory instead of aborting in some rare cases when linked against `libmariadb3<3.3.4` | `OFF`                                       |
-| `USERVER_DISABLE_PHDR_CACHE`           | Disable caching of `dl_phdr_info` items, which interferes with `dlopen`                                           | `OFF`                                       |
+| `USERVER_DISABLE_PHDR_CACHE`           | Disable caching of `dl_phdr_info` items, which interferes with `dlopen`. Does not disable `mlock` of the main binary | `ON` with sanitizers, or when GCC ≥ 12 (or Clang ≥ 15) **and** the runtime unwinder references `_dl_find_object`; otherwise `OFF` |
 | `USERVER_DISABLE_RSEQ_ACCELERATION`    | Disable rseq-based optimizations, which may not work depending on kernel/glibc/distro/etc version                 | `OFF` for x86 Linux, `ON` otherwise         |
 | `USERVER_FEATURE_UBOOST_CORO`          | Build with vendored version of Boost.context and Boost.coroutine2, is needed for sanitizers builds                | `OFF` for arm64 macOS, `ON` otherwise       |
 | `USERVER_FEATURE_STACK_USAGE_MONITOR`  | Enable coroutine stack usage monitor if available                                                                 | `ON`                                        |
@@ -140,6 +142,8 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_DOWNLOAD_PACKAGE_PROTOBUF`      | Download and setup Protobuf if no Protobuf of matching version was found                | `${USERVER_DOWNLOAD_PACKAGE_GRPC}`   |
 | `USERVER_DOWNLOAD_PACKAGE_KAFKA`         | Download and setup librdkafka if no librdkafka matching version was found               | `${USERVER_DOWNLOAD_PACKAGES}`       |
 | `USERVER_DOWNLOAD_PACKAGE_YDBCPPSDK`     | Download and setup ydb-cpp-sdk if no ydb-cpp-sdk of matching version was found          | `${USERVER_DOWNLOAD_PACKAGES}`       |
+| `USERVER_YDBCPPSDK_VERSION`              | ydb-cpp-sdk version to find or download                                                  | `3.21.1`                             |
+| `USERVER_DOWNLOAD_PACKAGE_AWSSDK`        | Download and setup AWS SDK for C++ if no AWS SDK of matching version was found          | `${USERVER_DOWNLOAD_PACKAGES}`       |
 | `USERVER_DOWNLOAD_PACKAGE_C_ARES`        | Download and setup libc-ares if no libc-ares of matching version was found              | `${USERVER_DOWNLOAD_PACKAGES}`       |
 | `USERVER_DOWNLOAD_PACKAGE_LIBEV`         | Download and setup libev if no libev of matching version was found                      | `${USERVER_DOWNLOAD_PACKAGES}`       |
 | `USERVER_DOWNLOAD_PACKAGE_LIBNGHTTP2`    | Download and setup libnghttp2 if no libnghttp2 of matching version was found            | `${USERVER_DOWNLOAD_PACKAGES}`       |
@@ -170,7 +174,7 @@ The exact format of setting cmake options varies depending on the method of buil
 | Option                                 | Description                                                                                                | Default                                                     |
 |----------------------------------------|------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
 | `USERVER_CHECK_PACKAGE_VERSIONS`       | Check package versions                                                                                     | `ON`                                                        |
-| `USERVER_SANITIZE`                     | Build with sanitizers. Combine values via 'val1 val2'. Available: `addr`, `mem`, `ub`, and [thread][tsan]  | (no sanitizers)                                             |
+| `USERVER_SANITIZE`                     | Build with sanitizers. Combine values via 'val1 val2'. Available: `addr`, `mem`, `ub`, and [thread][tsan]. Not supported on macOS (silently disabled) | (no sanitizers)                                             |
 | `USERVER_SANITIZE_BLACKLIST`           | Path to file that is passed to the -fsanitize-blacklist option                                             | (no blacklist)                                              |
 | `USERVER_USE_LD`                       | Linker to use, e.g. `gold` or `lld`                                                                        | `lld` for Clang, system linker otherwise (typically GNU ld) |
 | `USERVER_USE_STATIC_LIBS`              | Tries to find all dependencies as static libraries                                                         | `ON` for `Clang` not older than `14` version                |
@@ -187,6 +191,7 @@ The exact format of setting cmake options varies depending on the method of buil
 | `USERVER_FEATURE_ERASE_LOG_WITH_LEVEL` | Logs of this and below levels are removed from binary. Possible values: trace, info, debug, warning, error | `OFF`                                                       |
 | `USERVER_PIP_USE_SYSTEM_PACKAGES`      | Use system python packages inside venv. Useful for Docker, CI and other controlled environments            | `OFF`                                                       |
 | `USERVER_PIP_OPTIONS`                  | Options for all pip calls. Useful for passing `--no-index` option to prevent network usage                 | (no options)                                                |
+| `USERVER_PIP_USE_UV`                   | Use `uv` tool for creating Python virtual environments instead of the built-in `venv` and `pip`            | `ON` if `uv` is available, `OFF` otherwise                  |
 | `USERVER_INSTALL`                      | Build userver for further installation                                                                     | `OFF`                                                       |
 | `USERVER_INSTALL_MULTIPACKAGE`         | Whether create per-component packages                                                                      | `OFF`                                                       |
 | `USERVER_CONAN`                        | Build userver using Conan packages                                                                         | `ON` if build is launched from Conan, `OFF` otherwise       |
@@ -203,18 +208,18 @@ The exact format of setting cmake options varies depending on the method of buil
 
 It is possible to build userver based services with libraries statically linked in.
 
-@warning The support is platform dependant, as a result some libraries on some platforms may linked dynamically. Feel free to provide a PR to support your favourite platform.
+@warning The support is platform-dependent; as a result, some libraries on some platforms may be linked dynamically. Feel free to provide a PR to support your favourite platform.
 
 Userver does not build dynamic libraries itself, but most of its dependencies do. CMake (by default) prefers dynamic libraries on Unix-like operating systems.
 
 - Use `USERVER_USE_STATIC_LIBS=ON` CMake option to prefer static libraries for all userver dependencies (ON by default for "sufficiently new" `Clang` versions).
 With the option, CMake tries to find all dependencies as static libraries (and dependencies of dependencies), fallbacks to dynamic libraries when no static found.
 - To link statically with `libstdc++` or `libc++`, use `CMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"`.
-- To force fully static binary (with statically linked `libc`), use `CMAKE_EXE_LINKER_FLAGS="-static"`. In such case, all dependencies must be provided as static libraries. Also `userver` must be build with `USERVER_DISABLE_PHDR_CACHE=ON` (without this flag, it can lead to endless memory allocation).
+- To force fully static binary (with statically linked `libc`), use `CMAKE_EXE_LINKER_FLAGS="-static"`. In such case, all dependencies must be provided as static libraries. Also `userver` must be built with `USERVER_DISABLE_PHDR_CACHE=ON` (without this flag, it can lead to endless memory allocation).
 
-Some dependencies usually should be build from source for statically linked executable:
+Some dependencies usually should be built from source for statically linked executable:
 1. `Curl`. Use `USERVER_FORCE_DOWNLOAD_CURL=ON` to download and build Curl from source.
-2. `cctz`, `yaml-cpp`, `fmt` often have no static libraries in their packages, so they should be build from source and installed in your host system (for instance, in `/usr/local`).
+2. `cctz`, `yaml-cpp`, `fmt` often have no static libraries in their packages, so they should be built from source and installed in your host system (for instance, in `/usr/local`).
 
 ## PGO (clang)
 

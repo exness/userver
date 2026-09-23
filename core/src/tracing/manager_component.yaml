@@ -24,3 +24,7 @@ properties:
         type: array
         description: Send tracing data in those formats
         items: *format_items
+    otel-trace-sampling-enabled:
+        type: boolean
+        description: Honor the W3C trace-context sampled flag; suppress writing of unsampled spans
+        default: false

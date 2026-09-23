@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <ranges>
 #include <string_view>
 
 #include <cryptopp/osrng.h>
@@ -10,14 +11,13 @@
 #include <fmt/ranges.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
-#include <boost/range/adaptor/map.hpp>
-#include <boost/range/adaptor/transformed.hpp>
 
 #include <curl-ev/error_code.hpp>
 #include <userver/baggage/baggage.hpp>
 #include <userver/clients/dns/resolver.hpp>
 #include <userver/clients/http/connect_to.hpp>
 #include <userver/clients/http/websocket_response.hpp>
+#include <userver/engine/async.hpp>
 #include <userver/http/common_headers.hpp>
 #include <userver/http/url.hpp>
 #include <userver/server/request/task_inherited_data.hpp>
@@ -94,25 +94,21 @@ std::error_code TestsuiteResponseHook(Status status_code, const Headers& headers
     return {};
 }
 
-bool IsSetCookie(std::string_view key) {
+bool IsSetCookie(std::string_view key) noexcept {
     const utils::StrIcaseEqual equal;
     return equal(key, USERVER_NAMESPACE::http::headers::kSetCookie);
 }
 
 // Not a strict check, but OK for non-header line check
-bool IsHttpStatusLineStart(const char* ptr, size_t size) { return (size > 5 && memcmp(ptr, "HTTP/", 5) == 0); }
+bool IsHttpStatusLineStart(std::string_view str) noexcept { return str.starts_with("HTTP/"); }
 
 std::string ToString(HttpMethod method) { return std::string{ToStringView(method)}; }
 
-char* RfindNotSpace(char* ptr, size_t size) {
-    for (char* p = ptr + size - 1; p >= ptr; --p) {
-        const char c = *p;
-        if (c == '\n' || c == '\r' || c == ' ' || c == '\t') {
-            continue;
-        }
-        return p + 1;
-    }
-    return ptr;
+std::size_t RfindNotSpace(std::string_view str) noexcept { return str.find_last_not_of(" \t\r\n"); }
+
+std::string_view SkipSpaceTab(std::string_view str) noexcept {
+    const auto pos = str.find_first_not_of(" \t");
+    return str.substr(pos == std::string_view::npos ? str.size() : pos);
 }
 
 // TODO: very low-level, do it in another place
@@ -137,10 +133,8 @@ std::exception_ptr PrepareDeadlinePassedException(std::string_view url, LocalSta
     ));
 }
 
-bool IsPrefix(const std::string& url, const std::vector<std::string>& prefixes) {
-    return !(std::find_if(prefixes.begin(), prefixes.end(), [&url](const std::string& prefix) {
-                 return utils::text::StartsWith(url, prefix);
-             }) == prefixes.end());
+bool IsPrefix(std::string_view url, const std::vector<std::string>& prefixes) {
+    return std::ranges::any_of(prefixes, [&url](const std::string& prefix) { return url.starts_with(prefix); });
 }
 
 class MaybeOwnedUrl final {
@@ -441,11 +435,12 @@ void RequestState::SetDeadlinePropagationConfig(const DeadlinePropagationConfig&
 
 size_t RequestState::OnHeader(void* ptr, size_t size, size_t nmemb, void* userdata) {
     auto* self = static_cast<RequestState*>(userdata);
-    const std::size_t data_size = size * nmemb;
+    UASSERT(self);
+    const std::string_view header{static_cast<char*>(ptr), size * nmemb};
     if (self) {
-        self->ParseHeader(static_cast<char*>(ptr), data_size);
+        self->ParseHeader(header);
     }
-    return data_size;
+    return header.size();
 }
 
 curl::native::CURLcode RequestState::OnCertificateRequest(void* /*curl*/, void* sslctx, void* userdata) noexcept {
@@ -611,8 +606,12 @@ void RequestState::OnCompleted(std::shared_ptr<RequestState> holder, std::error_
             },
             [&holder, &easy](WebSocketHandshakeData& data) {
                 auto promise = std::move(data.promise);
-                // The task will wake up and may reuse RequestState.
-                promise.set_value(WebSocketResponse(holder->response_move(), std::move(easy.extracted_socket())));
+                // Preamble was drained on the curl thread before multi remove.
+                promise.set_value(WebSocketResponse(
+                    holder->response_move(),
+                    std::move(easy.extracted_socket()),
+                    easy.TakeCapturedSocketPreamble()
+                ));
             }
         };
         std::visit(visitor, holder->data_);
@@ -681,49 +680,50 @@ void RequestState::OnRetryTimer(std::error_code err) {
     }
 }
 
-void RequestState::ParseSingleCookie(const char* ptr, size_t size) {
-    if (auto cookie = server::http::Cookie::FromString(std::string_view(ptr, size))) {
-        [[maybe_unused]] auto [it, ok] = response_->cookies().emplace(cookie->Name(), std::move(*cookie));
+void RequestState::ParseSingleCookie(std::string_view cookie) {
+    if (auto parsed_cookie = server::http::Cookie::FromString(cookie)) {
+        [[maybe_unused]] auto
+            [it, ok] = response_->cookies().try_emplace(parsed_cookie->Name(), std::move(*parsed_cookie));
         if (!ok) {
-            LOG_WARNING() << "Failed to add cookie '" + it->first + "', already added";
+            it->second = std::move(*parsed_cookie);
+            LOG_DEBUG() << "Overwriting cookie '" + it->first + "', duplicate found";
         }
     }
 }
 
-void RequestState::ParseHeader(char* ptr, size_t size) try
+void RequestState::ParseHeader(std::string_view header) try
 {
     /* It is a fast path in curl's thread (io thread).  Creation of tmp
      * std::string, boost::trim_right_if(), etc. is too expensive. */
 
-    auto* end = RfindNotSpace(ptr, size);
-    if (ptr == end) {
+    const auto last_non_space_pos = RfindNotSpace(header);
+    if (last_non_space_pos == std::string_view::npos) {
         const auto status_code = static_cast<Status>(easy().get_response_code());
         response()->SetStatusCode(status_code);
         return;
     }
-    *end = '\0';
+    header = header.substr(0, last_non_space_pos + 1);
 
-    if (IsHttpStatusLineStart(ptr, size)) {
+    if (IsHttpStatusLineStart(header)) {
         if (!response()->headers().empty()) {
-            LOG_INFO() << "Drop headers: " << (response_->headers() | boost::adaptors::map_keys);
+            LOG_INFO() << "Drop headers: " << (response_->headers() | std::views::keys);
             // In case of redirect drop 1st response headers
             response_->headers().clear();
         }
         return;
     }
 
-    const char* col_pos = static_cast<const char*>(memchr(ptr, ':', size));
-    if (col_pos == nullptr) {
-        LOG_WARNING() << "Incorrect header line: " << ptr;
+    const auto col_pos = header.find(':');
+    if (col_pos == std::string_view::npos) {
+        LOG_WARNING() << "Incorrect header line: " << header;
         return;
     }
 
-    std::string key(ptr, col_pos - ptr);
-
-    ++col_pos;
+    const auto key = header.substr(0, col_pos);
+    auto value = header.substr(col_pos + 1);
 
     if (IsSetCookie(key)) {
-        ParseSingleCookie(col_pos, end - col_pos);
+        ParseSingleCookie(value);
         return;
     }
 
@@ -731,12 +731,8 @@ void RequestState::ParseHeader(char* ptr, size_t size) try
     //
     // header-field   = field-name ":" OWS field-value OWS
     // OWS            = *( SP / HTAB )
-    while (end != col_pos && (*col_pos == ' ' || *col_pos == '\t')) {
-        ++col_pos;
-    }
-
-    std::string value(col_pos, end - col_pos);
-    response_->headers().emplace(std::move(key), std::move(value));
+    value = SkipSpaceTab(value);
+    response_->headers().emplace(key, value);
 } catch (const std::exception& e) {
     LOG_ERROR() << "Failed to parse header: " << e.what();
 }
@@ -866,7 +862,7 @@ engine::Future<WebSocketResponse> RequestState::async_perform_websocket_handshak
     // set place for response body
     easy().set_sink(&response_->sink_string());
     easy().set_connect_only(2L /** websocket handshake */);
-    easy().enable_socket_extraction();
+    easy().enable_socket_extraction(&impl::DrainCurlWebSocketPreamble);
 
     auto future = data.promise.get_future();
 
@@ -892,7 +888,7 @@ void RequestState::PerformRequest(curl::easy::handler_type handler) {
 
     if (resolver_ && retry_.current == 1) {
         engine::DetachUnscopedUnsafe(
-            engine::AsyncNoSpan([this, holder = shared_from_this(), handler = std::move(handler)]() mutable {
+            engine::AsyncNoTracing([this, holder = shared_from_this(), handler = std::move(handler)]() mutable {
                 auto exception_handler = utils::Overloaded{
                     [](FullBufferedData& data) { data.promise.set_exception(std::current_exception()); },
                     [](WebSocketHandshakeData& data) { data.promise.set_exception(std::current_exception()); },
@@ -973,6 +969,16 @@ void RequestState::UpdateTimeoutHeader() {
 
     if (inherited_original_deadline_.has_value()) {
         const auto deadline_header = std::to_string(inherited_original_deadline_->time_since_epoch().count());
+        easy().add_header(
+            USERVER_NAMESPACE::http::headers::kXRequestDeadline,
+            deadline_header,
+            curl::easy::DuplicateHeaderAction::kReplace
+        );
+    } else if (deadline_.IsReachable()) {
+        const auto absolute_deadline =
+            std::chrono::time_point_cast<std::chrono::microseconds>(std::chrono::system_clock::now()) +
+            std::chrono::duration_cast<std::chrono::microseconds>(deadline_.TimeLeft());
+        const auto deadline_header = std::to_string(absolute_deadline.time_since_epoch().count());
         easy().add_header(
             USERVER_NAMESPACE::http::headers::kXRequestDeadline,
             deadline_header,
@@ -1128,6 +1134,7 @@ void RequestState::ResetDataForNewRequest() {
 
 size_t RequestState::StreamWriteFunction(char* ptr, size_t size, size_t nmemb, void* userdata) {
     const size_t actual_size = size * nmemb;
+    const std::string_view chunk{ptr, actual_size};
     RequestState& rs = *static_cast<RequestState*>(userdata);
     auto* stream_data = std::get_if<StreamData>(&rs.data_);
     UASSERT(stream_data);
@@ -1136,7 +1143,7 @@ size_t RequestState::StreamWriteFunction(char* ptr, size_t size, size_t nmemb, v
         << fmt::format("Got bytes in stream API chunk, chunk of ({} bytes)", actual_size)
         << tracing::impl::LogSpanAsLastNoCurrent{rs.span_storage_->Get()};
 
-    std::string buffer(ptr, actual_size);
+    std::string buffer(chunk);
     auto& queue_producer = stream_data->queue_producer;
 
     if (!stream_data->headers_promise_set.exchange(true)) {
@@ -1255,8 +1262,7 @@ void RequestState::ResolveTargetAddress(clients::dns::Resolver& resolver) {
     }
 
     const auto addrs = resolver.Resolve(hostname, deadline);
-    auto addr_strings =
-        addrs | boost::adaptors::transformed([](const auto& addr) { return addr.PrimaryAddressString(); });
+    auto addr_strings = addrs | std::views::transform([](const auto& addr) { return addr.PrimaryAddressString(); });
 
     easy().add_resolve(hostname, target.Get().GetPortPtr().get(), fmt::to_string(fmt::join(addr_strings, ",")));
 }

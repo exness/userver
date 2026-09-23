@@ -153,7 +153,11 @@ void ContextTimer::Impl::InvokeTimerFunction(const Params& params, TaskContext& 
             context.RequestCancel(TaskCancellationReason::kDeadline);
             break;
         case Action::kWakeupByEpoch:
-            context.Wakeup(TaskContext::WakeupSource::kDeadlineTimer, params.sleep_epoch);
+            TaskContext::Wakeup(
+                boost::intrusive_ptr<TaskContext>{&context},
+                TaskContext::WakeupSource::kDeadlineTimer,
+                params.sleep_epoch
+            );
             break;
     }
 }

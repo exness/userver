@@ -209,9 +209,9 @@ LogExtra::ProtectedValue& LogExtra::ProtectedValue::operator=(ProtectedValue&& o
     return *this;
 }
 
-bool LogExtra::ProtectedValue::IsFrozen() const { return frozen_; }
+bool LogExtra::ProtectedValue::IsFrozen() const noexcept { return frozen_; }
 
-void LogExtra::ProtectedValue::SetFrozen() { frozen_ = true; }
+void LogExtra::ProtectedValue::SetFrozen() noexcept { frozen_ = true; }
 
 void LogExtra::ProtectedValue::AssignIgnoringFrozenness(LogExtra::ProtectedValue other) {
     frozen_ = false;

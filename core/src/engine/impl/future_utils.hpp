@@ -1,37 +1,12 @@
 #pragma once
 
-#include <type_traits>
-
 #include <engine/task/task_context.hpp>
 #include <userver/engine/future_status.hpp>
-#include <userver/engine/impl/context_accessor.hpp>
 #include <userver/utils/assert.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
 namespace engine::impl {
-
-// Usable for future-like synchronization primitives that don't allow spurious
-// wakeups and, once IsReady, are always IsReady.
-template <typename T>
-class FutureWaitStrategy final : public impl::WaitStrategy {
-    static_assert(std::is_base_of_v<ContextAccessor, T>);
-
-public:
-    FutureWaitStrategy(T& target, impl::TaskContext& current) noexcept : target_(target), current_(current) {}
-
-    EarlyNotify SetupWakeups() override {
-        boost::intrusive_ptr<impl::Awaiter> awaiter_ptr{&current_};
-        target_.TryAppendAwaiter(awaiter_ptr, current_.GetAwaiterContext());
-        return EarlyNotify{awaiter_ptr != nullptr};
-    }
-
-    void DisableWakeups() noexcept override { target_.RemoveAwaiter(current_, current_.GetAwaiterContext()); }
-
-private:
-    T& target_;
-    impl::TaskContext& current_;
-};
 
 inline FutureStatus ToFutureStatus(TaskContext::WakeupSource wakeup_source) noexcept {
     switch (wakeup_source) {

@@ -7,12 +7,14 @@
 #include <userver/compiler/demangle.hpp>
 #include <userver/components/component_context.hpp>
 #include <userver/concurrent/variable.hpp>
+#include <userver/engine/deadline.hpp>
 #include <userver/engine/sleep.hpp>
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/tracing/tracer.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/async.hpp>
+#include <userver/utils/task_builder.hpp>
 
 #include <components/component_context_component_info.hpp>
 #include <components/manager.hpp>
@@ -79,10 +81,8 @@ ComponentContextImpl::ComponentContextImpl(const Manager& manager, std::vector<s
     : manager_(manager),
       trace_plugin_(engine::current_task::GetTaskProcessor().GetWorkerCount())
 {
-    UASSERT(std::is_sorted(loading_component_names.begin(), loading_component_names.end()));
-    UASSERT(
-        std::unique(loading_component_names.begin(), loading_component_names.end()) == loading_component_names.end()
-    );
+    UASSERT(std::ranges::is_sorted(loading_component_names));
+    UASSERT(std::ranges::adjacent_find(loading_component_names) == loading_component_names.end());
 
     components_.reserve(loading_component_names.size());
 
@@ -133,7 +133,12 @@ RawComponentBase* ComponentContextImpl::AddComponent(
     // Put `context` on heap to detect use-after-free consistently.
     const auto context = std::make_unique<ComponentContext>(utils::impl::InternalTag{}, *this, component_info);
 
-    component_info.SetComponent(adder.MakeComponent(config, *context));
+    try {
+        component_info.SetComponent(adder.MakeComponent(config, *context));
+    } catch (...) {
+        component_info.BeforeDestruction();
+        throw;
+    }
 
     auto* component = component_info.GetComponent();
     if (component) {
@@ -158,7 +163,7 @@ void ComponentContextImpl::OnAllComponentsLoaded() {
     const tracing::Span span(kOnAllComponentsLoadedRootName);
     ProcessAllComponentLifetimeStageSwitchings(
         {impl::ComponentLifetimeStage::kRunning,
-         &impl::ComponentInfo::OnAllComponentsLoaded,
+         [](ComponentInfo& component_info) { component_info.OnAllComponentsLoaded(); },
          "OnAllComponentsLoaded()",
          DependencyType::kNormal,
          true}
@@ -172,13 +177,41 @@ void ComponentContextImpl::OnAllComponentsLoaded() {
 }
 
 void ComponentContextImpl::OnGracefulShutdownStarted() {
+    const auto first_stage_interval = manager_.GetConfig().graceful_shutdown_continue_accepting_requests_interval;
+    const auto second_stage_interval = manager_.GetConfig().graceful_shutdown_pending_requests_completion_interval;
+    if (first_stage_interval <= std::chrono::milliseconds::zero() &&
+        second_stage_interval <= std::chrono::milliseconds::zero())
+    {
+        return;
+    }
+
+    in_graceful_shutdown_.test_and_set();
     service_lifetime_stage_ = ServiceLifetimeStage::kGracefulShutdown;
 
-    const auto interval = manager_.GetConfig().graceful_shutdown_interval;
-    if (interval > std::chrono::milliseconds{0}) {
-        LOG_INFO() << "Shutdown started, notifying ping handlers and delaying by " << interval;
-        engine::SleepFor(interval);
+    // First stage: new requests are still accepted, but health checks are failed
+    LOG_INFO()
+        << "Graceful shutdown: failing health handlers and continue accepting requests for " << first_stage_interval;
+    if (first_stage_interval > std::chrono::milliseconds::zero()) {
+        engine::SleepFor(first_stage_interval);
     }
+
+    // Second stage: new requests are rejected, but already accepted requests are still being processed
+    if (second_stage_interval <= std::chrono::milliseconds::zero()) {
+        return;
+    }
+    const auto serving_shutdown_deadline = engine::Deadline::FromDuration(second_stage_interval);
+    LOG_INFO()
+        << "Graceful shutdown: closing all listeners and delaying active requests cancellation by "
+        << second_stage_interval;
+    ProcessAllComponentLifetimeStageSwitchings(
+        {impl::ComponentLifetimeStage::kGracefulShutdown,
+         [serving_shutdown_deadline](ComponentInfo& component_info) {
+             component_info.OnGracefulShutdown(serving_shutdown_deadline);
+         },
+         "OnGracefulShutdown()",
+         DependencyType::kNone,
+         false}
+    );
 }
 
 void ComponentContextImpl::OnAllComponentsAreStopping() {
@@ -186,7 +219,7 @@ void ComponentContextImpl::OnAllComponentsAreStopping() {
     LOG_INFO() << "Sending stopping notification to all components";
     ProcessAllComponentLifetimeStageSwitchings(
         {impl::ComponentLifetimeStage::kReadyForClearing,
-         &impl::ComponentInfo::OnAllComponentsAreStopping,
+         [](ComponentInfo& component_info) { component_info.OnAllComponentsAreStopping(); },
          "OnAllComponentsAreStopping()",
          DependencyType::kInverted,
          false}
@@ -207,7 +240,7 @@ void ComponentContextImpl::ClearComponents() {
     LOG_INFO() << "Stopping components";
     ProcessAllComponentLifetimeStageSwitchings(
         {impl::ComponentLifetimeStage::kNull,
-         &impl::ComponentInfo::ClearComponent,
+         [](ComponentInfo& component_info) { component_info.ClearComponent(); },
          "ClearComponent()",
          DependencyType::kInverted,
          false}
@@ -247,9 +280,14 @@ bool ComponentContextImpl::IsAnyComponentInFatalState() const {
 #endif
 
     for (const auto& comp : components_) {
-        switch (comp->GetComponent()->GetComponentHealth()) {
+        // Do NOT use comp->GetComponent() + GetComponentHealth(), as there's a race on components destruction
+        switch (comp->GetComponentHealth()) {
             case ComponentHealth::kFatal:
-                LOG_ERROR() << "Component '" << comp->GetName() << "' is in kFatal state";
+                LOG(service_lifetime_stage_ == ServiceLifetimeStage::kRunning
+                        ? logging::Level::kError
+                        : logging::Level::kDebug
+                ) << "Component '"
+                  << comp->GetName() << "' is in kFatal state";
                 return true;
             case ComponentHealth::kFallback:
                 LOG_LIMITED_WARNING() << "Component '" << comp->GetName() << "' is in kFallback state";
@@ -263,7 +301,40 @@ bool ComponentContextImpl::IsAnyComponentInFatalState() const {
     return false;
 }
 
+std::vector<State::ComponentWithHealth> ComponentContextImpl::GetUnhealthyComponents() const {
+#ifndef NDEBUG
+    {
+        const auto data = shared_data_.Lock();
+        UASSERT_MSG(
+            data->print_adding_components_stopped,
+            "GetUnhealthyComponents() should be called only after all the components has been loaded."
+        );
+    }
+#endif
+
+    std::vector<State::ComponentWithHealth> result;
+    for (const auto& comp : components_) {
+        // Do NOT use comp->GetComponent() + GetComponentHealth(), as there's a race on components destruction
+        const auto health = comp->GetComponentHealth();
+        switch (health) {
+            case ComponentHealth::kFatal:
+            case ComponentHealth::kFallback:
+                // components_ (and `name` stored in it) are freed at the very end of the component system lifetime
+                // when all the components are already stopped and no component can use the result of this function,
+                // that returns a string_view on name.
+                result.push_back({comp->GetName(), health});
+                break;
+            case ComponentHealth::kOk:
+                break;
+        }
+    }
+
+    return result;
+}
+
 ServiceLifetimeStage ComponentContextImpl::GetServiceLifetimeStage() const { return service_lifetime_stage_.load(); }
+
+bool ComponentContextImpl::IsInGracefulShutdown() const { return in_graceful_shutdown_.test(); }
 
 bool ComponentContextImpl::HasDependencyOn(std::string_view component_name, std::string_view dependency) const {
     if (!Contains(component_name)) {
@@ -306,8 +377,7 @@ std::unordered_set<std::string_view> ComponentContextImpl::GetAllDependencies(st
     UASSERT_MSG(
         Contains(component_name),
         fmt::format(
-            "Exception while calling GetAllDependencies(\"{0}\" "
-            "). Component \"{0}\" was not loaded.",
+            "Exception while calling GetAllDependencies(\"{0}\" ). Component \"{0}\" was not loaded.",
             component_name
         )
     );
@@ -317,8 +387,7 @@ std::unordered_set<std::string_view> ComponentContextImpl::GetAllDependencies(st
     const auto data = shared_data_.Lock();
     UASSERT_MSG(
         data->print_adding_components_stopped,
-        "HasDependencyOn() should be called only after all the "
-        "components has been loaded."
+        "HasDependencyOn() should be called only after all the components has been loaded."
     );
 
     std::unordered_set<ConstComponentInfoRef> handled;
@@ -345,8 +414,7 @@ void ComponentContextImpl::ThrowNonRegisteredComponent(
 ) const {
     throw std::runtime_error(fmt::format(
         "Component '{}' requested component {} with name '{}'. That name is "
-        "missing in the static config or the '{}' static config section contains "
-        "'load-enabled: false'.",
+        "missing in the static config or the '{}' static config section contains 'load-enabled: false'.",
         current_component.GetName(),
         type,
         name,
@@ -361,8 +429,7 @@ void ComponentContextImpl::ThrowComponentTypeMismatch(
     ComponentInfo& current_component
 ) const {
     throw std::runtime_error(fmt::format(
-        "Component '{}' requested component with name '{}' that is actually "
-        "{}{} rather than a {}",
+        "Component '{}' requested component with name '{}' that is actually {}{} rather than a {}",
         current_component.GetName(),
         name,
         (component ? "has type " : "a nullptr"),
@@ -391,10 +458,15 @@ void ComponentContextImpl::ProcessSingleComponentLifetimeStageSwitching(
         }
     };
     try {
-        if (params.dependency_type == DependencyType::kNormal) {
-            component_info.ForEachItDependsOn(wait_cb);
-        } else {
-            component_info.ForEachDependsOnIt(wait_cb);
+        switch (params.dependency_type) {
+            case DependencyType::kNormal:
+                component_info.ForEachItDependsOn(wait_cb);
+                break;
+            case DependencyType::kInverted:
+                component_info.ForEachDependsOnIt(wait_cb);
+                break;
+            case DependencyType::kNone:
+                break;
         }
 
         LOG_DEBUG() << "Call " << params.stage_switch_handler_name << " for component '" << name << "'";
@@ -406,7 +478,7 @@ void ComponentContextImpl::ProcessSingleComponentLifetimeStageSwitching(
             }
         );
 
-        (component_info.*params.stage_switch_handler)();
+        params.stage_switch_handler(component_info);
     } catch (const impl::StageSwitchingCancelledException& ex) {
         LOG_WARNING() << params.stage_switch_handler_name << " failed for component '" << name << "': " << ex;
         component_info.SetStage(params.next_stage);
@@ -431,7 +503,7 @@ void ComponentContextImpl::ProcessAllComponentLifetimeStageSwitchings(ComponentL
     std::vector<std::pair<ComponentInfoRef, engine::TaskWithResult<void>>> tasks;
     tasks.reserve(components_.size());
     for (auto& component_info : components_) {
-        tasks.emplace_back(*component_info, engine::CriticalAsyncNoSpan([&] {
+        tasks.emplace_back(*component_info, utils::TaskBuilder{}.NoTracing().Background().Critical().Build([&] {
             ProcessSingleComponentLifetimeStageSwitching(*component_info, params);
         }));
     }
@@ -578,7 +650,7 @@ void ComponentContextImpl::CancelComponentLifetimeStageSwitching() {
 }
 
 void ComponentContextImpl::StartPrintAddingComponentsTask() {
-    print_adding_components_task_ = engine::CriticalAsyncNoSpan([this]() {
+    print_adding_components_task_ = utils::TaskBuilder{}.NoTracing().Background().Critical().Build([this]() {
         for (;;) {
             {
                 auto data = shared_data_.UniqueLock();

@@ -115,6 +115,8 @@ public:
 
     virtual RequestGet Get(std::string key) = 0;
 
+    virtual RequestGetdel Getdel(std::string key) = 0;
+
     virtual RequestGetset Getset(std::string key, std::string value) = 0;
 
     virtual RequestHdel Hdel(std::string key, std::string field) = 0;
@@ -171,6 +173,15 @@ public:
 
     virtual RequestMset Mset(std::vector<std::pair<std::string, std::string>> key_values) = 0;
 
+    /// @throws InvalidArgumentException in cluster mode if the keys belong to different hash slots
+    virtual RequestMsetex Msetex(std::vector<std::pair<std::string, std::string>> key_values) = 0;
+
+    /// @throws InvalidArgumentException in cluster mode if the keys belong to different hash slots
+    virtual RequestMsetex Msetex(
+        std::vector<std::pair<std::string, std::string>> key_values,
+        MsetexOptions options
+    ) = 0;
+
     virtual RequestPersist Persist(std::string key) = 0;
 
     virtual RequestPexpire Pexpire(std::string key, std::chrono::milliseconds ttl) = 0;
@@ -216,6 +227,12 @@ public:
     ) = 0;
 
     virtual RequestSetex Setex(std::string key, std::chrono::seconds seconds, std::string value) = 0;
+
+    virtual RequestSetAndGetPrevious SetAndGetPrevious(
+        std::string key,
+        std::string value,
+        std::chrono::milliseconds ttl
+    ) = 0;
 
     virtual RequestSismember Sismember(std::string key, std::string member) = 0;
 
@@ -312,6 +329,100 @@ public:
     virtual RequestZremrangebyscore Zremrangebyscore(std::string key, std::string min, std::string max) = 0;
 
     virtual RequestZscore Zscore(std::string key, std::string member) = 0;
+
+    // Hash field expiration commands:
+
+    virtual RequestHexpire Hexpire(std::string key, std::chrono::seconds ttl, std::vector<std::string> fields) = 0;
+
+    virtual RequestHexpire Hexpire(
+        std::string key,
+        std::chrono::seconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpire Hpexpire(
+        std::string key,
+        std::chrono::milliseconds ttl,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpire Hexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpire Hpexpireat(
+        std::string key,
+        std::chrono::system_clock::time_point deadline,
+        ExpireOptions options,
+        std::vector<std::string> fields
+    ) = 0;
+
+    virtual RequestHexpiretime Hexpiretime(std::string key, std::vector<std::string> fields) = 0;
+
+    virtual RequestHpexpiretime Hpexpiretime(std::string key, std::vector<std::string> fields) = 0;
+
+    virtual RequestHttl Httl(std::string key, std::vector<std::string> fields) = 0;
+
+    virtual RequestHpttl Hpttl(std::string key, std::vector<std::string> fields) = 0;
+
+    virtual RequestHpersist Hpersist(std::string key, std::vector<std::string> fields) = 0;
+
+    virtual RequestHgetex Hgetex(std::string key, std::vector<std::string> fields) = 0;
+
+    virtual RequestHgetex Hgetex(std::string key, HgetexOptions options, std::vector<std::string> fields) = 0;
+
+    virtual RequestHsetex Hsetex(std::string key, std::vector<HsetexFieldValue> field_values) = 0;
+
+    virtual RequestHsetex Hsetex(
+        std::string key,
+        HsetexOptions options,
+        std::vector<HsetexFieldValue> field_values
+    ) = 0;
+
+    // JSON module commands:
+
+    virtual RequestJsonSet JsonSet(std::string key, std::string path, formats::json::Value value) = 0;
+
+    virtual RequestJsonSetIfNotExist JsonSetIfNotExist(
+        std::string key,
+        std::string path,
+        formats::json::Value value
+    ) = 0;
+
+    virtual RequestJsonSetIfExist JsonSetIfExist(std::string key, std::string path, formats::json::Value value) = 0;
+
+    virtual RequestJsonGet JsonGet(std::string key) = 0;
+
+    virtual RequestJsonGet JsonGet(std::string key, std::string path) = 0;
+
+    virtual RequestJsonGet JsonGet(std::string key, std::vector<std::string> paths) = 0;
+
+    virtual RequestJsonMget JsonMget(std::vector<std::string> keys, std::string path) = 0;
+
+    virtual RequestJsonMset JsonMset(std::vector<JsonKeyPathValue> key_path_values) = 0;
 
     // end of redis commands
 };

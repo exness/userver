@@ -32,10 +32,7 @@ struct DecomposedUrlView {
 /// @brief Encode as URL
 /// @param input_string String to encode
 /// @returns URL-encoded string where special characters are encoded as %XX sequences
-/// @code
-///   auto encoded = UrlEncode("hello world");
-///   // Returns: "hello%20world"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  UrlEncode example
 std::string UrlEncode(std::string_view input_string);
 
 /// @brief Encode a URL path segment (for use in S3 and similar APIs)
@@ -44,10 +41,7 @@ std::string UrlEncode(std::string_view input_string);
 ///          but path-safe characters (-, _, ., ~, $, &, ,, :, =, @) are kept unescaped
 /// @note This is less aggressive than UrlEncode and is suitable for encoding path segments
 ///       where you want to preserve readability of certain special characters
-/// @code
-///   auto encoded = UrlEncodePathSegment("file-name_with spaces.txt");
-///   // Returns: "file-name_with%20spaces.txt"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  UrlEncodePathSegment example
 std::string UrlEncodePathSegment(std::string_view input_string);
 
 /// @brief Encode an S3 object key for use in URL path
@@ -55,10 +49,7 @@ std::string UrlEncodePathSegment(std::string_view input_string);
 /// @returns URL-encoded path where each segment is encoded but '/' separators are preserved
 /// @note S3 object keys can contain '/' which should be preserved as path separators,
 ///       while other special characters should be encoded
-/// @code
-///   auto encoded = EncodeS3Key("folder/file with spaces.txt");
-///   // Returns: "folder/file%20with%20spaces.txt"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  EncodeS3Key example
 std::string EncodeS3Key(std::string_view key);
 
 using Args = std::unordered_map<std::string, std::string, utils::StrCaseHash>;
@@ -68,58 +59,39 @@ using PathArgs = std::unordered_map<std::string, std::string>;
 /// @brief Make an URL query
 /// @param query_args Map of query parameters
 /// @returns URL query string without leading '?' character
-/// @code
-///   auto query = MakeQuery(http::Args{{"param", "value"}, {"filter", "active"}});
-///   // Returns: "param=value&filter=active"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeQuery example
 std::string MakeQuery(const Args& query_args);
 
 /// @brief Make an URL query
 /// @param query_args Multimap of query parameters
 /// @returns URL query string without leading '?' character
-/// @code
-///   http::MultiArgs args = {{"tag", "new"}, {"tag", "featured"}};
-///   auto query = MakeQuery(args);
-///   // Returns: "tag=new&tag=featured"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeQuery MultiArgs
 std::string MakeQuery(const MultiArgs& query_args);
 
 /// @brief Make an URL query
 /// @param query_args Map of query parameters
 /// @returns URL query string without leading '?' character
-/// @code
-///   auto query = MakeQuery(std::unordered_map<std::string, std::string>{{"page", "1"}, {"size", "10"}});
-///   // Returns: "page=1&size=10"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeQuery unordered_map example
 std::string MakeQuery(const std::unordered_map<std::string, std::string>& query_args);
 
 /// @brief Make an URL query
 /// @param query_args Initializer list of query parameters as key-value pairs
 /// @returns URL query string without leading '?' character
-/// @code
-///   auto query = MakeQuery({{"sort", "date"}, {"order", "desc"}});
-///   // Returns: "sort=date&order=desc"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeQuery initializer list example
 std::string MakeQuery(std::initializer_list<std::pair<std::string_view, std::string_view>> query_args);
 
 /// @brief Make an URL with query arguments
 /// @param path Base URL path
 /// @param query_args Map of query parameters
 /// @returns Complete URL with query string
-/// @code
-///   auto url = MakeUrl("/api/users", http::Args{{"status", "active"}});
-///   // Returns: "/api/users?status=active"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrl example
 std::string MakeUrl(std::string_view path, const Args& query_args);
 
 /// @brief Make an URL with query arguments
 /// @param path Base URL path
 /// @param query_args Map of query parameters
 /// @returns Complete URL with query string
-/// @code
-///   auto url = MakeUrl("/api/products", std::unordered_map<std::string, std::string>{{"category", "electronics"}});
-///   // Returns: "/api/products?category=electronics"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrl with unordered_map example
 std::string MakeUrl(std::string_view path, const std::unordered_map<std::string, std::string>& query_args);
 
 /// @brief Make an URL with query arguments
@@ -127,21 +99,14 @@ std::string MakeUrl(std::string_view path, const std::unordered_map<std::string,
 /// @param query_args Map of query parameters
 /// @param query_multiargs Multimap for query parameters that can have multiple values
 /// @returns Complete URL with query string
-/// @code
-///   http::MultiArgs multi_args = {{"tag", "new"}, {"tag", "featured"}};
-///   auto url = MakeUrl("/api/products", http::Args{{"category", "electronics"}}, multi_args);
-///   // Returns: "/api/products?category=electronics&tag=new&tag=featured"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrl with MultiArgs example
 std::string MakeUrl(std::string_view path, const Args& query_args, MultiArgs query_multiargs);
 
 /// @brief Make an URL with query arguments
 /// @param path Base URL path
 /// @param query_args Initializer list of query parameters as key-value pairs
 /// @returns Complete URL with query string
-/// @code
-///   auto url = MakeUrl("/api/search", {{"q", "smartphone"}, {"sort", "relevance"}});
-///   // Returns: "/api/search?q=smartphone&sort=relevance"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrl with initializer list example
 std::string MakeUrl(
     std::string_view path,
     std::initializer_list<std::pair<std::string_view, std::string_view>> query_args
@@ -161,10 +126,7 @@ std::string MakeUrl(
 /// @param path_args Map of placeholder names to their values
 /// @returns Formatted path or std::nullopt if formatting fails (e.g., missing placeholder,
 ///          invalid format, or empty key in path_args)
-/// @code
-///   auto url = MakeUrlWithPathArgs("/api/v1/users/{user_id}", {{"user_id", "123"}});
-///   // Returns: "/api/v1/users/123"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrlWithPathArgs example
 std::optional<std::string> MakeUrlWithPathArgs(std::string_view path, const PathArgs& path_args);
 
 /// @brief Make an URL with path parameters and query arguments
@@ -172,12 +134,7 @@ std::optional<std::string> MakeUrlWithPathArgs(std::string_view path, const Path
 /// @param path_args Map of placeholder names to their values
 /// @param query_args Map of query parameters
 /// @returns Formatted URL or std::nullopt if path formatting fails
-/// @code
-///   auto url = MakeUrlWithPathArgs("/api/v1/users/{user_id}",
-///                                 {{"user_id", "123"}},
-///                                 http::Args{{"filter", "active"}});
-///   // Returns: "/api/v1/users/123?filter=active"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrlWithPathArgs with query example
 std::optional<std::string> MakeUrlWithPathArgs(
     std::string_view path,
     const PathArgs& path_args,
@@ -189,12 +146,7 @@ std::optional<std::string> MakeUrlWithPathArgs(
 /// @param path_args Map of placeholder names to their values
 /// @param query_args Map of query parameters
 /// @returns Formatted URL or std::nullopt if path formatting fails
-/// @code
-///   auto url = MakeUrlWithPathArgs("/api/v1/users/{user_id}",
-///                                 {{"user_id", "123"}},
-///                                 std::unordered_map<std::string, std::string>{{"page", "1"}});
-///   // Returns: "/api/v1/users/123?page=1"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrlWithPathArgs unordered map query args
 std::optional<std::string> MakeUrlWithPathArgs(
     std::string_view path,
     const PathArgs& path_args,
@@ -207,14 +159,7 @@ std::optional<std::string> MakeUrlWithPathArgs(
 /// @param query_args Map of query parameters
 /// @param query_multiargs Multimap for query parameters that can have multiple values
 /// @returns Formatted URL or std::nullopt if path formatting fails
-/// @code
-///   http::MultiArgs multi_args = {{"tag", "new"}, {"tag", "featured"}};
-///   auto url = MakeUrlWithPathArgs("/api/v1/products/{category}",
-///                                 {{"category", "electronics"}},
-///                                 http::Args{{"sort", "price"}},
-///                                 multi_args);
-///   // Returns: "/api/v1/products/electronics?sort=price&tag=new&tag=featured"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrlWithPathArgs MultiArgs
 std::optional<std::string> MakeUrlWithPathArgs(
     std::string_view path,
     const PathArgs& path_args,
@@ -227,12 +172,7 @@ std::optional<std::string> MakeUrlWithPathArgs(
 /// @param path_args Map of placeholder names to their values
 /// @param query_args Initializer list of query parameters as key-value pairs
 /// @returns Formatted URL or std::nullopt if path formatting fails
-/// @code
-///   auto url = MakeUrlWithPathArgs("/api/v1/search/{term}",
-///                                 {{"term", "laptop"}},
-///                                 {{"brand", "apple"}, {"price_max", "2000"}});
-///   // Returns: "/api/v1/search/laptop?brand=apple&price_max=2000"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  MakeUrlWithPathArgs with initializer list example
 std::optional<std::string> MakeUrlWithPathArgs(
     std::string_view path,
     const PathArgs& path_args,
@@ -242,10 +182,7 @@ std::optional<std::string> MakeUrlWithPathArgs(
 /// @brief Returns URL part before the first '?' character
 /// @param url Full URL to extract from
 /// @returns URL without query string
-/// @code
-///   auto base = ExtractMetaTypeFromUrl("https://example.com/api/users?page=1&sort=name");
-///   // Returns: "https://example.com/api/users"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractMetaTypeFromUrl example
 std::string ExtractMetaTypeFromUrl(std::string_view url);
 std::string_view ExtractMetaTypeFromUrlView(std::string_view url);
 
@@ -253,81 +190,41 @@ std::string_view ExtractMetaTypeFromUrlView(std::string_view url);
 /// @brief Returns HTTP path part of a URL
 /// @param url Full URL to extract from
 /// @returns Path component of the URL
-/// @code
-///   auto path = ExtractPath("https://example.com/api/users");
-///   // Returns: "/api/users"
-///   auto path2 = ExtractPath("example.com/api/users?a=b");
-///   // Returns: "/api/users?a=b"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractPathOnly example
 std::string ExtractPath(std::string_view url);
 std::string_view ExtractPathView(std::string_view url);
 
 /// @brief Returns HTTP path part of a URL
 /// @param url Full URL to extract from
 /// @returns Path component of the URL
-/// @code
-///   auto path = ExtractPath("https://example.com/api/users");
-///   // Returns: "/api/users"
-///   auto path2 = ExtractPath("example.com/api/users?a=b");
-///   // Returns: "/api/users"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractPathOnly example 2
 std::string ExtractPathOnly(std::string_view url);
 
 /// @brief Returns hostname part of a URL
 /// @param url Full URL to extract from
 /// @returns Hostname component of the URL
-/// @code
-///   auto host = ExtractHostname("https://example.com/api/users");
-///   // Returns: "example.com"
-///   auto host2 = ExtractHostname("https://user:pass@example.com:8080/api");
-///   // Returns: "example.com"
-///   auto host3 = ExtractHostname("http://[::1]:8080/");
-///   // Returns: "[::1]"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractHostname example
 std::string ExtractHostname(std::string_view url);
 std::string_view ExtractHostnameView(std::string_view url);
 
 /// @brief Returns scheme part of a URL
 /// @param url Full URL to extract from
 /// @returns Scheme component of the URL
-/// @code
-///   auto scheme = ExtractScheme("https://example.com/api/users");
-///   // Returns: "https"
-///   auto scheme2 = ExtractScheme("http://user:pass@example.com:8080/api");
-///   // Returns: "http"
-///   auto scheme3 = ExtractScheme("ftp://[::1]:8080/");
-///   // Returns: "ftp"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractScheme example
 std::string ExtractScheme(std::string_view url);
 std::string_view ExtractSchemeView(std::string_view url);
 
 /// @brief Returns query part of a URL
 /// @param url Full URL to extract from
 /// @returns Query component of the URL
-/// @code
-///   auto query = ExtractQuery("https://example.com/api/users?q=1");
-///   // Returns: "q=1"
-///   auto query2 = ExtractQuery("http://user:pass@example.com:8080/api");
-///   // Returns: ""
-///   auto query3 = ExtractQuery("ftp://[::1]:8080/?q=12&w=23");
-///   // Returns: "q=12&w=23"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractQuery example
 std::string ExtractQuery(std::string_view url);
 std::string_view ExtractQueryView(std::string_view url);
 
 /// @brief Returns fragment part of a URL
 /// @param url Full URL to extract from
 /// @returns Fragment component of the URL
-/// @code
-///   auto fragment = ExtractFragment("https://example.com/api/users?q=1");
-///   // Returns: ""
-///   auto fragment2 = ExtractFragment("http://user:pass@example.com:8080/api#123");
-///   // Returns: "123"
-///   auto fragment3 = ExtractFragment("ftp://[::1]:8080/#123?q=12&w=23");
-///   // Returns: "123"
-///   auto fragment4 = ExtractFragment("ftp://[::1]:8080/?q=12&w=23#123");
-///   // Returns: "123"
-/// @endcode
+/// @snippet universal/src/http/url_test.cpp  ExtractFragment example
 std::string ExtractFragment(std::string_view url);
 std::string_view ExtractFragmentView(std::string_view url);
 

@@ -8,6 +8,7 @@
 
 #include <storages/redis/impl/statistics_holder.hpp>
 #include <storages/redis/impl/topology_holder_base.hpp>
+#include <userver/storages/redis/topology_update_method.hpp>
 
 USERVER_NAMESPACE_BEGIN
 
@@ -25,10 +26,13 @@ public:
         const engine::ev::ThreadControl& sentinel_thread_control,
         const std::shared_ptr<engine::ev::ThreadPool>& redis_thread_pool,
         std::string shard_group_name,
-        Password password,
+        Credentials credentials,
         const std::vector<std::string>& /*shards*/,
         const std::vector<ConnectionInfo>& conns,
-        ConnectionSecurity connection_security
+        ConnectionSecurity connection_security,
+        TopologyUpdateMethod topology_update_method,
+        Hysteresis::Config hysteresis_config,
+        std::chrono::seconds max_disconnect_time
     );
 
     ~ClusterTopologyHolder() override = default;
@@ -37,6 +41,8 @@ public:
     void Start() override;
     void Stop() override;
     bool WaitReadyOnce(engine::Deadline deadline, WaitConnectedMode mode) override;
+    bool IsReady(const HealthCheckParams& params) const override;
+
     rcu::ReadablePtr<ClusterTopology, rcu::BlockingRcuTraits> GetTopology() const override;
     void SendUpdateClusterTopology() override;
     std::shared_ptr<Redis> GetRedisInstance(const HostPort& host_port) const override;
@@ -47,8 +53,8 @@ public:
     void SetConnectionInfo(const std::vector<ConnectionInfoInt>& info_array) override;
     boost::signals2::signal<void(HostPort, Redis::State)>& GetSignalNodeStateChanged() override;
     boost::signals2::signal<void(size_t)>& GetSignalTopologyChanged() override;
-    void UpdatePassword(const Password& password) override;
-    Password GetPassword() override;
+    void UpdateCredentials(const Credentials& credentials) override;
+    Credentials GetCredentials() override;
     std::string GetReadinessInfo() const override;
 
     static size_t GetClusterSlotsCalledCounter() { return cluster_slots_call_counter.load(std::memory_order_relaxed); }
@@ -61,9 +67,10 @@ private:
 
     const std::string shard_group_name_;
     logging::LogExtra log_extra_;
-    concurrent::Variable<Password, std::mutex> password_;
+    concurrent::Variable<Credentials, std::mutex> credentials_;
     std::shared_ptr<const std::vector<std::string>> shards_names_;
     const std::vector<ConnectionInfo> conns_;
+    const TopologyUpdateMethod topology_update_method_;
     std::shared_ptr<Shard> sentinels_;
 
     StatisticsHolder statistics_holder_;
@@ -102,7 +109,6 @@ private:
     std::atomic<bool> is_topology_received_{false};
     std::atomic<bool> is_nodes_received_{false};
     std::atomic<bool> update_cluster_slots_flag_{false};
-    bool IsInitialized() const { return is_nodes_received_.load() && is_topology_received_.load(); }
     ///}
 
     boost::signals2::signal<void(HostPort, Redis::State)> signal_node_state_change_;
@@ -121,6 +127,8 @@ private:
     static std::atomic<size_t> cluster_slots_call_counter;
 
     const ConnectionSecurity connection_security_;
+    Hysteresis::Config hysteresis_config_;
+    const std::chrono::seconds max_disconnect_time_{35};
 };
 
 }  // namespace storages::redis::impl

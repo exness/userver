@@ -39,7 +39,7 @@ struct DBTypeName {
         : schema{},
           name{}
     {}
-    explicit constexpr DBTypeName(std::pair<std::string_view, std::string_view> n)
+    constexpr explicit DBTypeName(std::pair<std::string_view, std::string_view> n)
         : schema(n.first),
           name(n.second)
     {}

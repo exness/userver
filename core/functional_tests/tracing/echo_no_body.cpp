@@ -6,6 +6,7 @@
 #include <userver/components/component.hpp>
 #include <userver/components/minimal_server_component_list.hpp>
 #include <userver/http/url.hpp>
+#include <userver/logging/log.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 #include <userver/server/handlers/tests_control.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
@@ -25,6 +26,7 @@ public:
     {}
 
     std::string HandleRequestThrow(const server::http::HttpRequest&, server::request::RequestContext&) const override {
+        LOG_INFO() << "echo-no-body handler called";
         auto response = http_client_.CreateRequest().get(echo_url_).retry(2).timeout(std::chrono::seconds{5}).perform();
         response->raise_for_status();
         return {};

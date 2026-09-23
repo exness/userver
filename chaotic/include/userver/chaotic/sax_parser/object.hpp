@@ -9,6 +9,7 @@
 #include <userver/formats/json/parser/array_parser.hpp>
 #include <userver/formats/json/parser/dummy_parser.hpp>
 #include <userver/formats/json/parser/parser_json.hpp>
+#include <userver/formats/json/value_builder.hpp>
 #include <userver/utils/constexpr_indices.hpp>
 #include <userver/utils/meta.hpp>
 #include <userver/utils/overloaded.hpp>

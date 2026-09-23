@@ -1,0 +1,38 @@
+#pragma once
+
+#include <atomic>
+#include <vector>
+
+#include <storages/odbc/detail/topology/topology_base.hpp>
+
+USERVER_NAMESPACE_BEGIN
+
+namespace storages::odbc::detail::topology {
+
+class FixedPrimary final : public TopologyBase {
+public:
+    FixedPrimary(
+        const settings::ODBCClusterSettings& settings,
+        const settings::StatementMetricsSettings& statement_metrics_settings,
+        const settings::PreparedStatementCacheSettings& prepared_statement_cache_settings,
+        clients::dns::Resolver* resolver,
+        engine::TaskProcessor& blocking_task_processor
+    );
+    ~FixedPrimary() final;
+
+private:
+    Pool& GetPrimary() const final;
+    Pool& GetSecondary() const final;
+
+    Pool& InitializePrimaryPoolReference();
+    std::vector<Pool*> InitializeSecondariesVector();
+
+    Pool& primary_;
+    std::vector<Pool*> secondaries_;
+
+    mutable std::atomic<std::size_t> secondary_index_{0};
+};
+
+}  // namespace storages::odbc::detail::topology
+
+USERVER_NAMESPACE_END
